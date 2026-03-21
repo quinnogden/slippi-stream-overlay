@@ -1,0 +1,27 @@
+/* ============================================================
+   Hundred Acres — Shared Design Tokens
+   Import this before any layout-specific CSS.
+   Overrides TSH's injected defaults so the theme is consistent
+   regardless of TSH settings panel changes.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
+
+:root {
+  /* Typography */
+  --font:           'Fredoka', sans-serif;
+  --score-font:     'Fredoka', sans-serif;
+
+  /* Shape */
+  --border-radius:  16px;
+
+  /* Colors */
+  --bg-color:       #2f4428;   /* deep forest green */
+  --text-color:     #f9d697;   /* warm gold */
+  --darkened-text:  #aa8e5b;   /* muted gold */
+  --score-bg-color: #132d35;   /* dark teal */
+  --p1-score-color: #f9d697;
+  --p2-score-color: #f9d697;
+  --sponsor-color:  #aa8e5b;
+  --accent-color:   #f9d697;   /* used by side panel, player card, etc. */
+}
