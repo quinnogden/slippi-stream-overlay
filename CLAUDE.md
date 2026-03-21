@@ -88,6 +88,7 @@ state.score["1"].team["1"].player["1"].character["1"].skin  → preloaded costum
 
 ```
 GET  /scoreboard1-teamN-scoreup           → increment team N score by 1
+GET  /scoreboard1-teamN-color-<hex>       → set team color (hex without #)
 POST /scoreboard1-update-team-N-1         → set character/costume
      body: { mains: { ssbm: [[charDisplayName, costumeIndex]] } }
 ```
@@ -98,8 +99,9 @@ POST /scoreboard1-update-team-N-1         → set character/costume
 - The layout implements TSH's `Start()` and `Update(event)` hooks (defined in `layout/include/globals.js`).
 - The Slippi bridge integration lives at the bottom of `index.js` inside `initSlippiBridge()`. It:
   - Connects to `http://localhost:5001` via Socket.io.
-  - On `slippi_game_start`: stores game data, then patches character `<img>` src after each `tsh_update` to show the correct Slippi costume (TSH defaults to costume 0).
-  - On `tsh_update` (DOM event): calls `applySlippiCostumes()` with 150ms delay to let TSH finish rendering first.
+  - On `slippi_game_start`: stores game data. In singles, patches character `<img>` src after each `tsh_update` (TSH defaults to costume 0). In doubles, clears any leftover character icons.
+  - On `tsh_update` (DOM event): calls `applySlippiCostumes()` with 150ms delay to let TSH finish rendering first. Detects doubles mode from DOM (`character_container.team-color`) rather than from stale bridge data, so icons clear immediately when TSH config switches from singles to doubles.
+  - In doubles, TSH injects a `div.text.text_empty` placeholder inside `.character_container` even after it's cleared — hidden via `.character_container.team-color .text.text_empty { display: none }` in CSS.
 
 ### Character Map — `slippi-bridge/char_map.js`
 
@@ -131,15 +133,17 @@ Costume index comes from `player.characterColor` in `getSettings()`.
 
 Tracked as GitHub issues at [github.com/quinnogden/slippi-stream-overlay/issues](https://github.com/quinnogden/slippi-stream-overlay/issues).
 
-**Build order:** ✅#5 → ✅#6 → #1 → #2 → #4 → #3 → #7
+**Build order:** ✅#5 → ✅#6 → ✅#1 → ✅#2 → #4 → #3 → #7
 
 - **[✅#5] Shared CSS design token file** — `layout/theme.css` with Fredoka font + main.css colors. Linked in `melee.html` before `index.css`. All future layouts link to this first. BabyDoll kept in `main.css` as fallback.
 
 - **[✅#6] Handwarmer detection** — `slippi-bridge/handwarmer.js`. Weighted score ≥ 2 = handwarmer: each player's `totalDamage < 150` (+1/−1), LRAS end method 7 (+1/−1), both players have >1 stocks in last frame (+2), duration < 45s (+1). Guard: if `stats.overall` is empty/missing, returns false (prevents vacuous-truth false positives). Score-only suppression: `slippi_game_start` still fires (characters update), score increment skipped. Rage quit handling: LRAS + not handwarmer + valid `lrasInitiatorIndex` → awards point to the other player. Folder mode only; TCP mode always passes `isHandwarmer: false`.
 
-- **[#1] Doubles support (HIGH PRIORITY)** — User streams 1v1 and 2v2 at every tournament. Auto-detected from `players.length === 4` in `.slp` and `Object.keys(team["1"].player).length > 1` in TSH state. Same scoreboard number as 1v1 — no extra config. Scoreboard layout already has `isTeams` check. PortMapper needs to handle 4 ports (2 per team), name/score matching across 2 players per team, atomic 4-port swap.
-
-- **[#2] Doubles: auto-import TSH team color** — Depends on #1. Replace per-player character+costume with team color from `state.score["1"].team["1"].color`. Emit in `slippi_game_start` payload. 1v1 unchanged.
+- **[✅#1 + ✅#2] Doubles support + team colors** — Auto-detected from 4 active players with `teamId` assigned in `.slp` AND `Object.keys(team["1"].player).length > 1` in TSH state. Same scoreboard, same bridge port — no extra config.
+  - **PortMapper extensions**: `resolveDoubles()` (name → score → positional), `tryCharacterBasedDoubles()` (bidirectional scoring vs both TSH teams — breaks ties where only one team has a unique char), `applyDoublesPositional()` (group-based: lower min-port Slippi group → TSH team 1). `applyDoublesPositional` is called explicitly after `resolveDoubles`+`tryCharacterBased` at 0-0 so `_portToTeam` is always set — fixes index-based positional fallback which was wrong for non-consecutive groups (e.g. ports {0,3} vs {1,2}).
+  - **Team colors**: `MELEE_TEAM_COLORS = { 0: '#D32F2F', 1: '#1565C0', 2: '#2E7D32' }` mapped from Slippi `teamId`. TSH TO-configured color is ignored/overwritten. `teamColorMap` uses min-port-per-group when `_portToTeam` is set; group min-port ranking otherwise.
+  - **Score tracking**: `onGameEnd` reads winner team from `currentGameState.players[winnerPlayerIndex].teamNum` before falling back to `portMapper.getTeam()`, fixing null winner when `_portToTeam` is unset at 0-0.
+  - **Game end**: RESOLVED end method (normal doubles win in Slippi) + last-frame stock count fallback when placements are missing.
 
 - **[#4] Right-side panel browser source** — 611×1080px replacing static PNG. Structure: dark top bar (tournament name from TSH), transparent cam cutout middle, dark bottom block (reserved for #3). Always-on with toggleable ambient animation via URL param `?animate=false`. `body { background: transparent }` for OBS cam passthrough. Socket.io connected for future hooks.
 
