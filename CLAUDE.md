@@ -131,11 +131,11 @@ Costume index comes from `player.characterColor` in `getSettings()`.
 
 Tracked as GitHub issues at [github.com/quinnogden/slippi-stream-overlay/issues](https://github.com/quinnogden/slippi-stream-overlay/issues).
 
-**Build order:** ✅#5 → #6 → #1 → #2 → #4 → #3 → #7
+**Build order:** ✅#5 → ✅#6 → #1 → #2 → #4 → #3 → #7
 
 - **[✅#5] Shared CSS design token file** — `layout/theme.css` with Fredoka font + main.css colors. Linked in `melee.html` before `index.css`. All future layouts link to this first. BabyDoll kept in `main.css` as fallback.
 
-- **[#6] Handwarmer detection** — Port `wasHandwarmers()` from [Melee-Ghost-Streamer](https://github.com/Sheepolution/Melee-Ghost-Streamer). Weighted score: damage < 50 (+1), LRAS end (+1), both players had stocks remaining (+2), kill count ≤ 1 (+1), duration < 45s (+1). Score ≥ 2 = handwarmer. Suppresses **both** `slippi_game_start` Socket.io event AND score increment. Console log only, nothing in overlay. Folder mode only.
+- **[✅#6] Handwarmer detection** — `slippi-bridge/handwarmer.js`. Weighted score ≥ 2 = handwarmer: each player's `totalDamage < 150` (+1/−1), LRAS end method 7 (+1/−1), both players have >1 stocks in last frame (+2), duration < 45s (+1). Guard: if `stats.overall` is empty/missing, returns false (prevents vacuous-truth false positives). Score-only suppression: `slippi_game_start` still fires (characters update), score increment skipped. Rage quit handling: LRAS + not handwarmer + valid `lrasInitiatorIndex` → awards point to the other player. Folder mode only; TCP mode always passes `isHandwarmer: false`.
 
 - **[#1] Doubles support (HIGH PRIORITY)** — User streams 1v1 and 2v2 at every tournament. Auto-detected from `players.length === 4` in `.slp` and `Object.keys(team["1"].player).length > 1` in TSH state. Same scoreboard number as 1v1 — no extra config. Scoreboard layout already has `isTeams` check. PortMapper needs to handle 4 ports (2 per team), name/score matching across 2 players per team, atomic 4-port swap.
 
