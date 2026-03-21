@@ -54,18 +54,23 @@ TournamentStreamHelper-5.967/  (Python app, port 5000)
         └─ index.css            ← styles
 ```
 
-### `slippi-bridge/index.js` — Port→Team Assignment
+### slippi-bridge modules
+
+The bridge is split across four files:
+
+- **`index.js`** — entry point, wires everything together. Owns `currentGameState`, calls the other modules, handles the keyboard listener.
+- **`port-mapper.js`** — `PortMapper` class. Owns all port→team tracking state (`portToTeam`, `portToName`, `portScore`). Never reads files or makes HTTP calls — all data is passed in.
+- **`tsh-client.js`** — `TshClient` class. All I/O with TSH: reads `program_state.json`, calls TSH HTTP API. Returns typed results instead of silently swallowing errors.
+- **`game-source.js`** — `createFolderSource` / `createTcpSource`. Returns a Node `EventEmitter` firing `game-start` (rawPlayers) and `game-end` (winnerPlayerIndex). `index.js` binds to these and never calls mode-specific code directly.
+- **`char_map.js`** — `resolveCharacter(charId, costume, tshRoot)`. Pure mapping, no I/O.
+
+### Port→Team Assignment (`PortMapper`)
 
 The bridge maintains a **port-persistent, swap-aware** mapping of Slippi player ports (0-based) to TSH teams (1-based). This survives TSH's "Swap Teams" button.
 
-State variables:
-- `portToTeam` — `{ [playerIndex]: teamNum }` — `null` = use positional default
-- `portToName` — `{ [playerIndex]: "PlayerName" }` — built from TSH state after each game
-- `portScore` — `{ [playerIndex]: wins }` — internal win counter for score-based fallback
-
 Assignment priority on each game start:
-1. **`resolvePortTeamMapping()`** — name-based matching (if mid-set). Fallback: score-based matching (portScore vs TSH scores). Resets to null on 0-0.
-2. **`tryCharacterBasedMapping()`** — at 0-0, checks TSH's preloaded character history (`program_state.json → team.player["1"].character["1"]`). Matches on `name`; also checks `skin` (costume index) when both players use the same character.
+1. **`portMapper.resolve(t1, t2)`** — name-based matching (if mid-set). Fallback: score-based matching (`portScore` vs TSH scores). Resets to null on 0-0.
+2. **`portMapper.tryCharacterBased()`** — at 0-0, checks TSH's preloaded character history (`program_state.json → team.player["1"].character["1"]`). Matches on `name`; also checks `skin` (costume index) when both players use the same character.
 3. **Positional default** — lower port index → team 1.
 
 ### `program_state.json` — Key Paths
