@@ -14,6 +14,7 @@ const fs           = require("fs");
 const path         = require("path");
 const EventEmitter = require("events");
 const { SlippiGame, GameEndMethod } = require("@slippi/slippi-js");
+const { wasHandwarmer } = require("./handwarmer");
 
 // ── Folder mode ───────────────────────────────────────────────────────────────
 
@@ -89,11 +90,21 @@ function createFolderSource(config) {
         const gameEnd = game.getGameEnd();
         if (gameEnd) {
           gameEnded = true;
+          const isHandwarmer = wasHandwarmer(game);
           if (gameEnd.gameEndMethod === GameEndMethod.GAME) {
             const winner = gameEnd.placements?.find((p) => p.position === 0);
-            emitter.emit("game-end", winner?.playerIndex ?? null);
+            emitter.emit("game-end", { winnerPlayerIndex: winner?.playerIndex ?? null, isHandwarmer });
+          } else if (!isHandwarmer && gameEnd.lrasInitiatorIndex >= 0) {
+            // Rage quit: LRAS but not a handwarmer (real damage was dealt).
+            // Award the point to the other active player.
+            const settings = game.getSettings();
+            const otherPlayer = settings?.players?.find(
+              (p) => p.playerIndex !== gameEnd.lrasInitiatorIndex
+            );
+            console.log(`[bridge] Rage quit detected — port ${gameEnd.lrasInitiatorIndex} quit out`);
+            emitter.emit("game-end", { winnerPlayerIndex: otherPlayer?.playerIndex ?? null, isHandwarmer: false });
           } else {
-            emitter.emit("game-end", null);
+            emitter.emit("game-end", { winnerPlayerIndex: null, isHandwarmer });
           }
           knownFiles.add(currentFile);
           currentFile = null;
@@ -135,9 +146,9 @@ function createTcpSource(config) {
   realtime.game.end$.subscribe((end) => {
     console.log("[bridge] Game end detected (TCP)");
     if (end.gameEndMethod === GEM.GAME) {
-      emitter.emit("game-end", end.winnerPlayerIndex ?? null);
+      emitter.emit("game-end", { winnerPlayerIndex: end.winnerPlayerIndex ?? null, isHandwarmer: false });
     } else {
-      emitter.emit("game-end", null);
+      emitter.emit("game-end", { winnerPlayerIndex: null, isHandwarmer: false });
     }
   });
 

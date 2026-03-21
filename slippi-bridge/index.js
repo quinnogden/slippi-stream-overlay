@@ -156,9 +156,15 @@ function onGameStart(rawPlayers) {
 
 /**
  * Called by the game source when a game ends.
- * @param {number|null} winnerPlayerIndex — 0-based port of winner, or null
+ * @param {{ winnerPlayerIndex: number|null, isHandwarmer: boolean }} event
  */
-function onGameEnd(winnerPlayerIndex) {
+function onGameEnd({ winnerPlayerIndex, isHandwarmer }) {
+  if (isHandwarmer) {
+    console.log("[bridge] Handwarmer detected — suppressing score increment.");
+    currentGameState = null;
+    return;
+  }
+
   if (winnerPlayerIndex == null || winnerPlayerIndex < 0) {
     console.log("[bridge] Game ended with no winner (LRA-start or no contest).");
     io.emit("slippi_game_end", { winner: null });
