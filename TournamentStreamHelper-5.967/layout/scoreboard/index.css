@@ -1664,6 +1664,13 @@ body {
   z-index: 1;
 }
 
+/* TSH's rendering engine re-injects a div.text.text_empty placeholder inside
+   the container even after SetInnerHtml clears it. Hide it so it doesn't create
+   a gap between the team-color swatch and the score. */
+.character_container.team-color .text.text_empty {
+  display: none;
+}
+
 .character_container > div {
   overflow: hidden;
   height: 48px;

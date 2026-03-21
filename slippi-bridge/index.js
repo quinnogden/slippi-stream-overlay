@@ -56,40 +56,86 @@ httpServer.listen(config.BRIDGE_PORT, () => {
 const portMapper = new PortMapper();
 const tsh        = new TshClient(config, TSH_ROOT);
 
+// ── Melee in-game team colors (red / blue / green) ────────────────────────────
+const MELEE_TEAM_COLORS = {
+  0: "#D32F2F", // Red team
+  1: "#1565C0", // Blue team
+  2: "#2E7D32", // Green team (rare in competitive)
+};
+
 // ── Game state ────────────────────────────────────────────────────────────────
 let currentGameState = null;
 
-// ── Game event handlers ───────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
- * Pure: resolve character + team for each player, return players map.
- * No side effects — all decisions come from portMapper.
- *
- * @param {Array} sorted  — players sorted ascending by playerIndex
- * @returns {Object}  players keyed as "p1", "p2"
+ * Returns true when rawPlayers represents a doubles game (4 active players
+ * with teamId assigned by Slippi).
  */
-function buildPlayers(sorted) {
+function isDoubles(rawPlayers) {
+  const active = rawPlayers.filter((p) => p != null && p.characterId != null);
+  return active.length === 4 && active.some((p) => p.teamId != null);
+}
+
+/**
+ * Groups sorted players by Slippi teamId.
+ * @returns {{ [teamId: number]: Array }}
+ */
+function groupByTeamId(sorted) {
+  const groups = {};
+  for (const raw of sorted) {
+    const tid = raw.teamId ?? 0;
+    (groups[tid] = groups[tid] ?? []).push(raw);
+  }
+  return groups;
+}
+
+/**
+ * Pure: resolve character + team for each player in a singles game.
+ * Uses first and last port (outer ports) as the two players.
+ * @param {Array} sorted  — players sorted ascending by playerIndex
+ * @returns {Object}  players keyed by playerIndex
+ */
+function buildPlayersSingles(sorted) {
   const players = {};
   [sorted[0], sorted[sorted.length - 1]].forEach((raw, i) => {
-    const teamNum     = portMapper.getTeam(raw.playerIndex, i + 1);
+    const teamNum      = portMapper.getTeam(raw.playerIndex, i + 1);
     const costumeIndex = raw.characterColor ?? 0;
-    const charInfo    = resolveCharacter(raw.characterId, costumeIndex, TSH_ROOT);
+    const charInfo     = resolveCharacter(raw.characterId, costumeIndex, TSH_ROOT);
     if (!charInfo) {
       console.warn(`[bridge] Unknown character ID: ${raw.characterId}`);
       return;
     }
-    players[`p${teamNum}`] = {
+    players[raw.playerIndex] = {
       playerIndex: raw.playerIndex,
       teamNum,
       costumeIndex,
-      codename:  charInfo.codename,
-      display:   charInfo.display,
-      iconPath:  charInfo.iconPath,
+      codename: charInfo.codename,
+      display:  charInfo.display,
+      iconPath: charInfo.iconPath,
     };
     console.log(`[bridge] P${teamNum} (port ${raw.playerIndex}): ${charInfo.display} costume ${costumeIndex}`);
   });
   return players;
 }
+
+/**
+ * Pure: assign team numbers to all 4 ports in a doubles game.
+ * @param {Array} sorted  — all 4 players sorted ascending by playerIndex
+ * @returns {Object}  players keyed by playerIndex
+ */
+function buildPlayersDoubles(sorted) {
+  const players = {};
+  for (let i = 0; i < sorted.length; i++) {
+    const raw     = sorted[i];
+    const teamNum = portMapper.getTeam(raw.playerIndex, i < 2 ? 1 : 2);
+    players[raw.playerIndex] = { playerIndex: raw.playerIndex, teamNum };
+    console.log(`[bridge] Doubles P${teamNum} (port ${raw.playerIndex})`);
+  }
+  return players;
+}
+
+// ── Game event handlers ───────────────────────────────────────────────────────
 
 /**
  * Called by the game source when a new game starts.
@@ -104,14 +150,6 @@ function onGameStart(rawPlayers) {
     console.warn(e.message);
   }
 
-  // Update port→team mapping from TSH state (handles resets, name/score matching)
-  if (tshState) {
-    portMapper.resolve(
-      tsh.getTeamInfo(tshState, 1),
-      tsh.getTeamInfo(tshState, 2)
-    );
-  }
-
   const sorted = rawPlayers
     .filter((p) => p != null && p.characterId != null)
     .sort((a, b) => a.playerIndex - b.playerIndex);
@@ -121,7 +159,22 @@ function onGameStart(rawPlayers) {
     return;
   }
 
-  // At 0-0 (no active mapping), try TSH character history before positional default
+  const doubles = isDoubles(rawPlayers) && (!tshState || tsh.isDoubles(tshState));
+
+  if (doubles) {
+    console.log("[bridge] Doubles game detected");
+    onGameStartDoubles(sorted, tshState);
+  } else {
+    onGameStartSingles(sorted, tshState);
+  }
+}
+
+function onGameStartSingles(sorted, tshState) {
+  const t1Info = tshState ? tsh.getTeamInfo(tshState, 1) : { name: "", score: 0 };
+  const t2Info = tshState ? tsh.getTeamInfo(tshState, 2) : { name: "", score: 0 };
+
+  portMapper.resolve(t1Info, t2Info);
+
   if (!portMapper.hasMapping() && tshState) {
     portMapper.tryCharacterBased(
       sorted,
@@ -131,27 +184,103 @@ function onGameStart(rawPlayers) {
     );
   }
 
-  const players = buildPlayers(sorted);
-  currentGameState = { players };
+  const players = buildPlayersSingles(sorted);
+  currentGameState = { players, isDoubles: false };
 
-  // Push character + costume to TSH (fire-and-forget; log on failure)
   for (const p of Object.values(players)) {
     tsh.setCharacter(p.teamNum, p.display, p.costumeIndex).then((r) => {
       if (!r.ok) console.warn(`[bridge] setCharacter failed: ${r.error}`);
     });
   }
 
-  // Sync port→name for future game detection, initialise portScore if needed
   if (tshState) {
-    const teamInfo = {
-      1: tsh.getTeamInfo(tshState, 1),
-      2: tsh.getTeamInfo(tshState, 2),
-    };
-    portMapper.syncNames(players, teamInfo);
+    portMapper.syncNames(players, {
+      1: tsh.getTeamPlayerNames(tshState, 1),
+      2: tsh.getTeamPlayerNames(tshState, 2),
+    });
   }
 
   io.emit("slippi_game_start", currentGameState);
-  console.log("[bridge] Emitted slippi_game_start");
+  console.log("[bridge] Emitted slippi_game_start (singles)");
+}
+
+function onGameStartDoubles(sorted, tshState) {
+  const groups = groupByTeamId(sorted);
+  const t1Info = tshState ? tsh.getTeamInfo(tshState, 1) : { name: "", score: 0 };
+  const t2Info = tshState ? tsh.getTeamInfo(tshState, 2) : { name: "", score: 0 };
+  const t1Names = tshState ? tsh.getTeamPlayerNames(tshState, 1) : [];
+  const t2Names = tshState ? tsh.getTeamPlayerNames(tshState, 2) : [];
+
+  portMapper.resolveDoubles(groups, t1Info, t2Info, t1Names, t2Names);
+
+  if (!portMapper.hasMapping() && tshState) {
+    portMapper.tryCharacterBasedDoubles(
+      groups,
+      tsh.getPreloadedChars(tshState),
+      resolveCharacter,
+      TSH_ROOT
+    );
+  }
+
+  // If both resolveDoubles (which returns early at 0-0) and tryCharacterBased
+  // left _portToTeam null, apply the group-based positional default explicitly.
+  // Without this, buildPlayersDoubles falls back to index-based positional
+  // (first 2 sorted ports = team 1) which is wrong when Slippi groups are
+  // non-consecutive (e.g. ports {0,3} vs {1,2}).
+  if (!portMapper.hasMapping()) {
+    portMapper.applyDoublesPositional(groups);
+  }
+
+  const players = buildPlayersDoubles(sorted);
+
+  // Build teamColorMap: { [tshTeamNum]: hexColor } — used now and by swapTeams.
+  //
+  // When a resolved mapping exists (_portToTeam is set), resolveDoubles() assigned all
+  // ports in a Slippi group atomically, so the min-port player's teamNum is the group's.
+  //
+  // When no mapping exists (0-0 start + inconclusive character history), buildPlayersDoubles
+  // used index-based positional default (first 2 sorted ports → team 1). This does NOT align
+  // with Slippi groups when teamIds are interleaved (e.g. tid 0,1,0,1 across ports 0-3) —
+  // both groups' min ports land on team 1. In that case, replicate resolveDoubles' positional
+  // rule directly: the Slippi group with the lower minimum port → TSH team 1.
+  const teamColorMap = {};
+  const colorGroupEntries = Object.entries(groups).filter(([tidStr]) => MELEE_TEAM_COLORS[Number(tidStr)]);
+
+  if (portMapper.hasMapping()) {
+    // Resolved mapping: all ports in a group share the same TSH team — use min-port player.
+    for (const [tidStr, groupPlayers] of colorGroupEntries) {
+      const tid = Number(tidStr);
+      const minPortPlayer = groupPlayers.reduce((a, b) => a.playerIndex < b.playerIndex ? a : b);
+      const tshTeam = players[minPortPlayer.playerIndex]?.teamNum;
+      if (tshTeam) teamColorMap[tshTeam] = MELEE_TEAM_COLORS[tid];
+    }
+  } else if (colorGroupEntries.length >= 2) {
+    // No resolved mapping: positional default — lower min-port Slippi group → TSH team 1.
+    const ranked = colorGroupEntries
+      .map(([tidStr, gp]) => ({ tid: Number(tidStr), minPort: Math.min(...gp.map((r) => r.playerIndex)) }))
+      .sort((a, b) => a.minPort - b.minPort);
+    teamColorMap[1] = MELEE_TEAM_COLORS[ranked[0].tid];
+    teamColorMap[2] = MELEE_TEAM_COLORS[ranked[1].tid];
+  }
+
+  currentGameState = { players, isDoubles: true, teamColorMap };
+
+  // Push colors to TSH
+  for (const [tshTeamStr, color] of Object.entries(teamColorMap)) {
+    tsh.setTeamColor(Number(tshTeamStr), color).then((r) => {
+      if (!r.ok) console.warn(`[bridge] setTeamColor failed: ${r.error}`);
+    });
+  }
+
+  if (tshState) {
+    portMapper.syncNames(players, {
+      1: t1Names,
+      2: t2Names,
+    });
+  }
+
+  io.emit("slippi_game_start", currentGameState);
+  console.log("[bridge] Emitted slippi_game_start (doubles)");
 }
 
 /**
@@ -172,19 +301,22 @@ function onGameEnd({ winnerPlayerIndex, isHandwarmer }) {
     return;
   }
 
-  const winnerEntry =
-    currentGameState &&
-    Object.values(currentGameState.players).find((p) => p.playerIndex === winnerPlayerIndex);
+  // currentGameState.players has the correct teamNum even when _portToTeam is null
+  // (e.g. 0-0 start where positional default was used locally but not persisted).
+  // Fall back to portMapper.getTeam() for games where currentGameState was cleared early.
+  const winnerTeam =
+    currentGameState?.players?.[winnerPlayerIndex]?.teamNum ??
+    portMapper.getTeam(winnerPlayerIndex, null);
 
-  if (winnerEntry) {
+  if (winnerTeam) {
     portMapper.recordWin(winnerPlayerIndex);
-    console.log(`[bridge] Game over — team ${winnerEntry.teamNum} wins (port ${winnerPlayerIndex})`);
-    io.emit("slippi_game_end", { winner: winnerEntry.teamNum });
-    tsh.incrementScore(winnerEntry.teamNum).then((r) => {
+    console.log(`[bridge] Game over — team ${winnerTeam} wins (port ${winnerPlayerIndex})`);
+    io.emit("slippi_game_end", { winner: winnerTeam });
+    tsh.incrementScore(winnerTeam).then((r) => {
       if (!r.ok) console.warn(`[bridge] incrementScore failed: ${r.error}`);
     });
   } else {
-    console.warn(`[bridge] Winner port ${winnerPlayerIndex} not found in current game state`);
+    console.warn(`[bridge] Winner port ${winnerPlayerIndex} not in port mapping`);
     io.emit("slippi_game_end", { winner: null });
   }
 
@@ -193,7 +325,7 @@ function onGameEnd({ winnerPlayerIndex, isHandwarmer }) {
 
 // ── Manual port-team swap (keyboard shortcut) ─────────────────────────────────
 // Ctrl+Shift+S flips the port→team assignment and immediately re-applies
-// characters to TSH so the visual result is instant.
+// characters/colors to TSH so the visual result is instant.
 function swapTeams() {
   const result = portMapper.swap(currentGameState?.players);
 
@@ -202,18 +334,34 @@ function swapTeams() {
     return;
   }
 
-  // Update teamNum in currentGameState and re-push to TSH mid-game
-  if (currentGameState?.players) {
-    for (const p of Object.values(currentGameState.players)) {
-      p.teamNum = portMapper.getTeam(p.playerIndex, p.teamNum);
+  if (!currentGameState?.players) return;
+
+  // Update teamNum in currentGameState to reflect the swap
+  for (const p of Object.values(currentGameState.players)) {
+    p.teamNum = portMapper.getTeam(p.playerIndex, p.teamNum);
+  }
+
+  if (currentGameState.isDoubles) {
+    // Doubles: swap the teamColorMap (team 1 ↔ team 2 colors) and re-push
+    const old = currentGameState.teamColorMap ?? {};
+    currentGameState.teamColorMap = { 1: old[2], 2: old[1] };
+    for (const [tshTeamStr, color] of Object.entries(currentGameState.teamColorMap)) {
+      if (!color) continue;
+      tsh.setTeamColor(Number(tshTeamStr), color).then((r) => {
+        if (!r.ok) console.warn(`[bridge] setTeamColor failed after swap: ${r.error}`);
+      });
     }
+    io.emit("slippi_game_start", currentGameState);
+    console.log("[bridge] Re-applied team colors after doubles swap");
+  } else {
+    // Singles: re-push characters
     for (const p of Object.values(currentGameState.players)) {
       tsh.setCharacter(p.teamNum, p.display, p.costumeIndex).then((r) => {
         if (!r.ok) console.warn(`[bridge] setCharacter failed after swap: ${r.error}`);
       });
     }
     io.emit("slippi_game_start", currentGameState);
-    console.log("[bridge] Re-applied characters after swap");
+    console.log("[bridge] Re-applied characters after singles swap");
   }
 }
 

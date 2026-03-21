@@ -120,12 +120,12 @@ class PortMapper {
   }
 
   /**
-   * At 0-0: try to infer mapping from TSH's preloaded character history.
+   * At 0-0: try to infer mapping from TSH's preloaded character history (singles).
    *
    * @param {Array<{ playerIndex: number, characterId: number, characterColor: number }>} sorted
    *   Players sorted ascending by playerIndex (first + last used as P1/P2).
-   * @param {{ t1: { name: string, skin: number }, t2: { name: string, skin: number } }} charHistory
-   *   Preloaded character info per team from TshClient.getPreloadedChars().
+   * @param {{ t1: Array<{name:string,skin:number}>, t2: Array<{name:string,skin:number}> }} charHistory
+   *   Preloaded chars per team — each is an array (index 0 = player 1).
    * @param {Function} resolveCharFn  — resolveCharacter(charId, costume, tshRoot) from char_map
    * @param {string} tshRoot
    */
@@ -142,7 +142,9 @@ class PortMapper {
     const sameChar = charA === charB;
     if (sameChar && costumeA === costumeB) return; // identical — can't distinguish
 
-    const { t1, t2 } = charHistory;
+    // Use first preloaded char entry per team for singles
+    const t1 = charHistory.t1?.[0] ?? { name: "", skin: -1 };
+    const t2 = charHistory.t2?.[0] ?? { name: "", skin: -1 };
     if (!t1.name && !t2.name) return;
 
     const matches = (portChar, portCostume, preloaded) => {
@@ -174,6 +176,163 @@ class PortMapper {
   }
 
   /**
+   * At 0-0 in doubles: try to infer which Slippi group maps to which TSH team
+   * using TSH's preloaded character history (2 chars per team).
+   *
+   * @param {{ [teamId: number]: Array<{playerIndex,characterId,characterColor}> }} groups
+   *   Slippi players grouped by teamId.
+   * @param {{ t1: Array<{name,skin}>, t2: Array<{name,skin}> }} charHistory
+   *   Preloaded chars per TSH team (up to 2 per team).
+   * @param {Function} resolveCharFn
+   * @param {string} tshRoot
+   */
+  tryCharacterBasedDoubles(groups, charHistory, resolveCharFn, tshRoot) {
+    const teamIds = Object.keys(groups).map(Number);
+    if (teamIds.length !== 2) return;
+
+    const scoreGroup = (players, tshChars) => {
+      let hits = 0;
+      for (const raw of players) {
+        const display = resolveCharFn(raw.characterId, raw.characterColor ?? 0, tshRoot)?.display;
+        if (!display) continue;
+        for (const pre of tshChars) {
+          if (pre.name && display === pre.name) { hits++; break; }
+        }
+      }
+      return hits;
+    };
+
+    const [tidA, tidB] = teamIds;
+    const hitsAvsT1 = scoreGroup(groups[tidA], charHistory.t1 ?? []);
+    const hitsBvsT1 = scoreGroup(groups[tidB], charHistory.t1 ?? []);
+    const hitsAvsT2 = scoreGroup(groups[tidA], charHistory.t2 ?? []);
+    const hitsBvsT2 = scoreGroup(groups[tidB], charHistory.t2 ?? []);
+
+    // Compare the two possible assignments by total evidence across both teams.
+    // "A→1, B→2" earns hitsAvsT1 + hitsBvsT2; "A→2, B→1" earns hitsAvsT2 + hitsBvsT1.
+    // Scoring against both directions breaks ties where only one team has a unique char
+    // (e.g. both groups share Fox, but only one has Marth matching t2).
+    const scoreAis1 = hitsAvsT1 + hitsBvsT2;
+    const scoreAis2 = hitsAvsT2 + hitsBvsT1;
+
+    if (scoreAis1 === scoreAis2) {
+      console.log("[bridge] Doubles character history inconclusive — using positional default");
+      return;
+    }
+
+    const groupATeam = scoreAis1 > scoreAis2 ? 1 : 2;
+    const groupBTeam = groupATeam === 1 ? 2 : 1;
+    this._applyGroupMapping(groups, tidA, groupATeam, tidB, groupBTeam);
+    console.log(`[bridge] Doubles character history → slippi team ${tidA}→TSH team ${groupATeam},`,
+      `slippi team ${tidB}→TSH team ${groupBTeam}`);
+  }
+
+  /**
+   * Called before each doubles game start.
+   *
+   * @param {{ [teamId: number]: Array<{playerIndex}> }} groups  — keyed by Slippi teamId
+   * @param {{ name: string, score: number }} t1  — TSH team 1 info
+   * @param {{ name: string, score: number }} t2  — TSH team 2 info
+   * @param {string[]} t1Names  — all player names on TSH team 1
+   * @param {string[]} t2Names  — all player names on TSH team 2
+   */
+  resolveDoubles(groups, t1, t2, t1Names, t2Names) {
+    // ── Reset on 0-0 ────────────────────────────────────────────────────────
+    if (t1.score === 0 && t2.score === 0) {
+      if (this._portToTeam !== null || Object.keys(this._portToName).length > 0) {
+        console.log("[bridge] Scores are 0-0; resetting port-team mapping (doubles)");
+        this._portToTeam = null;
+        this._portToName = {};
+        this._portScore  = {};
+      }
+      return;
+    }
+
+    const teamIds = Object.keys(groups).map(Number);
+    if (teamIds.length !== 2) return;
+    const [tidA, tidB] = teamIds;
+
+    // ── Name-based: any stored port name appears in TSH team player names ───
+    const allT1Names = new Set(t1Names.map((n) => n.toLowerCase()));
+    const allT2Names = new Set(t2Names.map((n) => n.toLowerCase()));
+
+    let groupATeam = null;
+    outer:
+    for (const tid of [tidA, tidB]) {
+      for (const raw of groups[tid]) {
+        const stored = (this._portToName[raw.playerIndex] ?? "").toLowerCase();
+        if (!stored) continue;
+        if (allT1Names.has(stored)) { groupATeam = (tid === tidA) ? 1 : 2; break outer; }
+        if (allT2Names.has(stored)) { groupATeam = (tid === tidA) ? 2 : 1; break outer; }
+      }
+    }
+
+    if (groupATeam !== null) {
+      const groupBTeam = groupATeam === 1 ? 2 : 1;
+      this._applyGroupMapping(groups, tidA, groupATeam, tidB, groupBTeam);
+      console.log(`[bridge] Doubles name match → slippi team ${tidA}→TSH team ${groupATeam}`);
+      return;
+    }
+
+    // ── Score-based: sum of port wins matches TSH score ──────────────────────
+    const sumWins = (tid) =>
+      groups[tid].reduce((s, raw) => s + (this._portScore[raw.playerIndex] ?? 0), 0);
+    const winsA = sumWins(tidA);
+    const winsB = sumWins(tidB);
+    const aIs1 = winsA === t1.score && winsB === t2.score;
+    const aIs2 = winsA === t2.score && winsB === t1.score;
+    if (aIs1 && !aIs2) {
+      this._applyGroupMapping(groups, tidA, 1, tidB, 2);
+      console.log(`[bridge] Doubles score match → slippi team ${tidA}→TSH team 1`);
+      return;
+    }
+    if (aIs2 && !aIs1) {
+      this._applyGroupMapping(groups, tidA, 2, tidB, 1);
+      console.log(`[bridge] Doubles score match → slippi team ${tidA}→TSH team 2`);
+      return;
+    }
+
+    // ── Positional default: lower min-port group → team 1 ───────────────────
+    this.applyDoublesPositional(groups);
+  }
+
+  /**
+   * Apply the group-based positional default: the Slippi group whose players
+   * hold the lowest port number → TSH team 1. Called as a last resort when
+   * neither name/score matching nor character history can determine the mapping.
+   *
+   * This is also called in resolveDoubles() as its final fallback. It exists as
+   * a standalone method so onGameStartDoubles can call it at 0-0 (where
+   * resolveDoubles returns early after resetting) when tryCharacterBasedDoubles
+   * is inconclusive. Without this, buildPlayersDoubles falls back to an
+   * index-based positional (first 2 sorted ports = team 1) which is wrong when
+   * Slippi groups are non-consecutive (e.g. ports {0,3} vs {1,2}).
+   *
+   * @param {{ [teamId: number]: Array<{playerIndex}> }} groups
+   */
+  applyDoublesPositional(groups) {
+    const teamIds = Object.keys(groups).map(Number);
+    if (teamIds.length !== 2) return;
+    const [tidA, tidB] = teamIds;
+    const minA = Math.min(...groups[tidA].map((r) => r.playerIndex));
+    const minB = Math.min(...groups[tidB].map((r) => r.playerIndex));
+    const lowerTid = minA < minB ? tidA : tidB;
+    const higherTid = lowerTid === tidA ? tidB : tidA;
+    this._applyGroupMapping(groups, lowerTid, 1, higherTid, 2);
+    console.log(`[bridge] Doubles positional default → slippi team ${lowerTid}→TSH team 1`);
+  }
+
+  /** Internal: write group team assignments into _portToTeam. */
+  _applyGroupMapping(groups, tidA, teamA, tidB, teamB) {
+    const mapping = {};
+    for (const raw of groups[tidA]) mapping[raw.playerIndex] = teamA;
+    for (const raw of groups[tidB]) mapping[raw.playerIndex] = teamB;
+    const changed = JSON.stringify(this._portToTeam) !== JSON.stringify(mapping);
+    this._portToTeam = mapping;
+    if (changed) console.log("[bridge] Resolved port→team (doubles):", JSON.stringify(this._portToTeam));
+  }
+
+  /**
    * Record a win for a port after a game ends. Used for score-based swap detection.
    * @param {number} winnerPort
    */
@@ -183,17 +342,32 @@ class PortMapper {
   }
 
   /**
-   * After game start assigns ports→teams, populate portToName from TSH.
-   * Also initialises portScore tracking for any new port.
+   * After game start assigns ports→teams, populate portToName and portScore.
    *
-   * @param {Object} players  — { p1: { playerIndex, teamNum }, p2: { ... } }
-   * @param {{ 1: { name }, 2: { name } }} teamInfo  — from TshClient.getTeamInfo()
+   * For singles: teamPlayerNames = { 1: ["Alice"], 2: ["Bob"] }
+   * For doubles: teamPlayerNames = { 1: ["Alice", "Carol"], 2: ["Bob", "Dave"] }
+   * Players are matched to their TSH team's name list by port assignment order.
+   *
+   * @param {Object} players
+   *   Singles: { p1: { playerIndex, teamNum }, p2: { ... } }
+   *   Doubles: { [port]: { playerIndex, teamNum }, ... } for all 4 ports
+   * @param {{ 1: string[], 2: string[] }} teamPlayerNames
+   *   Array of player names per TSH team, in slot order.
    */
-  syncNames(players, teamInfo) {
+  syncNames(players, teamPlayerNames) {
+    // Group players by team, sorted by port ascending (preserves slot order)
+    const byTeam = {};
     for (const pData of Object.values(players)) {
-      this._portToName[pData.playerIndex] = teamInfo[pData.teamNum]?.name ?? "";
-      if (!(pData.playerIndex in this._portScore)) {
-        this._portScore[pData.playerIndex] = 0;
+      (byTeam[pData.teamNum] = byTeam[pData.teamNum] ?? []).push(pData);
+    }
+    for (const [teamStr, entries] of Object.entries(byTeam)) {
+      const teamNum = Number(teamStr);
+      const names   = teamPlayerNames[teamNum] ?? [];
+      entries.sort((a, b) => a.playerIndex - b.playerIndex);
+      for (let i = 0; i < entries.length; i++) {
+        const port = entries[i].playerIndex;
+        this._portToName[port] = names[i] ?? "";
+        if (!(port in this._portScore)) this._portScore[port] = 0;
       }
     }
     console.log("[bridge] Port-name map:", JSON.stringify(this._portToName));
@@ -202,14 +376,15 @@ class PortMapper {
 
   /**
    * Flip the port→team assignment (manual Ctrl+Shift+S swap).
-   * Swaps portToName too so future name-based detection stays consistent.
+   * For singles: swaps the two known ports.
+   * For doubles: swaps both team-1 ports with both team-2 ports atomically.
+   * Also swaps portToName so future name-based detection stays consistent.
    *
    * @param {Object|null} currentPlayers  — currentGameState.players (may be null)
-   * @returns {{ portA: number, portB: number } | null}
-   *   The two ports that were swapped, or null if fewer than 2 ports are known.
+   * @returns {true | null}  true on success, null if fewer than 2 ports are known.
    */
   swap(currentPlayers) {
-    // Collect ports from all tracking sources + active game
+    // Collect all known ports
     const knownPorts = [
       ...Object.keys(this._portToName),
       ...Object.keys(this._portScore),
@@ -220,21 +395,27 @@ class PortMapper {
 
     if (ports.length < 2) return null;
 
-    const [portA, portB] = [ports[0], ports[ports.length - 1]];
+    // Build current team→port[] map
+    const byTeam = { 1: [], 2: [] };
+    for (const port of ports) {
+      const team = this._portToTeam?.[port] ?? (port === ports[0] ? 1 : 2);
+      (byTeam[team] = byTeam[team] ?? []).push(port);
+    }
 
-    // Flip portToTeam (initialise from positional default if null)
-    const teamA = this._portToTeam?.[portA] ?? 1;
-    const teamB = this._portToTeam?.[portB] ?? 2;
-    this._portToTeam = { [portA]: teamB, [portB]: teamA };
+    // Flip: every team-1 port → 2, every team-2 port → 1
+    const newMapping = {};
+    for (const port of byTeam[1] ?? []) newMapping[port] = 2;
+    for (const port of byTeam[2] ?? []) newMapping[port] = 1;
+    this._portToTeam = newMapping;
 
-    // Swap portToName so future name-based detection stays consistent
-    const nameA = this._portToName[portA] ?? "";
-    const nameB = this._portToName[portB] ?? "";
-    this._portToName[portA] = nameB;
-    this._portToName[portB] = nameA;
+    // Swap portToName between groups so name-based detection stays consistent
+    const names1 = (byTeam[1] ?? []).map((p) => this._portToName[p] ?? "");
+    const names2 = (byTeam[2] ?? []).map((p) => this._portToName[p] ?? "");
+    (byTeam[1] ?? []).forEach((p, i) => { this._portToName[p] = names2[i] ?? ""; });
+    (byTeam[2] ?? []).forEach((p, i) => { this._portToName[p] = names1[i] ?? ""; });
 
     console.log("[bridge] [S] Manual swap → port→team:", JSON.stringify(this._portToTeam));
-    return { portA, portB };
+    return true;
   }
 }
 

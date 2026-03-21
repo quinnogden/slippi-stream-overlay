@@ -306,18 +306,7 @@ LoadEverything().then(() => {
 
         SetInnerHtml($(`.p${t + 1} .flagstate`), "");
 
-        // await CharacterDisplay(
-        //   $(`.p${t + 1}.container .character_container`),
-        //   {
-        //     asset_key: "base_files/icon",
-        //     source: `score.${window.scoreboardNumber}.team.${t + 1}`,
-        //     slice_character: [0, 1],
-        //     scale_fill_x: true,
-        //     scale_fill_y: true,
-        //     custom_zoom: 1.0
-        //   },
-        //   event
-        // );
+        SetInnerHtml($(`.p${t + 1}.container .character_container`), "");
 
         SetInnerHtml($(`.p${t + 1}.container .sponsor_icon`), "");
 
@@ -392,20 +381,6 @@ LoadEverything().then(() => {
       // actual costume the player is using.
       let slippiGameData = null;
 
-      function applySlippiCostumes() {
-        if (!slippiGameData) return;
-        for (const [, pData] of Object.entries(slippiGameData.players)) {
-          const costume = String(pData.costumeIndex ?? 0).padStart(2, "0");
-          const costumedSrc = `../../user_data/games/ssbm/base_files/icon/chara_2_${pData.codename}_${costume}.png`;
-          const container = document.querySelector(`.p${pData.teamNum}.container .character_container`);
-          if (!container) continue;
-          const img = container.querySelector("img");
-          if (img && !img.src.endsWith(`chara_2_${pData.codename}_${costume}.png`)) {
-            img.src = costumedSrc;
-          }
-        }
-      }
-
       slippiSocket.on("slippi_game_start", (data) => {
         console.log("[slippi-bridge] Game start:", data);
         slippiGameData = data;
@@ -418,6 +393,30 @@ LoadEverything().then(() => {
       document.addEventListener("tsh_update", () => {
         if (slippiGameData) setTimeout(applySlippiCostumes, 150);
       });
+
+      function applySlippiCostumes() {
+        if (!slippiGameData) return;
+        // If TSH is currently in doubles/teams mode (any container has team-color),
+        // clear leftover icons and skip singles patching — even if slippiGameData
+        // still holds stale singles data from before the TSH config switch.
+        const inTeamsMode = !!document.querySelector(".character_container.team-color");
+        if (slippiGameData.isDoubles || inTeamsMode) {
+          document.querySelectorAll(".character_container img").forEach((img) => {
+            img.removeAttribute("src");
+          });
+          return;
+        }
+        for (const [, pData] of Object.entries(slippiGameData.players)) {
+          const costume = String(pData.costumeIndex ?? 0).padStart(2, "0");
+          const costumedSrc = `../../user_data/games/ssbm/base_files/icon/chara_2_${pData.codename}_${costume}.png`;
+          const container = document.querySelector(`.p${pData.teamNum}.container .character_container`);
+          if (!container) continue;
+          const img = container.querySelector("img");
+          if (img && !img.src.endsWith(`chara_2_${pData.codename}_${costume}.png`)) {
+            img.src = costumedSrc;
+          }
+        }
+      }
 
       // Game end: score was already incremented by the bridge via TSH HTTP API.
       // Optionally add a visual cue here (e.g. flash the winner's score).

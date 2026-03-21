@@ -54,33 +54,64 @@ class TshClient {
 
   /**
    * Extract team name and score for a given team number.
+   * In doubles, name is "Player1 / Player2" (concatenated from both players).
    * @param {object} state   — from readState()
    * @param {number} teamNum — 1 or 2
    * @returns {{ name: string, score: number }}
    */
   getTeamInfo(state, teamNum) {
     const team = state?.score?.[String(this._config.SCOREBOARD_NUM)]?.team?.[String(teamNum)];
+    const names = Object.values(team?.player ?? {})
+      .map((p) => (p?.name ?? "").trim())
+      .filter(Boolean);
     return {
-      name:  (team?.player?.["1"]?.name ?? "").trim(),
+      name:  names.join(" / "),
       score: team?.score ?? 0,
     };
   }
 
   /**
+   * Returns all player names for a team as an array. Used for doubles name matching.
+   * @param {object} state
+   * @param {number} teamNum — 1 or 2
+   * @returns {string[]}
+   */
+  getTeamPlayerNames(state, teamNum) {
+    const team = state?.score?.[String(this._config.SCOREBOARD_NUM)]?.team?.[String(teamNum)];
+    return Object.values(team?.player ?? {})
+      .map((p) => (p?.name ?? "").trim())
+      .filter(Boolean);
+  }
+
+  /**
+   * Returns true if the TSH scoreboard is configured for doubles
+   * (team 1 has more than one player slot).
+   * @param {object} state
+   * @returns {boolean}
+   */
+  isDoubles(state) {
+    const team = state?.score?.[String(this._config.SCOREBOARD_NUM)]?.team?.["1"];
+    return Object.keys(team?.player ?? {}).length > 1;
+  }
+
+  /**
    * Extract preloaded character history for both teams.
+   * Returns up to 2 preloaded chars per team (index 0 = player 1, 1 = player 2).
    * @param {object} state — from readState()
-   * @returns {{ t1: { name: string, skin: number }, t2: { name: string, skin: number } }}
+   * @returns {{ t1: Array<{name:string, skin:number}>, t2: Array<{name:string, skin:number}> }}
    */
   getPreloadedChars(state) {
-    const getEntry = (teamNum) => {
-      const team  = state?.score?.[String(this._config.SCOREBOARD_NUM)]?.team?.[String(teamNum)];
-      const entry = team?.player?.["1"]?.character?.["1"];
-      return {
-        name: (entry?.name ?? "").trim(),
-        skin: entry?.skin ?? -1,
-      };
+    const getEntries = (teamNum) => {
+      const team = state?.score?.[String(this._config.SCOREBOARD_NUM)]?.team?.[String(teamNum)];
+      return Object.values(team?.player ?? {}).map((player) => {
+        const entry = player?.character?.["1"];
+        return {
+          name: (entry?.name ?? "").trim(),
+          skin: entry?.skin ?? -1,
+        };
+      });
     };
-    return { t1: getEntry(1), t2: getEntry(2) };
+    return { t1: getEntries(1), t2: getEntries(2) };
   }
 
   // ── HTTP calls ──────────────────────────────────────────────────────────────
@@ -98,6 +129,26 @@ class TshClient {
       return { ok: true };
     } catch (err) {
       const msg = `Failed to increment score for team ${teamNumber}: ${err.message}`;
+      console.error(`[bridge] ${msg}`);
+      return { ok: false, error: msg };
+    }
+  }
+
+  /**
+   * Set team color via TSH HTTP API.
+   * @param {number} teamNumber — 1 or 2
+   * @param {string} hexColor   — e.g. '#D32F2F'
+   * @returns {Promise<{ ok: boolean, error?: string }>}
+   */
+  async setTeamColor(teamNumber, hexColor) {
+    const color = hexColor.replace("#", "");
+    const url = `${this._config.TSH_URL}/scoreboard${this._config.SCOREBOARD_NUM}-team${teamNumber}-color-${color}`;
+    try {
+      await axios.get(url);
+      console.log(`[bridge] TSH team ${teamNumber} color set to #${color}`);
+      return { ok: true };
+    } catch (err) {
+      const msg = `Failed to set color for team ${teamNumber}: ${err.message}`;
       console.error(`[bridge] ${msg}`);
       return { ok: false, error: msg };
     }

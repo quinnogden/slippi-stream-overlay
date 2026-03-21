@@ -16,6 +16,26 @@ const EventEmitter = require("events");
 const { SlippiGame, GameEndMethod } = require("@slippi/slippi-js");
 const { wasHandwarmer } = require("./handwarmer");
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Fallback winner detection using last-frame stock counts.
+ * Used when placements are absent or don't contain a position-0 entry
+ * (can happen in doubles where the game ends via RESOLVED method).
+ * Returns the playerIndex of any surviving player (port with stocks > 0),
+ * or null if the last frame is unavailable.
+ * @param {import("@slippi/slippi-js").SlippiGame} game
+ * @returns {number | null}
+ */
+function winnerByStocks(game) {
+  const lastFrame = game.getLatestFrame();
+  if (!lastFrame?.players) return null;
+  const surviving = Object.entries(lastFrame.players)
+    .filter(([, pf]) => (pf?.pre?.stocksRemaining ?? 0) > 0)
+    .map(([portStr]) => Number(portStr));
+  return surviving[0] ?? null;
+}
+
 // ── Folder mode ───────────────────────────────────────────────────────────────
 
 /**
@@ -93,18 +113,30 @@ function createFolderSource(config) {
           const isHandwarmer = wasHandwarmer(game);
           if (gameEnd.gameEndMethod === GameEndMethod.GAME) {
             const winner = gameEnd.placements?.find((p) => p.position === 0);
-            emitter.emit("game-end", { winnerPlayerIndex: winner?.playerIndex ?? null, isHandwarmer });
+            const winnerPlayerIndex = winner?.playerIndex ?? winnerByStocks(game);
+            emitter.emit("game-end", { winnerPlayerIndex, isHandwarmer });
           } else if (!isHandwarmer && gameEnd.lrasInitiatorIndex >= 0) {
             // Rage quit: LRAS but not a handwarmer (real damage was dealt).
-            // Award the point to the other active player.
+            // In doubles, avoid awarding the point to the quitter's own partner —
+            // find someone on the OTHER team by teamId.
             const settings = game.getSettings();
+            const initiatorTeamId = settings?.players?.find(
+              (p) => p.playerIndex === gameEnd.lrasInitiatorIndex
+            )?.teamId;
             const otherPlayer = settings?.players?.find(
-              (p) => p.playerIndex !== gameEnd.lrasInitiatorIndex
+              (p) =>
+                p.playerIndex !== gameEnd.lrasInitiatorIndex &&
+                (initiatorTeamId == null || p.teamId !== initiatorTeamId)
             );
             console.log(`[bridge] Rage quit detected — port ${gameEnd.lrasInitiatorIndex} quit out`);
             emitter.emit("game-end", { winnerPlayerIndex: otherPlayer?.playerIndex ?? null, isHandwarmer: false });
           } else {
-            emitter.emit("game-end", { winnerPlayerIndex: null, isHandwarmer });
+            // Non-GAME, non-LRAS end (e.g. RESOLVED in doubles when a team is eliminated
+            // without a traditional per-stock GAME! sequence). Try placements first,
+            // then fall back to last-frame stock counts.
+            const winner = gameEnd.placements?.find((p) => p.position === 0);
+            const winnerPlayerIndex = winner?.playerIndex ?? winnerByStocks(game);
+            emitter.emit("game-end", { winnerPlayerIndex, isHandwarmer });
           }
           knownFiles.add(currentFile);
           currentFile = null;
