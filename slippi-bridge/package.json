@@ -1,0 +1,18 @@
+{
+  "name": "slippi-bridge",
+  "version": "1.0.0",
+  "description": "Bridges Slippi console mirror data into Tournament Stream Helper",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@slippi/slippi-js": "^6.5.0",
+    "@vinceau/slp-realtime": "^3.3.0",
+    "axios": "^1.7.0",
+    "express": "^4.19.0",
+    "socket.io": "^4.7.0",
+    "uiohook-napi": "^1.5.0"
+  }
+}

@@ -1,0 +1,10 @@
+# Node
+slippi-bridge/node_modules/
+slippi-bridge/package-lock.json
+
+# Exclude all of the third-party TSH app, but keep our custom layout
+TournamentStreamHelper-5.967/*
+!TournamentStreamHelper-5.967/layout/
+
+# Claude local files
+.claude/
