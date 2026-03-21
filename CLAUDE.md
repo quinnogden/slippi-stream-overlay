@@ -119,3 +119,15 @@ Costume index comes from `player.characterColor` in `getSettings()`.
 - TSH's "Swap Teams" button swaps names AND scores, so after a swap the bridge's name-based detection will correctly re-derive the mapping on the next game.
 - `uiohook-napi` provides the global `Ctrl+Shift+S` hotkey. If it fails to load, the bridge falls back to terminal keypress (`S` or `s`) for swapping.
 - The `tsh_update` DOM event is dispatched by TSH's `globals.js` whenever `program_state.json` changes. The bridge listens to this to time its costume-patch.
+
+---
+
+## Planned TODOs
+
+Tracked as GitHub issues at [github.com/quinnogden/slippi-stream-overlay/issues](https://github.com/quinnogden/slippi-stream-overlay/issues).
+
+- **[#1] Doubles support (2v2 port-to-team mapping)** — `onGameStart` and `PortMapper` currently assume exactly 2 ports. Need to handle all 4 ports, 2 names per team from `program_state.json` (`player["1"]` and `player["2"]`), and winner detection across 4 ports. Doubles games are detectable via `players.length === 4` in `getSettings()`.
+
+- **[#2] Doubles: auto-import TSH team color** — In doubles, replace per-player character+costume display with team color read from `program_state.json` (`state.score["1"].team["1"].color`). Emit color in the `slippi_game_start` Socket.io payload. 1v1 keeps character+costume display unchanged.
+
+- **[#3] Vertical player card with cycling stat panels** — New `layout/player_card/` OBS source that cycles between a player presentation panel (name, sponsor, recent placements) and a recent sets panel (last N sets with scores and dates) using GSAP transitions. Reference: `layout/player_presentation/index.js` and `layout/recent_sets/index.js` for data patterns. Cycle on a timer or triggered by bridge game-start/end events.
