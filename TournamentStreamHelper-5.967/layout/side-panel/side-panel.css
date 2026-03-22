@@ -1,0 +1,377 @@
+/* ============================================================
+   side-panel.css — Right-side OBS overlay panel (611 × 1080)
+   body { background: transparent } — cam source shows through
+   Design tokens from theme.css:
+     --bg-color, --score-bg-color, --text-color, --darkened-text,
+     --border-radius, --font
+   ============================================================ */
+
+/* ── Local layout constants ───────────────────────────────── */
+:root {
+  --margin:   12px;
+  --header-h: 56px;
+  --cam-h:    330px;  /* 16:9 at (611 - 2×12px) = 587px wide */
+  --gap:      10px;
+  --cam-side: 12px;   /* green strip width left/right of cam */
+
+  /* Derived positions */
+  --cam-top:    calc(var(--margin) + var(--header-h) + var(--gap));
+  /* = 12 + 56 + 10 = 78px */
+  --cam-bottom: calc(var(--cam-top) + var(--cam-h));
+  /* = 78 + 330 = 408px */
+  --slot-top:   calc(var(--cam-bottom) + var(--gap));
+  /* = 408 + 10 = 418px */
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background:  transparent;
+  width:       611px;
+  height:      1080px;
+  overflow:    hidden;
+  font-family: var(--font);
+  position:    relative;
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   GREEN SURFACE BANDS
+   Four divs that together create the forest green background
+   around the transparent cam cutout. Any pixel not covered
+   by one of these (or the floating cards) is transparent in OBS.
+   ══════════════════════════════════════════════════════════════ */
+
+.bg-top {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height:   var(--cam-top);
+  background:
+    radial-gradient(ellipse 55% 80% at 50% 0%, rgba(65,98,54,0.55) 0%, transparent 65%),
+    var(--bg-color);
+  z-index: 0;
+}
+
+/* Soft downward shadow at the top green/cam boundary */
+.bg-top::after {
+  content: "";
+  position: absolute;
+  bottom: -14px; left: var(--cam-side); right: var(--cam-side);
+  height: 14px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.28), transparent);
+  pointer-events: none;
+}
+
+.bg-bottom {
+  position: absolute;
+  top: var(--cam-bottom);
+  left: 0; right: 0; bottom: 0;
+  background:
+    radial-gradient(ellipse 55% 60% at 50% 100%, rgba(65,98,54,0.45) 0%, transparent 65%),
+    var(--bg-color);
+  z-index: 0;
+}
+
+/* Soft upward shadow at the bottom green/cam boundary */
+.bg-bottom::before {
+  content: "";
+  position: absolute;
+  top: -14px; left: var(--cam-side); right: var(--cam-side);
+  height: 14px;
+  background: linear-gradient(to top, rgba(0,0,0,0.28), transparent);
+  pointer-events: none;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   CAM OVERLAY — transparent center, sits above the cam area.
+   The outward green spread shadow paints over the four squared
+   corners, creating a rounded cam cutout. Inset shadows fade
+   the cam edges into the surrounding panel.
+   ══════════════════════════════════════════════════════════════ */
+.cam-overlay {
+  position:       absolute;
+  top:            var(--cam-top);
+  left:           var(--cam-side);
+  right:          var(--cam-side);
+  height:         var(--cam-h);
+  border-radius:  10px;
+  background:     transparent;
+  pointer-events: none;
+  z-index:        1;
+
+  box-shadow:
+    /* Rounded corner mask — green fill over the 4 squared cam corners */
+    0 0 0 14px var(--bg-color);
+}
+
+
+/* Left green strip alongside the cam */
+.bg-left {
+  position:   absolute;
+  top:        var(--cam-top);
+  left:       0;
+  width:      var(--cam-side);
+  height:     var(--cam-h);
+  background: var(--bg-color);
+  z-index:    1;
+}
+
+/* Right green strip alongside the cam */
+.bg-right {
+  position:   absolute;
+  top:        var(--cam-top);
+  right:      0;
+  width:      var(--cam-side);
+  height:     var(--cam-h);
+  background: var(--bg-color);
+  z-index:    1;
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   HEADER CARD — floating teal card raised above the green surface
+   ══════════════════════════════════════════════════════════════ */
+
+.header-card {
+  position:    absolute;
+  top:         var(--margin);
+  left:        var(--margin);
+  right:       var(--margin);
+  height:      var(--header-h);
+  background:  var(--score-bg-color);
+  border-radius: var(--border-radius);
+  overflow:    hidden;
+  z-index:     2;
+
+  display:     flex;
+  align-items: center;
+  justify-content: center;
+  padding:     0 20px;
+
+  /* Raised card depth: outer drop shadow + inner edge lighting */
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.60),
+    0 3px 8px  rgba(0,0,0,0.45),
+    inset 0  1px 0 rgba(255,255,255,0.07),
+    inset 0 -1px 0 rgba(0,0,0,0.35);
+
+  border: 1px solid rgba(249,214,151,0.12);
+}
+
+/* Thin graduated gold accent line along the top inner edge */
+.header-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 15%; right: 15%;
+  height: 1.5px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--darkened-text) 25%,
+    var(--text-color)    50%,
+    var(--darkened-text) 75%,
+    transparent
+  );
+  opacity: 0.22;
+}
+
+/* Faint radial glow bleeding from the gold accent downward */
+.header-card::after {
+  content: "";
+  position: absolute;
+  top: -25px; left: 50%;
+  transform: translateX(-50%);
+  width: 240px; height: 75px;
+  background: radial-gradient(ellipse, rgba(249,214,151,0.055) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.tournament-name {
+  color:          var(--text-color);
+  font-family:    var(--font);
+  font-size:      32px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  white-space:    nowrap;
+  overflow:       hidden;
+  text-overflow:  ellipsis;
+  max-width:      100%;
+  position:       relative;
+  z-index:        1;
+
+  text-shadow:
+    0 2px 4px  rgba(0,0,0,0.8),
+    0 4px 12px rgba(0,0,0,0.5);
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   BOTTOM SLOT CARD — floating teal card on the lower green band
+   ══════════════════════════════════════════════════════════════ */
+
+.bottom-card {
+  position:    absolute;
+  top:         var(--slot-top);
+  left:        var(--margin);
+  right:       var(--margin);
+  bottom:      var(--margin);
+  background:  var(--score-bg-color);
+  border-radius: var(--border-radius);
+  overflow:    hidden;
+  z-index:     2;
+
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.60),
+    0 3px 8px  rgba(0,0,0,0.45),
+    inset 0  1px 0 rgba(255,255,255,0.07),
+    inset 0 -1px 0 rgba(0,0,0,0.35);
+
+  border: 1px solid rgba(249,214,151,0.12);
+}
+
+/* ── Atmospheric depth layers inside the bottom card ── */
+
+/* Canopy light: radial glow from top center */
+.slot-light {
+  position:   absolute;
+  inset:      0;
+  background: radial-gradient(
+    ellipse 75% 42% at 50% -8%,
+    rgba(47,68,40,0.5) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index:    0;
+}
+
+/* Bark grain: subtle repeating horizontal texture lines */
+.slot-grain {
+  position:   absolute;
+  inset:      0;
+  background: repeating-linear-gradient(
+    180deg,
+    transparent           0px,
+    transparent           9px,
+    rgba(47,68,40,0.038) 9px,
+    rgba(47,68,40,0.038) 10px
+  );
+  pointer-events: none;
+  z-index:    0;
+}
+
+/* Vignette: deep shadow pooling at the bottom corners */
+.slot-vignette {
+  position:   absolute;
+  inset:      0;
+  background: radial-gradient(
+    ellipse 120% 80% at 50% 115%,
+    rgba(0,0,0,0.5) 0%,
+    transparent 65%
+  );
+  pointer-events: none;
+  z-index:    0;
+}
+
+
+/* ── Ambient orbs ─────────────────────────────────────────── */
+.ambient {
+  position:       absolute;
+  border-radius:  50%;
+  background:     var(--bg-color);
+  opacity:        0;
+  filter:         blur(40px);
+  pointer-events: none;
+  z-index:        1;
+}
+
+.ambient-1 { width:240px; height:240px; top:6%;    left:-16%;  animation: drift1 13s ease-in-out infinite 0s;    }
+.ambient-2 { width:180px; height:180px; top:46%;   right:-10%; animation: drift2 16s ease-in-out infinite -5s;   }
+.ambient-3 { width:310px; height:185px; bottom:10%; left:5%;   animation: drift3 10s ease-in-out infinite -3s;   }
+.ambient-4 { width:130px; height:130px; top:20%;   right:16%;  animation: drift4 14s ease-in-out infinite -8s;   }
+.ambient-5 { width:200px; height:200px; bottom:2%; right:-16%; animation: drift5 11s ease-in-out infinite -1.5s; }
+
+@keyframes drift1 {
+  0%,100% { opacity:0;    transform:translate(0,0)       scale(1);    border-radius:50%; }
+  30%     { opacity:0.6;  transform:translate(22px,14px) scale(1.05); border-radius:44% 56% 50% 50%; }
+  65%     { opacity:0.3;  transform:translate(8px,28px)  scale(0.94); border-radius:50%; }
+}
+@keyframes drift2 {
+  0%,100% { opacity:0;    transform:translate(0,0)          scale(1);   border-radius:50%; }
+  40%     { opacity:0.5;  transform:translate(-26px,18px)   scale(1.1); border-radius:48% 52% 55% 45%; }
+  75%     { opacity:0.65; transform:translate(-12px,-12px)  scale(0.9); border-radius:50%; }
+}
+@keyframes drift3 {
+  0%,100% { opacity:0;    transform:translate(0,0)        scale(1);    border-radius:50%; }
+  25%     { opacity:0.4;  transform:translate(16px,-22px) scale(1.15); border-radius:60% 40% 50% 50%; }
+  58%     { opacity:0.55; transform:translate(-4px,12px)  scale(1);    border-radius:50%; }
+}
+@keyframes drift4 {
+  0%,100% { opacity:0;    transform:translate(0,0)        scale(1);    border-radius:50%; }
+  45%     { opacity:0.45; transform:translate(-16px,26px) scale(1.2);  border-radius:52% 48% 46% 54%; }
+  72%     { opacity:0.22; transform:translate(8px,6px)    scale(0.85); border-radius:50%; }
+}
+@keyframes drift5 {
+  0%,100% { opacity:0;    transform:translate(0,0)         scale(1);   border-radius:50%; }
+  38%     { opacity:0.52; transform:translate(-22px,-16px) scale(1.1); border-radius:50% 50% 42% 58%; }
+  68%     { opacity:0.28; transform:translate(-32px,6px)   scale(0.9); border-radius:50%; }
+}
+
+
+/* ── Logo ─────────────────────────────────────────────────────
+   Fills the bottom card with comfortable padding.
+   Effects: gold drop-shadow glow + dark shadow for lift,
+   slight brightness/saturation boost to make it pop.
+   ─────────────────────────────────────────────────────────── */
+.slot-logo {
+  position:        absolute;
+  inset:           0;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  z-index:         2;
+  pointer-events:  none;
+  padding:         32px;
+}
+
+/* Stage fills the padded area; images stack inside it */
+.logo-stage {
+  position: relative;
+  width:    100%;
+  height:   100%;
+}
+
+.logo-img {
+  position:   absolute;
+  inset:      0;
+  width:      100%;
+  height:     100%;
+  object-fit: contain;
+  opacity:    0;
+  transition: opacity 1.2s ease-in-out;
+
+  /* Lift shadow + very subtle warm glow */
+  filter:
+    drop-shadow(0 0 12px rgba(249,214,151,0.12))
+    drop-shadow(0 6px 18px rgba(0,0,0,0.70))
+    brightness(1.06)
+    saturate(1.08);
+}
+
+.logo-img.visible {
+  opacity: 1;
+}
+
+
+/* ── Player card slot (issue #3) ──────────────────────────── */
+.panel-slot-content {
+  position: absolute;
+  inset:    0;
+  z-index:  3;
+}
+
+
+/* ── Animation kill-switch ────────────────────────────────── */
+body.no-animate .ambient {
+  animation: none !important;
+  opacity:   0 !important;
+}

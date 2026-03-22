@@ -135,9 +135,9 @@ Costume index comes from `player.characterColor` in `getSettings()`.
 
 Tracked as GitHub issues at [github.com/quinnogden/slippi-stream-overlay/issues](https://github.com/quinnogden/slippi-stream-overlay/issues).
 
-**Build order:** ✅#5 → ✅#6 → ✅#1 → ✅#2 → #4 → #3 → #7
+**Build order:** ✅#5 → ✅#6 → ✅#1 → ✅#2 → ✅#4 → #3 → #7
 
-- **[✅#5] Shared CSS design token file** — `layout/theme.css` with Fredoka font + main.css colors. Linked in `melee.html` before `index.css`. All future layouts link to this first. BabyDoll kept in `main.css` as fallback.
+- **[✅#5] Shared CSS design token file** — `layout/theme.css` with BabyDoll primary font (Fredoka as fallback). BabyDoll `@font-face` declared in `theme.css` so all sources inherit it without repeating it in per-layout CSS.
 
 - **[✅#6] Handwarmer detection** — `slippi-bridge/handwarmer.js`. Weighted score ≥ 2 = handwarmer: each player's `totalDamage < 150` (+1/−1), LRAS end method 7 (+1/−1), both players have >1 stocks in last frame (+2), duration < 45s (+1). Guard: if `stats.overall` is empty/missing, returns false (prevents vacuous-truth false positives). Score-only suppression: `slippi_game_start` still fires (characters update), score increment skipped. Rage quit handling: LRAS + not handwarmer + valid `lrasInitiatorIndex` → awards point to the other player. Folder mode only; TCP mode always passes `isHandwarmer: false`.
 
@@ -147,7 +147,13 @@ Tracked as GitHub issues at [github.com/quinnogden/slippi-stream-overlay/issues]
   - **Score tracking**: `onGameEnd` reads winner team from `currentGameState.players[winnerPlayerIndex].teamNum` before falling back to `portMapper.getTeam()`, fixing null winner when `_portToTeam` is unset at 0-0.
   - **Game end**: RESOLVED end method (normal doubles win in Slippi) + last-frame stock count fallback when placements are missing.
 
-- **[#4] Right-side panel browser source** — 611×1080px replacing static PNG. Structure: dark top bar (tournament name from TSH), transparent cam cutout middle, dark bottom block (reserved for #3). Always-on with toggleable ambient animation via URL param `?animate=false`. `body { background: transparent }` for OBS cam passthrough. Socket.io connected for future hooks.
+- **[✅#4] Right-side panel browser source** — `layout/side-panel/` (own folder). 611×1080px.
+  - **Structure**: Green background (`--bg-color`) fills entire canvas via four positioned divs (`.bg-top`, `.bg-bottom`, `.bg-left`, `.bg-right`). Two floating rounded-rectangle cards (`.header-card`, `.bottom-card`) sit on top with drop shadows + inner edge lighting for raised depth. Cam cutout (587×330px, true 16:9) is transparent gap between them — OBS cam source shows through.
+  - **Cam overlay**: `.cam-overlay` div with `border-radius: 10px` + outward green spread shadow (`box-shadow: 0 0 0 14px var(--bg-color)`) rounds the cam corners without covering any transparent pixels.
+  - **Header card**: tournament name fetched from `../../out/tournamentInfo/tournamentName.txt` (polled every 5s) + `Update()` hook. Thin graduated gold accent line at top edge. Text: 32px BabyDoll, uppercase, wide letter-spacing, dark drop shadows.
+  - **Bottom card**: dark teal with 5-orb CSS ambient animation (green orbs, `@keyframes drift1-5`), atmospheric grain + light + vignette layers. Logo slot (`LOGO_PATH = "../logo.png"`) cycles with sponsor logo (`SPONSOR_PATH = "../ThePark.png"`) every 20s via crossfade transition (`opacity` + CSS `transition: 1.2s`).
+  - **Config constants** at top of `side-panel.js`: `LOGO_PATH`, `SPONSOR_PATH`, `LOGO_INTERVAL`. `?animate=false` URL param disables ambient animation. Socket.io connected to bridge for future hooks.
+  - **Font/theme**: BabyDoll `@font-face` moved to `theme.css`; `meleePlayers.html` now links `theme.css`.
 
 - **[#3] Player card** — One shared OBS source. Cycles between player_presentation and recent_sets panels. 10s interval (configurable constant at top of JS). Resets to panel 1 on `slippi_game_start`. Lives in bottom block of side panel (#4). Use GSAP for transitions.
 

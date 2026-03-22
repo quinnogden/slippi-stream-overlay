@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <script src="../include/globals.js"></script>
+    <link rel="stylesheet" href="../main.css" />
+    <link rel="stylesheet" href="../theme.css" />
+    <link rel="stylesheet" href="./side-panel.css" />
+  </head>
+  <body>
+
+    <!-- ── Cam overlay: rounded corners + edge blend (transparent center) ── -->
+    <div class="cam-overlay"></div>
+
+    <!-- ── Green surface bands framing the transparent cam cutout ── -->
+    <!-- In OBS: body background is transparent. These four divs    -->
+    <!-- provide the forest green frame; the cam region between them -->
+    <!-- has no elements → transparent pixels → OBS cam shows through -->
+    <div class="bg-top"></div>
+    <div class="bg-bottom"></div>
+    <div class="bg-left"></div>
+    <div class="bg-right"></div>
+
+    <!-- ── Header card: tournament name ──────────────────────────── -->
+    <div class="header-card">
+      <span class="tournament-name"></span>
+    </div>
+
+    <!-- ── Bottom slot card: logo + #3 player card placeholder ───── -->
+    <div class="bottom-card">
+      <!-- Atmospheric depth layers (behind everything) -->
+      <div class="slot-light"></div>
+      <div class="slot-grain"></div>
+      <div class="slot-vignette"></div>
+
+      <!-- Ambient animation orbs -->
+      <div class="ambient ambient-1"></div>
+      <div class="ambient ambient-2"></div>
+      <div class="ambient ambient-3"></div>
+      <div class="ambient ambient-4"></div>
+      <div class="ambient ambient-5"></div>
+
+      <!-- Logo cycle: tournament logo ↔ sponsor logo -->
+      <div class="slot-logo">
+        <div class="logo-stage">
+          <img class="logo-img logo-primary" src="" alt="" />
+          <img class="logo-img logo-sponsor" src="" alt="" />
+        </div>
+      </div>
+
+      <!-- Reserved for issue #3 player card content -->
+      <div class="panel-slot-content"></div>
+    </div>
+
+    <!-- Slippi Bridge (conditional load) -->
+    <script>
+      (function () {
+        var s = document.createElement("script");
+        s.src = "http://localhost:5001/socket.io/socket.io.js";
+        s.onerror = function () { window.__slippiBridgeAvailable = false; };
+        s.onload  = function () { window.__slippiBridgeAvailable = true; };
+        document.head.appendChild(s);
+      })();
+    </script>
+    <script src="side-panel.js"></script>
+  </body>
+</html>

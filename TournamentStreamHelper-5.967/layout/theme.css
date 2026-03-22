@@ -5,12 +5,17 @@
    regardless of TSH settings panel changes.
    ============================================================ */
 
+@font-face {
+  font-family: "BabyDoll";
+  src: url("./include/Baby-Doll.ttf") format("truetype");
+}
+
 @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
 
 :root {
-  /* Typography */
-  --font:           'Fredoka', sans-serif;
-  --score-font:     'Fredoka', sans-serif;
+  /* Typography — BabyDoll primary, Fredoka available as fallback */
+  --font:           'BabyDoll', 'Fredoka', sans-serif;
+  --score-font:     'BabyDoll', 'Fredoka', sans-serif;
 
   /* Shape */
   --border-radius:  16px;

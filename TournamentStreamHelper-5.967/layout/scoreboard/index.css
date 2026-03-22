@@ -13,11 +13,6 @@
   src: url("../include/Roboto-Regular.ttf") format("truetype");
 }
 
-@font-face {
-  font-family: "BabyDoll";
-  src: url("../include/Baby-Doll.ttf") format("truetype");
-}
-
 body {
   font-family: var(--font);
   font-weight: bold;
