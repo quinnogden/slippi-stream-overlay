@@ -332,6 +332,7 @@ body {
   z-index:         2;
   pointer-events:  none;
   padding:         32px;
+  opacity:         0;
 }
 
 /* Stage fills the padded area; images stack inside it */
@@ -348,7 +349,6 @@ body {
   height:     100%;
   object-fit: contain;
   opacity:    0;
-  transition: opacity 1.2s ease-in-out;
 
   /* Lift shadow + very subtle warm glow */
   filter:
@@ -358,16 +358,242 @@ body {
     saturate(1.08);
 }
 
-.logo-img.visible {
-  opacity: 1;
-}
 
-
-/* ── Player card slot (issue #3) ──────────────────────────── */
+/* ── Rotating info panels (issue #3) ─────────────────────── */
 .panel-slot-content {
   position: absolute;
   inset:    0;
   z-index:  3;
+}
+
+/* Base panel — hidden by default, GSAP controls opacity/scale */
+.info-panel {
+  position:   absolute;
+  inset:      0;
+  opacity:    0;
+  display:    flex;
+  flex-direction: column;
+  gap:        14px;
+  padding:    28px 24px;
+  background: rgba(var(--score-bg-color-rgb), 0.90);
+  border-radius: var(--border-radius);
+  overflow:   hidden;
+  pointer-events: none;
+}
+
+/* ── Panel header (Recent Sets / Just Finished / Up Next) ── */
+.panel-header {
+  font-family:    var(--font);
+  font-size:      22px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color:          var(--darkened-text);
+  text-shadow:    0 2px 4px rgba(0,0,0,0.7);
+  flex-shrink:    0;
+}
+
+/* ── Player card specific ─────────────────────────────────── */
+.player-char-name {
+  font-family:    var(--font);
+  font-size:      28px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color:          var(--darkened-text);
+  text-shadow:    0 2px 4px rgba(0,0,0,0.7);
+  flex-shrink:    0;
+}
+
+.player-tag {
+  font-family:    var(--font);
+  font-size:      48px;
+  letter-spacing: 0.06em;
+  color:          var(--text-color);
+  text-shadow:
+    0 2px 4px  rgba(0,0,0,0.85),
+    0 4px 12px rgba(0,0,0,0.50);
+  white-space:    nowrap;
+  overflow:       hidden;
+  text-overflow:  ellipsis;
+  flex-shrink:    0;
+  line-height:    1;
+}
+
+.player-sponsor {
+  color:       var(--darkened-text);
+  font-size:   0.7em;
+}
+
+.panel-section-label {
+  font-family:    var(--font);
+  font-size:      16px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color:          var(--darkened-text);
+  opacity:        0.75;
+  flex-shrink:    0;
+  margin-top:     4px;
+}
+
+/* ── Shared list containers ───────────────────────────────── */
+.history-list,
+.run-list,
+.sets-list,
+.completed-list,
+.queue-list {
+  display:        flex;
+  flex-direction: column;
+  gap:            7px;
+  overflow:       hidden;
+  flex-shrink:    0;
+}
+
+/* ── History row (tournament placement) ───────────────────── */
+.history-row {
+  display:     flex;
+  align-items: baseline;
+  gap:         10px;
+  font-family: var(--font);
+  font-size:   19px;
+  color:       var(--text-color);
+  white-space: nowrap;
+}
+
+.history-tournament {
+  flex: 1;
+  overflow:      hidden;
+  text-overflow: ellipsis;
+  color:         var(--text-color);
+}
+
+.history-placement {
+  color:          var(--darkened-text);
+  font-size:      17px;
+  flex-shrink:    0;
+  letter-spacing: 0.04em;
+}
+
+/* ── Run row (current bracket set) ───────────────────────── */
+.run-row {
+  display:     flex;
+  align-items: center;
+  gap:         8px;
+  font-family: var(--font);
+  font-size:   19px;
+  color:       var(--text-color);
+  white-space: nowrap;
+  overflow:    hidden;
+}
+
+.result-badge {
+  width:           24px;
+  height:          24px;
+  border-radius:   50%;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  font-size:       13px;
+  font-weight:     bold;
+  flex-shrink:     0;
+  color:           #fff;
+}
+
+.result-badge.win  { background: var(--win-color); }
+.result-badge.loss { background: var(--loss-color); }
+
+.run-round {
+  color:          var(--darkened-text);
+  font-size:      16px;
+  flex-shrink:    0;
+  letter-spacing: 0.04em;
+}
+
+.run-opponent {
+  flex: 1;
+  overflow:      hidden;
+  text-overflow: ellipsis;
+}
+
+.run-score {
+  color:       var(--darkened-text);
+  font-size:   17px;
+  flex-shrink: 0;
+}
+
+/* ── Recent sets row ──────────────────────────────────────── */
+.set-row {
+  display:     flex;
+  align-items: center;
+  gap:         8px;
+  font-family: var(--font);
+  font-size:   20px;
+  color:       var(--text-color);
+  white-space: nowrap;
+  overflow:    hidden;
+}
+
+.set-p1 { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.set-score { color: var(--darkened-text); font-size: 17px; flex-shrink: 0; }
+.set-p2 { flex: 1; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+
+/* ── Completed sets row ───────────────────────────────────── */
+.completed-row {
+  display:        flex;
+  flex-direction: column;
+  gap:            2px;
+}
+
+.completed-match {
+  display:     flex;
+  align-items: center;
+  gap:         8px;
+  font-family: var(--font);
+  font-size:   20px;
+  color:       var(--text-color);
+  white-space: nowrap;
+  overflow:    hidden;
+}
+
+.completed-winner { font-size: 22px; }
+.completed-loser  { color: var(--darkened-text); }
+
+.completed-round {
+  font-family:    var(--font);
+  font-size:      14px;
+  letter-spacing: 0.06em;
+  color:          var(--darkened-text);
+  padding-left:   4px;
+}
+
+/* ── Queue row ────────────────────────────────────────────── */
+.queue-row {
+  display:        flex;
+  flex-direction: column;
+  gap:            2px;
+}
+
+.queue-match {
+  display:     flex;
+  align-items: center;
+  gap:         8px;
+  font-family: var(--font);
+  font-size:   20px;
+  color:       var(--text-color);
+  white-space: nowrap;
+  overflow:    hidden;
+}
+
+.queue-vs {
+  color:       var(--darkened-text);
+  font-size:   15px;
+  flex-shrink: 0;
+}
+
+.queue-context {
+  font-family:    var(--font);
+  font-size:      14px;
+  letter-spacing: 0.06em;
+  color:          var(--darkened-text);
+  padding-left:   4px;
 }
 
 
