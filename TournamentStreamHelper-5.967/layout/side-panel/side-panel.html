@@ -101,8 +101,6 @@
       (function () {
         var s = document.createElement("script");
         s.src = "http://localhost:5001/socket.io/socket.io.js";
-        s.onerror = function () { window.__slippiBridgeAvailable = false; };
-        s.onload  = function () { window.__slippiBridgeAvailable = true; };
         document.head.appendChild(s);
       })();
     </script>

@@ -20,6 +20,13 @@ const LOGO_PATH           = "../logo.png";
 const SPONSOR_PATH        = "../ThePark.png";
 const LOGO_INTERVAL       = 20000;  // ms — logo slot duration
 const PANEL_INTERVAL      = 20000;  // ms — all panel slot duration
+
+// ── Animation timing constants ────────────────────────────────────────────────
+const ANIM_TRANSITION_DURATION = 0.7;   // panel fade in/out
+const ANIM_PILL_DURATION       = 0.55;  // pill stagger enter duration
+const ANIM_PILL_DELAY          = 0.15;  // delay before pills start entering
+const ANIM_PILL_STAGGER        = 0.10;  // per-pill stagger gap
+const ANIM_PILL_Y_OFFSET       = 40;    // px drop on pill enter
 const SCOREBOARD_NUM      = "1";    // which TSH scoreboard to read
 const COMPLETED_SETS_URL  = "http://localhost:5000/get-sets?getFinished=1";
 const COMPLETED_SETS_POLL = 30000;  // ms between completed-sets fetches
@@ -54,13 +61,14 @@ class Rotator {
     if (data) tshData = data;
     const d = tshData;
 
+    const doubles = isDoubles(d);
     const active = PANEL_ORDER.filter(id => {
       switch (id) {
         case "logo-primary":   return true;
         case "logo-sponsor":   return true;
-        case "player-1":       return hasPlayerCardContent(d, 1);
-        case "player-2":       return hasPlayerCardContent(d, 2);
-        case "recent-sets":    return hasRecentSets(d);
+        case "player-1":       return !doubles && hasPlayerCardContent(d, 1);
+        case "player-2":       return !doubles && hasPlayerCardContent(d, 2);
+        case "recent-sets":    return !doubles && hasRecentSets(d);
         case "completed-sets": return completedSets.length > 0;
         case "queue":          return hasQueue(d);
         default:               return false;
@@ -95,9 +103,8 @@ class Rotator {
     }
 
     const slots = this._slots;
-    const id    = slots[this._index % slots.length];
-    this._index = (this._index % slots.length) + 1;
-    if (this._index >= slots.length) this._index = 0;
+    const id    = slots[this._index];
+    this._index = (this._index + 1) % slots.length;
 
     const duration = PANEL_INTERVAL;
 
@@ -123,13 +130,13 @@ class Rotator {
     const tl = gsap.timeline({ onComplete: onDone });
 
     if (outgoing && outgoing !== incoming) {
-      tl.to(outgoing, { opacity: 0, scale: 0.97, duration: 0.7, ease: "power2.in" });
+      tl.to(outgoing, { opacity: 0, scale: 0.97, duration: ANIM_TRANSITION_DURATION, ease: "power2.in" });
     }
 
     tl.fromTo(
       incoming,
       { opacity: 0, scale: 0.97 },
-      { opacity: 1, scale: 1, duration: 0.7, ease: "power2.out" },
+      { opacity: 1, scale: 1, duration: ANIM_TRANSITION_DURATION, ease: "power2.out" },
       outgoing ? "-=0.1" : 0
     );
 
@@ -139,8 +146,8 @@ class Rotator {
       if (pills.length > 0) {
         gsap.fromTo(
           pills,
-          { y: -40, opacity: 0 },
-          { y: 0, opacity: 1, duration: 0.55, ease: "power2.out", stagger: 0.10, delay: 0.15 }
+          { y: -ANIM_PILL_Y_OFFSET, opacity: 0 },
+          { y: 0, opacity: 1, duration: ANIM_PILL_DURATION, ease: "power2.out", stagger: ANIM_PILL_STAGGER, delay: ANIM_PILL_DELAY }
         );
       }
     }
@@ -151,6 +158,12 @@ const rotator = new Rotator();
 
 
 // ── Skip conditions ───────────────────────────────────────────────────────────
+
+function isDoubles(data) {
+  try {
+    return Object.keys(data.score[SCOREBOARD_NUM].team["1"].player).length > 1;
+  } catch (_) { return false; }
+}
 
 function hasPlayerCardContent(data, teamNum) {
   try {
@@ -194,16 +207,15 @@ function el(tag, cls, text) {
   return e;
 }
 
-function ordinal(n) {
+function ordinalSuffix(n) {
   const s = ["th","st","nd","rd"];
   const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  return s[(v - 20) % 10] || s[v] || s[0];
 }
+function ordinal(n) { return n + ordinalSuffix(n); }
 
 function makePlacementEl(placement, entrants) {
-  const s = ["th","st","nd","rd"];
-  const v = placement % 100;
-  const suffix = s[(v - 20) % 10] || s[v] || s[0];
+  const suffix = ordinalSuffix(placement);
   const span = document.createElement("span");
   span.className = "pill-placement";
   span.appendChild(document.createTextNode(String(placement)));
@@ -241,13 +253,6 @@ function makePill(extraClass) {
   const d = document.createElement("div");
   d.className = "panel-pill" + (extraClass ? " " + extraClass : "");
   return d;
-}
-
-// Create a header pill with label text
-function makeHeaderPill(label) {
-  const p = makePill("pill-header");
-  p.textContent = label;
-  return p;
 }
 
 // Create a two-line pill with line1 and line2 content elements
@@ -553,13 +558,9 @@ LoadEverything().then(() => {
         rotator.jumpTo("player-1");
       });
 
-      socket.on("slippi_game_end", () => {});
-
       socket.on("disconnect", () => {
         console.log("[side-panel] Bridge disconnected — waiting to reconnect");
       });
-
-      socket.on("connect_error", () => {});
     }
 
     tryConnect(10);
