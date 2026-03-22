@@ -47,7 +47,7 @@ body {
   top: 0; left: 0; right: 0;
   height:   var(--cam-top);
   background:
-    radial-gradient(ellipse 55% 80% at 50% 0%, rgba(65,98,54,0.55) 0%, transparent 65%),
+    radial-gradient(ellipse 55% 80% at 50% 0%, rgba(var(--bg-color-light-rgb),0.55) 0%, transparent 65%),
     var(--bg-color);
   z-index: 0;
 }
@@ -67,7 +67,7 @@ body {
   top: var(--cam-bottom);
   left: 0; right: 0; bottom: 0;
   background:
-    radial-gradient(ellipse 55% 60% at 50% 100%, rgba(65,98,54,0.45) 0%, transparent 65%),
+    radial-gradient(ellipse 55% 60% at 50% 100%, rgba(var(--bg-color-light-rgb),0.45) 0%, transparent 65%),
     var(--bg-color);
   z-index: 0;
 }
@@ -155,7 +155,7 @@ body {
     inset 0  1px 0 rgba(255,255,255,0.07),
     inset 0 -1px 0 rgba(0,0,0,0.35);
 
-  border: 1px solid rgba(249,214,151,0.12);
+  border: 1px solid rgba(var(--text-color-rgb),0.12);
 }
 
 /* Thin graduated gold accent line along the top inner edge */
@@ -182,7 +182,7 @@ body {
   top: -25px; left: 50%;
   transform: translateX(-50%);
   width: 240px; height: 75px;
-  background: radial-gradient(ellipse, rgba(249,214,151,0.055) 0%, transparent 70%);
+  background: radial-gradient(ellipse, rgba(var(--text-color-rgb),0.055) 0%, transparent 70%);
   pointer-events: none;
 }
 
@@ -190,6 +190,7 @@ body {
   color:          var(--text-color);
   font-family:    var(--font);
   font-size:      32px;
+
   letter-spacing: 0.18em;
   text-transform: uppercase;
   white-space:    nowrap;
@@ -226,7 +227,7 @@ body {
     inset 0  1px 0 rgba(255,255,255,0.07),
     inset 0 -1px 0 rgba(0,0,0,0.35);
 
-  border: 1px solid rgba(249,214,151,0.12);
+  border: 1px solid rgba(var(--text-color-rgb),0.12);
 }
 
 /* ── Atmospheric depth layers inside the bottom card ── */
@@ -237,7 +238,7 @@ body {
   inset:      0;
   background: radial-gradient(
     ellipse 75% 42% at 50% -8%,
-    rgba(47,68,40,0.5) 0%,
+    rgba(var(--bg-color-rgb),0.5) 0%,
     transparent 70%
   );
   pointer-events: none;
@@ -251,9 +252,9 @@ body {
   background: repeating-linear-gradient(
     180deg,
     transparent           0px,
-    transparent           9px,
-    rgba(47,68,40,0.038) 9px,
-    rgba(47,68,40,0.038) 10px
+    transparent                      9px,
+    rgba(var(--bg-color-rgb),0.038) 9px,
+    rgba(var(--bg-color-rgb),0.038) 10px
   );
   pointer-events: none;
   z-index:    0;
@@ -351,7 +352,7 @@ body {
 
   /* Lift shadow + very subtle warm glow */
   filter:
-    drop-shadow(0 0 12px rgba(249,214,151,0.12))
+    drop-shadow(0 0 12px rgba(var(--text-color-rgb),0.12))
     drop-shadow(0 6px 18px rgba(0,0,0,0.70))
     brightness(1.06)
     saturate(1.08);

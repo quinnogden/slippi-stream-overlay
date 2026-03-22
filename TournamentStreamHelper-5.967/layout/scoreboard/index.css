@@ -21,10 +21,10 @@ body {
   margin: 0;
   width: 1920px;
   height: 1080px;
-  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.12))
-    drop-shadow(0 3px 1px rgba(0, 0, 0, 0.14))
-    drop-shadow(0 1px 5px rgba(0, 0, 0, 0.12))
-    drop-shadow(0 -1px 2px rgba(0, 0, 0, 0.1));
+  filter:
+    drop-shadow(0 4px 8px  rgba(0,0,0,0.35))
+    drop-shadow(0 2px 3px  rgba(0,0,0,0.25))
+    drop-shadow(0 1px 1px  rgba(0,0,0,0.20));
   letter-spacing: 1;
   background-size: cover;
 }
@@ -49,7 +49,7 @@ body {
 
 .player_row {
   position: relative;
-  top : 1000px
+  top: 1000px;
 }
 
 .melee_row {
@@ -58,6 +58,9 @@ body {
   left: -305px;
 }
 
+/* ── Base container ───────────────────────────────────────────
+   Raised card: outer drop shadows + inner edge lighting.
+   ─────────────────────────────────────────────────────────── */
 .container {
   position: absolute;
   color: var(--text-color);
@@ -67,6 +70,12 @@ body {
   border-radius: var(--border-radius);
   background: var(--bg-color);
   align-items: center;
+
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.60),
+    0 3px 8px  rgba(0,0,0,0.45),
+    inset 0  1px 0 rgba(255,255,255,0.07),
+    inset 0 -1px 0 rgba(0,0,0,0.35);
 }
 
 .player.container {
@@ -130,6 +139,10 @@ body {
   padding: 0 8px;
 }
 
+/* ── Player name ─────────────────────────────────────────────
+   Upgraded text treatment: layered dark drop shadows for lift,
+   wider letter-spacing. No uppercase — names stay as typed.
+   ─────────────────────────────────────────────────────────── */
 .name {
   display: flex;
   width: 100%;
@@ -140,8 +153,12 @@ body {
   box-sizing: border-box;
   max-width: 100%;
   font-size: 35px;
+  letter-spacing: 0.06em;
 }
 
+/* ── Chip badges ─────────────────────────────────────────────
+   Small raised pill: shadow + gold rim scaled to chip size.
+   ─────────────────────────────────────────────────────────── */
 .chips {
   display: flex;
   position: absolute;
@@ -181,6 +198,11 @@ body {
   min-width: unset;
   padding-left: 8px;
   padding-right: 8px;
+  letter-spacing: 0.06em;
+  box-shadow:
+    0 2px 8px  rgba(0,0,0,0.50),
+    0 1px 3px  rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
 .twitter_logo {
@@ -198,6 +220,7 @@ body {
   margin-left: -4px;
 }
 
+/* ── Logo ─────────────────────────────────────────────────── */
 .logo {
   position: absolute;
   top: 24px;
@@ -226,11 +249,14 @@ body {
 }
 
 .fgc.thin.meleePlayer .logo {
-  top: 785px;
-  width: 200px;
-  height: 200px;
+  top: 742px;
+  width: 260px;
+  height: 260px;
 }
 
+/* ── Match info container ────────────────────────────────────
+   Inherits raised card from .container. Extra text refinement.
+   ─────────────────────────────────────────────────────────── */
 .info.container {
   left: 50%;
   padding-left: 20px;
@@ -294,7 +320,7 @@ body {
 
 .match {
   font-size: 24px;
-  letter-spacing: 2px;
+  letter-spacing: 0.10em;
   width: 100%;
 }
 
@@ -333,8 +359,47 @@ body {
 
 .meleePlayer .info.container.top {
   border-radius: var(--border-radius);
+  background: var(--score-bg-color);
 }
 
+.meleePlayer .info.container.top::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 15%; right: 15%;
+  height: 1.5px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--darkened-text) 25%,
+    var(--text-color)    50%,
+    var(--darkened-text) 75%,
+    transparent
+  );
+  opacity: 0.22;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Gold accent line on bottom info container only */
+.info.container.bottom::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 15%; right: 15%;
+  height: 1.5px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--darkened-text) 25%,
+    var(--text-color)    50%,
+    var(--darkened-text) 75%,
+    transparent
+  );
+  opacity: 0.22;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* ── Sponsor icon ─────────────────────────────────────────── */
 .sponsor_icon > div > div {
   display: inline-block;
   background-size: contain;
@@ -379,9 +444,12 @@ body {
   height: 100px;
 }
 
+/* ── Character container ─────────────────────────────────────
+   Each icon slot gets rounded corners and a layered shadow
+   to feel lifted. The icon imagery itself is untouched.
+   ─────────────────────────────────────────────────────────── */
 .character_container {
   display: flex;
-  overflow: hidden;
   position: relative;
   height: 100%;
   flex-shrink: 0;
@@ -391,68 +459,8 @@ body {
   --team-swatch-size: 48px;
 }
 
-/* Visual background + shadow rendered behind children so their own
-   backgrounds (character thumbnails) remain visible on top */
-.character_container.team-color::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 8px;
-  transform: translateY(-50%);
-  width: var(--team-swatch-size);
-  height: var(--team-swatch-size);
-  background: var(--team-color);
-  border-radius: calc(var(--border-radius) / 3);
-  box-shadow: none;
-  z-index: 0;
-  border: 1px solid rgba(0,0,0,0.22);
-}
-
-/* subtle highlight overlay to give a slight depth without using an outer shadow */
-.character_container.team-color::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 8px;
-  transform: translateY(-50%);
-  width: var(--team-swatch-size);
-  height: var(--team-swatch-size);
-  border-radius: calc(var(--border-radius) / 3);
-  background: linear-gradient(rgba(255,255,255,0.06), rgba(255,255,255,0));
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* p2 layouts (row-reverse) place the swatch on the right */
-.p2 .character_container.team-color::before {
-  left: auto;
-  right: 8px;
-}
-
-/* push children away from the swatch so thumbnails/names don't overlap it */
-.character_container.team-color {
-  padding-left: calc(var(--team-swatch-size) + 16px);
-}
-.p2 .character_container.team-color {
-  padding-left: 0;
-  padding-right: calc(var(--team-swatch-size) + 16px);
-}
-
-/* Ensure children are above the pseudo background */
-.character_container.team-color > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* TSH's rendering engine re-injects a div.text.text_empty placeholder inside
-   the container even after SetInnerHtml clears it. Hide it so it doesn't create
-   a gap between the team-color swatch and the score. */
-.character_container.team-color .text.text_empty {
-  display: none;
-}
-
+/* Singles: icon slots — no box */
 .character_container > div {
-  overflow: hidden;
   height: 48px;
   width: 48px;
 }
@@ -470,18 +478,94 @@ body {
   height: 48px;
   display: flex;
   align-items: center;
+  filter: drop-shadow(0 3px 3px rgba(0,0,0,0.60));
 }
 
+/* ── Doubles team swatch ──────────────────────────────────────
+   Stronger border, inset highlight for a physical chip feel.
+   ─────────────────────────────────────────────────────────── */
+.character_container.team-color::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  transform: translateY(-50%);
+  width: var(--team-swatch-size);
+  height: var(--team-swatch-size);
+  background: var(--team-color);
+  border-radius: calc(var(--border-radius) / 3);
+  z-index: 0;
+  border: 1px solid rgba(0,0,0,0.35);
+  box-shadow:
+    0 4px 12px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -1px 0 rgba(0,0,0,0.25);
+}
+
+/* Gradient highlight overlay on the swatch — more visible than before */
+.character_container.team-color::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  transform: translateY(-50%);
+  width: var(--team-swatch-size);
+  height: var(--team-swatch-size);
+  border-radius: calc(var(--border-radius) / 3);
+  background: linear-gradient(
+    rgba(255,255,255,0.14) 0%,
+    rgba(255,255,255,0.04) 45%,
+    rgba(0,0,0,0.08) 100%
+  );
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* p2 layouts (row-reverse) place the swatch on the right */
+.p2 .character_container.team-color::before,
+.p2 .character_container.team-color::after {
+  left: auto;
+  right: 8px;
+}
+
+/* push children away from the swatch */
+.character_container.team-color {
+  padding-left: calc(var(--team-swatch-size) + 16px);
+}
+.p2 .character_container.team-color {
+  padding-left: 0;
+  padding-right: calc(var(--team-swatch-size) + 16px);
+}
+
+/* Ensure children are above the pseudo background */
+.character_container.team-color > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* TSH injects div.text.text_empty — hide it to prevent gap */
+.character_container.team-color .text.text_empty {
+  display: none;
+}
+
+/* ── Score box ───────────────────────────────────────────────
+   Raised card treatment matching .container. Positive margin
+   adds breathing room from the character icons.
+   ─────────────────────────────────────────────────────────── */
 .score {
   width: 64px;
   height: 64px;
   font-size: 50px;
   color: var(--bg-color);
-  filter: drop-shadow(0px 0px 10px black);
   flex-grow: 1;
   flex-shrink: 0;
   padding-bottom: 6px;
   overflow: hidden;
+  box-shadow:
+    0 8px 32px rgba(0,0,0,0.60),
+    0 3px 8px  rgba(0,0,0,0.45),
+    inset 0  1px 0 rgba(255,255,255,0.07),
+    inset 0 -1px 0 rgba(0,0,0,0.35);
 }
 
 .fgc.thin .score {
@@ -490,15 +574,15 @@ body {
 }
 
 .p1 .score {
-  color: var(--p1-score-color);
+  color: var(--score-color);
   background: var(--score-bg-color);
   margin-right: -6px;
-  margin-left: 6px;
+  margin-left: 16px;
 }
 
 .thin .p1 .score {
-  margin-right: -8px;
-  margin-left: 8px;
+  margin-right: -6px;
+  margin-left: 18px;
 }
 
 .sponsor {
@@ -507,17 +591,18 @@ body {
 }
 
 .p2 .score {
-  color: var(--p2-score-color);
+  color: var(--score-color);
   background: var(--score-bg-color);
   margin-left: -6px;
-  margin-right: 6px;
+  margin-right: 16px;
 }
 
 .thin .p2 .score {
-  margin-left: -8px;
-  margin-right: 8px;
+  margin-left: -6px;
+  margin-right: 18px;
 }
 
+/* ── Losers badge ─────────────────────────────────────────── */
 .losers {
   display: inline-flex;
   width: 22px;

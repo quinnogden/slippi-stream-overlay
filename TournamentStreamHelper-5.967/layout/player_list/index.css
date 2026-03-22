@@ -133,7 +133,7 @@ body {
   background-size: contain;
   border-radius: var(--border-radius);
   overflow: hidden;
-  background-color: #3f3f46;
+  background-color: var(--icon-bg-color);
 }
 
 .icon div:not(.text) {
@@ -142,7 +142,7 @@ body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  background-color: #3f3f46;
+  background-color: var(--icon-bg-color);
 }
 
 .icon.stockicon div {
@@ -175,7 +175,7 @@ body {
   height: 100%;
   flex-shrink: 0;
   width: 140px;
-  background-color: #3f3f46;
+  background-color: var(--icon-bg-color);
   border-radius: var(--border-radius);
 }
 
@@ -184,7 +184,7 @@ body {
   width: 48px;
   height: 48px;
   font-size: 38px;
-  color: #f5f5f5;
+  color: var(--text-color);
   border-radius: var(--border-radius);
   flex-grow: 0;
   flex-shrink: 0;

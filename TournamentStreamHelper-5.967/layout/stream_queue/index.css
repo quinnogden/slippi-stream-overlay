@@ -184,11 +184,11 @@ body {
 }
 
 .p1 .losers {
-    background: #ff3837ff;
+    background: var(--loss-color);
 }
   
 .p2 .losers {
-    background: #308affff;
+    background: var(--p2-team-color);
 }
 
 .twitter {
@@ -235,7 +235,7 @@ body {
 }
 
 .extra div {
-    background-color: #222222;
+    background-color: var(--score-bg-color);
     border-radius: 15px;
     padding-left: 4px;
     padding-right: 4px;
@@ -263,7 +263,7 @@ body {
 }
 
 .message {
-    color: black;
+    color: var(--text-color);
     font-size: 50px;
     font-weight: bold;
 }

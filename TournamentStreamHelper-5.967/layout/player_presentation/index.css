@@ -376,7 +376,7 @@ body {
   font-size: 16px;
   padding: 1px 8px;
   border-radius: 2px;
-  background-color: #000000ff;
+  background-color: var(--bg-color);
   top: 28px;
   left: 50%;
   transform: translateX(-50%);
@@ -771,7 +771,7 @@ body {
 }
 
 .result_tag {
-  background-color: #ff3837;
+  background-color: var(--loss-color);
 
   display: flex;
   flex-direction: column;
@@ -786,7 +786,7 @@ body {
 }
 
 .result_tag.winner {
-  background-color: #29b548;
+  background-color: var(--win-color);
 }
 
 /*
@@ -815,7 +815,7 @@ body {
 
 .set_score {
   height: 100%;
-  background-color: #595959;
+  background-color: var(--set-score-color);
   padding-left: 16px;
   padding-right: 16px;
   border-radius: 50px;

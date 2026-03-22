@@ -121,7 +121,7 @@ body {
   text-align: center;
   line-height: 64px;
   border-radius: 100%;
-  background: #29b548;
+  background: var(--win-color);
   color: var(--text-color);
   flex-shrink: 0;
 }
@@ -133,7 +133,7 @@ body {
   text-align: center;
   line-height: 64px;
   border-radius: 100%;
-  background: #ff3837;
+  background: var(--loss-color);
   color: var(--text-color);
   flex-shrink: 0;
 }

@@ -25,8 +25,19 @@
   --text-color:     #f9d697;   /* warm gold */
   --darkened-text:  #aa8e5b;   /* muted gold */
   --score-bg-color: #132d35;   /* dark teal */
-  --p1-score-color: #f9d697;
-  --p2-score-color: #f9d697;
+  --score-color:    #f9d697;
   --sponsor-color:  #aa8e5b;
   --accent-color:   #f9d697;   /* used by side panel, player card, etc. */
+
+  /* Semantic UI colors */
+  --icon-bg-color:   var(--score-bg-color); /* character icon slot backgrounds */
+  --win-color:       #29b548;               /* winner result indicator */
+  --loss-color:      #ff3837;               /* loser result indicator */
+  --p2-team-color:   #308aff;               /* p2 accent in queues/bracket */
+  --set-score-color: var(--darkened-text);  /* neutral set score chip */
+
+  /* RGB triplets for use inside rgba() */
+  --bg-color-rgb:       47, 68, 40;    /* #2f4428 */
+  --bg-color-light-rgb: 65, 98, 54;    /* lighter green for gradient highlights */
+  --text-color-rgb:     249, 214, 151; /* #f9d697 */
 }

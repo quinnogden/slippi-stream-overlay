@@ -163,7 +163,7 @@ body {
   background-size: contain;
   border-radius: var(--border-radius);
   overflow: hidden;
-  background-color: #3f3f46;
+  background-color: var(--icon-bg-color);
 }
 
 .icon div:not(.text) {
@@ -172,7 +172,7 @@ body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  background-color: #3f3f46;
+  background-color: var(--icon-bg-color);
 }
 
 .sponsor_icon > div > div {
