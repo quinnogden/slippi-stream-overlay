@@ -9,7 +9,7 @@ A custom streaming overlay for Melee tournaments that bridges live Slippi game d
 1. **`slippi-bridge/`** — A Node.js backend that reads live `.slp` files and drives TSH via HTTP API + Socket.io.
 2. **`TournamentStreamHelper-5.967/layout/scoreboard/`** — A customized TSH scoreboard layout (HTML/CSS/JS) that consumes both TSH state and slippi-bridge events.
 
-TSH itself (`TournamentStreamHelper-5.967/`) is a third-party app run as a local web server on port 5000. Do not edit files inside it outside of `layout/scoreboard/`.
+TSH itself (`TournamentStreamHelper-5.967/`) is a third-party app run as a local web server on port 5000. Do not edit files inside it outside of `layout/`.
 
 ---
 
@@ -135,7 +135,7 @@ Costume index comes from `player.characterColor` in `getSettings()`.
 
 Tracked as GitHub issues at [github.com/quinnogden/slippi-stream-overlay/issues](https://github.com/quinnogden/slippi-stream-overlay/issues).
 
-**Build order:** ✅#5 → ✅#6 → ✅#1 → ✅#2 → ✅#4 → #3 → #7
+**Build order:** ✅#5 → ✅#6 → ✅#1 → ✅#2 → ✅#4 → ✅Phase2 → #3 → #7
 
 - **[✅#5] Shared CSS design token file** — `layout/theme.css` with BabyDoll primary font (Fredoka as fallback). BabyDoll `@font-face` declared in `theme.css` so all sources inherit it without repeating it in per-layout CSS.
 
@@ -154,6 +154,10 @@ Tracked as GitHub issues at [github.com/quinnogden/slippi-stream-overlay/issues]
   - **Bottom card**: dark teal with 5-orb CSS ambient animation (green orbs, `@keyframes drift1-5`), atmospheric grain + light + vignette layers. Logo slot (`LOGO_PATH = "../logo.png"`) cycles with sponsor logo (`SPONSOR_PATH = "../ThePark.png"`) every 20s via crossfade transition (`opacity` + CSS `transition: 1.2s`).
   - **Config constants** at top of `side-panel.js`: `LOGO_PATH`, `SPONSOR_PATH`, `LOGO_INTERVAL`. `?animate=false` URL param disables ambient animation. Socket.io connected to bridge for future hooks.
   - **Font/theme**: BabyDoll `@font-face` moved to `theme.css`; `meleePlayers.html` now links `theme.css`.
+
+- **[✅Phase2] Scoreboard visual polish + theme centralization**
+  - **Scoreboard**: raised card depth (`box-shadow`) on all `.container` elements. Gold accent line on `.info.container.bottom` and `meleePlayers` center card only (not player containers). Character icons float without box — drop-shadow applied directly to image. Score box flush to container edge with breathing room from icons. `meleePlayers` logo repositioned (742px) above center card, enlarged to 260×260px.
+  - **Theme**: `theme.css` is now the single source of truth. `main.css` `@import`s it so all 16 TSH layouts inherit tokens automatically. New semantic variables: `--icon-bg-color`, `--win-color`, `--loss-color`, `--p2-team-color`, `--set-score-color`, `--score-color` (merged from `--p1/p2-score-color`). RGB triplets `--bg-color-rgb`, `--bg-color-light-rgb`, `--text-color-rgb` for `rgba()` usage. All hardcoded theme colors removed from `side-panel.css` and 10 other layout CSS files.
 
 - **[#3] Player card** — One shared OBS source. Cycles between player_presentation and recent_sets panels. 10s interval (configurable constant at top of JS). Resets to panel 1 on `slippi_game_start`. Lives in bottom block of side panel (#4). Use GSAP for transitions.
 
