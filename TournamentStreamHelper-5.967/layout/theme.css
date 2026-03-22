@@ -21,10 +21,10 @@
   --border-radius:  16px;
 
   /* Colors */
-  --bg-color:       #2f4428;   /* deep forest green */
+  --bg-color:       #2a3d23;   /* deep forest green, darker */
   --text-color:     #f9d697;   /* warm gold */
   --darkened-text:  #aa8e5b;   /* muted gold */
-  --score-bg-color: #132d35;   /* dark teal */
+  --score-bg-color: #071820;   /* dark teal, deeper */
   --score-color:    #f9d697;
   --sponsor-color:  #aa8e5b;
   --accent-color:   #f9d697;   /* used by side panel, player card, etc. */
@@ -37,8 +37,8 @@
   --set-score-color: var(--darkened-text);  /* neutral set score chip */
 
   /* RGB triplets for use inside rgba() */
-  --bg-color-rgb:       47, 68, 40;    /* #2f4428 */
-  --bg-color-light-rgb: 65, 98, 54;    /* lighter green for gradient highlights */
+  --bg-color-rgb:       42, 61, 35;    /* #2a3d23 */
+  --bg-color-light-rgb: 58, 84, 48;    /* lighter green for gradient highlights */
   --text-color-rgb:     249, 214, 151; /* #f9d697 */
-  --score-bg-color-rgb: 19, 45, 53;   /* #132d35 */
+  --score-bg-color-rgb: 7, 24, 32;     /* #071820 */
 }

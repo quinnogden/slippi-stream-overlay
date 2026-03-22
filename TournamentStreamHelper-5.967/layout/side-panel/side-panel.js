@@ -13,10 +13,13 @@
  * Config constants (edit here):
  */
 
+// ── Debug: lock to a single panel (set null to re-enable rotation) ────────────
+const DEBUG_PANEL = null; // "logos"|"player-1"|"player-2"|"recent-sets"|"completed-sets"|"queue"|null
+
 const LOGO_PATH           = "../logo.png";
 const SPONSOR_PATH        = "../ThePark.png";
 const LOGO_INTERVAL       = 20000;  // ms — logo slot duration
-const PANEL_INTERVAL      = 10000;  // ms — info panel slot duration
+const PANEL_INTERVAL      = 20000;  // ms — all panel slot duration
 const SCOREBOARD_NUM      = "1";    // which TSH scoreboard to read
 const COMPLETED_SETS_URL  = "http://localhost:5000/get-sets?getFinished=1";
 const COMPLETED_SETS_POLL = 30000;  // ms between completed-sets fetches
@@ -24,7 +27,6 @@ const TOURNAMENT_NAME_URL = "../../out/tournamentInfo/tournamentName.txt";
 const NAME_POLL_INTERVAL  = 5000;
 
 // ── Animation toggle ──────────────────────────────────────────────────────────
-// Runs before LoadEverything — no library deps needed
 (function applyAnimationParam() {
   const params = new URLSearchParams(window.location.search);
   if (params.get("animate") === "false") {
@@ -35,29 +37,29 @@ const NAME_POLL_INTERVAL  = 5000;
 
 // ── Rotation controller ───────────────────────────────────────────────────────
 
-const PANEL_ORDER = ["logos", "player-1", "player-2", "recent-sets", "completed-sets", "queue"];
+const PANEL_ORDER = ["logo-primary", "player-1", "player-2", "recent-sets", "logo-sponsor", "completed-sets", "queue"];
 
 let completedSets = [];  // cached from last poll
 let tshData       = null; // last TSH program state
 
 class Rotator {
   constructor() {
-    this._slots   = ["logos"];  // active slots (subset of PANEL_ORDER)
+    this._slots   = ["logo-primary"];
     this._index   = 0;
     this._timer   = null;
-    this._current = null;  // id of currently visible slot
+    this._current = null;
   }
 
-  // Rebuild active slot list from current data; if current slot was removed, advance.
   buildSlots(data) {
     if (data) tshData = data;
     const d = tshData;
 
     const active = PANEL_ORDER.filter(id => {
       switch (id) {
-        case "logos":          return true;
-        case "player-1":
-        case "player-2":       return hasPlayerData(d);
+        case "logo-primary":   return true;
+        case "logo-sponsor":   return true;
+        case "player-1":       return hasPlayerCardContent(d, 1);
+        case "player-2":       return hasPlayerCardContent(d, 2);
         case "recent-sets":    return hasRecentSets(d);
         case "completed-sets": return completedSets.length > 0;
         case "queue":          return hasQueue(d);
@@ -65,9 +67,8 @@ class Rotator {
       }
     });
 
-    this._slots = active.length > 0 ? active : ["logos"];
+    this._slots = active.length > 0 ? active : ["logo-primary"];
 
-    // If current slot was removed, advance immediately
     if (this._current && !this._slots.includes(this._current)) {
       this._index = 0;
       this._advance();
@@ -87,44 +88,62 @@ class Rotator {
   }
 
   _advance() {
+    // Debug mode: lock to a single panel, no auto-advance
+    if (DEBUG_PANEL) {
+      this._transitionTo(DEBUG_PANEL, () => {});
+      return;
+    }
+
     const slots = this._slots;
     const id    = slots[this._index % slots.length];
     this._index = (this._index % slots.length) + 1;
     if (this._index >= slots.length) this._index = 0;
 
-    const duration = id === "logos" ? LOGO_INTERVAL : PANEL_INTERVAL;
+    const duration = PANEL_INTERVAL;
 
     this._transitionTo(id, () => {
       this._timer = setTimeout(() => this._advance(), duration);
     });
   }
 
-  _transitionTo(id, onDone) {
-    const incoming = id === "logos"
-      ? document.querySelector(".slot-logo")
-      : document.getElementById("panel-" + id);
+  _resolveEl(id) {
+    if (id === "logo-primary") return document.querySelector(".logo-primary");
+    if (id === "logo-sponsor") return document.querySelector(".logo-sponsor");
+    return document.getElementById("panel-" + id);
+  }
 
+  _transitionTo(id, onDone) {
+    const incoming = this._resolveEl(id);
     if (!incoming) { onDone(); return; }
 
-    // Outgoing element
-    const outgoing = this._current === "logos"
-      ? document.querySelector(".slot-logo")
-      : (this._current ? document.getElementById("panel-" + this._current) : null);
+    const outgoing = this._current ? this._resolveEl(this._current) : null;
 
     this._current = id;
 
     const tl = gsap.timeline({ onComplete: onDone });
 
     if (outgoing && outgoing !== incoming) {
-      tl.to(outgoing, { opacity: 0, scale: 0.97, duration: 0.4, ease: "power2.in" });
+      tl.to(outgoing, { opacity: 0, scale: 0.97, duration: 0.7, ease: "power2.in" });
     }
 
     tl.fromTo(
       incoming,
       { opacity: 0, scale: 0.97 },
-      { opacity: 1, scale: 1, duration: 0.4, ease: "power2.out" },
+      { opacity: 1, scale: 1, duration: 0.7, ease: "power2.out" },
       outgoing ? "-=0.1" : 0
     );
+
+    // James Bond stagger: pills fall in top-to-bottom on panel entrance
+    if (id !== "logo-primary" && id !== "logo-sponsor") {
+      const pills = incoming.querySelectorAll(".panel-pill");
+      if (pills.length > 0) {
+        gsap.fromTo(
+          pills,
+          { y: -40, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.55, ease: "power2.out", stagger: 0.10, delay: 0.15 }
+        );
+      }
+    }
   }
 }
 
@@ -133,9 +152,17 @@ const rotator = new Rotator();
 
 // ── Skip conditions ───────────────────────────────────────────────────────────
 
-function hasPlayerData(data) {
+function hasPlayerCardContent(data, teamNum) {
   try {
-    return !!(data.score[SCOREBOARD_NUM].team["1"].player["1"].name);
+    if (!data.score[SCOREBOARD_NUM].team[String(teamNum)].player["1"].name) return false;
+    const history = data.score[SCOREBOARD_NUM].history_sets
+      ? Object.values(data.score[SCOREBOARD_NUM].history_sets[String(teamNum)] || {})
+          .filter(h => (h.event_name || "").toLowerCase().includes("single"))
+      : [];
+    const lastSets = data.score[SCOREBOARD_NUM].last_sets
+      ? Object.values(data.score[SCOREBOARD_NUM].last_sets[String(teamNum)] || {})
+      : [];
+    return history.length > 0 || lastSets.length > 0;
   } catch (_) { return false; }
 }
 
@@ -158,7 +185,14 @@ function hasQueue(data) {
 }
 
 
-// ── Render helpers ────────────────────────────────────────────────────────────
+// ── DOM helpers ───────────────────────────────────────────────────────────────
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
 
 function ordinal(n) {
   const s = ["th","st","nd","rd"];
@@ -166,11 +200,71 @@ function ordinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-function el(tag, cls, text) {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (text !== undefined) e.textContent = text;
-  return e;
+function makePlacementEl(placement, entrants) {
+  const s = ["th","st","nd","rd"];
+  const v = placement % 100;
+  const suffix = s[(v - 20) % 10] || s[v] || s[0];
+  const span = document.createElement("span");
+  span.className = "pill-placement";
+  span.appendChild(document.createTextNode(String(placement)));
+  const sup = document.createElement("sup");
+  sup.className = "ordinal-sup";
+  sup.textContent = suffix;
+  span.appendChild(sup);
+  if (entrants) span.appendChild(document.createTextNode("/" + entrants));
+  return span;
+}
+
+function formatDate(timestampSeconds) {
+  try {
+    const d = new Date(timestampSeconds * 1000);
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const yy = String(d.getFullYear()).slice(-2);
+    return mm + "/" + dd + "/" + yy;
+  } catch (_) { return ""; }
+}
+
+// Auto-shrink text to fit its container (single line, no ellipsis)
+function fitText(el, minPx = 13) {
+  requestAnimationFrame(() => {
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    while (el.scrollWidth > el.clientWidth && size > minPx) {
+      size -= 0.5;
+      el.style.fontSize = size + "px";
+    }
+  });
+}
+
+// Create a standard panel-pill div
+function makePill(extraClass) {
+  const d = document.createElement("div");
+  d.className = "panel-pill" + (extraClass ? " " + extraClass : "");
+  return d;
+}
+
+// Create a header pill with label text
+function makeHeaderPill(label) {
+  const p = makePill("pill-header");
+  p.textContent = label;
+  return p;
+}
+
+// Create a two-line pill with line1 and line2 content elements
+// line1El and line2El are already-built DOM elements or strings
+function makeTwoLinePill(line1El, line2Text, extraClass) {
+  const p = makePill("pill-two-line" + (extraClass ? " " + extraClass : ""));
+  const l1 = el("div", "pill-line-1");
+  if (typeof line1El === "string") {
+    l1.textContent = line1El;
+  } else if (line1El) {
+    l1.appendChild(line1El);
+  }
+  p.appendChild(l1);
+  if (line2Text) {
+    p.appendChild(el("div", "pill-line-2", line2Text));
+  }
+  return p;
 }
 
 
@@ -185,55 +279,66 @@ function renderPlayerCard(teamNum, data) {
     const player = team.player["1"];
     const char   = player.character && player.character["1"];
 
-    // Character name
-    panel.querySelector(".player-char-name").textContent =
-      (char && char.name) ? char.name.toUpperCase() : "";
+    // Identity block
+    const identity = panel.querySelector(".player-identity");
+    const tagEl    = identity.querySelector(".player-tag");
+    const charEl   = identity.querySelector(".player-char-name");
 
-    // Sponsor + tag
-    const tagEl   = panel.querySelector(".player-tag");
     tagEl.innerHTML = "";
     if (player.team) {
-      const sp = el("span", "player-sponsor", player.team + " ");
-      tagEl.appendChild(sp);
+      tagEl.appendChild(el("span", "player-sponsor", player.team + " "));
     }
     tagEl.appendChild(document.createTextNode(player.name || ""));
 
-    // Recent results (history_sets)
-    const histList = panel.querySelector(".history-list");
+    charEl.textContent = (char && char.name) ? char.name.toUpperCase() : "";
+
+    // Recent Results pills
+    const histList   = panel.querySelector(".history-list");
+    const histHeader = histList.previousElementSibling;
     histList.innerHTML = "";
-    const history = data.score[SCOREBOARD_NUM].history_sets
-      ? Object.values(data.score[SCOREBOARD_NUM].history_sets[String(teamNum)] || {}).slice(0, 3)
-      : [];
-    history.forEach(h => {
-      const row = el("div", "history-row");
-      const nameEl = el("span", "history-tournament", h.tournament_name || h.event_name || "");
-      const placeEl = el("span", "history-placement",
-        h.placement ? ordinal(h.placement) + (h.entrants ? "/" + h.entrants : "") : "");
-      row.appendChild(nameEl);
-      row.appendChild(placeEl);
-      histList.appendChild(row);
+    const filteredHistory = (data.score[SCOREBOARD_NUM].history_sets
+      ? Object.values(data.score[SCOREBOARD_NUM].history_sets[String(teamNum)] || {}).slice(0, 10)
+      : []).filter(h => (h.event_name || "").toLowerCase().includes("single")).slice(0, 5);
+
+    const showHist = filteredHistory.length > 0;
+    histHeader.style.display = showHist ? "" : "none";
+    histList.style.display   = showHist ? "" : "none";
+
+    filteredHistory.forEach(h => {
+      const pill  = makePill();
+      const name  = el("span", "pill-name", h.tournament_name || h.event_name || "");
+      const place = h.placement ? makePlacementEl(h.placement, h.entrants) : el("span", "pill-placement");
+      pill.append(name, place);
+      histList.appendChild(pill);
     });
 
-    // Current run (last_sets)
-    const runList = panel.querySelector(".run-list");
+    // Current Run pills
+    const runList   = panel.querySelector(".run-list");
+    const runHeader = runList.previousElementSibling;
     runList.innerHTML = "";
     const lastSetsRaw = data.score[SCOREBOARD_NUM].last_sets
       ? data.score[SCOREBOARD_NUM].last_sets[String(teamNum)]
       : null;
     const lastSets = lastSetsRaw
-      ? Object.values(lastSetsRaw).slice().reverse().slice(0, 3)
+      ? Object.values(lastSetsRaw).slice(0, 5)
       : [];
+
+    const showRun = lastSets.length > 0;
+    runHeader.style.display = showRun ? "" : "none";
+    runList.style.display   = showRun ? "" : "none";
+
     lastSets.forEach(s => {
-      const win = (s.player_score || 0) > (s.oponent_score || 0);
-      const row = el("div", "run-row");
-      const badge = el("span", "result-badge " + (win ? "win" : "loss"), win ? "W" : "L");
-      const round = el("span", "run-round", s.round_name || s.phase_name || "");
-      const opp   = el("span", "run-opponent", s.player_name || "");
-      const score = el("span", "run-score",
-        (s.player_score || 0) + "-" + (s.oponent_score || 0));
-      row.append(badge, round, opp, score);
-      runList.appendChild(row);
+      const win   = (s.player_score || 0) > (s.oponent_score || 0);
+      const pill  = makePill(win ? "win" : "loss");
+      const round = el("span", "pill-round", s.round_name || s.phase_name || "");
+      const opp   = el("span", "pill-name", s.oponent_name || "");
+      const score = el("span", "pill-run-score",
+        (s.player_score || 0) + "–" + (s.oponent_score || 0));
+      pill.append(opp, round, score);
+      runList.appendChild(pill);
+      fitText(opp);
     });
+
   } catch (_) {}
 }
 
@@ -245,20 +350,53 @@ function renderRecentSets(data) {
   if (!panel) return;
 
   try {
-    const list = panel.querySelector(".sets-list");
-    list.innerHTML = "";
+    const container = panel.querySelector(".sets-list");
+    container.innerHTML = "";
+
     const sets = data.score[SCOREBOARD_NUM].recent_sets.sets || [];
+
+    // H2H pill
+    const p1Name = data.score[SCOREBOARD_NUM].team["1"].player["1"].name || "P1";
+    const p2Name = data.score[SCOREBOARD_NUM].team["2"].player["1"].name || "P2";
+    const p1Wins = sets.filter(s => s.winner === 0).length;
+    const p2Wins = sets.filter(s => s.winner === 1).length;
+
+    const h2hHeader = el("div", "h2h-header");
+    const h2hRow    = el("div", "h2h-row");
+    const p1El = el("div", "h2h-name", p1Name);
+    const p2El = el("div", "h2h-name right", p2Name);
+    h2hRow.appendChild(p1El);
+    const h2hMid    = el("div", "h2h-mid");
+    h2hMid.appendChild(el("div", "h2h-subtitle", "Head to Head"));
+    h2hMid.appendChild(el("span", "h2h-score", p1Wins + " – " + p2Wins));
+    h2hRow.appendChild(h2hMid);
+    h2hRow.appendChild(p2El);
+    h2hHeader.appendChild(h2hRow);
+    container.appendChild(h2hHeader);
+    fitText(p1El, 18);
+    fitText(p2El, 18);
+
+    // Result pills (up to 5)
     sets.slice(0, 5).forEach(s => {
-      const win   = s.winner === 0;
-      const score = (s.score || [0, 0]);
-      const row   = el("div", "set-row");
-      const badge = el("span", "result-badge " + (win ? "win" : "loss"), win ? "W" : "L");
-      const p1    = el("span", "set-p1", s.p1_name || "P1");
-      const sc    = el("span", "set-score", score[0] + "-" + score[1]);
-      const p2    = el("span", "set-p2", s.p2_name || "P2");
-      row.append(badge, p1, sc, p2);
-      list.appendChild(row);
+      const sc  = s.score || [0, 0];
+      const sub = (s.tournament || "") + (s.timestamp ? " · " + formatDate(s.timestamp) : "");
+
+      const line1 = document.createDocumentFragment();
+      line1.appendChild(el("span", "pill-score-val", String(sc[0])));
+      line1.appendChild(el("span", "pill-round", s.round || ""));
+      line1.appendChild(el("span", "pill-score-val", String(sc[1])));
+
+      const p1Win = s.winner === 0;
+      const pill = makePill("recent-set-pill " + (p1Win ? "win" : "loss"));
+      pill.appendChild(el("span", "pill-score-val", String(sc[0])));
+      const info = el("div", "recent-set-info");
+      if (sub) info.appendChild(el("div", "pill-line-2", sub));
+      if (s.round) info.appendChild(el("div", "pill-round recent-set-round", s.round));
+      pill.appendChild(info);
+      pill.appendChild(el("span", "pill-score-val recent-score-right", String(sc[1])));
+      container.appendChild(pill);
     });
+
   } catch (_) {}
 }
 
@@ -269,31 +407,21 @@ function renderCompletedSets() {
   const panel = document.getElementById("panel-completed-sets");
   if (!panel) return;
 
-  const list = panel.querySelector(".completed-list");
-  list.innerHTML = "";
+  const container = panel.querySelector(".completed-list");
+  container.innerHTML = "";
 
   completedSets.forEach(s => {
     try {
-      const e1     = s.slots[0].entrant;
-      const e2     = s.slots[1].entrant;
-      const winId  = s.winnerId;
-      const winner = winId === e1.id ? e1 : e2;
-      const loser  = winId === e1.id ? e2 : e1;
-      const sc1    = winId === e1.id ? s.entrant1Score : s.entrant2Score;
-      const sc2    = winId === e1.id ? s.entrant2Score : s.entrant1Score;
+      const p1wins = (s.team1score || 0) > (s.team2score || 0);
 
-      const row      = el("div", "completed-row");
-      const matchDiv = el("div", "completed-match");
-      const wEl      = el("span", "completed-winner", winner.name || "");
-      const scEl     = el("span", "set-score", sc1 + "-" + sc2);
-      const lEl      = el("span", "completed-loser", loser.name || "");
-      matchDiv.append(wEl, scEl, lEl);
-
-      const roundEl = el("div", "completed-round",
-        s.fullRoundText || "");
-
-      row.append(matchDiv, roundEl);
-      list.appendChild(row);
+      const pill = makePill("completed-set-pill " + (p1wins ? "p1win" : "p2win"));
+      pill.appendChild(el("span", "pill-name", s.p1_name || ""));
+      const info = el("div", "completed-set-info");
+      if (s.round_name) info.appendChild(el("div", "pill-line-2", s.round_name));
+      info.appendChild(el("span", "set-score", s.team1score + "–" + s.team2score));
+      pill.appendChild(info);
+      pill.appendChild(el("span", "pill-name right", s.p2_name || ""));
+      container.appendChild(pill);
     } catch (_) {}
   });
 }
@@ -309,26 +437,22 @@ function renderQueue(data) {
     const sq   = data.streamQueue;
     const key  = Object.keys(sq)[0];
     const sets = sq[key].sets || [];
-    const list = panel.querySelector(".queue-list");
-    list.innerHTML = "";
+    const container = panel.querySelector(".queue-list");
+    container.innerHTML = "";
 
     sets.slice(0, 5).forEach(s => {
       const teams = s.teams || [];
       const t1    = (teams[0] && teams[0].players && teams[0].players[0]) || {};
       const t2    = (teams[1] && teams[1].players && teams[1].players[0]) || {};
 
-      const row      = el("div", "queue-row");
-      const matchDiv = el("div", "queue-match");
-      const p1El     = el("span", "", (t1.team ? t1.team + " " : "") + (t1.name || ""));
-      const vsEl     = el("span", "queue-vs", "vs");
-      const p2El     = el("span", "", (t2.team ? t2.team + " " : "") + (t2.name || ""));
-      matchDiv.append(p1El, vsEl, p2El);
+      const p1Name = (t1.team ? t1.team + " " : "") + (t1.name || "");
+      const p2Name = (t2.team ? t2.team + " " : "") + (t2.name || "");
 
-      const ctx = [s.phase, s.match].filter(Boolean).join(" · ");
-      const ctxEl = el("div", "queue-context", ctx);
-
-      row.append(matchDiv, ctxEl);
-      list.appendChild(row);
+      const pill = makePill("queue-pill");
+      pill.appendChild(el("span", "pill-name", p1Name));
+      if (s.match) pill.appendChild(el("span", "pill-round queue-round", s.match));
+      pill.appendChild(el("span", "pill-name right", p2Name));
+      container.appendChild(pill);
     });
   } catch (_) {}
 }
@@ -356,7 +480,7 @@ async function fetchCompletedSets() {
     const res = await fetch(COMPLETED_SETS_URL, { cache: "no-store" });
     if (res.ok) {
       const raw = await res.json();
-      completedSets = Array.isArray(raw) ? raw.slice(0, 5) : [];
+      completedSets = Array.isArray(raw) ? raw.slice(0, 8) : [];
       renderCompletedSets();
       rotator.buildSlots(null);
     }
@@ -364,31 +488,17 @@ async function fetchCompletedSets() {
 }
 
 
-// ── Bootstrap — requires libraries loaded by LoadEverything ───────────────────
+// ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 LoadEverything().then(() => {
   gsap.config({ nullTargetWarn: false });
 
-  // ── Logo cycle ────────────────────────────────────────────────────────────
+  // ── Logo setup ────────────────────────────────────────────────────────────
   (function initLogos() {
     const primary = document.querySelector(".logo-primary");
     const sponsor = document.querySelector(".logo-sponsor");
-    if (!primary || !sponsor) return;
-
-    primary.src = LOGO_PATH;
-    sponsor.src = SPONSOR_PATH;
-
-    // Crossfade between primary and sponsor every half the logo slot duration
-    const crossfadeInterval = LOGO_INTERVAL / 2;
-    primary.onload = () => {
-      gsap.set(primary, { opacity: 1 });
-      let showPrimary = true;
-      setInterval(() => {
-        showPrimary = !showPrimary;
-        gsap.to(primary, { opacity: showPrimary ? 1 : 0, duration: 1.2, ease: "power2.inOut" });
-        gsap.to(sponsor,  { opacity: showPrimary ? 0 : 1, duration: 1.2, ease: "power2.inOut" });
-      }, crossfadeInterval);
-    };
+    if (primary) primary.src = LOGO_PATH;
+    if (sponsor) sponsor.src = SPONSOR_PATH;
   })();
 
   // ── Tournament name polling ───────────────────────────────────────────────

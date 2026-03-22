@@ -135,7 +135,7 @@ Costume index comes from `player.characterColor` in `getSettings()`.
 
 Tracked as GitHub issues at [github.com/quinnogden/slippi-stream-overlay/issues](https://github.com/quinnogden/slippi-stream-overlay/issues).
 
-**Build order:** ✅#5 → ✅#6 → ✅#1 → ✅#2 → ✅#4 → ✅Phase2 → #3 → #7
+**Build order:** ✅#5 → ✅#6 → ✅#1 → ✅#2 → ✅#4 → ✅Phase2 → ✅#3 → #7
 
 - **[✅#5] Shared CSS design token file** — `layout/theme.css` with BabyDoll primary font (Fredoka as fallback). BabyDoll `@font-face` declared in `theme.css` so all sources inherit it without repeating it in per-layout CSS.
 
@@ -159,6 +159,16 @@ Tracked as GitHub issues at [github.com/quinnogden/slippi-stream-overlay/issues]
   - **Scoreboard**: raised card depth (`box-shadow`) on all `.container` elements. Gold accent line on `.info.container.bottom` and `meleePlayers` center card only (not player containers). Character icons float without box — drop-shadow applied directly to image. Score box flush to container edge with breathing room from icons. `meleePlayers` logo repositioned (742px) above center card, enlarged to 260×260px.
   - **Theme**: `theme.css` is now the single source of truth. `main.css` `@import`s it so all 16 TSH layouts inherit tokens automatically. New semantic variables: `--icon-bg-color`, `--win-color`, `--loss-color`, `--p2-team-color`, `--set-score-color`, `--score-color` (merged from `--p1/p2-score-color`). RGB triplets `--bg-color-rgb`, `--bg-color-light-rgb`, `--text-color-rgb` for `rgba()` usage. All hardcoded theme colors removed from `side-panel.css` and 10 other layout CSS files.
 
-- **[#3] Player card** — One shared OBS source. Cycles between player_presentation and recent_sets panels. 10s interval (configurable constant at top of JS). Resets to panel 1 on `slippi_game_start`. Lives in bottom block of side panel (#4). Use GSAP for transitions.
+- **[✅#3] Rotating info card system** — Lives in the bottom card of the side panel. Panels: `logo-primary`, `player-1`, `player-2`, `recent-sets`, `logo-sponsor`, `completed-sets`, `queue`. Each slot is 20s (configurable `PANEL_INTERVAL`). Logo slots are separate rotation entries (no crossfade — each is its own slot). GSAP transitions with James Bond stagger: pills fall in top-to-bottom on panel entrance.
+  - **Pill system**: every content item is a `.panel-pill` (rounded, `flex: 1`, subtle bg + shadow). Lists use `flex: 1 / flex-direction: column` to fill remaining card height. `max-height: 120px` caps individual pill height.
+  - **Panel headers**: `.panel-header` with `::before`/`::after` decorative flanking lines.
+  - **Player card**: `.player-identity` block (tag + char-name). History pills show tournament name + ordinal placement (`<sup>` suffix + `/entrants`). Run pills show opponent, round, score with win/loss left+right border accents. Sections hidden when empty. Filtered to `"single"` events only.
+  - **Recent Sets**: H2H header block (`h2h-header`, `h2h-mid`, `h2h-score`) showing set record between the two players. Result pills: large score values flanking a center info column (tournament + date on top, round below).
+  - **Completed Sets**: symmetric pill (`completed-set-pill.p1win/.p2win`) — green/red border on left and right edges reflect which side won. Score + round centered.
+  - **Queue**: pill per match showing P1 name, match label, P2 name (right-aligned).
+  - **Skip logic**: `hasPlayerCardContent()` requires actual history or run data (not just name); logos always shown. `completedSets` capped at 8.
+  - **DOM helpers**: `makePill()`, `makeTwoLinePill()`, `makePlacementEl()`, `formatDate()`, `fitText()` (auto-shrinks overflow names). `el()` helper moved earlier.
+  - **`DEBUG_PANEL`** constant at top of JS locks rotation to a single panel (set `null` to re-enable).
+  - **Theme**: `--bg-color` darkened to `#2a3d23`, `--score-bg-color` deepened to `#071820`; RGB triplets updated to match.
 
 - **[#7] Combo detection + auto replay queue** — Scan `getStats().conversions` for highlights (≥4 moves, ≥30% dmg, `didKill`). OBS replay buffer saves clips on `slippi_highlight` event via WebSocket API. OBS Python script polls folder, queues into VLC source. Plays on manual break scene switch, resets when scene switches away.
