@@ -50,8 +50,9 @@ TournamentStreamHelper-5.967/  (Python app, port 5000)
   ├─ out/program_state.json    (live state — read by bridge and layout)
   └─ layout/scoreboard/        (OBS browser source)
         ├─ melee.html           ← USE THIS in OBS (loads slippi-bridge socket.io)
+        ├─ meleePlayers.html    ← player-name list layout (body class: fgc thin meleePlayer)
         ├─ index.js             ← layout logic + slippi-bridge integration
-        └─ index.css            ← styles
+        └─ index.css            ← styles (stripped to melee/meleePlayer only; ~537 lines)
 ```
 
 ### slippi-bridge modules
@@ -96,6 +97,7 @@ POST /scoreboard1-update-team-N-1         → set character/costume
 ### Layout — `melee.html` / `index.js`
 
 - **Use `melee.html`** as the OBS browser source (not `index.html`). It conditionally loads `socket.io.js` from the bridge.
+- **`index.css`** contains only rules for `melee.html` and `meleePlayers.html`. All game-variant styles (tekken8, sf6, ssbu, roa2, mk1, pokken, nasb2, pbrave, skullgirls, strive, bblue, arms, gbvsr, dbfz, uni2) and unused features (flag country/state, `.icon`, `.tsh_character`, `.name_twitter`, `.extra`, skewed bg panels) were removed in a cleanup pass. Active classes: `fgc`, `thin`, `meleePlayer`, and the core layout/character/score/chip selectors.
 - The layout implements TSH's `Start()` and `Update(event)` hooks (defined in `layout/include/globals.js`).
 - The Slippi bridge integration lives at the bottom of `index.js` inside `initSlippiBridge()`. It:
   - Connects to `http://localhost:5001` via Socket.io.
