@@ -10,10 +10,12 @@ Slippi console / .slp file
 slippi-bridge  (Node.js, port 5001)
   ├─ detects game start → pushes character + costume to TSH
   ├─ detects game end   → auto-increments the correct team's score
-  └─ emits Socket.io    → OBS browser source (melee.html)
+  ├─ filters handwarmer games (no score change)
+  └─ emits Socket.io    → OBS browser sources
         ↓
 TSH  (Python app, port 5000)
-  └─ layout/scoreboard/melee.html  ← OBS browser source
+  ├─ layout/scoreboard/melee.html   ← scoreboard browser source
+  └─ layout/side-panel/side-panel.html  ← side panel browser source
 ```
 
 The bridge tracks which Slippi player port belongs to which player by name, so TSH's **Swap Teams** button is safe to use mid-set — the bridge will re-detect the correct assignment on the next game start and scores will follow the player, not the side.
@@ -52,9 +54,9 @@ CONSOLE_IP: "192.168.1.100",
 
 Leave `TSH_URL`, `SCOREBOARD_NUM`, and `BRIDGE_PORT` at their defaults unless you have a specific reason to change them.
 
-### 3. Place the layout in TSH
+### 3. Place the layouts in TSH
 
-Copy `TournamentStreamHelper-5.967/layout/scoreboard/` into your TSH installation at the same path:
+Copy both layout folders into your TSH installation at the same paths:
 
 ```
 TournamentStreamHelper-5.967/layout/scoreboard/
@@ -62,7 +64,14 @@ TournamentStreamHelper-5.967/layout/scoreboard/
   index.js
   index.css
   settings.json
+
+TournamentStreamHelper-5.967/layout/side-panel/
+  side-panel.html
+  side-panel.js
+  side-panel.css
 ```
+
+Also copy `TournamentStreamHelper-5.967/layout/theme.css` and `TournamentStreamHelper-5.967/layout/main.css` — shared design tokens used by both layouts.
 
 ### 4. Run TSH and the bridge
 
@@ -73,15 +82,19 @@ cd slippi-bridge
 node index.js
 ```
 
-### 5. Add the browser source in OBS
+### 5. Add browser sources in OBS
 
-Add a **Browser Source** pointed at:
-
+**Scoreboard** — add a Browser Source at:
 ```
 http://localhost:5000/layout/scoreboard/melee.html
 ```
-
 Use `melee.html`, not `index.html` — it conditionally loads the Socket.io client from the bridge.
+
+**Side panel** — add a second Browser Source at:
+```
+http://localhost:5000/layout/side-panel/side-panel.html
+```
+Set the browser source size to **611 × 1080**. Position it on the right side of the scene. The panel has a transparent cam cutout (587 × 330 px) where your webcam source shows through — layer the cam source behind it in OBS.
 
 ## Port→Team Assignment
 
@@ -109,6 +122,45 @@ If `uiohook-napi` binaries are unavailable, the fallback is pressing `S` in the 
 
 > `fs.watch` is intentionally not used — it misses new files on Windows/OneDrive paths.
 
+## Doubles Support
+
+Doubles mode is detected automatically when a game has 4 active players with team IDs assigned in the `.slp` file and TSH is configured with more than one player per team. No extra configuration needed — the bridge uses the same scoreboard and port.
+
+Team colors are assigned from Slippi's `teamId` field (red / blue / green) and pushed to TSH, overriding whatever color the TO had configured.
+
+The side panel suppresses the per-player cards and recent sets panel in doubles mode, showing only the completed sets and queue panels.
+
+## Handwarmer Detection
+
+The bridge scores each game on a weighted heuristic to detect practice/warm-up games:
+
+- Both players dealt less than 150 total damage
+- Both players had more than 1 stock remaining at the end
+- Game ended via LRAS (Quit Out)
+- Match duration under 45 seconds
+
+Games that score above the threshold do not increment the scoreboard. Characters and costumes still update normally so players can warm up without polluting the score.
+
+**Rage quit handling:** if LRAS is detected but the game is *not* a handwarmer (a real game was quit), the bridge awards a point to the other player automatically.
+
+## Side Panel
+
+The side panel is a 611 × 1080 browser source designed to sit beside the webcam. It has two floating cards with a transparent cam cutout between them.
+
+**Bottom card panels** rotate every 20 seconds:
+
+| Panel | Shows |
+|-------|-------|
+| Tournament logo | Logo image from `layout/logo.png` |
+| Player 1 | Recent tournament placements + current run results |
+| Player 2 | Same for player 2 |
+| Recent Sets | Head-to-head set record between the two players |
+| Sponsor logo | Sponsor image from `layout/ThePark.png` |
+| Just Finished | Most recently completed sets at the tournament |
+| Up Next | Stream queue |
+
+Logo and image paths are set at the top of `side-panel.js` (`LOGO_PATH`, `SPONSOR_PATH`). The rotation interval is `PANEL_INTERVAL` (default 20 seconds).
+
 ## Troubleshooting
 
 **Port already in use:**
@@ -120,3 +172,7 @@ taskkill /PID <pid> /F
 **Characters not updating:** Make sure TSH is running before the bridge starts. The bridge reads `TournamentStreamHelper-5.967/out/program_state.json` directly.
 
 **Wrong player on wrong side:** Press Ctrl+Shift+S to swap manually. On the next game start the bridge will re-detect from names/scores automatically.
+
+**Side panel not loading tournament data:** Make sure TSH is running and `out/program_state.json` exists. The side panel polls TSH state directly — it does not need the bridge to be running, but TSH must be up.
+
+**Score incremented on a warm-up game:** The handwarmer threshold may need tuning. Check `slippi-bridge/handwarmer.js` — the weighted score cutoff is at the top of the file.
