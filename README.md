@@ -75,12 +75,14 @@ Also copy `TournamentStreamHelper-5.967/layout/theme.css` and `TournamentStreamH
 
 ### 4. Run TSH and the bridge
 
-Start TSH first (so its HTTP API is available), then:
+Start TSH first (so its HTTP API is available), then either:
 
 ```bash
 cd slippi-bridge
 node index.js
 ```
+
+Or double-click `slippi-bridge/start-bridge.bat` (or a desktop shortcut to it). The batch file uses a relative path so it works on any machine regardless of where the repo is cloned.
 
 ### 5. Add browser sources in OBS
 
@@ -95,6 +97,14 @@ Use `melee.html`, not `index.html` — it conditionally loads the Socket.io clie
 http://localhost:5000/layout/side-panel/side-panel.html
 ```
 Set the browser source size to **611 × 1080**. Position it on the right side of the scene. The panel has a transparent cam cutout (587 × 330 px) where your webcam source shows through — layer the cam source behind it in OBS.
+
+Add `?animate=false` to the URL to disable the ambient background animation (useful if you find it distracting or want to reduce GPU load).
+
+**Player names list** *(optional)* — a compact player-name layout is also available at:
+```
+http://localhost:5000/layout/scoreboard/meleePlayers.html
+```
+This is a standalone name display intended as a secondary browser source.
 
 ## Port→Team Assignment
 

@@ -21,6 +21,8 @@ npm install       # first time only
 node index.js
 ```
 
+Or double-click `slippi-bridge/start-bridge.bat` (or a desktop shortcut pointing to it). Uses `%~dp0` so it works on any machine regardless of where the repo is cloned.
+
 Config is in [slippi-bridge/config.js](slippi-bridge/config.js). Key settings:
 - `CONNECTION_MODE`: `"folder"` (watch a folder for `.slp` files) or `"tcp"` (connect directly to Wii)
 - `SLP_FOLDER`: path to the Slippi Spectate folder (e.g. `C:/Users/.../Slippi/Spectate/quinn`)
