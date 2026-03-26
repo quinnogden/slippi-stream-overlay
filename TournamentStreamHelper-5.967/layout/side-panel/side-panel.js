@@ -485,7 +485,7 @@ async function fetchCompletedSets() {
     const res = await fetch(COMPLETED_SETS_URL, { cache: "no-store" });
     if (res.ok) {
       const raw = await res.json();
-      completedSets = Array.isArray(raw) ? raw.slice(0, 8) : [];
+      completedSets = Array.isArray(raw) ? raw.filter(s => s.team1score != null && s.team2score != null).slice(0, 8) : [];
       renderCompletedSets();
       rotator.buildSlots(null);
     }

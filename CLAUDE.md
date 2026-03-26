@@ -168,7 +168,7 @@ Tracked as GitHub issues at [github.com/quinnogden/slippi-stream-overlay/issues]
   - **Recent Sets**: H2H header block (`h2h-header`, `h2h-mid`, `h2h-score`) showing set record between the two players. Result pills: large score values flanking a center info column (tournament + date on top, round below).
   - **Completed Sets**: symmetric pill (`completed-set-pill.p1win/.p2win`) — green/red border on left and right edges reflect which side won. Score + round centered.
   - **Queue**: pill per match showing P1 name, match label, P2 name (right-aligned).
-  - **Skip logic**: `hasPlayerCardContent()` requires actual history or run data (not just name); logos always shown. `completedSets` capped at 8. Doubles mode (detected via `isDoubles()`) suppresses `player-1`, `player-2`, and `recent-sets` slots.
+  - **Skip logic**: `hasPlayerCardContent()` requires actual history or run data (not just name); logos always shown. `completedSets` filtered to exclude sets with null scores, then capped at 8. Doubles mode (detected via `isDoubles()`) suppresses `player-1`, `player-2`, and `recent-sets` slots.
   - **DOM helpers**: `ordinalSuffix(n)` (shared by `ordinal()` and `makePlacementEl()`), `makePill()`, `makeTwoLinePill()`, `makePlacementEl()`, `formatDate()`, `fitText()` (auto-shrinks overflow names). `el()` helper.
   - **Config constants** at top of JS: `PANEL_INTERVAL`, `LOGO_PATH`, `SPONSOR_PATH`, `SCOREBOARD_NUM`, plus `ANIM_TRANSITION_DURATION`, `ANIM_PILL_DURATION`, `ANIM_PILL_DELAY`, `ANIM_PILL_STAGGER`, `ANIM_PILL_Y_OFFSET` for GSAP timing. `DEBUG_PANEL` (set `null` in production) locks rotation to a single panel.
   - **Theme**: `--bg-color` darkened to `#2a3d23`, `--score-bg-color` deepened to `#071820`; RGB triplets updated to match.
