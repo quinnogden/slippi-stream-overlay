@@ -147,9 +147,11 @@ The bridge scores each game on a weighted heuristic to detect practice/warm-up g
 - Both players dealt less than 150 total damage
 - Both players had more than 1 stock remaining at the end
 - Game ended via LRAS (Quit Out)
-- Match duration under 45 seconds
+- Match duration under 60 seconds
 
 Games that score above the threshold do not increment the scoreboard. Characters and costumes still update normally so players can warm up without polluting the score.
+
+**Doubles:** handwarmer detection works for doubles too — LRAS quit-outs are still caught, and normal doubles game endings are never falsely flagged.
 
 **Rage quit handling:** if LRAS is detected but the game is *not* a handwarmer (a real game was quit), the bridge awards a point to the other player automatically.
 
