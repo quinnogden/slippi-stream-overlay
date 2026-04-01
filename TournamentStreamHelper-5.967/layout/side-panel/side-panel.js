@@ -55,6 +55,7 @@ class Rotator {
     this._index   = 0;
     this._timer   = null;
     this._current = null;
+    this._tl      = null;
   }
 
   buildSlots(data) {
@@ -78,6 +79,9 @@ class Rotator {
     this._slots = active.length > 0 ? active : ["logo-primary"];
 
     if (this._current && !this._slots.includes(this._current)) {
+      clearTimeout(this._timer);
+      if (this._tl) this._tl.kill();
+      this._current = null;
       this._index = 0;
       this._advance();
     }
@@ -96,6 +100,7 @@ class Rotator {
   }
 
   _advance() {
+    clearTimeout(this._timer);
     // Debug mode: lock to a single panel, no auto-advance
     if (DEBUG_PANEL) {
       this._transitionTo(DEBUG_PANEL, () => {});
@@ -127,13 +132,14 @@ class Rotator {
 
     this._current = id;
 
-    const tl = gsap.timeline({ onComplete: onDone });
+    if (this._tl) this._tl.kill();
+    this._tl = gsap.timeline({ onComplete: onDone });
 
     if (outgoing && outgoing !== incoming) {
-      tl.to(outgoing, { opacity: 0, scale: 0.97, duration: ANIM_TRANSITION_DURATION, ease: "power2.in" });
+      this._tl.to(outgoing, { opacity: 0, scale: 0.97, duration: ANIM_TRANSITION_DURATION, ease: "power2.in" });
     }
 
-    tl.fromTo(
+    this._tl.fromTo(
       incoming,
       { opacity: 0, scale: 0.97 },
       { opacity: 1, scale: 1, duration: ANIM_TRANSITION_DURATION, ease: "power2.out" },
@@ -552,10 +558,6 @@ LoadEverything().then(() => {
 
       socket.on("connect", () => {
         console.log("[side-panel] Bridge connected");
-      });
-
-      socket.on("slippi_game_start", () => {
-        rotator.jumpTo("player-1");
       });
 
       socket.on("disconnect", () => {
