@@ -140,6 +140,39 @@ Team colors are assigned from Slippi's `teamId` field (red / blue / green) and p
 
 The side panel suppresses the per-player cards and recent sets panel in doubles mode, showing only the completed sets and queue panels.
 
+## Crew Battle Support
+
+Crew battles (4- or 5-person teams playing sequential 1v1s with carry-over stocks) are supported with no extra configuration beyond setting up TSH correctly.
+
+### Setup
+
+1. In TSH, add **4 or 5 players per team** on the scoreboard.
+2. Before the first game, manually set the score to the total starting stocks: **16 for a 4-person crew**, **20 for a 5-person crew**.
+3. Before each game, set TSH team 1's player 1 slot to the player who is about to play for that team. The bridge reads this slot to know who is active.
+
+### How it works
+
+- The bridge detects crew mode from the TSH player count (≥ 4 per team) and initializes stock tracking from the opening scores.
+- After each game the loser's team stock total drops by their player's carry-over stocks; the winner's carry-over is updated from their actual remaining stocks in the final frame.
+- Stock counts are pushed back to TSH via the score API so the scoreboard always shows current totals.
+- When a team reaches 0 stocks a `slippi_crew_end` event fires and the bridge stops decrementing.
+- Handwarmer detection is skipped in crew mode — every completed game counts.
+
+### Scoreboard
+
+The active player's character icon and costume are shown on the scoreboard. The team name (from TSH's **Team Name** field) appears as a chip below the player tag, matching the pronouns chip position.
+
+### Side Panel
+
+Two new rotation slots replace the per-player and recent-sets cards during crew:
+
+| Panel | Shows |
+|-------|-------|
+| Team 1 | All players with Name / Stocks Taken columns; active player highlighted, eliminated players dimmed |
+| Team 2 | Same for team 2 |
+
+The "Just Finished" card is also hidden during crew so only crew-relevant panels rotate.
+
 ## Handwarmer Detection
 
 The bridge scores each game on a weighted heuristic to detect practice/warm-up games:
