@@ -16,6 +16,7 @@
 // ── Debug: lock to a single panel (set null to re-enable rotation) ────────────
 const DEBUG_PANEL = null; // "logos"|"player-1"|"player-2"|"recent-sets"|"completed-sets"|"queue"|null
 
+
 const LOGO_PATH           = "../logo.png";
 const SPONSOR_PATH        = "../ThePark.png";
 const LOGO_INTERVAL       = 20000;  // ms — logo slot duration
@@ -44,10 +45,16 @@ const NAME_POLL_INTERVAL  = 5000;
 
 // ── Rotation controller ───────────────────────────────────────────────────────
 
-const PANEL_ORDER = ["logo-primary", "player-1", "player-2", "recent-sets", "logo-sponsor", "completed-sets", "queue"];
+const PANEL_ORDER = [
+  "logo-primary",
+  "crew-team-1", "crew-team-2",
+  "player-1", "player-2", "recent-sets",
+  "logo-sponsor", "completed-sets", "queue"
+];
 
 let completedSets = [];  // cached from last poll
 let tshData       = null; // last TSH program state
+let crewState     = null; // last slippi_crew_update payload
 
 class Rotator {
   constructor() {
@@ -63,14 +70,17 @@ class Rotator {
     const d = tshData;
 
     const doubles = isDoubles(d);
+    const crew    = isCrewBattle(d);
     const active = PANEL_ORDER.filter(id => {
       switch (id) {
         case "logo-primary":   return true;
         case "logo-sponsor":   return true;
-        case "player-1":       return !doubles && hasPlayerCardContent(d, 1);
-        case "player-2":       return !doubles && hasPlayerCardContent(d, 2);
-        case "recent-sets":    return !doubles && hasRecentSets(d);
-        case "completed-sets": return completedSets.length > 0;
+        case "crew-team-1":    return crew;
+        case "crew-team-2":    return crew;
+        case "player-1":       return !doubles && !crew && hasPlayerCardContent(d, 1);
+        case "player-2":       return !doubles && !crew && hasPlayerCardContent(d, 2);
+        case "recent-sets":    return !doubles && !crew && hasRecentSets(d);
+        case "completed-sets": return !crew && completedSets.length > 0;
         case "queue":          return hasQueue(d);
         default:               return false;
       }
@@ -148,13 +158,14 @@ class Rotator {
 
     // James Bond stagger: pills fall in top-to-bottom on panel entrance
     if (id !== "logo-primary" && id !== "logo-sponsor") {
-      const pills = incoming.querySelectorAll(".panel-pill");
-      if (pills.length > 0) {
-        gsap.fromTo(
-          pills,
-          { y: -ANIM_PILL_Y_OFFSET, opacity: 0 },
-          { y: 0, opacity: 1, duration: ANIM_PILL_DURATION, ease: "power2.out", stagger: ANIM_PILL_STAGGER, delay: ANIM_PILL_DELAY }
-        );
+      const normalPills    = incoming.querySelectorAll(".panel-pill:not(.eliminated)");
+      const eliminatedPills = incoming.querySelectorAll(".panel-pill.eliminated");
+      const animOpts = { duration: ANIM_PILL_DURATION, ease: "power2.out", stagger: ANIM_PILL_STAGGER, delay: ANIM_PILL_DELAY };
+      if (normalPills.length > 0) {
+        gsap.fromTo(normalPills,    { y: -ANIM_PILL_Y_OFFSET, opacity: 0 }, { y: 0, opacity: 1,    ...animOpts });
+      }
+      if (eliminatedPills.length > 0) {
+        gsap.fromTo(eliminatedPills, { y: -ANIM_PILL_Y_OFFSET, opacity: 0 }, { y: 0, opacity: 0.35, ...animOpts });
       }
     }
   }
@@ -168,6 +179,12 @@ const rotator = new Rotator();
 function isDoubles(data) {
   try {
     return Object.keys(data.score[SCOREBOARD_NUM].team["1"].player).length > 1;
+  } catch (_) { return false; }
+}
+
+function isCrewBattle(data) {
+  try {
+    return Object.keys(data.score[SCOREBOARD_NUM].team["1"].player).length >= 4;
   } catch (_) { return false; }
 }
 
@@ -354,6 +371,62 @@ function renderPlayerCard(teamNum, data) {
 }
 
 
+// ── renderCrewTeamCard(teamNum, data) ─────────────────────────────────────────
+
+function renderCrewCards() {
+  if (!tshData) return;
+  renderCrewTeamCard(1, tshData);
+  renderCrewTeamCard(2, tshData);
+}
+
+function renderCrewTeamCard(teamNum, data) {
+  const panel = document.getElementById("panel-crew-team-" + teamNum);
+  if (!panel) return;
+
+  try {
+    const team       = data.score[SCOREBOARD_NUM].team[String(teamNum)];
+    const teamName   = team.teamName || ("Team " + teamNum);
+    const allPlayers = Object.values(team.player || {});
+
+    const header = panel.querySelector(".panel-header");
+    if (header) header.textContent = teamName.toUpperCase();
+
+    const list = panel.querySelector(".crew-player-list");
+    list.innerHTML = "";
+
+    allPlayers.forEach((player) => {
+      if (!player || !player.name) return;
+
+      const name      = player.name;
+      const stats     = crewState?.playerStats?.[name];
+      const charEntry = player.character?.["1"];
+
+      let stateClass = "waiting";
+      if (stats?.isActive)   stateClass = "active";
+      if (stats?.eliminated) stateClass = "eliminated";
+
+      const pill = el("div", "panel-pill crew-player-pill " + stateClass);
+
+      // Character icon from TSH preloaded asset
+      if (charEntry?.assets?.["base_files/icon"]?.asset) {
+        const icon = el("img", "crew-char-icon");
+        icon.src = "../../" + charEntry.assets["base_files/icon"].asset.replace(/^\.\//, "");
+        pill.appendChild(icon);
+      }
+
+      const nameEl = el("span", "crew-player-name", name);
+      pill.appendChild(nameEl);
+
+      if (stats?.hasPlayed) {
+        pill.appendChild(el("span", "crew-stocks-taken", String(stats.stocksTaken)));
+      }
+
+      list.appendChild(pill);
+    });
+  } catch (_) {}
+}
+
+
 // ── renderRecentSets(data) ────────────────────────────────────────────────────
 
 function renderRecentSets(data) {
@@ -534,6 +607,7 @@ LoadEverything().then(() => {
     rotator.buildSlots(data);
     renderPlayerCard(1, data);
     renderPlayerCard(2, data);
+    renderCrewCards();
     renderRecentSets(data);
     renderQueue(data);
 
@@ -562,6 +636,16 @@ LoadEverything().then(() => {
 
       socket.on("disconnect", () => {
         console.log("[side-panel] Bridge disconnected — waiting to reconnect");
+      });
+
+      socket.on("slippi_crew_update", (data) => {
+        crewState = data;
+        rotator.buildSlots(tshData);
+        renderCrewCards();
+      });
+
+      socket.on("slippi_crew_end", () => {
+        renderCrewCards();
       });
     }
 

@@ -66,6 +66,22 @@ const MELEE_TEAM_COLORS = {
 // ── Game state ────────────────────────────────────────────────────────────────
 let currentGameState = null;
 
+// ── Crew battle state (persists across games within a crew battle) ─────────────
+// null when not in a crew battle.
+let crewBattleState = null;
+// Shape: {
+//   teamSize: number,
+//   totalStocks: { 1: number, 2: number },
+//   carryOverStocks: { 1: number, 2: number },
+//   playerStats: {
+//     [playerName]: {
+//       teamNum: 1|2, stocksTaken: number, hasPlayed: boolean,
+//       eliminated: boolean, isActive: boolean,
+//       character: { codename, display, skin, iconAsset } | null
+//     }
+//   }
+// }
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
@@ -160,10 +176,14 @@ function onGameStart(rawPlayers) {
   }
 
   const doubles = isDoubles(rawPlayers) && (!tshState || tsh.isDoubles(tshState));
+  const crew    = !doubles && tshState && tsh.isCrewBattle(tshState);
 
   if (doubles) {
     console.log("[bridge] Doubles game detected");
     onGameStartDoubles(sorted, tshState);
+  } else if (crew) {
+    console.log("[bridge] Crew battle game detected");
+    onGameStartCrew(sorted, tshState);
   } else {
     onGameStartSingles(sorted, tshState);
   }
@@ -283,11 +303,188 @@ function onGameStartDoubles(sorted, tshState) {
   console.log("[bridge] Emitted slippi_game_start (doubles)");
 }
 
+function onGameStartCrew(sorted, tshState) {
+  const sb      = String(config.SCOREBOARD_NUM);
+  const t1Score = tshState?.score?.[sb]?.team?.["1"]?.score ?? 0;
+  const t2Score = tshState?.score?.[sb]?.team?.["2"]?.score ?? 0;
+  const isInit  = (t1Score === 16 && t2Score === 16) || (t1Score === 20 && t2Score === 20);
+
+  if (isInit || crewBattleState == null) {
+    crewBattleState = {
+      teamSize:       t1Score === 20 ? 5 : 4,
+      totalStocks:    { 1: t1Score, 2: t2Score },
+      carryOverStocks: { 1: 4, 2: 4 },
+      playerStats:    {},
+    };
+    console.log(`[bridge] Crew battle initialized — ${t1Score} vs ${t2Score} stocks`);
+  }
+
+  // Port mapping: same as singles (name + positional, skip score matching)
+  const t1Info = tsh.getTeamInfo(tshState, 1);
+  const t2Info = tsh.getTeamInfo(tshState, 2);
+  portMapper.resolve(t1Info, t2Info);
+  if (!portMapper.hasMapping()) {
+    portMapper.tryCharacterBased(
+      sorted,
+      tsh.getPreloadedChars(tshState),
+      resolveCharacter,
+      TSH_ROOT
+    );
+  }
+
+  const players = buildPlayersSingles(sorted);
+  currentGameState = { players, isDoubles: false, isCrew: true };
+
+  // Push character to TSH for scoreboard overlay
+  for (const p of Object.values(players)) {
+    tsh.setCharacter(p.teamNum, p.display, p.costumeIndex).then((r) => {
+      if (!r.ok) console.warn(`[bridge] setCharacter failed: ${r.error}`);
+    });
+  }
+
+  if (tshState) {
+    portMapper.syncNames(players, {
+      1: tsh.getTeamPlayerNames(tshState, 1),
+      2: tsh.getTeamPlayerNames(tshState, 2),
+    });
+  }
+
+  // Update isActive flags and register new players in crewBattleState
+  for (const p of Object.values(players)) {
+    const activeName = tsh.getActivePlayerName(tshState, p.teamNum);
+    if (!activeName) continue;
+
+    // Clear isActive for all existing players on this team
+    for (const stats of Object.values(crewBattleState.playerStats)) {
+      if (stats.teamNum === p.teamNum) stats.isActive = false;
+    }
+
+    if (!crewBattleState.playerStats[activeName]) {
+      // First time seeing this player — build from TSH preloaded character
+      const tshPlayer = tshState?.score?.[sb]?.team?.[String(p.teamNum)]?.player?.["1"];
+      const charEntry  = tshPlayer?.character?.["1"];
+      crewBattleState.playerStats[activeName] = {
+        teamNum:    p.teamNum,
+        stocksTaken: 0,
+        hasPlayed:  false,
+        eliminated: false,
+        isActive:   true,
+        character:  charEntry ? {
+          codename:  charEntry.codename  ?? "",
+          display:   charEntry.name      ?? "",
+          skin:      charEntry.skin      ?? 0,
+          iconAsset: charEntry.assets?.["base_files/icon"]?.asset ?? null,
+        } : null,
+      };
+    } else {
+      // Returning winner — update isActive and refresh character from Slippi
+      crewBattleState.playerStats[activeName].isActive  = true;
+      crewBattleState.playerStats[activeName].eliminated = false;
+      crewBattleState.playerStats[activeName].character = {
+        codename:  p.codename,
+        display:   p.display,
+        skin:      p.costumeIndex,
+        iconAsset: null,
+      };
+    }
+  }
+
+  io.emit("slippi_game_start", currentGameState);
+  io.emit("slippi_crew_update", buildCrewUpdatePayload());
+  console.log("[bridge] Emitted slippi_game_start + slippi_crew_update (crew)");
+}
+
+function onGameEndCrew({ winnerPlayerIndex, winnerEndStocks }) {
+  if (winnerPlayerIndex == null || winnerPlayerIndex < 0) {
+    console.log("[bridge] Crew game ended with no winner.");
+    io.emit("slippi_game_end", { winner: null });
+    currentGameState = null;
+    return;
+  }
+
+  const winnerTeam =
+    currentGameState?.players?.[winnerPlayerIndex]?.teamNum ??
+    portMapper.getTeam(winnerPlayerIndex, null);
+
+  if (!winnerTeam) {
+    console.warn(`[bridge] Crew: winner port ${winnerPlayerIndex} not mapped`);
+    io.emit("slippi_game_end", { winner: null });
+    currentGameState = null;
+    return;
+  }
+
+  const loserTeam          = winnerTeam === 1 ? 2 : 1;
+  const loserCarryOver     = crewBattleState.carryOverStocks[loserTeam];
+  const winnerEndStocksFinal = winnerEndStocks ?? crewBattleState.carryOverStocks[winnerTeam];
+
+  // Decrement loser team stocks (carry-over is how many the loser actually had)
+  crewBattleState.totalStocks[loserTeam] =
+    Math.max(0, crewBattleState.totalStocks[loserTeam] - loserCarryOver);
+
+  // Update carry-over for next game
+  crewBattleState.carryOverStocks[winnerTeam] = winnerEndStocksFinal;
+  crewBattleState.carryOverStocks[loserTeam]  = 4;
+
+  // Update per-player stats
+  const activePlayers = Object.entries(crewBattleState.playerStats)
+    .filter(([, s]) => s.isActive);
+  const winnerEntry = activePlayers.find(([, s]) => s.teamNum === winnerTeam);
+  const loserEntry  = activePlayers.find(([, s]) => s.teamNum === loserTeam);
+
+  if (winnerEntry) {
+    winnerEntry[1].stocksTaken += loserCarryOver;
+    winnerEntry[1].hasPlayed    = true;
+    winnerEntry[1].eliminated   = false;
+  }
+  if (loserEntry) {
+    loserEntry[1].hasPlayed  = true;
+    loserEntry[1].eliminated = true;
+    loserEntry[1].isActive   = false;
+  }
+
+  console.log(
+    `[bridge] Crew: team ${winnerTeam} wins. ` +
+    `Stocks: ${crewBattleState.totalStocks[1]} vs ${crewBattleState.totalStocks[2]} ` +
+    `(loser had ${loserCarryOver} carry-over, winner carries ${winnerEndStocksFinal})`
+  );
+
+  // Push new stock counts to TSH score
+  tsh.setScore(crewBattleState.totalStocks[1], crewBattleState.totalStocks[2]).then((r) => {
+    if (!r.ok) console.warn(`[bridge] setScore failed: ${r.error}`);
+  });
+
+  portMapper.recordWin(winnerPlayerIndex);
+
+  const battleEnded = crewBattleState.totalStocks[loserTeam] <= 0;
+  io.emit("slippi_game_end", { winner: winnerTeam });
+  io.emit("slippi_crew_update", buildCrewUpdatePayload());
+  if (battleEnded) {
+    io.emit("slippi_crew_end", { winner: winnerTeam });
+    console.log(`[bridge] Crew battle over — team ${winnerTeam} wins`);
+  }
+
+  currentGameState = null;
+}
+
+function buildCrewUpdatePayload() {
+  return {
+    totalStocks:     { ...crewBattleState.totalStocks },
+    carryOverStocks: { ...crewBattleState.carryOverStocks },
+    playerStats:     { ...crewBattleState.playerStats },
+  };
+}
+
 /**
  * Called by the game source when a game ends.
- * @param {{ winnerPlayerIndex: number|null, isHandwarmer: boolean }} event
+ * @param {{ winnerPlayerIndex: number|null, isHandwarmer: boolean, winnerEndStocks: number|null }} event
  */
-function onGameEnd({ winnerPlayerIndex, isHandwarmer }) {
+function onGameEnd({ winnerPlayerIndex, isHandwarmer, winnerEndStocks }) {
+  // Crew battle mode: no handwarmer check, route to dedicated handler
+  if (currentGameState?.isCrew) {
+    onGameEndCrew({ winnerPlayerIndex, winnerEndStocks });
+    return;
+  }
+
   if (isHandwarmer) {
     console.log("[bridge] Handwarmer detected — suppressing score increment.");
     currentGameState = null;

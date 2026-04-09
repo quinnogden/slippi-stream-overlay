@@ -137,7 +137,7 @@ Costume index comes from `player.characterColor` in `getSettings()`.
 
 Tracked as GitHub issues at [github.com/quinnogden/slippi-stream-overlay/issues](https://github.com/quinnogden/slippi-stream-overlay/issues).
 
-**Build order:** ✅#5 → ✅#6 → ✅#1 → ✅#2 → ✅#4 → ✅Phase2 → ✅#3 → #7
+**Build order:** ✅#5 → ✅#6 → ✅#1 → ✅#2 → ✅#4 → ✅Phase2 → ✅#3 → ✅Crew → #7
 
 - **[✅#5] Shared CSS design token file** — `layout/theme.css` with BabyDoll primary font (Fredoka as fallback). BabyDoll `@font-face` declared in `theme.css` so all sources inherit it without repeating it in per-layout CSS.
 
@@ -170,10 +170,19 @@ Tracked as GitHub issues at [github.com/quinnogden/slippi-stream-overlay/issues]
   - **Recent Sets**: H2H header block (`h2h-header`, `h2h-mid`, `h2h-score`) showing set record between the two players. Result pills: large score values flanking a center info column (tournament + date on top, round below).
   - **Completed Sets**: symmetric pill (`completed-set-pill.p1win/.p2win`) — green/red border on left and right edges reflect which side won. Score + round centered.
   - **Queue**: pill per match showing P1 name, match label, P2 name (right-aligned).
-  - **Skip logic**: `hasPlayerCardContent()` requires actual history or run data (not just name); logos always shown. `completedSets` filtered to exclude sets with null scores, then capped at 8. Doubles mode (detected via `isDoubles()`) suppresses `player-1`, `player-2`, and `recent-sets` slots.
+  - **Skip logic**: `hasPlayerCardContent()` requires actual history or run data (not just name); logos always shown. `completedSets` filtered to exclude sets with null scores, then capped at 8. Doubles mode (detected via `isDoubles()`) suppresses `player-1`, `player-2`, and `recent-sets` slots. Crew mode suppresses `player-1`, `player-2`, `recent-sets`, and `completed-sets`.
   - **DOM helpers**: `ordinalSuffix(n)` (shared by `ordinal()` and `makePlacementEl()`), `makePill()`, `makeTwoLinePill()`, `makePlacementEl()`, `formatDate()`, `fitText()` (auto-shrinks overflow names). `el()` helper.
   - **Config constants** at top of JS: `PANEL_INTERVAL`, `LOGO_PATH`, `SPONSOR_PATH`, `SCOREBOARD_NUM`, plus `ANIM_TRANSITION_DURATION`, `ANIM_PILL_DURATION`, `ANIM_PILL_DELAY`, `ANIM_PILL_STAGGER`, `ANIM_PILL_Y_OFFSET` for GSAP timing. `DEBUG_PANEL` (set `null` in production) locks rotation to a single panel.
   - **Rotation safety**: `Rotator._tl` stores the active GSAP timeline; `_transitionTo()` kills it before starting a new one so stale `onComplete` callbacks can't create duplicate timer chains. `_advance()` calls `clearTimeout(this._timer)` defensively at the top. `buildSlots()` does a full clean restart (clear timer + kill timeline + reset `_current`/`_index`) when the current panel is removed from the active slot list — prevents stacked panels and accelerating rotation caused by overlapping GSAP timelines.
   - **Theme**: `--bg-color` darkened to `#2a3d23`, `--score-bg-color` deepened to `#071820`; RGB triplets updated to match.
+
+- **[✅Crew] Crew battle mode** — Full stock-tracking crew battle support for 4- or 5-person teams. TO configures 4+ players per team in TSH and sets the initial score to 16 (4-person) or 20 (5-person) stocks before game 1. Bridge replaces `incrementScore` with stock-based `setScore` calls and tracks per-player stats across all games.
+  - **Detection**: `isCrewBattle()` in `tsh-client.js` — `Object.keys(team["1"].player).length >= 4`. Bridge routing in `onGameStart`: doubles → `onGameStartDoubles`, crew → `onGameStartCrew`, else `onGameStartSingles`.
+  - **Stock tracking**: `carryOverStocks[team]` tracks stocks the active player entered with (initialized to 4). After each game: `totalStocks[loserTeam] -= carryOverStocks[loserTeam]`; winner's carry-over updated from `winnerEndStocks` (last-frame `stocksRemaining` added to `game-source.js` `game-end` payload). No handwarmer check in crew mode.
+  - **Per-player stats** (`crewBattleState.playerStats[name]`): `isActive`, `eliminated`, `hasPlayed`, `stocksTaken`, `character`. Active player read from TSH `team[N].player["1"].name` at each game start (TO updates this slot before each game).
+  - **New bridge events**: `slippi_crew_update` (fires at game start + end with `totalStocks`, `carryOverStocks`, `playerStats`) and `slippi_crew_end` (fires when a team reaches 0 stocks).
+  - **New `tsh-client.js` methods**: `isCrewBattle(state)`, `getActivePlayerName(state, teamNum)`, `setScore(t1, t2)` (POST `/score`).
+  - **Scoreboard**: crew branch in `index.js` `Update()` renders the active player's character icon using the single-player path `team.N.player.1` (prevents `assetUtils` from iterating all 5 player slots). Team name displayed in the `.pronoun` chip below the player name via `SetInnerHtml`.
+  - **Side panel**: two new rotation slots — `crew-team-1` and `crew-team-2` — shown when `isCrewBattle()` is true. Each card has a `.crew-col-headers` row ("Name" / "Stocks Taken") with a spacer matching the icon width for column alignment. Pill states: `active` (green left border + subtle bg tint), `eliminated` (0.35 opacity), `waiting` (default). GSAP stagger entrance animates eliminated pills to `opacity: 0.35` rather than 1 so CSS isn't overridden by inline style.
 
 - **[#7] Combo detection + auto replay queue** — Scan `getStats().conversions` for highlights (≥4 moves, ≥30% dmg, `didKill`). OBS replay buffer saves clips on `slippi_highlight` event via WebSocket API. OBS Python script polls folder, queues into VLC source. Plays on manual break scene switch, resets when scene switches away.

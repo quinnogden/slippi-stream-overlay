@@ -95,6 +95,30 @@ class TshClient {
   }
 
   /**
+   * Returns true if the TSH scoreboard is configured for a crew battle
+   * (team 1 has 4 or more player slots).
+   * @param {object} state
+   * @returns {boolean}
+   */
+  isCrewBattle(state) {
+    const team = state?.score?.[String(this._config.SCOREBOARD_NUM)]?.team?.["1"];
+    return Object.keys(team?.player ?? {}).length >= 4;
+  }
+
+  /**
+   * Returns the name of the active player in TSH slot 1 for a team.
+   * The TO manually updates slot 1 before each crew battle game.
+   * @param {object} state
+   * @param {number} teamNum — 1 or 2
+   * @returns {string}
+   */
+  getActivePlayerName(state, teamNum) {
+    const player = state?.score?.[String(this._config.SCOREBOARD_NUM)]
+      ?.team?.[String(teamNum)]?.player?.["1"];
+    return (player?.name ?? "").trim();
+  }
+
+  /**
    * Extract preloaded character history for both teams.
    * Returns up to 2 preloaded chars per team (index 0 = player 1, 1 = player 2).
    * @param {object} state — from readState()
@@ -129,6 +153,30 @@ class TshClient {
       return { ok: true };
     } catch (err) {
       const msg = `Failed to increment score for team ${teamNumber}: ${err.message}`;
+      console.error(`[bridge] ${msg}`);
+      return { ok: false, error: msg };
+    }
+  }
+
+  /**
+   * Set both team scores directly via TSH HTTP API.
+   * Used in crew battle mode to update stock counts after each game.
+   * @param {number} team1Score
+   * @param {number} team2Score
+   * @returns {Promise<{ ok: boolean, error?: string }>}
+   */
+  async setScore(team1Score, team2Score) {
+    const url = `${this._config.TSH_URL}/score`;
+    try {
+      await axios.post(url, {
+        team1score: team1Score,
+        team2score: team2Score,
+        scoreboard: this._config.SCOREBOARD_NUM,
+      });
+      console.log(`[bridge] Scores set: team1=${team1Score} team2=${team2Score}`);
+      return { ok: true };
+    } catch (err) {
+      const msg = `setScore failed: ${err.message}`;
       console.error(`[bridge] ${msg}`);
       return { ok: false, error: msg };
     }

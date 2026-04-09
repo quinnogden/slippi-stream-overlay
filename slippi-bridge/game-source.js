@@ -111,10 +111,11 @@ function createFolderSource(config) {
         if (gameEnd) {
           gameEnded = true;
           const isHandwarmer = wasHandwarmer(game);
+          let winnerPlayerIndex = null;
+
           if (gameEnd.gameEndMethod === GameEndMethod.GAME) {
             const winner = gameEnd.placements?.find((p) => p.position === 0);
-            const winnerPlayerIndex = winner?.playerIndex ?? winnerByStocks(game);
-            emitter.emit("game-end", { winnerPlayerIndex, isHandwarmer });
+            winnerPlayerIndex = winner?.playerIndex ?? winnerByStocks(game);
           } else if (!isHandwarmer && gameEnd.lrasInitiatorIndex >= 0) {
             // Rage quit: LRAS but not a handwarmer (real damage was dealt).
             // In doubles, avoid awarding the point to the quitter's own partner —
@@ -129,15 +130,22 @@ function createFolderSource(config) {
                 (initiatorTeamId == null || p.teamId !== initiatorTeamId)
             );
             console.log(`[bridge] Rage quit detected — port ${gameEnd.lrasInitiatorIndex} quit out`);
-            emitter.emit("game-end", { winnerPlayerIndex: otherPlayer?.playerIndex ?? null, isHandwarmer: false });
+            winnerPlayerIndex = otherPlayer?.playerIndex ?? null;
           } else {
             // Non-GAME, non-LRAS end (e.g. RESOLVED in doubles when a team is eliminated
             // without a traditional per-stock GAME! sequence). Try placements first,
             // then fall back to last-frame stock counts.
             const winner = gameEnd.placements?.find((p) => p.position === 0);
-            const winnerPlayerIndex = winner?.playerIndex ?? winnerByStocks(game);
-            emitter.emit("game-end", { winnerPlayerIndex, isHandwarmer });
+            winnerPlayerIndex = winner?.playerIndex ?? winnerByStocks(game);
           }
+
+          // Read winner's remaining stocks for crew battle carry-over tracking
+          const latestFrame = game.getLatestFrame();
+          const winnerEndStocks = (winnerPlayerIndex != null && winnerPlayerIndex >= 0)
+            ? (latestFrame?.players?.[winnerPlayerIndex]?.post?.stocksRemaining ?? null)
+            : null;
+
+          emitter.emit("game-end", { winnerPlayerIndex, isHandwarmer, winnerEndStocks });
           knownFiles.add(currentFile);
           currentFile = null;
         }
@@ -178,9 +186,9 @@ function createTcpSource(config) {
   realtime.game.end$.subscribe((end) => {
     console.log("[bridge] Game end detected (TCP)");
     if (end.gameEndMethod === GEM.GAME) {
-      emitter.emit("game-end", { winnerPlayerIndex: end.winnerPlayerIndex ?? null, isHandwarmer: false });
+      emitter.emit("game-end", { winnerPlayerIndex: end.winnerPlayerIndex ?? null, isHandwarmer: false, winnerEndStocks: null });
     } else {
-      emitter.emit("game-end", { winnerPlayerIndex: null, isHandwarmer: false });
+      emitter.emit("game-end", { winnerPlayerIndex: null, isHandwarmer: false, winnerEndStocks: null });
     }
   });
 

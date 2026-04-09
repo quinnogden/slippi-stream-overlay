@@ -858,6 +858,89 @@ body {
 }
 
 
+/* ── Crew team cards ──────────────────────────────────────── */
+.crew-col-headers {
+  display:     flex;
+  align-items: center;
+  gap:         14px;
+  padding:     2px 18px 6px;
+  font-family: var(--font);
+  font-size:   19px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color:       rgba(var(--text-color-rgb), 0.40);
+}
+
+.crew-col-headers .col-spacer {
+  width:      46px;
+  flex-shrink: 0;
+}
+
+.crew-col-headers .col-name  { flex: 1; }
+
+.crew-col-headers .col-stocks {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.crew-player-list {
+  display:        flex;
+  flex-direction: column;
+  gap:            6px;
+  flex:           1;
+  min-height:     0;
+  overflow:       hidden;
+}
+
+.crew-player-pill {
+  display:     flex;
+  align-items: center;
+  flex:        1;
+  gap:         14px;
+  padding:     0 18px;
+  transition:  opacity 0.3s;
+}
+
+.crew-player-pill.active {
+  background:   rgba(var(--text-color-rgb), 0.10);
+  border-left:  4px solid var(--win-color);
+  padding-left: 15px;
+}
+
+.crew-player-pill.eliminated {
+  opacity: 0.35;
+}
+
+.crew-char-icon {
+  width:      46px;
+  height:     46px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.crew-player-name {
+  flex:        1;
+  font-family: var(--font);
+  font-size:   24px;
+  color:       var(--text-color);
+  white-space: nowrap;
+  overflow:    hidden;
+  text-overflow: ellipsis;
+  text-shadow:
+    0 1px 3px rgba(0,0,0,0.7),
+    0 2px 8px rgba(0,0,0,0.4);
+}
+
+.crew-stocks-taken {
+  font-family:    var(--font);
+  font-size:      44px;
+  color:          var(--set-score-color);
+  flex-shrink:    0;
+  white-space:    nowrap;
+  letter-spacing: 0.04em;
+}
+
+
 /* ── Animation kill-switch ────────────────────────────────── */
 body.no-animate .ambient {
   animation: none !important;
