@@ -11,8 +11,8 @@
   --score-size: 14;
   --set-gap: 2;
   --flag-height: 8;
-  --title-size: 100px;
-  --lines: black;
+  --title-size: 68px;
+  --lines: rgba(249, 214, 151, 0.22);
 }
 
 body {
@@ -43,38 +43,152 @@ body {
 }
 
 .title {
-  width: 100%;
+  width: fit-content;
+  min-width: 560px;
   height: var(--title-size);
-  padding: 16px 24px;
+  padding: 6px 28px;
   box-sizing: border-box;
   font-size: 20px;
+  margin: 0 auto;
 }
 
 .title .container {
   width: 100%;
   height: 100%;
+  background: var(--score-bg-color);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 4px 20px rgba(0, 0, 0, 0.55);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Gold shimmer halo at top + green lift below */
+.title .container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 100% at 50% -10%, rgba(var(--text-color-rgb), 0.06) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 250% at 50% 140%, rgba(var(--bg-color-rgb), 0.35) 0%, transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Graduated gold accent line along top inner edge */
+.title .container::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1.5px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--darkened-text) 18%,
+    var(--text-color)    50%,
+    var(--darkened-text) 82%,
+    transparent
+  );
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* ── Title bar atmospheric layers ── */
+.title-atm {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.title-light {
+  background: radial-gradient(
+    ellipse 65% 200% at 50% -30%,
+    rgba(var(--bg-color-rgb), 0.50) 0%,
+    transparent 65%
+  );
+}
+
+.title-grain {
+  background: repeating-linear-gradient(
+    180deg,
+    transparent                       0px,
+    transparent                       9px,
+    rgba(var(--bg-color-rgb), 0.045) 9px,
+    rgba(var(--bg-color-rgb), 0.045) 10px
+  );
+}
+
+.title-vignette {
+  background: radial-gradient(
+    ellipse 130% 250% at 50% 170%,
+    rgba(0, 0, 0, 0.45) 0%,
+    transparent 58%
+  );
+}
+
+/* ── Ambient orbs ── */
+.title-orb {
+  position: absolute;
+  border-radius: 50%;
+  background: rgb(var(--bg-color-light-rgb));
+  opacity: 0;
+  filter: blur(26px);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.title-orb-1 { width: 240px; height: 240px; top: -100px; left:  8%; animation: torb1 14s ease-in-out infinite 0s;   }
+.title-orb-2 { width: 190px; height: 190px; top:  -80px; right: 12%; animation: torb2 18s ease-in-out infinite -6s;  }
+.title-orb-3 { width: 270px; height: 210px; top:  -90px; left:  40%; animation: torb3 11s ease-in-out infinite -3s;  }
+
+@keyframes torb1 {
+  0%,100% { opacity: 0;    transform: translate(0,0)       scale(1);    }
+  35%     { opacity: 0.78; transform: translate(28px,6px)  scale(1.06); }
+  68%     { opacity: 0.40; transform: translate(8px,18px)  scale(0.95); }
+}
+@keyframes torb2 {
+  0%,100% { opacity: 0;    transform: translate(0,0)         scale(1);    }
+  40%     { opacity: 0.62; transform: translate(-22px,10px)  scale(1.04); }
+  75%     { opacity: 0.32; transform: translate(-6px,14px)   scale(0.97); }
+}
+@keyframes torb3 {
+  0%,100% { opacity: 0;    transform: translate(0,0)        scale(1);    }
+  45%     { opacity: 0.50; transform: translate(14px,-4px)  scale(1.08); }
+  80%     { opacity: 0.26; transform: translate(-8px,7px)   scale(0.93); }
+}
+
+/* Lift content above atmospheric layers */
+.title .col {
+  position: relative;
+  z-index: 2;
 }
 
 .tournament_name .text,
 .event_name .text {
-  justify-content: left;
+  justify-content: center;
 }
 
-.bracket_name .text,
-.pool_name .text {
-  justify-content: right;
-}
 
 .title .col {
   display: flex;
   flex-direction: column;
+  align-items: center;
   width: 100%;
-  padding: 0 16px;
 }
 
 .tournament_name {
   font-size: 24px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
 }
+
+.event_name .text {
+  color: var(--darkened-text);
+}
+
 
 .winners_container {
   display: flex;
@@ -91,6 +205,7 @@ body {
   padding-right: 80px;
   box-sizing: border-box;
   padding-top: 30px;
+  padding-bottom: 20px;
   justify-content: center;
 }
 
@@ -118,6 +233,7 @@ body {
   padding-right: 80px;
   box-sizing: border-box;
   padding-top: 30px;
+  padding-bottom: 30px;
   justify-content: center;
 }
 
@@ -158,7 +274,7 @@ body {
 .slot {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
   background-color: var(--bg-color);
   border-radius: calc(var(--border-radius) / 2);
   overflow: hidden;
@@ -204,6 +320,10 @@ body {
 .name_twitter .name {
   font-size: var(--name-size);
   max-width: 100%;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .name_twitter .twitter {
@@ -222,15 +342,19 @@ body {
   margin-right: 6px;
 }
 
-.logo {
-  width: 120px;
-  height: 120px;
+.bracket-logo {
+  position: absolute;
+  top: var(--title-size);
+  left: 0;
+  right: 0;
+  bottom: 0;
   background-image: url("../logo.png");
-  background-size: contain;
+  background-size: 900px auto;
   background-repeat: no-repeat;
-  background-position: center;
-  border-radius: var(--border-radius);
-  margin-left: 16px;
+  background-position: center center;
+  opacity: 0.75;
+  pointer-events: none;
+  z-index: -2;
 }
 
 .icon {
@@ -327,23 +451,40 @@ body {
 }
 
 .score {
-  width: 40px;
-  height: 100px;
+  width: 38px;
+  height: 100%;
   font-size: var(--score-size);
   flex-grow: 0;
   flex-shrink: 0;
   overflow: hidden;
   color: var(--score-color);
-  margin-left: 0;
-  padding-right: 8px;
-  margin-right: -8px;
-  background: var(--p1-score-bg-color);
+  background: var(--score-bg-color);
   text-align: center;
   display: flex;
   justify-content: center;
   align-items: center;
   box-sizing: border-box;
+  box-shadow:
+    inset 0  1px 0 rgba(255,255,255,0.07),
+    inset 0 -1px 0 rgba(0,0,0,0.35);
+}
+
+
+.char_icon {
   flex-shrink: 0;
+  height: calc(var(--player-height) * 1px);
+  width: calc(var(--player-height) * 1px);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 2px;
+}
+
+.char_icon img {
+  width: calc(var(--player-height) * 1px - 8px);
+  height: calc(var(--player-height) * 1px - 8px);
+  object-fit: contain;
 }
 
 .sponsor {

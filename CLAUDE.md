@@ -107,6 +107,18 @@ POST /scoreboard1-update-team-N-1         → set character/costume
   - On `tsh_update` (DOM event): calls `applySlippiCostumes()` with 150ms delay to let TSH finish rendering first. Detects doubles mode from DOM (`character_container.team-color`) rather than from stale bridge data, so icons clear immediately when TSH config switches from singles to doubles.
   - In doubles, TSH injects a `div.text.text_empty` placeholder inside `.character_container` even after it's cleared — hidden via `.character_container.team-color .text.text_empty { display: none }` in CSS.
 
+### Layout — `bracket/`
+
+Four HTML variants sharing one `index.css` and `index.js`: `index.html` (default), `index_expanded.html` (always expanded), `losers_only.html`, `winners_only.html`. All four have identical title markup.
+
+**Title bar** (`--title-size: 68px`): `width: fit-content; min-width: 560px; margin: 0 auto` — centered on screen, shrinks to content rather than spanning full width. Dark teal (`--score-bg-color`) base with atmospheric layers (`.title-atm` grain/light/vignette) and three ambient green orbs (`torb1-3` keyframes) matching the side panel bottom card aesthetic. Graduated gold accent line via `::container::after`. Text centered via `justify-content: center` on `.text` children and `align-items: center` on `.col`. No logo in the title bar.
+
+**Player rows**: Each `.player.container` row includes a `.char_icon` div populated by `index.js` with the character icon PNG (`chara_2_{codename}_{skin}.png`) for singles; cleared for doubles. `index.js` also adds `.winner`/`.loser` classes to completed slots (used by CSS for brightness). Score box has no win/loss border accent (removed — was `border-right: 3px solid transparent` toggled by `.winner`/`.loser`).
+
+**Containers**: `padding-bottom: 20px` on `.winners_container`, `padding-bottom: 30px` on `.losers_container` to keep slots off the screen edge.
+
+**Removed from HTML**: `bracket_name` and `pool_name` divs (were inside a second `.col` in the title — unused/unwanted).
+
 ### Character Map — `slippi-bridge/char_map.js`
 
 Maps Slippi character IDs (0–25) to TSH codenames and display names. Icon files are at:

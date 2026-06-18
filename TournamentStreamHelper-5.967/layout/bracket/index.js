@@ -153,7 +153,7 @@ LoadEverything().then(() => {
         size -= 1;
         $(":root").css("--player-height", size);
       }
-      $(":root").css("--name-size", Math.min(size - size * 0.3, 24));
+      $(":root").css("--name-size", Math.min(size - size * 0.42, 20));
       $(":root").css("--score-size", size - size * 0.25);
       $(":root").css("--flag-height", size - size * 0.4);
 
@@ -195,6 +195,7 @@ LoadEverything().then(() => {
                     <div class="flagstate"></div>
                   </div>
                   <div class="character_container"></div>
+                  <div class="char_icon"></div>
                   <div class="score">0</div>
                 </div>
               `;
@@ -233,6 +234,7 @@ LoadEverything().then(() => {
                       <div class="flagstate"></div>
                     </div>
                     <div class="character_container"></div>
+                    <div class="char_icon"></div>
                     <div class="score">0</div>
                   </div>
                 `;
@@ -519,34 +521,34 @@ LoadEverything().then(() => {
               `.${this.baseClass} .round_${parseInt(roundKey)} .slot_${
                 i + 1
               } .slot_p_${0}.container`
-            ).css("filter", "brightness(1)");
+            ).css("filter", "brightness(1)").addClass("winner").removeClass("loser");
             $(
               `.${this.baseClass} .round_${parseInt(roundKey)} .slot_${
                 i + 1
               } .slot_p_${1}.container`
-            ).css("filter", "brightness(0.6)");
+            ).css("filter", "brightness(0.6)").addClass("loser").removeClass("winner");
           } else if (slot.score[1] > slot.score[0] && slot.completed) {
             $(
               `.${this.baseClass} .round_${parseInt(roundKey)} .slot_${
                 i + 1
               } .slot_p_${0}.container`
-            ).css("filter", "brightness(0.6)");
+            ).css("filter", "brightness(0.6)").addClass("loser").removeClass("winner");
             $(
               `.${this.baseClass} .round_${parseInt(roundKey)} .slot_${
                 i + 1
               } .slot_p_${1}.container`
-            ).css("filter", "brightness(1)");
+            ).css("filter", "brightness(1)").addClass("winner").removeClass("loser");
           } else {
             $(
               `.${this.baseClass} .round_${parseInt(roundKey)} .slot_${
                 i + 1
               } .slot_p_${0}.container`
-            ).css("filter", "brightness(1)");
+            ).css("filter", "brightness(1)").removeClass("winner loser");
             $(
               `.${this.baseClass} .round_${parseInt(roundKey)} .slot_${
                 i + 1
               } .slot_p_${1}.container`
-            ).css("filter", "brightness(1)");
+            ).css("filter", "brightness(1)").removeClass("winner loser");
           }
         });
       });
@@ -597,6 +599,14 @@ LoadEverything().then(() => {
                 `
               );
 
+              let charData = player && player.character && player.character["1"];
+              let iconHtml = "";
+              if (charData && charData.codename) {
+                let skin = String(charData.skin ?? 0).padStart(2, "0");
+                iconHtml = `<img src="../../user_data/games/ssbm/base_files/icon/chara_2_${charData.codename}_${skin}.png">`;
+              }
+              SetInnerHtml($(element).find(".char_icon"), iconHtml);
+
             } else {
               // Doubles/Teams
               let teamName = team.name;
@@ -621,6 +631,8 @@ LoadEverything().then(() => {
                   </span>
                 `
               );
+
+              SetInnerHtml($(element).find(".char_icon"), "");
 
               // SetInnerHtml($(element).find(`.flagcountry`), "");
               // SetInnerHtml($(element).find(`.flagstate`), "");
