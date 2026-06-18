@@ -76,6 +76,8 @@ Assignment priority on each game start:
 2. **`portMapper.tryCharacterBased()`** — at 0-0, checks TSH's preloaded character history (`program_state.json → team.player["1"].character["1"]`). Matches on `name`; also checks `skin` (costume index) when both players use the same character.
 3. **Positional default** — lower port index → team 1.
 
+**0-0 late-bind (game end):** When a singles game started at 0-0, `onGameEnd` does a second TSH state read *after* the game finishes. It looks up the winner's name (via `portMapper.getPortName()`) in the current TSH team assignments and uses that as the authoritative team for `incrementScore`. This handles the case where the TO swaps sides in TSH during game 1 before they've finished setting up — the score always follows the player's current TSH assignment, not the stale game-start snapshot. Falls back silently to the game-start assignment if names are blank or TSH is unreachable. Game 2+ is unaffected: `resolve()` at 1-0 already does live name-matching against current TSH state.
+
 ### `program_state.json` — Key Paths
 
 All keys are **strings**, 1-indexed. Scoreboard number is `config.SCOREBOARD_NUM` (default `"1"`):

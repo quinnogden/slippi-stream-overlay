@@ -28,6 +28,11 @@ class PortMapper {
     return this._portToTeam?.[playerIndex] ?? positionalDefault;
   }
 
+  /** Returns the TSH player name recorded for this port, or null. */
+  getPortName(port) {
+    return this._portToName[port] ?? null;
+  }
+
   /** Returns all known port indices in ascending order. */
   getKnownPorts() {
     const all = [

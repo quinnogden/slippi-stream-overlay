@@ -192,6 +192,7 @@ function onGameStart(rawPlayers) {
 function onGameStartSingles(sorted, tshState) {
   const t1Info = tshState ? tsh.getTeamInfo(tshState, 1) : { name: "", score: 0 };
   const t2Info = tshState ? tsh.getTeamInfo(tshState, 2) : { name: "", score: 0 };
+  const startedAtZeroZero = t1Info.score === 0 && t2Info.score === 0;
 
   portMapper.resolve(t1Info, t2Info);
 
@@ -205,7 +206,7 @@ function onGameStartSingles(sorted, tshState) {
   }
 
   const players = buildPlayersSingles(sorted);
-  currentGameState = { players, isDoubles: false };
+  currentGameState = { players, isDoubles: false, startedAtZeroZero };
 
   for (const p of Object.values(players)) {
     tsh.setCharacter(p.teamNum, p.display, p.costumeIndex).then((r) => {
@@ -501,9 +502,32 @@ function onGameEnd({ winnerPlayerIndex, isHandwarmer, winnerEndStocks }) {
   // currentGameState.players has the correct teamNum even when _portToTeam is null
   // (e.g. 0-0 start where positional default was used locally but not persisted).
   // Fall back to portMapper.getTeam() for games where currentGameState was cleared early.
-  const winnerTeam =
+  let winnerTeam =
     currentGameState?.players?.[winnerPlayerIndex]?.teamNum ??
     portMapper.getTeam(winnerPlayerIndex, null);
+
+  // At 0-0 (game 1), re-read TSH to pick up any side-swap the user made during the game.
+  // _portToName binds Slippi ports to player identities; checking which TSH team currently
+  // holds that name gives the correct assignment even if the user swapped mid-game.
+  if (winnerTeam && currentGameState?.startedAtZeroZero) {
+    try {
+      const freshState = tsh.readState();
+      const winnerName = portMapper.getPortName(winnerPlayerIndex);
+      if (winnerName) {
+        const t1Names = tsh.getTeamPlayerNames(freshState, 1);
+        const t2Names = tsh.getTeamPlayerNames(freshState, 2);
+        if (t1Names.includes(winnerName)) {
+          console.log(`[bridge] 0-0 late-bind: "${winnerName}" → team 1 (current TSH)`);
+          winnerTeam = 1;
+        } else if (t2Names.includes(winnerName)) {
+          console.log(`[bridge] 0-0 late-bind: "${winnerName}" → team 2 (current TSH)`);
+          winnerTeam = 2;
+        }
+      }
+    } catch (e) {
+      console.warn(`[bridge] 0-0 late-bind read failed (${e.message}); using game-start assignment`);
+    }
+  }
 
   if (winnerTeam) {
     portMapper.recordWin(winnerPlayerIndex);

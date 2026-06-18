@@ -117,6 +117,8 @@ The bridge automatically maps each player's Slippi port to a TSH team using this
 
 Mapping resets automatically when scores return to 0-0 (new set).
 
+**Late setup during game 1:** If you swap sides in TSH while game 1 is already in progress (score 0-0), the bridge re-reads TSH at game end and re-derives which team the winner is on before incrementing the score. This means you can finish entering names and correcting sides during the first game without worrying about the score going to the wrong player.
+
 ### Manual swap
 
 Press **Ctrl+Shift+S** at any time (even when the terminal isn't focused) to flip the port→team assignment. Characters in TSH update immediately.
