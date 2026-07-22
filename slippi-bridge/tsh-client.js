@@ -138,6 +138,30 @@ class TshClient {
     return { t1: getEntries(1), t2: getEntries(2) };
   }
 
+  /**
+   * Returns the start.gg set_id backing the currently-loaded set, or null.
+   * Null means the set was entered manually (exhibition/friendly) and has no
+   * start.gg set to report against.
+   * @param {object} state — from readState()
+   * @returns {string|number|null}
+   */
+  getSetId(state) {
+    return state?.score?.[String(this._config.SCOREBOARD_NUM)]?.set_id ?? null;
+  }
+
+  /**
+   * Returns the live set score for both teams.
+   * @param {object} state — from readState()
+   * @returns {{ team1: number, team2: number }}
+   */
+  getLiveScores(state) {
+    const sb = String(this._config.SCOREBOARD_NUM);
+    return {
+      team1: state?.score?.[sb]?.team?.["1"]?.score ?? 0,
+      team2: state?.score?.[sb]?.team?.["2"]?.score ?? 0,
+    };
+  }
+
   // ── HTTP calls ──────────────────────────────────────────────────────────────
 
   /**
@@ -220,6 +244,94 @@ class TshClient {
       const msg = `Failed to set character for team ${teamNumber}: ${err.message}`;
       console.error(`[bridge] ${msg}`);
       return { ok: false, error: msg };
+    }
+  }
+
+  // ── Bracket actions (proxy TSH's native start.gg integration) ────────────────
+
+  /**
+   * Pull the next queued set for the current stream onto the scoreboard.
+   * Fronts TSH's GET /scoreboard{N}-pull-stream.
+   * @returns {Promise<{ ok: boolean, error?: string }>}
+   */
+  async pullStreamSet() {
+    const url = `${this._config.TSH_URL}/scoreboard${this._config.SCOREBOARD_NUM}-pull-stream`;
+    try {
+      await axios.get(url);
+      console.log("[bridge] Pulled next stream set");
+      return { ok: true };
+    } catch (err) {
+      const msg = `pullStreamSet failed: ${err.message}`;
+      console.error(`[bridge] ${msg}`);
+      return { ok: false, error: msg };
+    }
+  }
+
+  /**
+   * List the open (not-yet-finished) sets from the configured bracket provider.
+   * Fronts TSH's GET /get-sets. Shape of each item is provider-defined; the
+   * control panel treats it opaquely and reads id/player-name/round fields.
+   * @returns {Promise<{ ok: boolean, data?: Array, error?: string }>}
+   */
+  async getOpenSets() {
+    const url = `${this._config.TSH_URL}/get-sets`;
+    try {
+      const res = await axios.get(url);
+      return { ok: true, data: Array.isArray(res.data) ? res.data : [] };
+    } catch (err) {
+      const msg = `getOpenSets failed: ${err.message}`;
+      console.error(`[bridge] ${msg}`);
+      return { ok: false, error: msg };
+    }
+  }
+
+  /**
+   * Load a specific set by its provider set id onto the scoreboard.
+   * Fronts TSH's GET /scoreboard{N}-load-set?set={id}.
+   * @param {string|number} setId
+   * @returns {Promise<{ ok: boolean, error?: string }>}
+   */
+  async loadSet(setId) {
+    const url = `${this._config.TSH_URL}/scoreboard${this._config.SCOREBOARD_NUM}-load-set`;
+    try {
+      await axios.get(url, { params: { set: setId } });
+      console.log(`[bridge] Loaded set ${setId}`);
+      return { ok: true };
+    } catch (err) {
+      const msg = `loadSet(${setId}) failed: ${err.message}`;
+      console.error(`[bridge] ${msg}`);
+      return { ok: false, error: msg };
+    }
+  }
+
+  /**
+   * Return the id of the set currently selected on the scoreboard.
+   * Fronts TSH's GET /scoreboard{N}-get-set.
+   * @returns {Promise<{ ok: boolean, data?: string, error?: string }>}
+   */
+  async getCurrentSet() {
+    const url = `${this._config.TSH_URL}/scoreboard${this._config.SCOREBOARD_NUM}-get-set`;
+    try {
+      const res = await axios.get(url);
+      return { ok: true, data: res.data };
+    } catch (err) {
+      const msg = `getCurrentSet failed: ${err.message}`;
+      console.error(`[bridge] ${msg}`);
+      return { ok: false, error: msg };
+    }
+  }
+
+  /**
+   * Lightweight connectivity probe used by the control panel health indicator.
+   * @returns {Promise<boolean>}
+   */
+  async ping() {
+    try {
+      await axios.get(`${this._config.TSH_URL}/`, { timeout: 2000 });
+      return true;
+    } catch (err) {
+      // Any HTTP response (even 404) means the server is up.
+      return Boolean(err.response);
     }
   }
 }

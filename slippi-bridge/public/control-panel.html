@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stream Control</title>
+  <style>
+    :root {
+      --bg: #14171c; --card: #1e232b; --card2: #262c36;
+      --text: #e7ebf0; --dim: #9aa4b2; --line: #333b47;
+      --ok: #35c26a; --bad: #e8524a; --warn: #e0a52b; --info: #4a9df0; --accent: #7a6cf0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font: 14px/1.45 "Segoe UI", system-ui, sans-serif; padding: 12px;
+    }
+    h1 { font-size: 15px; margin: 0; letter-spacing: .04em; text-transform: uppercase; color: var(--dim); }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+    .row { display: flex; align-items: center; gap: 8px; }
+    .between { justify-content: space-between; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .health { display: flex; gap: 14px; }
+    .dot { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
+    .dot::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--bad); box-shadow: 0 0 6px var(--bad); }
+    .dot.up::before { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+    .label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin-bottom: 8px; }
+    button {
+      background: var(--card2); color: var(--text); border: 1px solid var(--line);
+      border-radius: 6px; padding: 8px 12px; font-size: 13px; cursor: pointer;
+    }
+    button:hover:not(:disabled) { border-color: var(--info); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    button.primary { background: #223a5e; border-color: #2f5486; }
+    button.danger { background: #4a2320; border-color: #7a352f; }
+    button.danger:hover:not(:disabled) { border-color: var(--bad); }
+    button.wide { width: 100%; }
+    .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: .04em; }
+    .b-name { background: rgba(53,194,106,.18); color: var(--ok); }
+    .b-character, .b-score { background: rgba(74,157,240,.18); color: var(--info); }
+    .b-manual { background: rgba(122,108,240,.2); color: var(--accent); }
+    .b-positional { background: rgba(224,165,43,.2); color: var(--warn); }
+    .port-line { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); }
+    .port-line:last-child { border-bottom: 0; }
+    .team-tag { font-weight: 600; font-size: 13px; }
+    .t1 { color: #ffb3a8; } .t2 { color: #a8c9ff; }
+    .muted { color: var(--dim); font-size: 12px; }
+    .score { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .vs { color: var(--dim); margin: 0 8px; }
+    .set-teams { display: flex; align-items: center; justify-content: center; gap: 6px; text-align: center; margin: 4px 0 10px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .sets-list { max-height: 220px; overflow-y: auto; margin-top: 8px; }
+    .set-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 6px; }
+    .set-item .meta { font-size: 12px; min-width: 0; }
+    .set-item .meta .n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .confirm { background: var(--card2); border: 1px solid var(--warn); border-radius: 6px; padding: 10px; margin-top: 8px; }
+    #toast { position: fixed; left: 12px; right: 12px; bottom: 12px; padding: 10px 12px; border-radius: 6px; font-size: 13px; display: none; }
+    #toast.ok { background: #17361f; border: 1px solid var(--ok); color: #b8f0c8; display: block; }
+    #toast.err { background: #3a1c19; border: 1px solid var(--bad); color: #f5c2bd; display: block; }
+    .hint { font-size: 11px; color: var(--dim); margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Stream Control</h1>
+    <div class="health">
+      <span class="dot" id="dot-tsh">TSH</span>
+      <span class="dot" id="dot-slippi">Slippi</span>
+    </div>
+  </div>
+
+  <!-- Port → Team -->
+  <div class="card">
+    <div class="row between">
+      <div class="label" style="margin:0">Port → Team</div>
+      <span class="badge b-positional" id="method-badge">—</span>
+    </div>
+    <div id="ports"></div>
+    <button class="wide" id="btn-swap" style="margin-top:10px">⇄ Swap Teams</button>
+    <div class="hint" id="swap-hint">Same as the Ctrl+Shift+S hotkey. Amber = positional guess — verify before the game starts.</div>
+  </div>
+
+  <!-- Current set + report -->
+  <div class="card">
+    <div class="label">Current Set</div>
+    <div class="set-teams">
+      <span class="team-tag t1" id="set-t1">—</span>
+      <span class="score" id="score-1">0</span>
+      <span class="vs">–</span>
+      <span class="score" id="score-2">0</span>
+      <span class="team-tag t2" id="set-t2">—</span>
+    </div>
+    <button class="wide danger" id="btn-report">Report to start.gg</button>
+    <div id="report-confirm"></div>
+    <div class="hint" id="report-hint"></div>
+  </div>
+
+  <!-- Bracket actions -->
+  <div class="card">
+    <div class="label">Bracket</div>
+    <div class="grid2">
+      <button id="btn-pull">⤵ Pull Next Match</button>
+      <button id="btn-refresh-sets">↻ Load a Set…</button>
+    </div>
+    <div class="sets-list" id="sets-list"></div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let status = null;
+
+    function toast(msg, ok) {
+      const t = $("toast");
+      t.textContent = msg;
+      t.className = ok ? "ok" : "err";
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => { t.className = ""; t.style.display = "none"; }, 4000);
+    }
+
+    async function api(path, method = "POST", body) {
+      try {
+        const res = await fetch(path, {
+          method,
+          headers: body ? { "Content-Type": "application/json" } : undefined,
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        return await res.json();
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
+    }
+
+    function render(s) {
+      status = s;
+      $("dot-tsh").classList.toggle("up", !!s.tsh);
+      $("dot-tsh").textContent = "TSH";
+      const sl = $("dot-slippi");
+      sl.classList.toggle("up", !!s.slippi);
+      sl.textContent = "Slippi" + (s.slippiDetail?.mode ? " (" + s.slippiDetail.mode + ")" : "");
+
+      // Port mapping
+      const pm = s.portMapping || { method: "positional", ports: [] };
+      const mb = $("method-badge");
+      mb.textContent = pm.method || "—";
+      mb.className = "badge b-" + (pm.method || "positional");
+      const portsEl = $("ports");
+      if (!pm.ports || pm.ports.length === 0) {
+        portsEl.innerHTML = '<div class="muted">No game detected yet.</div>';
+      } else {
+        portsEl.innerHTML = pm.ports.map((p) => {
+          const teamCls = p.team === 1 ? "t1" : p.team === 2 ? "t2" : "";
+          const teamTxt = p.team ? "Team " + p.team : "(default)";
+          return '<div class="port-line"><span class="muted">Port ' + (p.port + 1) + '</span>' +
+                 '<span class="team-tag ' + teamCls + '">' + teamTxt +
+                 (p.name ? ' · ' + escapeHtml(p.name) : "") + '</span></div>';
+        }).join("");
+      }
+
+      // Current set
+      const cs = s.currentSet || {};
+      $("set-t1").textContent = cs.teamNames?.team1 || "Team 1";
+      $("set-t2").textContent = cs.teamNames?.team2 || "Team 2";
+      $("score-1").textContent = cs.scores?.team1 ?? 0;
+      $("score-2").textContent = cs.scores?.team2 ?? 0;
+
+      const btnReport = $("btn-report");
+      btnReport.disabled = !cs.canReport;
+      $("report-hint").textContent = cs.canReport
+        ? "Set ID " + cs.setId + " — reports the live score as the result."
+        : (cs.reason || "");
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    // ── Actions ──
+    $("btn-swap").onclick = async () => {
+      const r = await api("/api/swap");
+      toast(r.ok ? "Teams swapped" : ("Swap failed: " + r.error), r.ok);
+    };
+
+    $("btn-pull").onclick = async () => {
+      const r = await api("/api/pull-stream");
+      toast(r.ok ? "Pulled next match" : ("Pull failed: " + r.error), r.ok);
+    };
+
+    $("btn-refresh-sets").onclick = async () => {
+      const listEl = $("sets-list");
+      listEl.innerHTML = '<div class="muted">Loading…</div>';
+      const r = await api("/api/sets", "GET");
+      if (!r.ok) { listEl.innerHTML = '<div class="muted">Failed: ' + escapeHtml(r.error || "") + "</div>"; return; }
+      const sets = r.data || [];
+      if (sets.length === 0) { listEl.innerHTML = '<div class="muted">No open sets.</div>'; return; }
+      listEl.innerHTML = "";
+      sets.forEach((set) => {
+        const id = set.id ?? set.setId ?? set.set_id;
+        const p1 = set.p1_name ?? set.entrant1 ?? set.team1 ?? "P1";
+        const p2 = set.p2_name ?? set.entrant2 ?? set.team2 ?? "P2";
+        const round = set.round_name ?? set.roundName ?? set.round ?? "";
+        const item = document.createElement("div");
+        item.className = "set-item";
+        item.innerHTML = '<div class="meta"><div class="n">' + escapeHtml(p1) + " vs " + escapeHtml(p2) +
+          '</div><div class="muted">' + escapeHtml(String(round)) + "</div></div>";
+        const btn = document.createElement("button");
+        btn.textContent = "Load";
+        btn.onclick = async () => {
+          const lr = await api("/api/load-set", "POST", { setId: id });
+          toast(lr.ok ? "Loaded set" : ("Load failed: " + lr.error), lr.ok);
+        };
+        item.appendChild(btn);
+        listEl.appendChild(item);
+      });
+    };
+
+    // Two-step confirm for reporting (avoids accidental publish to the live bracket)
+    $("btn-report").onclick = () => {
+      const cs = status?.currentSet;
+      if (!cs || !cs.canReport) return;
+      const t1 = cs.scores.team1, t2 = cs.scores.team2;
+      const winner = t1 > t2 ? (cs.teamNames.team1 || "Team 1") : (cs.teamNames.team2 || "Team 2");
+      const box = $("report-confirm");
+      box.innerHTML = "";
+      const c = document.createElement("div");
+      c.className = "confirm";
+      c.innerHTML = "<div style='margin-bottom:8px'>Report <b>" + escapeHtml(winner) +
+        "</b> wins <b>" + t1 + "–" + t2 + "</b> to start.gg?</div>";
+      const yes = document.createElement("button");
+      yes.className = "danger"; yes.textContent = "Yes, report it";
+      const no = document.createElement("button");
+      no.textContent = "Cancel"; no.style.marginLeft = "8px";
+      no.onclick = () => { box.innerHTML = ""; };
+      yes.onclick = async () => {
+        box.innerHTML = '<div class="muted">Reporting…</div>';
+        const r = await api("/api/report");
+        box.innerHTML = "";
+        toast(r.ok ? ("Reported: " + r.winnerName + " " + r.score) : ("Report failed: " + r.error), r.ok);
+      };
+      c.appendChild(yes); c.appendChild(no);
+      box.appendChild(c);
+    };
+
+    // ── Live status ──
+    const socket = io();
+    socket.on("control_status", render);
+    // Also fetch once on load in case we connect between pushes.
+    api("/api/status", "GET").then((s) => { if (s && s.currentSet) render(s); });
+  </script>
+</body>
+</html>

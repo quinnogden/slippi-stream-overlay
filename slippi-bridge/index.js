@@ -18,6 +18,7 @@ const { resolveCharacter }               = require("./char_map");
 const config                             = require("./config");
 const PortMapper                         = require("./port-mapper");
 const TshClient                          = require("./tsh-client");
+const StartggClient                      = require("./startgg-client");
 const { createFolderSource, createTcpSource } = require("./game-source");
 
 // ── TSH root path ─────────────────────────────────────────────────────────────
@@ -26,6 +27,7 @@ const TSH_ROOT = path.resolve(__dirname, "../TournamentStreamHelper-5.967");
 
 // ── Express + Socket.io server ────────────────────────────────────────────────
 const app        = express();
+app.use(express.json());
 const httpServer = http.createServer(app);
 const io         = new Server(httpServer, { cors: { origin: "*" } });
 
@@ -34,6 +36,8 @@ io.on("connection", (socket) => {
   if (currentGameState) {
     socket.emit("slippi_game_start", currentGameState);
   }
+  // Give a freshly-connected control panel the latest status immediately.
+  socket.emit("control_status", lastControlStatus);
 });
 
 httpServer.on("error", (err) => {
@@ -55,6 +59,11 @@ httpServer.listen(config.BRIDGE_PORT, () => {
 // ── Core services ─────────────────────────────────────────────────────────────
 const portMapper = new PortMapper();
 const tsh        = new TshClient(config, TSH_ROOT);
+const startgg    = new StartggClient(config);
+
+// Assigned at the entry point; declared here so the control-status loop can
+// read its connection health without a temporal-dead-zone reference.
+let source = null;
 
 // ── Melee in-game team colors (red / blue / green) ────────────────────────────
 const MELEE_TEAM_COLORS = {
@@ -65,6 +74,25 @@ const MELEE_TEAM_COLORS = {
 
 // ── Game state ────────────────────────────────────────────────────────────────
 let currentGameState = null;
+
+// ── Set tracking for start.gg reporting (singles/doubles only) ─────────────────
+// currentSetGames accumulates one { gameNum, winnerTeam } per completed game so
+// the report can include per-game detail. It resets whenever the loaded set_id
+// changes (new set on the scoreboard). Never populated in crew mode.
+let currentSetId    = null;
+let currentSetGames = [];
+
+/**
+ * Reset the per-game accumulator when the scoreboard's loaded set changes.
+ * @param {object|null} tshState
+ */
+function syncSetTracking(tshState) {
+  const setId = tshState ? tsh.getSetId(tshState) : null;
+  if (setId !== currentSetId) {
+    currentSetId    = setId;
+    currentSetGames = [];
+  }
+}
 
 // ── Crew battle state (persists across games within a crew battle) ─────────────
 // null when not in a crew battle.
@@ -165,6 +193,8 @@ function onGameStart(rawPlayers) {
   } catch (e) {
     console.warn(e.message);
   }
+
+  syncSetTracking(tshState);
 
   const sorted = rawPlayers
     .filter((p) => p != null && p.characterId != null)
@@ -531,6 +561,8 @@ function onGameEnd({ winnerPlayerIndex, isHandwarmer, winnerEndStocks }) {
 
   if (winnerTeam) {
     portMapper.recordWin(winnerPlayerIndex);
+    // Record this game for a possible start.gg report of the whole set.
+    currentSetGames.push({ gameNum: currentSetGames.length + 1, winnerTeam });
     console.log(`[bridge] Game over — team ${winnerTeam} wins (port ${winnerPlayerIndex})`);
     io.emit("slippi_game_end", { winner: winnerTeam });
     tsh.incrementScore(winnerTeam).then((r) => {
@@ -586,6 +618,165 @@ function swapTeams() {
   }
 }
 
+// ── Control panel: status, bracket actions, start.gg reporting ────────────────
+// Served to an OBS custom browser dock. Browser→bridge calls are same-origin
+// (bridge port); the bridge makes the TSH/start.gg calls server-side, so there
+// is no browser-CORS surface against TSH.
+
+let lastControlStatus = {
+  tsh: false,
+  slippi: false,
+  slippiDetail: { mode: config.CONNECTION_MODE, connected: false },
+  portMapping: { method: "positional", ports: [] },
+  currentSet: {
+    setId: null,
+    scores: { team1: 0, team2: 0 },
+    teamNames: { team1: "", team2: "" },
+    canReport: false,
+    reason: "starting up",
+  },
+  startggEnabled: startgg.enabled,
+  ts: 0,
+};
+
+/** Determine whether the current set can be reported, and why not if it can't. */
+function evaluateReportability(state, setId) {
+  if (!startgg.enabled)             return { canReport: false, reason: "start.gg token not configured" };
+  if (tsh.isCrewBattle(state))      return { canReport: false, reason: "Crew battles can't be reported" };
+  if (setId == null)                return { canReport: false, reason: "No start.gg set loaded (manual/exhibition)" };
+  if (String(setId).includes("preview")) return { canReport: false, reason: "Set hasn't started on start.gg yet" };
+  return { canReport: true, reason: null };
+}
+
+/** Rebuild lastControlStatus from live TSH + Slippi state and broadcast it. */
+async function refreshControlStatus() {
+  const tshUp = await tsh.ping();
+  let currentSet = {
+    setId: null,
+    scores: { team1: 0, team2: 0 },
+    teamNames: { team1: "", team2: "" },
+    canReport: false,
+    reason: tshUp ? null : "TSH not reachable",
+  };
+
+  if (tshUp) {
+    try {
+      const state  = tsh.readState();
+      const setId  = tsh.getSetId(state);
+      const scores = tsh.getLiveScores(state);
+      const { canReport, reason } = evaluateReportability(state, setId);
+      currentSet = {
+        setId,
+        scores,
+        teamNames: {
+          team1: tsh.getTeamInfo(state, 1).name,
+          team2: tsh.getTeamInfo(state, 2).name,
+        },
+        canReport,
+        reason,
+      };
+    } catch {
+      currentSet.reason = "TSH state unreadable";
+    }
+  }
+
+  const src = source?.getStatus?.() ?? { mode: config.CONNECTION_MODE, connected: false };
+  lastControlStatus = {
+    tsh: tshUp,
+    slippi: Boolean(src.connected),
+    slippiDetail: src,
+    portMapping: portMapper.getResolutionInfo(),
+    currentSet,
+    startggEnabled: startgg.enabled,
+    ts: Date.now(),
+  };
+  io.emit("control_status", lastControlStatus);
+  return lastControlStatus;
+}
+
+/**
+ * Translate the accumulated per-game winners into BracketSetGameDataInput[].
+ * Returns undefined when the log is empty or inconsistent with the final score,
+ * so the report falls back to set winner + score only.
+ */
+function buildGameData(entrants) {
+  if (!entrants[1] || !entrants[2] || currentSetGames.length === 0) return undefined;
+  return currentSetGames.map((g) => ({
+    gameNum:  g.gameNum,
+    winnerId: entrants[g.winnerTeam]?.id,
+  }));
+}
+
+/**
+ * Report the currently-loaded set to start.gg using the live score as the
+ * result. Manual-trigger only; the panel confirms with the operator first.
+ * @returns {Promise<{ ok: boolean, winnerName?: string, score?: string, error?: string }>}
+ */
+async function reportCurrentSet() {
+  let state;
+  try { state = tsh.readState(); }
+  catch { return { ok: false, error: "Cannot read TSH state" }; }
+
+  const setId = tsh.getSetId(state);
+  const { canReport, reason } = evaluateReportability(state, setId);
+  if (!canReport) return { ok: false, error: reason };
+
+  const scores = tsh.getLiveScores(state);
+  if (scores.team1 === scores.team2) {
+    return { ok: false, error: `Score is tied ${scores.team1}-${scores.team2}; play out a winner first` };
+  }
+  const winnerTeam = scores.team1 > scores.team2 ? 1 : 2;
+
+  const ent = await startgg.getSetEntrants(setId);
+  if (!ent.ok) return { ok: false, error: ent.error };
+  const winner = ent.entrants[winnerTeam];
+  if (!winner) return { ok: false, error: "Could not resolve the winning team's start.gg entrant" };
+
+  const result = await startgg.reportSet(setId, winner.id, buildGameData(ent.entrants));
+  if (result.ok) {
+    // Refresh so the panel reflects the reported state on its next tick.
+    refreshControlStatus().catch(() => {});
+    return { ok: true, winnerName: winner.name, score: `${scores.team1}-${scores.team2}` };
+  }
+  return result;
+}
+
+// ── Routes ────────────────────────────────────────────────────────────────────
+app.get("/control", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "control-panel.html"));
+});
+
+app.get("/api/status", async (req, res) => {
+  res.json(await refreshControlStatus());
+});
+
+app.post("/api/swap", (req, res) => {
+  swapTeams();
+  refreshControlStatus().catch(() => {});
+  res.json({ ok: true });
+});
+
+app.post("/api/pull-stream", async (req, res) => {
+  res.json(await tsh.pullStreamSet());
+});
+
+app.get("/api/sets", async (req, res) => {
+  res.json(await tsh.getOpenSets());
+});
+
+app.post("/api/load-set", async (req, res) => {
+  const setId = req.body?.setId;
+  if (setId == null) return res.status(400).json({ ok: false, error: "setId required" });
+  res.json(await tsh.loadSet(setId));
+});
+
+app.post("/api/report", async (req, res) => {
+  res.json(await reportCurrentSet());
+});
+
+// Push status to any connected control panel every 2s.
+setInterval(() => { refreshControlStatus().catch(() => {}); }, 2000);
+
 // ── Global keyboard listener ──────────────────────────────────────────────────
 // Ctrl+Shift+S fires swapTeams() regardless of which window is focused.
 try {
@@ -614,10 +805,12 @@ console.log("[bridge] Starting slippi-bridge...");
 console.log(`[bridge] TSH URL:        ${config.TSH_URL}`);
 console.log(`[bridge] Scoreboard:     ${config.SCOREBOARD_NUM}`);
 console.log(`[bridge] Bridge port:    ${config.BRIDGE_PORT}`);
+console.log(`[bridge] Control panel:  http://localhost:${config.BRIDGE_PORT}/control`);
+console.log(`[bridge] start.gg report: ${startgg.enabled ? "enabled" : "disabled (no token in config.local.js)"}`);
 console.log(`[bridge] Keyboard:       Ctrl+Shift+S = swap teams`);
 console.log();
 
-const source = config.CONNECTION_MODE === "folder"
+source = config.CONNECTION_MODE === "folder"
   ? createFolderSource(config)
   : createTcpSource(config);
 

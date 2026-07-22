@@ -1,4 +1,4 @@
-module.exports = {
+const config = {
   // ── Slippi Connection ──────────────────────────────────────────────────────
   // "tcp"    → connect directly to your Wii's LAN IP (lowest latency)
   // "folder" → watch a folder where Slippi desktop app writes live .slp files
@@ -27,4 +27,19 @@ module.exports = {
   // Maps Slippi player port index (0-based) to TSH team number (1-based).
   // In a standard 1v1 mirror, port 0 = P1 (left side) and port 1 = P2 (right side).
   PORT_TO_TEAM: { 0: 1, 1: 2 },
+
+  // ── Secrets (do NOT put real values here — this file is committed to git) ────
+  // The start.gg personal access token lives in config.local.js (gitignored),
+  // which is merged over this object below. See config.local.example.js.
+  STARTGG_TOKEN: "",
 };
+
+// Merge machine-local overrides (secrets, per-machine paths) if present.
+// config.local.js is gitignored; a missing file is harmless.
+try {
+  Object.assign(config, require("./config.local.js"));
+} catch (_e) {
+  // No local overrides — run with committed defaults.
+}
+
+module.exports = config;

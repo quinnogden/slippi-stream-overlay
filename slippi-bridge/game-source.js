@@ -155,6 +155,14 @@ function createFolderSource(config) {
     }
   }, 500);
 
+  // Health probe for the control panel: folder mode is "connected" as long as
+  // the watched folder is still readable (OneDrive paths can vanish mid-session).
+  emitter.getStatus = () => ({
+    mode: "folder",
+    connected: fs.existsSync(config.SLP_FOLDER),
+    detail: config.SLP_FOLDER,
+  });
+
   return emitter;
 }
 
@@ -178,6 +186,8 @@ function createTcpSource(config) {
   const realtime   = new SlpRealTime();
   realtime.setStream(livestream);
 
+  let connected = false;
+
   realtime.game.start$.subscribe((start) => {
     console.log("[bridge] Game start detected (TCP)");
     emitter.emit("game-start", start.players ?? []);
@@ -194,8 +204,14 @@ function createTcpSource(config) {
 
   livestream
     .start(config.CONSOLE_IP, config.CONSOLE_PORT)
-    .then(() => console.log("[bridge] Connected to Slippi relay"))
-    .catch((err) => console.error("[bridge] TCP connection failed:", err.message));
+    .then(() => { connected = true; console.log("[bridge] Connected to Slippi relay"); })
+    .catch((err) => { connected = false; console.error("[bridge] TCP connection failed:", err.message); });
+
+  emitter.getStatus = () => ({
+    mode: "tcp",
+    connected,
+    detail: `${config.CONSOLE_IP}:${config.CONSOLE_PORT}`,
+  });
 
   return emitter;
 }
