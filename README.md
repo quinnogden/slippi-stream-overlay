@@ -11,7 +11,8 @@ slippi-bridge  (Node.js, port 5001)
   ├─ detects game start → pushes character + costume to TSH
   ├─ detects game end   → auto-increments the correct team's score
   ├─ filters handwarmer games (no score change)
-  └─ emits Socket.io    → OBS browser sources
+  ├─ emits Socket.io    → OBS browser sources
+  └─ serves an operator control panel + start.gg result reporting
         ↓
 TSH  (Python app, port 5000)
   ├─ layout/scoreboard/melee.html   ← scoreboard browser source
@@ -54,6 +55,15 @@ CONSOLE_IP: "192.168.1.100",
 
 Leave `TSH_URL`, `SCOREBOARD_NUM`, and `BRIDGE_PORT` at their defaults unless you have a specific reason to change them.
 
+**Optional — start.gg result reporting.** To report set results from the control panel (see [Control Panel](#control-panel)), copy `config.local.example.js` to `config.local.js` and paste a start.gg personal access token:
+
+```bash
+cd slippi-bridge
+cp config.local.example.js config.local.js
+```
+
+Generate the token at [start.gg → Developer Settings](https://start.gg/admin/profile/developer) (you can only view it once; tokens expire after a year). `config.local.js` is gitignored, so your token never gets committed. Without it, everything else works and the report button just stays disabled.
+
 ### 3. Place the layouts in TSH
 
 Copy both layout folders into your TSH installation at the same paths:
@@ -75,14 +85,16 @@ Also copy `TournamentStreamHelper-5.967/layout/theme.css` and `TournamentStreamH
 
 ### 4. Run TSH and the bridge
 
-Start TSH first (so its HTTP API is available), then either:
+**One-shot launcher (recommended):** double-click `slippi-bridge/start-all.bat`. It starts TSH, waits until its API is up, then starts the bridge — one click instead of launching two things in order. It does not touch OBS, and it leaves TSH running when the bridge closes.
+
+**Bridge only** (when TSH is already running):
 
 ```bash
 cd slippi-bridge
 node index.js
 ```
 
-Or double-click `slippi-bridge/start-bridge.bat` (or a desktop shortcut to it). The batch file uses a relative path so it works on any machine regardless of where the repo is cloned.
+Or double-click `slippi-bridge/start-bridge.bat`. Both batch files use a relative path, so they work on any machine regardless of where the repo is cloned.
 
 ### 5. Add browser sources in OBS
 
@@ -105,6 +117,27 @@ Add `?animate=false` to the URL to disable the ambient background animation (use
 http://localhost:5000/layout/scoreboard/meleePlayers.html
 ```
 This is a standalone name display intended as a secondary browser source.
+
+## Control Panel
+
+The bridge serves an operator control panel at:
+```
+http://localhost:5001/control
+```
+Add it to OBS as a dock — **Docks → Custom Browser Docks**, name it, and paste that URL. It lives alongside your scenes and is **not** part of the broadcast, so you never have to alt-tab into TSH's window mid-set. It shows:
+
+- **Health** — whether the bridge is talking to TSH and to your Slippi source.
+- **Port → Team** — the current port→team guess, the player name if known, and *how* it was decided (name / character / score = confident; **positional = a low-confidence guess to verify** before the game starts). A **Swap** button does the same thing as `Ctrl+Shift+S`.
+- **Bracket** — **Pull Next Match** loads the next queued set from your stream queue, and **Load a Set…** lists the open sets so you can pick one — both without opening TSH's UI.
+- **Report to start.gg** — see below.
+
+## Reporting to start.gg
+
+If you set a start.gg token in `config.local.js` (see [Setup step 2](#2-configure)), the control panel can report a finished set back to your bracket so you don't have to re-enter it on the start.gg website.
+
+When a set loaded from start.gg has been played out, click **Report to start.gg**. The panel shows the winner and score it detected and asks you to confirm before anything is sent — reporting is always manual, never automatic. On confirm, it submits the result (winner derived from the live scoreboard score, with per-game detail when available).
+
+The button stays disabled, with the reason shown, when there's nothing valid to report — no token configured, a manually-entered exhibition set with no start.gg set behind it, a set that hasn't started on start.gg yet, or a tied score. Singles and doubles are supported; crew battles are not.
 
 ## Port→Team Assignment
 
@@ -221,5 +254,9 @@ taskkill /PID <pid> /F
 **Wrong player on wrong side:** Press Ctrl+Shift+S to swap manually. On the next game start the bridge will re-detect from names/scores automatically.
 
 **Side panel not loading tournament data:** Make sure TSH is running and `out/program_state.json` exists. The side panel polls TSH state directly — it does not need the bridge to be running, but TSH must be up.
+
+**Control panel is blank or shows everything offline:** The panel is served by the bridge, so the bridge must be running (`start-all.bat` or `start-bridge.bat`). The TSH health dot goes green once TSH's API responds; the Slippi dot goes green once the folder watcher is active (folder mode) or the Wii connection is up (TCP mode).
+
+**Report button is greyed out:** Hover for the reason. Common causes: no start.gg token in `config.local.js`, the loaded set was entered manually (no start.gg set behind it), the set hasn't started on start.gg yet, the score is tied, or it's a crew battle (not supported).
 
 **Score incremented on a warm-up game:** The handwarmer threshold may need tuning. Check `slippi-bridge/handwarmer.js` — the weighted score cutoff is at the top of the file.

@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Repo Is
 
-A custom streaming overlay for Melee tournaments that bridges live Slippi game data into [Tournament Stream Helper (TSH)](https://github.com/nicholasgasior/TournamentStreamHelper). It consists of two coupled parts:
+A custom streaming overlay for Melee tournaments that bridges live Slippi game data into [Tournament Stream Helper (TSH)](https://github.com/nicholasgasior/TournamentStreamHelper). Two coupled parts:
 
-1. **`slippi-bridge/`** — A Node.js backend that reads live `.slp` files and drives TSH via HTTP API + Socket.io.
-2. **`TournamentStreamHelper-5.967/layout/scoreboard/`** — A customized TSH scoreboard layout (HTML/CSS/JS) that consumes both TSH state and slippi-bridge events.
+1. **`slippi-bridge/`** — a Node.js backend that reads live `.slp` files, drives TSH via its HTTP API, emits Socket.io events to the OBS browser sources, and serves an operator control panel.
+2. **`TournamentStreamHelper-5.967/layout/`** — customized TSH layouts (scoreboard, side panel, bracket) that consume both TSH state and slippi-bridge events.
 
-TSH itself (`TournamentStreamHelper-5.967/`) is a third-party app run as a local web server on port 5000. Do not edit files inside it outside of `layout/`.
+TSH itself (`TournamentStreamHelper-5.967/`) is a third-party Python app run as a local web server on port 5000. **Only edit files under `layout/`** — everything else in that folder is vendored and can be read for reference but not modified.
 
 ---
 
@@ -21,16 +21,22 @@ npm install       # first time only
 node index.js
 ```
 
-Or double-click `slippi-bridge/start-bridge.bat` (or a desktop shortcut pointing to it). Uses `%~dp0` so it works on any machine regardless of where the repo is cloned.
+Launch options:
+- **`start-bridge.bat`** — starts just the bridge (TSH must already be running). Uses `%~dp0` so it works regardless of clone location.
+- **`start-all.bat` → `start-all.js`** — one-shot launcher: starts TSH (`TSH.exe`, falling back to `TSH_bat.bat`), polls `TSH_URL` until its HTTP API responds (60s timeout with a friendly failure message), then spawns the bridge with inherited stdio. Does **not** launch OBS and does **not** kill TSH on exit.
 
-Config is in [slippi-bridge/config.js](slippi-bridge/config.js). Key settings:
+Config is in [slippi-bridge/config.js](slippi-bridge/config.js):
 - `CONNECTION_MODE`: `"folder"` (watch a folder for `.slp` files) or `"tcp"` (connect directly to Wii)
-- `SLP_FOLDER`: path to the Slippi Spectate folder (e.g. `C:/Users/.../Slippi/Spectate/quinn`)
+- `SLP_FOLDER`: path to the Slippi Spectate folder (folder mode)
+- `CONSOLE_IP` / `CONSOLE_PORT`: Wii LAN address (TCP mode)
 - `TSH_URL`: TSH web server, default `http://localhost:5000`
 - `SCOREBOARD_NUM`: TSH scoreboard to control (default `1`)
-- `BRIDGE_PORT`: Socket.io port the layout connects to (default `5001`)
+- `BRIDGE_PORT`: Socket.io + control-panel port (default `5001`)
+- `STARTGG_TOKEN`: start.gg personal access token for result reporting. **Never put the real value in config.js (git-tracked).** Set it in `slippi-bridge/config.local.js` (gitignored, copied from `config.local.example.js`); `config.js` merges it over itself at load via `Object.assign` in a try/catch. Missing token → reporting disables itself, the rest of the bridge runs normally.
 
-**Keyboard shortcut:** `Ctrl+Shift+S` (global, works even when the terminal isn't focused) manually swaps the port→team assignment. Requires `uiohook-napi` to be installed (it is in `package.json`).
+**Keyboard shortcut:** `Ctrl+Shift+S` (global, via `uiohook-napi`) manually swaps the port→team assignment. Falls back to pressing `S` in the terminal if `uiohook-napi` fails to load.
+
+**Operator control panel:** `http://localhost:5001/control`, served by the bridge from `slippi-bridge/public/control-panel.html`. Intended as an OBS Custom Browser Dock — an internal operator tool, not part of the broadcast. See [Control Panel](#control-panel--startgg-reporting).
 
 ---
 
@@ -46,47 +52,80 @@ slippi-bridge/index.js   (Node.js, port 5001)
   │   or @vinceau/slp-realtime (TCP mode)
   ├─ pushes character+costume → TSH HTTP API  (POST /scoreboard1-update-team-N-1)
   ├─ pushes score increments  → TSH HTTP API  (GET /scoreboard1-teamN-scoreup)
-  └─ emits Socket.io events   → layout browser source
+  ├─ emits Socket.io events   → layout browser sources
+  └─ serves /control + /api/* → operator control panel (OBS dock)
         ↓
 TournamentStreamHelper-5.967/  (Python app, port 5000)
-  ├─ out/program_state.json    (live state — read by bridge and layout)
-  └─ layout/scoreboard/        (OBS browser source)
-        ├─ melee.html           ← USE THIS in OBS (loads slippi-bridge socket.io)
-        ├─ meleePlayers.html    ← player-name list layout (body class: fgc thin meleePlayer)
-        ├─ index.js             ← layout logic + slippi-bridge integration
-        └─ index.css            ← styles (stripped to melee/meleePlayer only; ~537 lines)
+  ├─ out/program_state.json    (live state — read by bridge and layouts)
+  └─ layout/                   (OBS browser sources: scoreboard, side-panel, bracket)
 ```
 
 ### slippi-bridge modules
 
-The bridge is split across four files:
-
-- **`index.js`** — entry point, wires everything together. Owns `currentGameState`, calls the other modules, handles the keyboard listener.
-- **`port-mapper.js`** — `PortMapper` class. Owns all port→team tracking state (`portToTeam`, `portToName`, `portScore`). Never reads files or makes HTTP calls — all data is passed in.
-- **`tsh-client.js`** — `TshClient` class. All I/O with TSH: reads `program_state.json`, calls TSH HTTP API. Returns typed results instead of silently swallowing errors.
-- **`game-source.js`** — `createFolderSource` / `createTcpSource`. Returns a Node `EventEmitter` firing `game-start` (rawPlayers) and `game-end` (winnerPlayerIndex). `index.js` binds to these and never calls mode-specific code directly.
+- **`index.js`** — entry point; wires everything together. Owns `currentGameState` and `crewBattleState`, routes game-start/end to the singles/doubles/crew handlers, runs the keyboard listener, serves the control panel + `/api/*` routes, and runs a 2s `setInterval` that rebuilds `lastControlStatus` and emits `control_status` over Socket.io.
+- **`port-mapper.js`** — `PortMapper` class. Owns all port→team tracking state (`_portToTeam`, `_portToName`, `_portScore`). Never reads files or makes HTTP calls — all data is passed in. `getResolutionInfo()` reports the current mapping plus which heuristic set it (`_resolutionMethod`: name / score / character / positional / manual).
+- **`tsh-client.js`** — `TshClient` class; all I/O with TSH. Reads `program_state.json` (`readState()` + pure accessors), calls the TSH HTTP API, and returns typed `{ ok, error?, data? }` results. Includes bracket-action fronts (`pullStreamSet`, `getOpenSets`, `loadSet`, `getCurrentSet`), state accessors (`getSetId`, `getLiveScores`), crew helpers (`isCrewBattle`, `getActivePlayerName`), and a `ping()` health probe.
+- **`startgg-client.js`** — `StartggClient` class. The **only** module that talks to an external service (start.gg's official GraphQL API, `https://api.start.gg/gql/alpha`). `reportSet()` runs the `reportBracketSet` mutation; `getSetEntrants()` fetches per-team entrant ids (TSH's `/get-match` does *not* expose them). `enabled` is false when no token is configured. All bracket *reading* still goes through TSH's native integration, not this module.
+- **`game-source.js`** — `createFolderSource` / `createTcpSource`. Returns a Node `EventEmitter` firing `game-start` (rawPlayers) and `game-end` (`{ winnerPlayerIndex, isHandwarmer, winnerEndStocks }`). Also exposes `getStatus()` (`{ mode, connected, detail }`) for the control-panel health dot. `index.js` binds to these and never calls mode-specific code directly.
 - **`char_map.js`** — `resolveCharacter(charId, costume, tshRoot)`. Pure mapping, no I/O.
+- **`handwarmer.js`** — `wasHandwarmer(game)`. Weighted heuristic over a slippi-js game object; see [Handwarmer Detection](#handwarmer-detection).
 
 ### Port→Team Assignment (`PortMapper`)
 
-The bridge maintains a **port-persistent, swap-aware** mapping of Slippi player ports (0-based) to TSH teams (1-based). This survives TSH's "Swap Teams" button.
+The bridge maintains a **port-persistent, swap-aware** mapping of Slippi player ports (0-based) to TSH teams (1-based). This survives TSH's "Swap Teams" button (which swaps names *and* scores, so name-based detection re-derives the mapping on the next game).
 
-Assignment priority on each game start:
-1. **`portMapper.resolve(t1, t2)`** — name-based matching (if mid-set). Fallback: score-based matching (`portScore` vs TSH scores). Resets to null on 0-0.
-2. **`portMapper.tryCharacterBased()`** — at 0-0, checks TSH's preloaded character history (`program_state.json → team.player["1"].character["1"]`). Matches on `name`; also checks `skin` (costume index) when both players use the same character.
+Assignment priority on each game start (singles):
+1. **`resolve(t1, t2)`** — name-based matching (mid-set). Fallback: score-based matching (`_portScore` vs TSH scores). Resets to null on 0-0.
+2. **`tryCharacterBased()`** — at 0-0, reads TSH's preloaded character history (`program_state.json → team.player["1"].character["1"]`). Matches on `name`; also checks `skin` (costume index) when both players use the same character.
 3. **Positional default** — lower port index → team 1.
 
-**0-0 late-bind (game end):** When a singles game started at 0-0, `onGameEnd` does a second TSH state read *after* the game finishes. It looks up the winner's name (via `portMapper.getPortName()`) in the current TSH team assignments and uses that as the authoritative team for `incrementScore`. This handles the case where the TO swaps sides in TSH during game 1 before they've finished setting up — the score always follows the player's current TSH assignment, not the stale game-start snapshot. Falls back silently to the game-start assignment if names are blank or TSH is unreachable. Game 2+ is unaffected: `resolve()` at 1-0 already does live name-matching against current TSH state.
+**0-0 late-bind (game end):** when a singles game started at 0-0, `onGameEnd` re-reads TSH state *after* the game finishes, looks up the winner's name (via `getPortName()`) in the current TSH team assignments, and uses that as the authoritative team for `incrementScore`. This lets the TO finish entering names / correcting sides during game 1 without the score going to the wrong player. Falls back silently to the game-start assignment if names are blank or TSH is unreachable. Game 2+ is unaffected (`resolve()` at 1-0 already name-matches live TSH state).
+
+### Doubles
+
+Auto-detected when a game has 4 active players with `teamId` assigned in the `.slp` **and** TSH team 1 has more than one player slot. Same scoreboard, same bridge port — no extra config. `onGameStart` routes to `onGameStartDoubles`.
+
+- **PortMapper (doubles):** `resolveDoubles()` (name → score → positional), `tryCharacterBasedDoubles()` (bidirectional scoring vs both TSH teams — breaks ties where only one team has a unique char), `applyDoublesPositional()` (group-based: lower min-port Slippi group → TSH team 1). `applyDoublesPositional()` is called explicitly after `resolveDoubles` + `tryCharacterBasedDoubles` at 0-0 so `_portToTeam` is always set — this fixes the index-based positional fallback that was wrong for non-consecutive groups (e.g. ports {0,3} vs {1,2}).
+- **Team colors:** `MELEE_TEAM_COLORS = { 0: '#D32F2F', 1: '#1565C0', 2: '#2E7D32' }` mapped from Slippi `teamId`; overrides whatever color the TO configured in TSH. `teamColorMap` uses min-port-per-group when `_portToTeam` is set, group min-port ranking otherwise.
+- **Score tracking:** `onGameEnd` reads the winner team from `currentGameState.players[winnerPlayerIndex].teamNum` before falling back to `portMapper.getTeam()` — fixes a null winner when `_portToTeam` is unset at 0-0.
+- **Game end:** RESOLVED end method (the normal doubles win in Slippi) plus a last-frame stock-count fallback when placements are missing.
+
+### Crew Battle Mode
+
+Stock-tracking crew battles for 4- or 5-person teams. The TO configures 4+ players per team in TSH and sets the initial score to the total starting stocks (**16** for 4-person, **20** for 5-person) before game 1. `onGameStart` routes to `onGameStartCrew`.
+
+- **Detection:** `tsh.isCrewBattle(state)` — `Object.keys(team["1"].player).length >= 4`.
+- **Stock tracking:** `crewBattleState.carryOverStocks[team]` tracks stocks the active player entered with (init 4). After each game: `totalStocks[loserTeam] -= carryOverStocks[loserTeam]`; the winner's carry-over is updated from `winnerEndStocks` (last-frame `stocksRemaining`, added to the `game-end` payload in `game-source.js`). No handwarmer check in crew mode — every completed game counts.
+- **Per-player stats** (`crewBattleState.playerStats[name]`): `isActive`, `eliminated`, `hasPlayed`, `stocksTaken`, `character`. The active player is read from TSH `team[N].player["1"].name` at each game start (the TO updates this slot before each game).
+- **Bridge events:** `slippi_crew_update` (fires at game start + end with `totalStocks`, `carryOverStocks`, `playerStats`) and `slippi_crew_end` (fires when a team reaches 0 stocks). Stock counts are pushed to TSH via `setScore`.
+- **Scoreboard:** the crew branch in the layout `Update()` renders the active player's character icon via the single-player path `team.N.player.1` (prevents `assetUtils` from iterating all 5 slots). Team name shows in the `.pronoun` chip below the player name.
+- **Side panel:** two rotation slots, `crew-team-1` / `crew-team-2`, each with a Name / Stocks-Taken column layout. Pill states: `active` (green left border + tint), `eliminated` (0.35 opacity), `waiting` (default).
+
+### Handwarmer Detection
+
+`slippi-bridge/handwarmer.js` scores each game to detect practice/warm-up games. Weighted score ≥ 2 = handwarmer: each player's `totalDamage < 150` (+1/−1), LRAS end method 7 (+1/−1), both players have > 1 stock in the last frame (+2), duration < 60s (+1). Guard: if `stats.overall` is empty/missing, returns `false` (prevents vacuous-truth false positives).
+
+- **Score-only suppression:** on a handwarmer, `slippi_game_start` still fires (characters update) but the score increment is skipped.
+- **Rage-quit handling:** LRAS + not a handwarmer + valid `lrasInitiatorIndex` → awards the point to the other player. In doubles, the point goes to someone on the *other* team by `teamId`, not the quitter's partner.
+- Folder mode only; TCP mode always passes `isHandwarmer: false`.
+- Every game end prints a single `[handwarmer]` line with the mode, per-check deltas, raw values, and the verdict.
+
+**Non-obvious gotchas** (do not regress these):
+- Use `totalDamage`, not `totalDamageDealt`.
+- Read stocks from `getLatestFrame()`, not `stats.stocks` (empty on LRAS).
+- Doubles: do **not** `filter(Boolean)` on `lastFrame.players` — that drops null dead-player entries and leaves only the winning team (always > 1 stock), falsely flagging every doubles game. Use `p?.post?.stocksRemaining ?? 0` so null entries count as 0.
+- `killCount` from slippi-js is unreliable for 4-player stat computation, so the `killCount <= 1` check is guarded with `!isDoublesGame`.
 
 ### `program_state.json` — Key Paths
 
 All keys are **strings**, 1-indexed. Scoreboard number is `config.SCOREBOARD_NUM` (default `"1"`):
 
 ```
-state.score["1"].team["1"].score                        → team 1 score
-state.score["1"].team["1"].player["1"].name             → team 1 player name
+state.score["1"].team["1"].score                            → team 1 score
+state.score["1"].team["1"].player["1"].name                 → team 1 player name
 state.score["1"].team["1"].player["1"].character["1"].name  → preloaded character name
 state.score["1"].team["1"].player["1"].character["1"].skin  → preloaded costume index (0-based)
+state.score["1"].set_id                                     → start.gg set id (null if manual set)
 ```
 
 ### TSH HTTP API (used by bridge)
@@ -96,34 +135,73 @@ GET  /scoreboard1-teamN-scoreup           → increment team N score by 1
 GET  /scoreboard1-teamN-color-<hex>       → set team color (hex without #)
 POST /scoreboard1-update-team-N-1         → set character/costume
      body: { mains: { ssbm: [[charDisplayName, costumeIndex]] } }
+POST /score                               → set both scores { team1score, team2score, scoreboard }
+GET  /scoreboard1-pull-stream             → pull the next queued stream set onto the scoreboard
+GET  /get-sets[?getFinished=1]            → list open (or finished) sets from the bracket provider
+GET  /scoreboard1-load-set?set=<id>       → load a specific set by id
+GET  /scoreboard1-get-set                 → id of the currently-selected set
 ```
 
-### Layout — `melee.html` / `index.js`
+TSH ships a **complete native start.gg integration** (`src/TournamentDataProvider/StartGGDataProvider.py`) driven by `user_data/settings.json → TOURNAMENT_URL`. It fetches brackets/queue/sets and writes them into `program_state.json` (`score.<N>.set_id`, `bracket.*`, `streamQueue`, `completed_sets`, `recent_sets`, etc.). The bridge *reads* all of that through TSH; it never re-implements bracket fetching. TSH has **no** result-reporting capability — that is the only thing `startgg-client.js` adds.
 
-- **Use `melee.html`** as the OBS browser source (not `index.html`). It conditionally loads `socket.io.js` from the bridge.
-- **`index.css`** contains only rules for `melee.html` and `meleePlayers.html`. All game-variant styles (tekken8, sf6, ssbu, roa2, mk1, pokken, nasb2, pbrave, skullgirls, strive, bblue, arms, gbvsr, dbfz, uni2) and unused features (flag country/state, `.icon`, `.tsh_character`, `.name_twitter`, `.extra`, skewed bg panels) were removed in a cleanup pass. Active classes: `fgc`, `thin`, `meleePlayer`, and the core layout/character/score/chip selectors.
-- The layout implements TSH's `Start()` and `Update(event)` hooks (defined in `layout/include/globals.js`).
-- The Slippi bridge integration lives at the bottom of `index.js` inside `initSlippiBridge()`. It:
+### Control Panel + start.gg reporting
+
+The bridge serves these on its own Express app (port 5001). Browser JS is same-origin with the bridge; the bridge makes all TSH/start.gg calls server-side, so there is no browser-CORS surface against TSH.
+
+```
+GET  /control            → the operator panel HTML (public/control-panel.html)
+GET  /api/status         → { tsh, slippi, slippiDetail, portMapping, currentSet, startggEnabled }
+POST /api/swap           → same as Ctrl+Shift+S (calls swapTeams())
+POST /api/pull-stream    → tsh.pullStreamSet()
+GET  /api/sets           → tsh.getOpenSets()
+POST /api/load-set       → tsh.loadSet(body.setId)
+POST /api/report         → reportCurrentSet() (start.gg reportBracketSet)
+```
+`control_status` is also pushed over Socket.io every 2s and on connect. The panel shows TSH/Slippi health, the current port→team guess with the heuristic that decided it (a positional guess is flagged as low-confidence), a swap button, bracket actions, and the report button.
+
+**Reporting flow (`reportCurrentSet` in index.js):** reads `score.<N>.set_id` + live scores from TSH → refuses if crew / no set_id / `preview` set / tied score → derives the winner team from the higher live score → `startgg.getSetEntrants(setId)` maps team → entrant id (slot 0 = team 1) → `startgg.reportSet(setId, winnerEntrantId, gameData)`. Per-game `gameData` is accumulated in `currentSetGames` (one `{ gameNum, winnerTeam }` per singles/doubles game end; reset in `syncSetTracking()` when `set_id` changes) and is optional — a mismatch falls back to reporting set winner + score only. Manual trigger only; the panel two-step-confirms before POSTing. Singles + doubles; crew battles are excluded.
+
+### Theme / design tokens
+
+`layout/theme.css` is the single source of truth for colors and fonts. `main.css` `@import`s it, so all 16 TSH layouts inherit the tokens automatically.
+
+- **Font:** BabyDoll primary, Fredoka fallback (loaded from Google Fonts). The BabyDoll `@font-face` lives in `theme.css` so no layout repeats it. `--font` / `--score-font`.
+- **Colors:** `--bg-color` `#2a3d23` (deep forest green), `--score-bg-color` `#071820` (dark teal), `--text-color` `#f9d697` (warm gold), `--darkened-text` `#aa8e5b` (muted gold). Semantic: `--icon-bg-color`, `--win-color` `#29b548`, `--loss-color` `#ff3837`, `--p2-team-color` `#308aff`, `--set-score-color`, `--score-color`. RGB triplets for `rgba()`: `--bg-color-rgb`, `--bg-color-light-rgb`, `--text-color-rgb`, `--score-bg-color-rgb`.
+
+### Layout — scoreboard (`melee.html` / `meleePlayers.html`)
+
+- **Use `melee.html`** as the OBS browser source (not `index.html`). It conditionally loads `socket.io.js` from the bridge. `meleePlayers.html` is a standalone player-name list (body class: `fgc thin meleePlayer`).
+- **`index.css`** contains only rules for `melee.html` / `meleePlayers.html`. All other game-variant styles and unused features (flag country/state, `.icon`, `.tsh_character`, `.name_twitter`, `.extra`, skewed bg panels) were removed in a cleanup pass. Active classes: `fgc`, `thin`, `meleePlayer`, and the core layout/character/score/chip selectors.
+- **Visual treatment:** raised card depth (`box-shadow`) on all `.container` elements; gold accent line on `.info.container.bottom` and the `meleePlayers` center card only (not player containers); character icons float with a drop-shadow on the image (no box); score box flush to the container edge with breathing room from icons; `meleePlayers` logo repositioned above the center card (742px, 260×260).
+- The layout implements TSH's `Start()` and `Update(event)` hooks (`layout/include/globals.js`). The Slippi-bridge integration lives at the bottom of `index.js` in `initSlippiBridge()`:
   - Connects to `http://localhost:5001` via Socket.io.
-  - On `slippi_game_start`: stores game data. In singles, patches character `<img>` src after each `tsh_update` (TSH defaults to costume 0). In doubles, clears any leftover character icons.
-  - On `tsh_update` (DOM event): calls `applySlippiCostumes()` with 150ms delay to let TSH finish rendering first. Detects doubles mode from DOM (`character_container.team-color`) rather than from stale bridge data, so icons clear immediately when TSH config switches from singles to doubles.
-  - In doubles, TSH injects a `div.text.text_empty` placeholder inside `.character_container` even after it's cleared — hidden via `.character_container.team-color .text.text_empty { display: none }` in CSS.
+  - On `slippi_game_start`: stores game data. In singles, patches character `<img>` src after each `tsh_update` (TSH defaults to costume 0). In doubles, clears leftover character icons.
+  - On `tsh_update` (DOM event, dispatched by TSH's `globals.js` whenever `program_state.json` changes): calls `applySlippiCostumes()` with a 150ms delay to let TSH finish rendering. Detects doubles from the DOM (`character_container.team-color`) rather than stale bridge data, so icons clear immediately when TSH switches singles→doubles.
+  - In doubles, TSH injects a `div.text.text_empty` placeholder inside `.character_container` even after it's cleared — hidden via `.character_container.team-color .text.text_empty { display: none }`.
+
+### Layout — `side-panel/`
+
+`layout/side-panel/side-panel.html`, a 611×1080 browser source designed to sit beside the webcam.
+
+- **Structure:** four positioned divs (`.bg-top/.bg-bottom/.bg-left/.bg-right`) fill the canvas with forest green; two floating rounded cards (`.header-card`, `.bottom-card`) sit on top with drop shadows + inner edge lighting. The cam cutout (587×330, true 16:9) is a transparent gap between them — the OBS cam source shows through. `.cam-overlay` rounds the cam corners via an outward green spread shadow (`box-shadow: 0 0 0 14px var(--bg-color)`).
+- **Header card:** tournament name fetched from `../../out/tournamentInfo/tournamentName.txt` (polled every 5s) + the `Update()` hook. 32px BabyDoll, uppercase, wide letter-spacing.
+- **Bottom card:** dark teal with a 5-orb CSS ambient animation (`@keyframes drift1-5`) plus grain/light/vignette layers. Hosts the rotating info-panel system. `?animate=false` disables the ambient animation.
+- **Rotating info panels** (each slot `PANEL_INTERVAL`, default 20s; GSAP stagger on entrance): `logo-primary`, `player-1`, `player-2`, `recent-sets`, `logo-sponsor`, `completed-sets`, `queue`. Every content item is a `.panel-pill`. Player cards show placement history + current-run results; Recent Sets shows a head-to-head record; Completed Sets shows recently-finished sets; Queue shows the stream queue.
+- **Skip logic:** `hasPlayerCardContent()` requires actual history/run data (not just a name); logos always show; `completedSets` excludes null-score sets, capped at 8. **Doubles** suppresses `player-1`, `player-2`, `recent-sets`. **Crew** suppresses `player-1`, `player-2`, `recent-sets`, `completed-sets`.
+- **Rotation safety:** `Rotator._tl` stores the active GSAP timeline and `_transitionTo()` kills it before starting a new one (prevents stale `onComplete` callbacks spawning duplicate timer chains). `_advance()` calls `clearTimeout` defensively. `buildSlots()` does a full clean restart when the current panel leaves the active slot list (prevents stacked/accelerating rotation).
+- **Config constants** at the top of `side-panel.js`: `PANEL_INTERVAL`, `LOGO_PATH`, `SPONSOR_PATH`, `SCOREBOARD_NUM`, the `ANIM_*` GSAP timing values, and `DEBUG_PANEL` (set `null` in production; otherwise locks rotation to one panel).
 
 ### Layout — `bracket/`
 
-Four HTML variants sharing one `index.css` and `index.js`: `index.html` (default), `index_expanded.html` (always expanded), `losers_only.html`, `winners_only.html`. All four have identical title markup.
+Four HTML variants sharing one `index.css` / `index.js`: `index.html` (default), `index_expanded.html`, `losers_only.html`, `winners_only.html`. All four have identical title markup.
 
-**Title bar** (`--title-size: 68px`): `width: fit-content; min-width: 560px; margin: 0 auto` — centered on screen, shrinks to content rather than spanning full width. Dark teal (`--score-bg-color`) base with atmospheric layers (`.title-atm` grain/light/vignette) and three ambient green orbs (`torb1-3` keyframes) matching the side panel bottom card aesthetic. Graduated gold accent line via `::container::after`. Text centered via `justify-content: center` on `.text` children and `align-items: center` on `.col`. No logo in the title bar.
-
-**Player rows**: Each `.player.container` row includes a `.char_icon` div populated by `index.js` with the character icon PNG (`chara_2_{codename}_{skin}.png`) for singles; cleared for doubles. `index.js` also adds `.winner`/`.loser` classes to completed slots (used by CSS for brightness). Score box has no win/loss border accent (removed — was `border-right: 3px solid transparent` toggled by `.winner`/`.loser`).
-
-**Containers**: `padding-bottom: 20px` on `.winners_container`, `padding-bottom: 30px` on `.losers_container` to keep slots off the screen edge.
-
-**Removed from HTML**: `bracket_name` and `pool_name` divs (were inside a second `.col` in the title — unused/unwanted).
+- **Title bar** (`--title-size: 68px`): `width: fit-content; min-width: 560px; margin: 0 auto` — centered, shrinks to content. Dark teal (`--score-bg-color`) base with atmospheric layers (`.title-atm` grain/light/vignette) and three ambient green orbs (`torb1-3` keyframes) matching the side-panel bottom-card aesthetic. Graduated gold accent line via `.container::after`.
+- **Player rows:** each `.player.container` includes a `.char_icon` div populated by `index.js` with the character icon PNG (`chara_2_{codename}_{skin}.png`) for singles; cleared for doubles. `index.js` adds `.winner`/`.loser` classes to completed slots (CSS brightness).
+- **Containers:** `padding-bottom: 20px` on `.winners_container`, `30px` on `.losers_container` to keep slots off the screen edge.
 
 ### Character Map — `slippi-bridge/char_map.js`
 
-Maps Slippi character IDs (0–25) to TSH codenames and display names. Icon files are at:
+Maps Slippi character IDs (0–25) to TSH codenames and display names. Icon files:
 ```
 TournamentStreamHelper-5.967/user_data/games/ssbm/base_files/icon/chara_2_{codename}_{costume:02d}.png
 ```
@@ -133,70 +211,22 @@ Costume index comes from `player.characterColor` in `getSettings()`.
 
 ## Folder Mode vs TCP Mode
 
-- **Folder mode** (current default): polls the `SLP_FOLDER` directory every 500ms. Uses a `knownFiles` Set to ignore pre-existing files. No `fs.watch` — unreliable on Windows/OneDrive paths.
-- **TCP mode**: uses `@vinceau/slp-realtime` v3.3.0 (`SlpLiveStream` + `SlpRealTime`) to connect directly to the Wii's IP.
+- **Folder mode** (default): polls `SLP_FOLDER` every 500ms, using a `knownFiles` Set to ignore pre-existing files. `fs.watch` is intentionally **not** used — it misses new files on Windows/OneDrive paths.
+- **TCP mode**: `@vinceau/slp-realtime` v3.3.0 (`SlpLiveStream` + `SlpRealTime`) connects directly to the Wii's IP.
 
 ---
 
 ## Known Gotchas
 
-- `fs.watch` is intentionally not used — it misses new files on Windows/OneDrive. Always use the poll-based approach.
-- TSH's "Swap Teams" button swaps names AND scores, so after a swap the bridge's name-based detection will correctly re-derive the mapping on the next game.
-- `uiohook-napi` provides the global `Ctrl+Shift+S` hotkey. If it fails to load, the bridge falls back to terminal keypress (`S` or `s`) for swapping.
-- The `tsh_update` DOM event is dispatched by TSH's `globals.js` whenever `program_state.json` changes. The bridge listens to this to time its costume-patch.
+- `fs.watch` is intentionally not used (misses new files on Windows/OneDrive) — always poll.
+- TSH's "Swap Teams" button swaps names AND scores; the bridge's name-based detection re-derives the mapping on the next game.
+- `uiohook-napi` provides the global `Ctrl+Shift+S` hotkey; if it fails to load, the fallback is pressing `S` in the terminal.
+- The `tsh_update` DOM event fires whenever `program_state.json` changes; the layout listens to it to time its costume patch.
+- `config.js` is git-tracked — never put secrets there. The start.gg token goes in the gitignored `config.local.js`.
+- TSH's `/get-match` does **not** expose start.gg entrant ids; `startgg-client.js` queries start.gg directly for them when reporting.
 
 ---
 
-## Planned TODOs
+## Planned / Not Yet Built
 
-Tracked as GitHub issues at [github.com/quinnogden/slippi-stream-overlay/issues](https://github.com/quinnogden/slippi-stream-overlay/issues).
-
-**Build order:** ✅#5 → ✅#6 → ✅#1 → ✅#2 → ✅#4 → ✅Phase2 → ✅#3 → ✅Crew → #7
-
-- **[✅#5] Shared CSS design token file** — `layout/theme.css` with BabyDoll primary font (Fredoka as fallback). BabyDoll `@font-face` declared in `theme.css` so all sources inherit it without repeating it in per-layout CSS.
-
-- **[✅#6] Handwarmer detection** — `slippi-bridge/handwarmer.js`. Weighted score ≥ 2 = handwarmer: each player's `totalDamage < 150` (+1/−1), LRAS end method 7 (+1/−1), both players have >1 stocks in last frame (+2), duration < 60s (+1). Guard: if `stats.overall` is empty/missing, returns false (prevents vacuous-truth false positives). Score-only suppression: `slippi_game_start` still fires (characters update), score increment skipped. Rage quit handling: LRAS + not handwarmer + valid `lrasInitiatorIndex` → awards point to the other player. Folder mode only; TCP mode always passes `isHandwarmer: false`.
-  - **Doubles fix**: two bugs caused every doubles game to be falsely flagged. (1) `filter(Boolean)` on `lastFrame.players` silently dropped null dead-player entries, leaving only the winning team (who always have >1 stock), so `bothHaveMultipleStocks` always fired — fixed by removing the filter and using `p?.post?.stocksRemaining ?? 0` so null entries count as 0 stocks. (2) In pause-enabled mode, `killCount` from slippi-js is unreliable for 4-player stat computation (may return 0 for all), so the `killCount <= 1` check is now guarded with `!isDoublesGame`. LRAS detection still works for doubles.
-  - **Console logging**: every game end prints a single `[handwarmer]` line showing mode, player count, each check's delta and raw values (damage array, end method, stock counts, duration), and the final score + verdict.
-
-- **[✅#1 + ✅#2] Doubles support + team colors** — Auto-detected from 4 active players with `teamId` assigned in `.slp` AND `Object.keys(team["1"].player).length > 1` in TSH state. Same scoreboard, same bridge port — no extra config.
-  - **PortMapper extensions**: `resolveDoubles()` (name → score → positional), `tryCharacterBasedDoubles()` (bidirectional scoring vs both TSH teams — breaks ties where only one team has a unique char), `applyDoublesPositional()` (group-based: lower min-port Slippi group → TSH team 1). `applyDoublesPositional` is called explicitly after `resolveDoubles`+`tryCharacterBased` at 0-0 so `_portToTeam` is always set — fixes index-based positional fallback which was wrong for non-consecutive groups (e.g. ports {0,3} vs {1,2}).
-  - **Team colors**: `MELEE_TEAM_COLORS = { 0: '#D32F2F', 1: '#1565C0', 2: '#2E7D32' }` mapped from Slippi `teamId`. TSH TO-configured color is ignored/overwritten. `teamColorMap` uses min-port-per-group when `_portToTeam` is set; group min-port ranking otherwise.
-  - **Score tracking**: `onGameEnd` reads winner team from `currentGameState.players[winnerPlayerIndex].teamNum` before falling back to `portMapper.getTeam()`, fixing null winner when `_portToTeam` is unset at 0-0.
-  - **Game end**: RESOLVED end method (normal doubles win in Slippi) + last-frame stock count fallback when placements are missing.
-
-- **[✅#4] Right-side panel browser source** — `layout/side-panel/` (own folder). 611×1080px.
-  - **Structure**: Green background (`--bg-color`) fills entire canvas via four positioned divs (`.bg-top`, `.bg-bottom`, `.bg-left`, `.bg-right`). Two floating rounded-rectangle cards (`.header-card`, `.bottom-card`) sit on top with drop shadows + inner edge lighting for raised depth. Cam cutout (587×330px, true 16:9) is transparent gap between them — OBS cam source shows through.
-  - **Cam overlay**: `.cam-overlay` div with `border-radius: 10px` + outward green spread shadow (`box-shadow: 0 0 0 14px var(--bg-color)`) rounds the cam corners without covering any transparent pixels.
-  - **Header card**: tournament name fetched from `../../out/tournamentInfo/tournamentName.txt` (polled every 5s) + `Update()` hook. Thin graduated gold accent line at top edge. Text: 32px BabyDoll, uppercase, wide letter-spacing, dark drop shadows.
-  - **Bottom card**: dark teal with 5-orb CSS ambient animation (green orbs, `@keyframes drift1-5`), atmospheric grain + light + vignette layers. Logo slot hosts the rotating info panel system (see #3). `LOGO_PATH = "../logo.png"` and `SPONSOR_PATH = "../ThePark.png"` are each their own rotation slot.
-  - **Config constants** at top of `side-panel.js`: `LOGO_PATH`, `SPONSOR_PATH`, `LOGO_INTERVAL`. `?animate=false` URL param disables ambient animation. Socket.io connected to bridge for future hooks.
-  - **Font/theme**: BabyDoll `@font-face` moved to `theme.css`; `meleePlayers.html` now links `theme.css`.
-
-- **[✅Phase2] Scoreboard visual polish + theme centralization**
-  - **Scoreboard**: raised card depth (`box-shadow`) on all `.container` elements. Gold accent line on `.info.container.bottom` and `meleePlayers` center card only (not player containers). Character icons float without box — drop-shadow applied directly to image. Score box flush to container edge with breathing room from icons. `meleePlayers` logo repositioned (742px) above center card, enlarged to 260×260px.
-  - **Theme**: `theme.css` is now the single source of truth. `main.css` `@import`s it so all 16 TSH layouts inherit tokens automatically. New semantic variables: `--icon-bg-color`, `--win-color`, `--loss-color`, `--p2-team-color`, `--set-score-color`, `--score-color` (merged from `--p1/p2-score-color`). RGB triplets `--bg-color-rgb`, `--bg-color-light-rgb`, `--text-color-rgb` for `rgba()` usage. All hardcoded theme colors removed from `side-panel.css` and 10 other layout CSS files.
-
-- **[✅#3] Rotating info card system** — Lives in the bottom card of the side panel. Panels: `logo-primary`, `player-1`, `player-2`, `recent-sets`, `logo-sponsor`, `completed-sets`, `queue`. Each slot is 20s (configurable `PANEL_INTERVAL`). Logo slots are separate rotation entries (no crossfade — each is its own slot). GSAP transitions with James Bond stagger: pills fall in top-to-bottom on panel entrance.
-  - **Pill system**: every content item is a `.panel-pill` (rounded, `flex: 1`, subtle bg + shadow). Lists use `flex: 1 / flex-direction: column` to fill remaining card height. `max-height: 120px` caps individual pill height.
-  - **Panel headers**: `.panel-header` with `::before`/`::after` decorative flanking lines.
-  - **Player card**: `.player-identity` block (tag + char-name). History pills show tournament name + ordinal placement (`<sup>` suffix + `/entrants`). Run pills show opponent, round, score with win/loss left+right border accents. Sections hidden when empty. Filtered to `"single"` events only.
-  - **Recent Sets**: H2H header block (`h2h-header`, `h2h-mid`, `h2h-score`) showing set record between the two players. Result pills: large score values flanking a center info column (tournament + date on top, round below).
-  - **Completed Sets**: symmetric pill (`completed-set-pill.p1win/.p2win`) — green/red border on left and right edges reflect which side won. Score + round centered.
-  - **Queue**: pill per match showing P1 name, match label, P2 name (right-aligned).
-  - **Skip logic**: `hasPlayerCardContent()` requires actual history or run data (not just name); logos always shown. `completedSets` filtered to exclude sets with null scores, then capped at 8. Doubles mode (detected via `isDoubles()`) suppresses `player-1`, `player-2`, and `recent-sets` slots. Crew mode suppresses `player-1`, `player-2`, `recent-sets`, and `completed-sets`.
-  - **DOM helpers**: `ordinalSuffix(n)` (shared by `ordinal()` and `makePlacementEl()`), `makePill()`, `makeTwoLinePill()`, `makePlacementEl()`, `formatDate()`, `fitText()` (auto-shrinks overflow names). `el()` helper.
-  - **Config constants** at top of JS: `PANEL_INTERVAL`, `LOGO_PATH`, `SPONSOR_PATH`, `SCOREBOARD_NUM`, plus `ANIM_TRANSITION_DURATION`, `ANIM_PILL_DURATION`, `ANIM_PILL_DELAY`, `ANIM_PILL_STAGGER`, `ANIM_PILL_Y_OFFSET` for GSAP timing. `DEBUG_PANEL` (set `null` in production) locks rotation to a single panel.
-  - **Rotation safety**: `Rotator._tl` stores the active GSAP timeline; `_transitionTo()` kills it before starting a new one so stale `onComplete` callbacks can't create duplicate timer chains. `_advance()` calls `clearTimeout(this._timer)` defensively at the top. `buildSlots()` does a full clean restart (clear timer + kill timeline + reset `_current`/`_index`) when the current panel is removed from the active slot list — prevents stacked panels and accelerating rotation caused by overlapping GSAP timelines.
-  - **Theme**: `--bg-color` darkened to `#2a3d23`, `--score-bg-color` deepened to `#071820`; RGB triplets updated to match.
-
-- **[✅Crew] Crew battle mode** — Full stock-tracking crew battle support for 4- or 5-person teams. TO configures 4+ players per team in TSH and sets the initial score to 16 (4-person) or 20 (5-person) stocks before game 1. Bridge replaces `incrementScore` with stock-based `setScore` calls and tracks per-player stats across all games.
-  - **Detection**: `isCrewBattle()` in `tsh-client.js` — `Object.keys(team["1"].player).length >= 4`. Bridge routing in `onGameStart`: doubles → `onGameStartDoubles`, crew → `onGameStartCrew`, else `onGameStartSingles`.
-  - **Stock tracking**: `carryOverStocks[team]` tracks stocks the active player entered with (initialized to 4). After each game: `totalStocks[loserTeam] -= carryOverStocks[loserTeam]`; winner's carry-over updated from `winnerEndStocks` (last-frame `stocksRemaining` added to `game-source.js` `game-end` payload). No handwarmer check in crew mode.
-  - **Per-player stats** (`crewBattleState.playerStats[name]`): `isActive`, `eliminated`, `hasPlayed`, `stocksTaken`, `character`. Active player read from TSH `team[N].player["1"].name` at each game start (TO updates this slot before each game).
-  - **New bridge events**: `slippi_crew_update` (fires at game start + end with `totalStocks`, `carryOverStocks`, `playerStats`) and `slippi_crew_end` (fires when a team reaches 0 stocks).
-  - **New `tsh-client.js` methods**: `isCrewBattle(state)`, `getActivePlayerName(state, teamNum)`, `setScore(t1, t2)` (POST `/score`).
-  - **Scoreboard**: crew branch in `index.js` `Update()` renders the active player's character icon using the single-player path `team.N.player.1` (prevents `assetUtils` from iterating all 5 player slots). Team name displayed in the `.pronoun` chip below the player name via `SetInnerHtml`.
-  - **Side panel**: two new rotation slots — `crew-team-1` and `crew-team-2` — shown when `isCrewBattle()` is true. Each card has a `.crew-col-headers` row ("Name" / "Stocks Taken") with a spacer matching the icon width for column alignment. Pill states: `active` (green left border + subtle bg tint), `eliminated` (0.35 opacity), `waiting` (default). GSAP stagger entrance animates eliminated pills to `opacity: 0.35` rather than 1 so CSS isn't overridden by inline style.
-
-- **[#7] Combo detection + auto replay queue** — Scan `getStats().conversions` for highlights (≥4 moves, ≥30% dmg, `didKill`). OBS replay buffer saves clips on `slippi_highlight` event via WebSocket API. OBS Python script polls folder, queues into VLC source. Plays on manual break scene switch, resets when scene switches away.
+- **Combo detection + auto replay queue** ([#7](https://github.com/quinnogden/slippi-stream-overlay/issues)) — scan `getStats().conversions` for highlights (≥4 moves, ≥30% dmg, `didKill`); OBS replay buffer saves clips on a `slippi_highlight` event via the WebSocket API; an OBS Python script polls the folder and queues clips into a VLC source, playing on a manual break-scene switch.
