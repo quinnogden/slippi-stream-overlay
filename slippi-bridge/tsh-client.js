@@ -290,15 +290,26 @@ class TshClient {
   }
 
   /**
-   * List the open (not-yet-finished) sets from the configured bracket provider.
-   * Fronts TSH's GET /get-sets. Shape of each item is provider-defined; the
-   * control panel treats it opaquely and reads id/player-name/round fields.
+   * List sets from the configured bracket provider. Fronts TSH's GET /get-sets,
+   * which returns start.gg states 1/6/2 (not started, called, in progress) and
+   * adds state 3 (finished) when getFinished is present.
+   *
+   * Each call is a live paginated GraphQL query on TSH's side with no caching,
+   * so callers must not poll this fast.
+   *
+   * Item shape is provider-defined; the control panel reads id, round_name,
+   * tournament_phase, p1_name/p2_name, p1_seed/p2_seed, team1score/team2score,
+   * station and stream.
+   *
+   * @param {boolean} [includeFinished=false] — also return finished sets
    * @returns {Promise<{ ok: boolean, data?: Array, error?: string }>}
    */
-  async getOpenSets() {
+  async getOpenSets(includeFinished = false) {
     const url = `${this._config.TSH_URL}/get-sets`;
     try {
-      const res = await axios.get(url);
+      const res = await axios.get(url, {
+        params: includeFinished ? { getFinished: true } : undefined,
+      });
       return { ok: true, data: Array.isArray(res.data) ? res.data : [] };
     } catch (err) {
       const msg = `getOpenSets failed: ${err.message}`;

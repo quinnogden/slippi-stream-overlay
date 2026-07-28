@@ -14,12 +14,14 @@
     body {
       margin: 0; background: var(--bg); color: var(--text);
       font: 14px/1.45 "Segoe UI", system-ui, sans-serif; padding: 12px;
+      -webkit-text-size-adjust: 100%;
     }
+    .wrap { max-width: 1000px; margin: 0 auto; }
     h1 { font-size: 15px; margin: 0; letter-spacing: .04em; text-transform: uppercase; color: var(--dim); }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
     .row { display: flex; align-items: center; gap: 8px; }
     .between { justify-content: space-between; }
-    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 10px; flex-wrap: wrap; }
     .health { display: flex; gap: 14px; }
     .dot { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
     .dot::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--bad); box-shadow: 0 0 6px var(--bad); }
@@ -28,6 +30,7 @@
     button {
       background: var(--card2); color: var(--text); border: 1px solid var(--line);
       border-radius: 6px; padding: 8px 12px; font-size: 13px; cursor: pointer;
+      min-height: 44px;
     }
     button:hover:not(:disabled) { border-color: var(--info); }
     button:disabled { opacity: .45; cursor: not-allowed; }
@@ -35,6 +38,7 @@
     button.danger { background: #4a2320; border-color: #7a352f; }
     button.danger:hover:not(:disabled) { border-color: var(--bad); }
     button.wide { width: 100%; }
+    button.mini { min-height: 0; padding: 3px 9px; font-size: 12px; }
     .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: .04em; }
     .b-name { background: rgba(53,194,106,.18); color: var(--ok); }
     .b-character, .b-score { background: rgba(74,157,240,.18); color: var(--info); }
@@ -48,62 +52,103 @@
     .score { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
     .vs { color: var(--dim); margin: 0 8px; }
     .set-teams { display: flex; align-items: center; justify-content: center; gap: 6px; text-align: center; margin: 4px 0 10px; }
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .sets-list { max-height: 220px; overflow-y: auto; margin-top: 8px; }
-    .set-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 6px; }
-    .set-item .meta { font-size: 12px; min-width: 0; }
-    .set-item .meta .n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .confirm { background: var(--card2); border: 1px solid var(--warn); border-radius: 6px; padding: 10px; margin-top: 8px; }
-    #toast { position: fixed; left: 12px; right: 12px; bottom: 12px; padding: 10px 12px; border-radius: 6px; font-size: 13px; display: none; }
+    #toast { position: fixed; left: 12px; right: 12px; bottom: 12px; padding: 10px 12px; border-radius: 6px; font-size: 13px; display: none; z-index: 10; }
     #toast.ok { background: #17361f; border: 1px solid var(--ok); color: #b8f0c8; display: block; }
     #toast.err { background: #3a1c19; border: 1px solid var(--bad); color: #f5c2bd; display: block; }
     .hint { font-size: 11px; color: var(--dim); margin-top: 6px; }
+
+    /* ── Upcoming sets ── */
+    #set-filter {
+      width: 100%; margin: 8px 0 0; padding: 9px 10px; font-size: 13px;
+      background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+    }
+    .sets-list { max-height: 46vh; overflow-y: auto; margin-top: 8px; -webkit-overflow-scrolling: touch; }
+    .set-row {
+      width: 100%; text-align: left; display: block; min-height: 52px;
+      background: var(--card2); border: 1px solid var(--line); border-radius: 6px;
+      padding: 8px 10px; margin-bottom: 6px; cursor: pointer;
+    }
+    .set-row:hover { border-color: var(--info); }
+    .set-row.live { border-color: var(--accent); background: rgba(122,108,240,.12); cursor: default; }
+    .set-row.live:hover { border-color: var(--accent); }
+    .set-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 3px; }
+    .set-meta .round { font-size: 12px; font-weight: 600; color: var(--text); }
+    .set-meta .phase { font-size: 11px; color: var(--dim); }
+    .chip { font-size: 10px; padding: 1px 6px; border-radius: 10px; background: rgba(255,255,255,.07); color: var(--dim); text-transform: uppercase; letter-spacing: .04em; }
+    .chip.air { background: rgba(122,108,240,.25); color: #c3bcff; }
+    .set-players { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+    .set-players .p { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .set-players .p2 { text-align: right; }
+    .set-players .seed { color: var(--dim); font-size: 11px; }
+    .set-players .sc { font-variant-numeric: tabular-nums; color: var(--dim); font-size: 12px; flex: 0 0 auto; }
+    .set-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+    .linkish { background: none; border: 0; color: var(--dim); font-size: 11px; text-decoration: underline; cursor: pointer; padding: 4px 0; min-height: 0; }
+    .linkish:hover { color: var(--info); }
+
+    /* Two columns once there's room — a laptop or tablet shouldn't get one
+       narrow strip. The sets list takes the taller right-hand column. */
+    @media (min-width: 760px) {
+      .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
+      .cards .card { margin-bottom: 0; }
+      .card-sets { grid-column: 2; grid-row: 1 / span 2; }
+      .sets-list { max-height: 60vh; }
+    }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>Stream Control</h1>
-    <div class="health">
-      <span class="dot" id="dot-tsh">TSH</span>
-      <span class="dot" id="dot-slippi">Slippi</span>
+  <div class="wrap">
+    <div class="header">
+      <h1>Stream Control</h1>
+      <div class="health">
+        <span class="dot" id="dot-tsh">TSH</span>
+        <span class="dot" id="dot-slippi">Slippi</span>
+      </div>
     </div>
-  </div>
 
-  <!-- Port → Team -->
-  <div class="card">
-    <div class="row between">
-      <div class="label" style="margin:0">Port → Team</div>
-      <span class="badge b-positional" id="method-badge">—</span>
-    </div>
-    <div id="ports"></div>
-    <div class="hint" id="tsh-swap-line" style="margin-top:8px"></div>
-    <button class="wide" id="btn-swap" style="margin-top:10px">⇄ Swap Teams</button>
-    <div class="hint" id="swap-hint">Same as the Ctrl+Shift+S hotkey. Amber = positional guess — verify before the game starts.</div>
-  </div>
+    <div class="cards">
+      <!-- Current set + report -->
+      <div class="card">
+        <div class="label">Current Set</div>
+        <div class="set-teams">
+          <span class="team-tag t1" id="set-t1">—</span>
+          <span class="score" id="score-1">0</span>
+          <span class="vs">–</span>
+          <span class="score" id="score-2">0</span>
+          <span class="team-tag t2" id="set-t2">—</span>
+        </div>
+        <button class="wide danger" id="btn-report">Report to start.gg</button>
+        <div id="report-confirm"></div>
+        <div class="hint" id="report-hint"></div>
+      </div>
 
-  <!-- Current set + report -->
-  <div class="card">
-    <div class="label">Current Set</div>
-    <div class="set-teams">
-      <span class="team-tag t1" id="set-t1">—</span>
-      <span class="score" id="score-1">0</span>
-      <span class="vs">–</span>
-      <span class="score" id="score-2">0</span>
-      <span class="team-tag t2" id="set-t2">—</span>
-    </div>
-    <button class="wide danger" id="btn-report">Report to start.gg</button>
-    <div id="report-confirm"></div>
-    <div class="hint" id="report-hint"></div>
-  </div>
+      <!-- Upcoming sets -->
+      <div class="card card-sets">
+        <div class="row between">
+          <div class="label" style="margin:0">Upcoming Sets</div>
+          <button class="mini" id="btn-refresh-sets" title="Refresh from start.gg">↻</button>
+        </div>
+        <button class="wide" id="btn-pull" style="margin-top:8px">⤵ Pull Next Match</button>
+        <input id="set-filter" type="search" placeholder="Filter by player or round…" style="display:none" />
+        <div class="sets-list" id="sets-list"></div>
+        <div class="set-footer">
+          <button class="linkish" id="btn-toggle-finished">show finished</button>
+          <span class="muted" id="sets-stamp"></span>
+        </div>
+      </div>
 
-  <!-- Bracket actions -->
-  <div class="card">
-    <div class="label">Bracket</div>
-    <div class="grid2">
-      <button id="btn-pull">⤵ Pull Next Match</button>
-      <button id="btn-refresh-sets">↻ Load a Set…</button>
+      <!-- Port → Team -->
+      <div class="card">
+        <div class="row between">
+          <div class="label" style="margin:0">Port → Team</div>
+          <span class="badge b-positional" id="method-badge">—</span>
+        </div>
+        <div id="ports"></div>
+        <div class="hint" id="tsh-swap-line" style="margin-top:8px"></div>
+        <button class="wide" id="btn-swap" style="margin-top:10px">⇄ Swap Teams</button>
+        <div class="hint" id="swap-hint">Same as the Ctrl+Shift+S hotkey. Amber = positional guess — verify before the game starts.</div>
+      </div>
     </div>
-    <div class="sets-list" id="sets-list"></div>
   </div>
 
   <div id="toast"></div>
@@ -139,7 +184,14 @@
       }
     }
 
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    // ── Status ──
     function render(s) {
+      const prevSetId = status?.currentSet?.setId;
       status = s;
       $("dot-tsh").classList.toggle("up", !!s.tsh);
       $("dot-tsh").textContent = "TSH";
@@ -188,11 +240,144 @@
       $("report-hint").textContent = cs.canReport
         ? "Set ID " + cs.setId + " — reports the live score as the result."
         : (cs.reason || "");
+
+      // Only repaint the list when the loaded set actually changed — status
+      // arrives every 2s and a blind repaint would fight the filter box.
+      if (cs.setId !== prevSetId) renderSets();
     }
 
-    function escapeHtml(str) {
-      return String(str).replace(/[&<>"']/g, (c) =>
-        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    // ── Upcoming sets ──
+    let sets = [];            // last payload from /api/sets
+    let setsError = null;     // fetch/TSH error, null when the last fetch was fine
+    let showFinished = false;
+    let pendingSet = null;    // set awaiting the overwrite confirm, null otherwise
+
+    function currentSetId() {
+      return status?.currentSet?.setId ?? null;
+    }
+
+    function setInProgress() {
+      const sc = status?.currentSet?.scores;
+      return Boolean(sc && (sc.team1 || sc.team2));
+    }
+
+    function filteredSets() {
+      const f = $("set-filter").value.trim().toLowerCase();
+      if (!f) return sets;
+      return sets.filter((s) =>
+        [s.p1_name, s.p2_name, s.round_name, s.tournament_phase]
+          .some((v) => String(v ?? "").toLowerCase().includes(f)));
+    }
+
+    function renderSets() {
+      const listEl = $("sets-list");
+      const filterEl = $("set-filter");
+      filterEl.style.display = sets.length > 8 ? "block" : "none";
+
+      if (setsError) {
+        listEl.innerHTML = '<div class="muted">Couldn\'t load sets: ' + escapeHtml(setsError) + "</div>";
+        return;
+      }
+      if (sets.length === 0) {
+        listEl.innerHTML = '<div class="muted">' + (showFinished
+          ? "No sets returned. Is a tournament URL set in TSH?"
+          : "No open sets — the bracket may be finished. Try “show finished”.") + "</div>";
+        return;
+      }
+
+      const rows = filteredSets();
+      if (rows.length === 0) {
+        listEl.innerHTML = '<div class="muted">Nothing matches that filter.</div>';
+        return;
+      }
+
+      const liveId = currentSetId();
+      listEl.innerHTML = "";
+      rows.forEach((set) => {
+        const isLive = liveId != null && String(set.id) === String(liveId);
+        const row = document.createElement("div");
+        row.className = "set-row" + (isLive ? " live" : "");
+        row.setAttribute("role", "button");
+
+        const chips = [];
+        if (isLive) chips.push('<span class="chip air">on air</span>');
+        if (set.station) chips.push('<span class="chip">Stn. ' + escapeHtml(set.station) + "</span>");
+        if (set.stream) chips.push('<span class="chip">stream</span>');
+
+        const seed = (n) => (n == null ? "" : ' <span class="seed">(' + escapeHtml(n) + ")</span>");
+        const t1 = Number(set.team1score) || 0, t2 = Number(set.team2score) || 0;
+        const scoreTxt = (t1 > 0 || t2 > 0) ? t1 + "–" + t2 : "vs";
+
+        row.innerHTML =
+          '<div class="set-meta">' +
+            '<span class="round">' + escapeHtml(set.round_name || "Set " + set.id) + "</span>" +
+            (set.tournament_phase ? '<span class="phase">· ' + escapeHtml(set.tournament_phase) + "</span>" : "") +
+            chips.join("") +
+          "</div>" +
+          '<div class="set-players">' +
+            '<span class="p p1">' + escapeHtml(set.p1_name || "—") + seed(set.p1_seed) + "</span>" +
+            '<span class="sc">' + scoreTxt + "</span>" +
+            '<span class="p p2">' + escapeHtml(set.p2_name || "—") + seed(set.p2_seed) + "</span>" +
+          "</div>";
+
+        if (!isLive) row.onclick = () => requestLoad(set);
+        listEl.appendChild(row);
+
+        // Overwrite confirm renders inline under the row it belongs to.
+        if (pendingSet && String(pendingSet.id) === String(set.id)) {
+          listEl.appendChild(buildLoadConfirm(set));
+        }
+      });
+    }
+
+    function buildLoadConfirm(set) {
+      const box = document.createElement("div");
+      box.className = "confirm";
+      box.innerHTML = "<div style='margin-bottom:8px'>The current set is at <b>" +
+        (status?.currentSet?.scores?.team1 ?? 0) + "–" + (status?.currentSet?.scores?.team2 ?? 0) +
+        "</b>. Loading this replaces it.</div>";
+      const yes = document.createElement("button");
+      yes.className = "danger"; yes.textContent = "Load anyway";
+      yes.onclick = () => { pendingSet = null; loadSet(set); };
+      const no = document.createElement("button");
+      no.textContent = "Cancel"; no.style.marginLeft = "8px";
+      no.onclick = () => { pendingSet = null; renderSets(); };
+      box.appendChild(yes); box.appendChild(no);
+      return box;
+    }
+
+    /** One tap loads, except when it would discard a set already in progress. */
+    function requestLoad(set) {
+      if (setInProgress()) {
+        pendingSet = set;
+        renderSets();
+        return;
+      }
+      loadSet(set);
+    }
+
+    async function loadSet(set) {
+      const r = await api("/api/load-set", "POST", { setId: set.id });
+      toast(r.ok ? "Loaded " + (set.round_name || "set") : ("Load failed: " + r.error), r.ok);
+      if (r.ok) fetchSets();
+    }
+
+    async function fetchSets() {
+      const listEl = $("sets-list");
+      if (sets.length === 0 && !setsError) listEl.innerHTML = '<div class="muted">Loading…</div>';
+      const r = await api("/api/sets" + (showFinished ? "?finished=1" : ""), "GET");
+      if (!r.ok) {
+        setsError = r.error || "unknown error";
+      } else {
+        setsError = null;
+        sets = r.data || [];
+        pendingSet = null;
+      }
+      $("sets-stamp").textContent = setsError
+        ? ""
+        : sets.length + (showFinished ? " sets" : " open") + " · " +
+          new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      renderSets();
     }
 
     // ── Actions ──
@@ -204,34 +389,16 @@
     $("btn-pull").onclick = async () => {
       const r = await api("/api/pull-stream");
       toast(r.ok ? "Pulled next match" : ("Pull failed: " + r.error), r.ok);
+      if (r.ok) fetchSets();
     };
 
-    $("btn-refresh-sets").onclick = async () => {
-      const listEl = $("sets-list");
-      listEl.innerHTML = '<div class="muted">Loading…</div>';
-      const r = await api("/api/sets", "GET");
-      if (!r.ok) { listEl.innerHTML = '<div class="muted">Failed: ' + escapeHtml(r.error || "") + "</div>"; return; }
-      const sets = r.data || [];
-      if (sets.length === 0) { listEl.innerHTML = '<div class="muted">No open sets.</div>'; return; }
-      listEl.innerHTML = "";
-      sets.forEach((set) => {
-        const id = set.id ?? set.setId ?? set.set_id;
-        const p1 = set.p1_name ?? set.entrant1 ?? set.team1 ?? "P1";
-        const p2 = set.p2_name ?? set.entrant2 ?? set.team2 ?? "P2";
-        const round = set.round_name ?? set.roundName ?? set.round ?? "";
-        const item = document.createElement("div");
-        item.className = "set-item";
-        item.innerHTML = '<div class="meta"><div class="n">' + escapeHtml(p1) + " vs " + escapeHtml(p2) +
-          '</div><div class="muted">' + escapeHtml(String(round)) + "</div></div>";
-        const btn = document.createElement("button");
-        btn.textContent = "Load";
-        btn.onclick = async () => {
-          const lr = await api("/api/load-set", "POST", { setId: id });
-          toast(lr.ok ? "Loaded set" : ("Load failed: " + lr.error), lr.ok);
-        };
-        item.appendChild(btn);
-        listEl.appendChild(item);
-      });
+    $("btn-refresh-sets").onclick = () => fetchSets();
+    $("set-filter").oninput = () => renderSets();
+
+    $("btn-toggle-finished").onclick = () => {
+      showFinished = !showFinished;
+      $("btn-toggle-finished").textContent = showFinished ? "hide finished" : "show finished";
+      fetchSets();
     };
 
     // Two-step confirm for reporting (avoids accidental publish to the live bracket)
@@ -256,6 +423,8 @@
         const r = await api("/api/report");
         box.innerHTML = "";
         toast(r.ok ? ("Reported: " + r.winnerName + " " + r.score) : ("Report failed: " + r.error), r.ok);
+        // The reported set leaves the open list, so the next one is one tap away.
+        if (r.ok) fetchSets();
       };
       c.appendChild(yes); c.appendChild(no);
       box.appendChild(c);
@@ -275,6 +444,13 @@
 
     // Also fetch once on load in case we connect between pushes.
     api("/api/status", "GET").then((s) => { if (s && s.currentSet) render(s); });
+
+    // Every refresh is a live paginated start.gg query on TSH's side, so this
+    // stays slow and pauses entirely while the panel isn't on screen.
+    fetchSets();
+    setInterval(() => {
+      if (document.visibilityState === "visible") fetchSets();
+    }, 90000);
   </script>
 </body>
 </html>

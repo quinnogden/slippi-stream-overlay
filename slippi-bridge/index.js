@@ -11,6 +11,7 @@
  */
 
 const http    = require("http");
+const os      = require("os");
 const express = require("express");
 const { Server } = require("socket.io");
 
@@ -854,13 +855,17 @@ app.post("/api/pull-stream", async (req, res) => {
 });
 
 app.get("/api/sets", async (req, res) => {
-  res.json(await tsh.getOpenSets());
+  res.json(await tsh.getOpenSets(req.query.finished === "1"));
 });
 
 app.post("/api/load-set", async (req, res) => {
   const setId = req.body?.setId;
   if (setId == null) return res.status(400).json({ ok: false, error: "setId required" });
-  res.json(await tsh.loadSet(setId));
+  const result = await tsh.loadSet(setId);
+  // Push the new names/scores out now rather than on the next 2s tick, so the
+  // panel's Current Set card matches what the operator just loaded.
+  if (result.ok) refreshControlStatus().catch(() => {});
+  res.json(result);
 });
 
 app.post("/api/report", async (req, res) => {
@@ -893,12 +898,45 @@ try {
   }
 }
 
+/**
+ * Every address a phone or tablet could open the control panel on.
+ *
+ * The venue hands out a different IP than home does, so the URL is printed at
+ * startup instead of written down. Tailscale addresses (100.64/10) sort first:
+ * they don't change with the network and tunnel through the client isolation
+ * that most guest Wi-Fi runs, which plain LAN addresses can't.
+ *
+ * @returns {string[]} one console-ready line per reachable address
+ */
+function lanControlUrls() {
+  const isTailscale = (ip) => /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(ip);
+  const addrs = [];
+
+  for (const [name, list] of Object.entries(os.networkInterfaces())) {
+    // Hyper-V/WSL switches and Bluetooth PAN are never reachable from a phone.
+    if (/vEthernet|VirtualBox|VMware|Bluetooth|Loopback/i.test(name)) continue;
+    for (const net of list ?? []) {
+      if (net.internal) continue;
+      if (net.family !== "IPv4" && net.family !== 4) continue;
+      // 169.254/16 is a disconnected adapter's self-assigned address.
+      if (net.address.startsWith("169.254.")) continue;
+      addrs.push({ name, address: net.address });
+    }
+  }
+
+  addrs.sort((a, b) => Number(isTailscale(b.address)) - Number(isTailscale(a.address)));
+  return addrs.map((a) => `http://${a.address}:${config.BRIDGE_PORT}/control  (${a.name})`);
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────────
 console.log("[bridge] Starting slippi-bridge...");
 console.log(`[bridge] TSH URL:        ${config.TSH_URL}`);
 console.log(`[bridge] Scoreboard:     ${config.SCOREBOARD_NUM}`);
 console.log(`[bridge] Bridge port:    ${config.BRIDGE_PORT}`);
 console.log(`[bridge] Control panel:  http://localhost:${config.BRIDGE_PORT}/control`);
+for (const url of lanControlUrls()) {
+  console.log(`[bridge]   on phone:    ${url}`);
+}
 console.log(`[bridge] start.gg report: ${startgg.enabled ? "enabled" : "disabled (no token in config.local.js)"}`);
 console.log(`[bridge] Keyboard:       Ctrl+Shift+S = swap teams`);
 console.log();

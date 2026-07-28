@@ -176,18 +176,25 @@ TSH ships a **complete native start.gg integration** (`src/TournamentDataProvide
 
 ### Control Panel + start.gg reporting
 
-The bridge serves these on its own Express app (port 5001). Browser JS is same-origin with the bridge; the bridge makes all TSH/start.gg calls server-side, so there is no browser-CORS surface against TSH.
+The bridge serves these on its own Express app (port 5001). Browser JS is normally same-origin with the bridge, and the bridge makes all TSH/start.gg calls server-side, so there is no browser-CORS surface against TSH. A permissive CORS middleware sits in front of the routes anyway: an OBS dock pointed at `public/control-panel.html` as a *file* runs on a `file://` origin, where the panel's `API_BASE` falls back to `http://localhost:5001` and needs CORS to reach `/api/*`.
 
 ```
 GET  /control            → the operator panel HTML (public/control-panel.html)
-GET  /api/status         → { tsh, slippi, slippiDetail, portMapping, currentSet, startggEnabled }
+GET  /api/status         → { tsh, slippi, slippiDetail, portMapping, tshSwapped, currentSet, startggEnabled }
 POST /api/swap           → same as Ctrl+Shift+S (calls swapTeams())
 POST /api/pull-stream    → tsh.pullStreamSet()
-GET  /api/sets           → tsh.getOpenSets()
-POST /api/load-set       → tsh.loadSet(body.setId)
+GET  /api/sets[?finished=1] → tsh.getOpenSets(includeFinished)
+POST /api/load-set       → tsh.loadSet(body.setId), then refreshControlStatus()
 POST /api/report         → reportCurrentSet() (start.gg reportBracketSet)
 ```
-`control_status` is also pushed over Socket.io every 2s and on connect. The panel shows TSH/Slippi health, the current port→team guess with the heuristic that decided it (a positional guess is flagged as low-confidence), TSH's own swap state (`tshSwapped`), a swap button, bracket actions, and the report button.
+`control_status` is also pushed over Socket.io every 2s and on connect. The panel shows TSH/Slippi health, the current set + report button, the upcoming-sets picker, and the port→team guess with the heuristic that decided it (a positional guess is flagged as low-confidence) plus TSH's own swap state (`tshSwapped`) and a swap button. It is responsive — one column in an OBS dock, two columns from 760px — so it also works from a phone or tablet at `http://<lan-ip>:5001/control`. `lanControlUrls()` prints those addresses at startup (Tailscale `100.64/10` first, since it survives a venue network change and guest-Wi-Fi client isolation; Hyper-V switches and disconnected `169.254` adapters are filtered out) so the operator never has to run `ipconfig` at a venue.
+
+**Upcoming-sets picker.** The panel is meant to be the only page open during a set, so it renders TSH's bracket data itself rather than sending the TO to `:5000/scoreboard` (a compiled React SPA in the vendored, gitignored `stage_strike_app/build/` — not extensible from this repo). Per-player editing (names, pronouns, country, skins) is deliberately *not* reimplemented; that still happens in TSH.
+
+- Fields consumed from `/get-sets`: `id`, `round_name`, `tournament_phase`, `p1_name`/`p2_name`, `p1_seed`/`p2_seed`, `team1score`/`team2score`, `station`, `stream`. Seeds, station, stream and score render only when populated.
+- **One tap loads a set.** The only guard is an inline confirm when the currently-loaded set has a non-zero score, since that is the one case where loading discards operator work. The loaded set is matched on `String(set.id) === String(currentSet.setId)` — TSH reports `set_id` as a string but `/get-sets` uses numbers — and is marked `ON AIR` and made unclickable.
+- **Refresh is deliberately slow.** TSH's `get_sets` calls `provider.GetMatches()`, an uncached paginated GraphQL query against start.gg on every call. The panel refreshes on open, on the manual `↻`, after a successful load/pull/report, and on a 90s timer that pauses while `document.visibilityState !== "visible"`. Do not turn this into a fast poll.
+- An **empty list is normal** — `get_sets` returns start.gg states 1/6/2 (not started, called, in progress), so a finished bracket legitimately returns 0. The empty state says so and points at the `show finished` toggle (`?finished=1`, which adds state 3); that is distinct from the fetch-failed state.
 
 **Reporting flow (`reportCurrentSet` in index.js):** reads `score.<N>.set_id` + live scores from TSH → refuses if crew / no set_id / `preview` set / tied score → derives the winner team from the higher live score → `startgg.getSetEntrants(setId)` maps team → entrant id (slot 0 = team 1) → `startgg.reportSet(setId, winnerEntrantId, gameData)`. Per-game `gameData` is accumulated in `currentSetGames` (one `{ gameNum, winnerTeam }` per singles/doubles game end; reset in `syncSetTracking()` when `set_id` changes) and is optional — a mismatch falls back to reporting set winner + score only. Manual trigger only; the panel two-step-confirms before POSTing. Singles + doubles; crew battles are excluded.
 
