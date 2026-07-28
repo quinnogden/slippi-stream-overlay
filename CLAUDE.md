@@ -7,9 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A custom streaming overlay for Melee tournaments that bridges live Slippi game data into [Tournament Stream Helper (TSH)](https://github.com/nicholasgasior/TournamentStreamHelper). Two coupled parts:
 
 1. **`slippi-bridge/`** — a Node.js backend that reads live `.slp` files, drives TSH via its HTTP API, emits Socket.io events to the OBS browser sources, and serves an operator control panel.
-2. **`TournamentStreamHelper-5.967/layout/`** — customized TSH layouts (scoreboard, side panel, bracket) that consume both TSH state and slippi-bridge events.
+2. **`TournamentStreamHelper-5.972/layout/`** — customized TSH layouts (scoreboard, side panel, bracket) that consume both TSH state and slippi-bridge events.
 
-TSH itself (`TournamentStreamHelper-5.967/`) is a third-party Python app run as a local web server on port 5000. **Only edit files under `layout/`** — everything else in that folder is vendored and can be read for reference but not modified.
+TSH itself (`TournamentStreamHelper-5.972/`) is a third-party Python app run as a local web server on port 5000. **Only edit files under `layout/`** — everything else in that folder is vendored and can be read for reference but not modified.
 
 ---
 
@@ -31,8 +31,11 @@ Config is in [slippi-bridge/config.js](slippi-bridge/config.js):
 - `CONSOLE_IP` / `CONSOLE_PORT`: Wii LAN address (TCP mode)
 - `TSH_URL`: TSH web server, default `http://localhost:5000`
 - `SCOREBOARD_NUM`: TSH scoreboard to control (default `1`)
+- `TSH_ROOT`: absolute path to the TSH install. Default `null` = auto-detect (see below).
 - `BRIDGE_PORT`: Socket.io + control-panel port (default `5001`)
 - `STARTGG_TOKEN`: start.gg personal access token for result reporting. **Never put the real value in config.js (git-tracked).** Set it in `slippi-bridge/config.local.js` (gitignored, copied from `config.local.example.js`); `config.js` merges it over itself at load via `Object.assign` in a try/catch. Missing token → reporting disables itself, the rest of the bridge runs normally.
+
+**Locating TSH (`slippi-bridge/tsh-root.js`):** TSH ships as a versioned folder, so the path is resolved at startup rather than hardcoded — `resolveTshRoot(baseDir, override)` scans the repo root for `TournamentStreamHelper*` directories, keeps only those that look like a real install (a `layout/` subfolder **plus** one of `TSH.exe` / `TSH_bat.bat` / `main.py`), and picks the highest version by **numeric** component-wise comparison (so `5.1001` > `5.972` > `5.99`). `config.TSH_ROOT` short-circuits the scan. Both `index.js` and `start-all.js` call it and log the resolved root; failure exits with an actionable message. **Updating TSH is therefore: extract the new folder, copy `layout/` back, copy `user_data/` across — no code edits.**
 
 **Keyboard shortcut:** `Ctrl+Shift+S` (global, via `uiohook-napi`) manually swaps the port→team assignment. Falls back to pressing `S` in the terminal if `uiohook-napi` fails to load.
 
@@ -55,7 +58,7 @@ slippi-bridge/index.js   (Node.js, port 5001)
   ├─ emits Socket.io events   → layout browser sources
   └─ serves /control + /api/* → operator control panel (OBS dock)
         ↓
-TournamentStreamHelper-5.967/  (Python app, port 5000)
+TournamentStreamHelper-5.972/  (Python app, port 5000)
   ├─ out/program_state.json    (live state — read by bridge and layouts)
   └─ layout/                   (OBS browser sources: scoreboard, side-panel, bracket)
 ```
@@ -66,13 +69,14 @@ TournamentStreamHelper-5.967/  (Python app, port 5000)
 - **`port-mapper.js`** — `PortMapper` class. Owns all port→team tracking state (`_portToTeam`, `_portToName`, `_portScore`). Never reads files or makes HTTP calls — all data is passed in. `getResolutionInfo()` reports the current mapping plus which heuristic set it (`_resolutionMethod`: name / score / character / positional / manual).
 - **`tsh-client.js`** — `TshClient` class; all I/O with TSH. Reads `program_state.json` (`readState()` + pure accessors), calls the TSH HTTP API, and returns typed `{ ok, error?, data? }` results. Includes bracket-action fronts (`pullStreamSet`, `getOpenSets`, `loadSet`, `getCurrentSet`), state accessors (`getSetId`, `getLiveScores`), crew helpers (`isCrewBattle`, `getActivePlayerName`), and a `ping()` health probe.
 - **`startgg-client.js`** — `StartggClient` class. The **only** module that talks to an external service (start.gg's official GraphQL API, `https://api.start.gg/gql/alpha`). `reportSet()` runs the `reportBracketSet` mutation; `getSetEntrants()` fetches per-team entrant ids (TSH's `/get-match` does *not* expose them). `enabled` is false when no token is configured. All bracket *reading* still goes through TSH's native integration, not this module.
-- **`game-source.js`** — `createFolderSource` / `createTcpSource`. Returns a Node `EventEmitter` firing `game-start` (rawPlayers) and `game-end` (`{ winnerPlayerIndex, isHandwarmer, winnerEndStocks }`). Also exposes `getStatus()` (`{ mode, connected, detail }`) for the control-panel health dot. `index.js` binds to these and never calls mode-specific code directly.
-- **`char_map.js`** — `resolveCharacter(charId, costume, tshRoot)`. Pure mapping, no I/O.
+- **`game-source.js`** — `createFolderSource` / `createTcpSource`. Returns a Node `EventEmitter` firing `game-start` (`rawPlayers, stageId`) and `game-end` (`{ winnerPlayerIndex, isHandwarmer, winnerEndStocks }`). Also exposes `getStatus()` (`{ mode, connected, detail }`) for the control-panel health dot. `index.js` binds to these and never calls mode-specific code directly.
+- **`char_map.js`** — `resolveCharacter(charId, costume, tshRoot)` and `resolveStage(stageId)`. Pure mapping, no I/O. `STAGE_MAP` covers all 30 Slippi stage ids TSH ships an icon for; unmapped ids (target-test stages 33+) return `null`.
+- **`tsh-root.js`** — `resolveTshRoot(baseDir, override)`. Finds the versioned TSH install folder so no path hardcodes a version. Only filesystem probing, no config or network. Used by `index.js` and `start-all.js`.
 - **`handwarmer.js`** — `wasHandwarmer(game)`. Weighted heuristic over a slippi-js game object; see [Handwarmer Detection](#handwarmer-detection).
 
 ### Port→Team Assignment (`PortMapper`)
 
-The bridge maintains a **port-persistent, swap-aware** mapping of Slippi player ports (0-based) to TSH teams (1-based). This survives TSH's "Swap Teams" button (which swaps names *and* scores, so name-based detection re-derives the mapping on the next game).
+The bridge maintains a **port-persistent, swap-aware** mapping of Slippi player ports (0-based) to TSH teams (1-based). This survives TSH's "Swap Teams" button (which swaps names *and* scores) — see [TSH-Side Swap Detection](#tsh-side-swap-detection) for the immediate path, with name-based re-derivation on the next game start as the fallback.
 
 Assignment priority on each game start (singles):
 1. **`resolve(t1, t2)`** — name-based matching (mid-set). Fallback: score-based matching (`_portScore` vs TSH scores). Resets to null on 0-0.
@@ -100,6 +104,29 @@ Stock-tracking crew battles for 4- or 5-person teams. The TO configures 4+ playe
 - **Bridge events:** `slippi_crew_update` (fires at game start + end with `totalStocks`, `carryOverStocks`, `playerStats`) and `slippi_crew_end` (fires when a team reaches 0 stocks). Stock counts are pushed to TSH via `setScore`.
 - **Scoreboard:** the crew branch in the layout `Update()` renders the active player's character icon via the single-player path `team.N.player.1` (prevents `assetUtils` from iterating all 5 slots). Team name shows in the `.pronoun` chip below the player name.
 - **Side panel:** two rotation slots, `crew-team-1` / `crew-team-2`, each with a Name / Stocks-Taken column layout. Pill states: `active` (green left border + tint), `eliminated` (0.35 opacity), `waiting` (default).
+
+### Per-Game Stage Reporting (TSH 5.972+)
+
+TSH 5.972 added the **Individual Game Tracker**, which records stage / characters / winner per game under `score.<N>.stages.<i>`. The bridge already parses the stage from every `.slp` and now pushes it.
+
+- `game-source.js` emits `game-start` as `(rawPlayers, stageId)`; both folder and TCP modes supply `settings.stageId` (`null` when unavailable).
+- `onGameStart` calls `reportStage(stageId)` → `resolveStage()` → `tsh.setCurrentStage(codename)`.
+- **Best-effort by design:** unmapped stage ids log a warning and skip; the HTTP call is fire-and-forget with `.catch(() => {})`. Stage reporting is cosmetic and must never block scoring.
+- **Skipped in crew battles** — they don't use the game tracker, so there is no game slot to stamp.
+- Per-game *characters* need no bridge work: TSH's `_CopySetLevelCharactersToGame` copies the set-level selection (already pushed via `update-team`) into the game slot automatically.
+
+Codenames are the basenames of `user_data/games/ssbm/stage_icon/*.png`. Watch the spellings that don't match the Slippi enum: `HYRULE_TEMPLE`→`temple`, `POKE_FLOATS`→`pokefloats`, `DREAMLAND`→`dream_land`, `KONGO_JUNGLE_N64`→`kong_jungle_64` (**"kong"**, not "kongo"). `ICETOP` (26) maps to `icicle_mountain` — TSH ships no separate asset.
+
+### TSH-Side Swap Detection
+
+`GET /scoreboard<N>-get-swap` returns TSH's own `teamsSwapped` flag as the Python string `"True"`/`"False"` (**not** JSON). Polled in the existing 2s `refreshControlStatus` loop.
+
+- `tshSwapState` starts `null` so the first poll only seeds a baseline — no phantom swap on startup.
+- On a change, `handleTshSwap(state)` re-runs `portMapper.resolve()` against fresh TSH names, updates `teamNum` on the live players, and re-emits `slippi_game_start`. Previously an operator-side swap was only noticed on the *next* game start via name re-derivation.
+- The bridge's own `swapTeams()` never calls TSH's swap endpoint (it only flips the internal map), so any change in this flag is unambiguously operator-initiated — no origin bookkeeping needed.
+- Exposed as `tshSwapped` on `control_status` / `/api/status` and rendered in the control panel. `getSwapState()` deliberately does not log failures — it is polled every 2s and would flood the console while TSH restarts.
+
+`PortMapper` remains the scoring authority; this only *detects divergence* rather than delegating the mapping to a single boolean.
 
 ### Handwarmer Detection
 
@@ -136,6 +163,9 @@ GET  /scoreboard1-teamN-color-<hex>       → set team color (hex without #)
 POST /scoreboard1-update-team-N-1         → set character/costume
      body: { mains: { ssbm: [[charDisplayName, costumeIndex]] } }
 POST /score                               → set both scores { team1score, team2score, scoreboard }
+POST /scoreboard1-set-current-stage       → set the current game's stage (TSH 5.972+)
+     body: { codename: "battlefield" }
+GET  /scoreboard1-get-swap                → TSH's own teamsSwapped flag; returns "True"/"False" as text
 GET  /scoreboard1-pull-stream             → pull the next queued stream set onto the scoreboard
 GET  /get-sets[?getFinished=1]            → list open (or finished) sets from the bracket provider
 GET  /scoreboard1-load-set?set=<id>       → load a specific set by id
@@ -157,7 +187,7 @@ GET  /api/sets           → tsh.getOpenSets()
 POST /api/load-set       → tsh.loadSet(body.setId)
 POST /api/report         → reportCurrentSet() (start.gg reportBracketSet)
 ```
-`control_status` is also pushed over Socket.io every 2s and on connect. The panel shows TSH/Slippi health, the current port→team guess with the heuristic that decided it (a positional guess is flagged as low-confidence), a swap button, bracket actions, and the report button.
+`control_status` is also pushed over Socket.io every 2s and on connect. The panel shows TSH/Slippi health, the current port→team guess with the heuristic that decided it (a positional guess is flagged as low-confidence), TSH's own swap state (`tshSwapped`), a swap button, bracket actions, and the report button.
 
 **Reporting flow (`reportCurrentSet` in index.js):** reads `score.<N>.set_id` + live scores from TSH → refuses if crew / no set_id / `preview` set / tied score → derives the winner team from the higher live score → `startgg.getSetEntrants(setId)` maps team → entrant id (slot 0 = team 1) → `startgg.reportSet(setId, winnerEntrantId, gameData)`. Per-game `gameData` is accumulated in `currentSetGames` (one `{ gameNum, winnerTeam }` per singles/doubles game end; reset in `syncSetTracking()` when `set_id` changes) and is optional — a mismatch falls back to reporting set winner + score only. Manual trigger only; the panel two-step-confirms before POSTing. Singles + doubles; crew battles are excluded.
 
@@ -203,7 +233,7 @@ Four HTML variants sharing one `index.css` / `index.js`: `index.html` (default),
 
 Maps Slippi character IDs (0–25) to TSH codenames and display names. Icon files:
 ```
-TournamentStreamHelper-5.967/user_data/games/ssbm/base_files/icon/chara_2_{codename}_{costume:02d}.png
+TournamentStreamHelper-5.972/user_data/games/ssbm/base_files/icon/chara_2_{codename}_{costume:02d}.png
 ```
 Costume index comes from `player.characterColor` in `getSettings()`.
 
@@ -219,11 +249,15 @@ Costume index comes from `player.characterColor` in `getSettings()`.
 ## Known Gotchas
 
 - `fs.watch` is intentionally not used (misses new files on Windows/OneDrive) — always poll.
-- TSH's "Swap Teams" button swaps names AND scores; the bridge's name-based detection re-derives the mapping on the next game.
+- TSH's "Swap Teams" button swaps names AND scores. The bridge now polls `/scoreboard{N}-get-swap` every 2s and re-derives immediately; name-based detection on the next game start remains the fallback.
 - `uiohook-napi` provides the global `Ctrl+Shift+S` hotkey; if it fails to load, the fallback is pressing `S` in the terminal.
 - The `tsh_update` DOM event fires whenever `program_state.json` changes; the layout listens to it to time its costume patch.
 - `config.js` is git-tracked — never put secrets there. The start.gg token goes in the gitignored `config.local.js`.
 - TSH's `/get-match` does **not** expose start.gg entrant ids; `startgg-client.js` queries start.gg directly for them when reporting.
+- **TSH's default web server port changed from 5000 (5.967) to 5500 (5.972)** — `TSHWebServer.py` reads `SettingsManager.Get("general.webserver_port", 5500)`. This repo pins it back to **5000** via `user_data/settings.json → general.webserver_port`, because every OBS browser source and `config.TSH_URL` references 5000. A fresh `settings.json` omits the key and silently lands on 5500, which looks exactly like "TSH won't start" — `start-all.js` just times out waiting on 5000. Check the listening port before debugging anything else.
+- Never hardcode the TSH folder name — it carries the version (`TournamentStreamHelper-5.972`) and changes on every update. Use `resolveTshRoot()` from `tsh-root.js`.
+- `.gitignore` uses the version-independent glob `TournamentStreamHelper-*/*` with a `!TournamentStreamHelper-*/layout/` negation. Pinning an exact version there means the next TSH update silently untracks nothing and starts tracking ~4000 vendored files.
+- A fresh TSH extract ships **empty stub** config, not missing files — `local_players.json` is `{}` and `settings.json` has no `TOURNAMENT_URL`. After updating, copy `user_data/games/`, `local_players.json`, `settings.json`, and `pronouns_list.txt` from the previous install.
 
 ---
 

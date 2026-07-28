@@ -53,7 +53,9 @@ SLP_FOLDER: "C:/Users/YourName/Documents/Slippi/Spectate/YourName",
 CONSOLE_IP: "192.168.1.100",
 ```
 
-Leave `TSH_URL`, `SCOREBOARD_NUM`, and `BRIDGE_PORT` at their defaults unless you have a specific reason to change them.
+Leave `TSH_URL`, `SCOREBOARD_NUM`, `TSH_ROOT`, and `BRIDGE_PORT` at their defaults unless you have a specific reason to change them.
+
+`TSH_ROOT` defaults to `null`, meaning the bridge auto-detects the newest `TournamentStreamHelper-*` folder sitting next to `slippi-bridge/` and logs which one it picked at startup. Set it to an absolute path only if TSH lives somewhere else.
 
 **Optional — start.gg result reporting.** To report set results from the control panel (see [Control Panel](#control-panel)), copy `config.local.example.js` to `config.local.js` and paste a start.gg personal access token:
 
@@ -69,19 +71,19 @@ Generate the token at [start.gg → Developer Settings](https://start.gg/admin/p
 Copy both layout folders into your TSH installation at the same paths:
 
 ```
-TournamentStreamHelper-5.967/layout/scoreboard/
+TournamentStreamHelper-5.972/layout/scoreboard/
   melee.html
   index.js
   index.css
   settings.json
 
-TournamentStreamHelper-5.967/layout/side-panel/
+TournamentStreamHelper-5.972/layout/side-panel/
   side-panel.html
   side-panel.js
   side-panel.css
 ```
 
-Also copy `TournamentStreamHelper-5.967/layout/theme.css` and `TournamentStreamHelper-5.967/layout/main.css` — shared design tokens used by both layouts.
+Also copy `TournamentStreamHelper-5.972/layout/theme.css` and `TournamentStreamHelper-5.972/layout/main.css` — shared design tokens used by both layouts.
 
 ### 4. Run TSH and the bridge
 
@@ -157,6 +159,20 @@ Mapping resets automatically when scores return to 0-0 (new set).
 Press **Ctrl+Shift+S** at any time (even when the terminal isn't focused) to flip the port→team assignment. Characters in TSH update immediately.
 
 If `uiohook-napi` binaries are unavailable, the fallback is pressing `S` in the terminal window.
+
+### Swapping from TSH instead
+
+If you press **TSH's own** Swap Teams button, the bridge notices within about 2 seconds and re-derives the port→team mapping right away — you don't need to also press Ctrl+Shift+S. The control panel shows the current TSH swap state under Port → Team.
+
+## Per-Game Stage Tracking
+
+Requires TSH 5.972 or newer.
+
+TSH's Individual Game Tracker keeps a per-game record of the stage, characters, and winner. The bridge reads the stage out of each `.slp` and pushes it automatically at game start, so the tracker fills itself in as the set plays out — nothing to enter by hand.
+
+Characters are handled too, without extra work: TSH copies the current scoreboard character selection into each game's slot, and the bridge is already setting that.
+
+This is cosmetic. If a stage can't be identified the bridge logs a warning and moves on — scoring is never affected. Crew battles skip it entirely, since they don't use the game tracker.
 
 ## Connection Modes
 
@@ -241,6 +257,29 @@ The side panel is a 611 × 1080 browser source designed to sit beside the webcam
 
 Logo and image paths are set at the top of `side-panel.js` (`LOGO_PATH`, `SPONSOR_PATH`). The rotation interval is `PANEL_INTERVAL` (default 20 seconds).
 
+## Updating TSH
+
+TSH ships as a version-named folder, so an update means a *new* folder rather than changed files in the old one. The bridge auto-detects it (see `TSH_ROOT` above) and `.gitignore` uses a version-independent glob, so **no code or config changes are needed** — but the new extract ships with empty stub config, and its stock `layout/` will not contain the custom layouts.
+
+With TSH closed:
+
+1. Extract the new release next to `slippi-bridge/`, e.g. `TournamentStreamHelper-5.972/`.
+2. Copy the custom `layout/` folder over the new one (see [Place the layouts in TSH](#3-place-the-layouts-in-tsh)).
+3. Copy operator data across from the previous install's `user_data/`:
+   - `games/` — character and stage icons. Without these, no icons render.
+   - `settings.json` — holds `TOURNAMENT_URL`, hotkeys, display options, and the web server port.
+   - `local_players.json` — the player database.
+   - `pronouns_list.txt`
+4. **Check TSH's web server port.** As of 5.972 the default is **5500**, but this setup uses **5000** everywhere (OBS browser sources, `config.TSH_URL`). Confirm `user_data/settings.json` contains:
+   ```json
+   "general": { "webserver_port": 5000 }
+   ```
+   It's also under Settings → General in TSH's UI. If this is wrong, `start-all.bat` just hangs for 60s and reports that TSH never came up — the app is running fine, it's simply listening elsewhere.
+5. Start the bridge and confirm the `[bridge] TSH root:` line names the new folder.
+6. Delete the old folder once a set has run cleanly.
+
+Watch out: a fresh extract *creates* these files as empty stubs rather than leaving them missing, so a 2-byte `local_players.json` or a `settings.json` with no `TOURNAMENT_URL` is the symptom of a skipped step 3 — not of a broken install.
+
 ## Troubleshooting
 
 **Port already in use:**
@@ -249,7 +288,9 @@ netstat -ano | findstr :5001
 taskkill /PID <pid> /F
 ```
 
-**Characters not updating:** Make sure TSH is running before the bridge starts. The bridge reads `TournamentStreamHelper-5.967/out/program_state.json` directly.
+**"TSH did not respond within 60s" — but TSH is clearly running:** it's almost certainly listening on the wrong port. TSH 5.972 changed its default web server port to 5500; this setup expects 5000. Set `general.webserver_port` to `5000` in `user_data/settings.json` (or Settings → General in TSH), then restart TSH. Verify with `curl http://localhost:5000/`.
+
+**Characters not updating:** Make sure TSH is running before the bridge starts. The bridge reads `TournamentStreamHelper-5.972/out/program_state.json` directly. If icons are missing entirely rather than stale, check that `user_data/games/ssbm/` was copied across — a fresh TSH install has no game assets.
 
 **Wrong player on wrong side:** Press Ctrl+Shift+S to swap manually. On the next game start the bridge will re-detect from names/scores automatically.
 

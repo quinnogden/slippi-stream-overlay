@@ -14,7 +14,7 @@ const http    = require("http");
 const express = require("express");
 const { Server } = require("socket.io");
 
-const { resolveCharacter }               = require("./char_map");
+const { resolveCharacter, resolveStage } = require("./char_map");
 const config                             = require("./config");
 const PortMapper                         = require("./port-mapper");
 const TshClient                          = require("./tsh-client");
@@ -195,8 +195,9 @@ function buildPlayersDoubles(sorted) {
 /**
  * Called by the game source when a new game starts.
  * @param {Array} rawPlayers — from slippi-js or slp-realtime
+ * @param {number|null} stageId — Slippi stage ID, or null if unavailable
  */
-function onGameStart(rawPlayers) {
+function onGameStart(rawPlayers, stageId = null) {
   // Read TSH state once; all downstream calls receive data, not file handles.
   let tshState = null;
   try {
@@ -228,6 +229,29 @@ function onGameStart(rawPlayers) {
   } else {
     onGameStartSingles(sorted, tshState);
   }
+
+  // Crew battles don't use TSH's Individual Game Tracker, so there is no game
+  // slot to stamp. Singles/doubles report the stage for the current game.
+  if (!crew) reportStage(stageId);
+}
+
+/**
+ * Push the current game's stage to TSH's Individual Game Tracker (TSH 5.972+).
+ *
+ * Best-effort and fire-and-forget: an unmapped stage or an unreachable TSH must
+ * never interfere with scoring, which is the bridge's actual job.
+ * @param {number|null} stageId
+ */
+function reportStage(stageId) {
+  if (stageId == null) return;
+
+  const codename = resolveStage(stageId);
+  if (!codename) {
+    console.warn(`[bridge] Unknown stage id ${stageId}; skipping stage report`);
+    return;
+  }
+
+  tsh.setCurrentStage(codename).catch(() => {});
 }
 
 function onGameStartSingles(sorted, tshState) {
@@ -639,6 +663,7 @@ let lastControlStatus = {
   slippi: false,
   slippiDetail: { mode: config.CONNECTION_MODE, connected: false },
   portMapping: { method: "positional", ports: [] },
+  tshSwapped: null,
   currentSet: {
     setId: null,
     scores: { team1: 0, team2: 0 },
@@ -657,6 +682,37 @@ function evaluateReportability(state, setId) {
   if (setId == null)                return { canReport: false, reason: "No start.gg set loaded (manual/exhibition)" };
   if (String(setId).includes("preview")) return { canReport: false, reason: "Set hasn't started on start.gg yet" };
   return { canReport: true, reason: null };
+}
+
+// Last value of TSH's own teamsSwapped flag. null = not yet observed, so the
+// first poll only seeds the baseline instead of firing a phantom change.
+//
+// The bridge's own swapTeams() never calls TSH's swap endpoint (it only flips
+// the internal port→team map), so any change here is operator-initiated from
+// TSH's UI — no origin bookkeeping needed to tell the two apart.
+let tshSwapState = null;
+
+/**
+ * React to the operator pressing TSH's own Swap Teams button.
+ *
+ * TSH swaps names *and* scores, so re-running the name-based resolve against
+ * fresh state re-derives the correct mapping right away rather than waiting for
+ * the next game start.
+ * @param {object} state — freshly read program_state.json
+ */
+function handleTshSwap(state) {
+  const t1 = tsh.getTeamInfo(state, 1);
+  const t2 = tsh.getTeamInfo(state, 2);
+
+  portMapper.resolve(t1, t2);
+
+  if (!currentGameState?.players) return;
+
+  for (const p of Object.values(currentGameState.players)) {
+    p.teamNum = portMapper.getTeam(p.playerIndex, p.teamNum);
+  }
+  io.emit("slippi_game_start", currentGameState);
+  console.log("[bridge] Re-derived port mapping after TSH-side swap");
 }
 
 /** Rebuild lastControlStatus from live TSH + Slippi state and broadcast it. */
@@ -686,6 +742,20 @@ async function refreshControlStatus() {
         canReport,
         reason,
       };
+
+      const swap = await tsh.getSwapState();
+      if (swap.ok) {
+        if (tshSwapState !== null && swap.data !== tshSwapState) {
+          console.log(`[bridge] TSH Swap Teams detected (swapped=${swap.data})`);
+          // Isolated so a re-derive failure can't be reported as unreadable state.
+          try {
+            handleTshSwap(state);
+          } catch (e) {
+            console.warn(`[bridge] Swap re-derive failed: ${e.message}`);
+          }
+        }
+        tshSwapState = swap.data;
+      }
     } catch {
       currentSet.reason = "TSH state unreadable";
     }
@@ -697,6 +767,7 @@ async function refreshControlStatus() {
     slippi: Boolean(src.connected),
     slippiDetail: src,
     portMapping: portMapper.getResolutionInfo(),
+    tshSwapped: tshSwapState,
     currentSet,
     startggEnabled: startgg.enabled,
     ts: Date.now(),

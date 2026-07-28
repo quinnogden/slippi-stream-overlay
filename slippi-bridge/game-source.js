@@ -2,7 +2,9 @@
  * game-source.js — mode-agnostic game event emitters.
  *
  * Both factories return a Node EventEmitter that fires:
- *   'game-start'  → rawPlayers array (same shape as slippi-js / slp-realtime)
+ *   'game-start'  → (rawPlayers, stageId)
+ *                   rawPlayers: array (same shape as slippi-js / slp-realtime)
+ *                   stageId:    Slippi stage ID (number | null when unavailable)
  *   'game-end'    → winnerPlayerIndex (number | null)
  *
  * index.js binds to these events and never calls mode-specific code directly.
@@ -101,7 +103,7 @@ function createFolderSource(config) {
         const settings = game.getSettings();
         if (settings?.players) {
           gameStarted = true;
-          emitter.emit("game-start", settings.players);
+          emitter.emit("game-start", settings.players, settings.stageId ?? null);
         }
       }
 
@@ -190,7 +192,7 @@ function createTcpSource(config) {
 
   realtime.game.start$.subscribe((start) => {
     console.log("[bridge] Game start detected (TCP)");
-    emitter.emit("game-start", start.players ?? []);
+    emitter.emit("game-start", start.players ?? [], start.stageId ?? null);
   });
 
   realtime.game.end$.subscribe((end) => {

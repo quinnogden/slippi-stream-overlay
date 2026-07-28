@@ -76,6 +76,7 @@
       <span class="badge b-positional" id="method-badge">—</span>
     </div>
     <div id="ports"></div>
+    <div class="hint" id="tsh-swap-line" style="margin-top:8px"></div>
     <button class="wide" id="btn-swap" style="margin-top:10px">⇄ Swap Teams</button>
     <div class="hint" id="swap-hint">Same as the Ctrl+Shift+S hotkey. Amber = positional guess — verify before the game starts.</div>
   </div>
@@ -157,6 +158,17 @@
                  '<span class="team-tag ' + teamCls + '">' + teamTxt +
                  (p.name ? ' · ' + escapeHtml(p.name) : "") + '</span></div>';
         }).join("");
+      }
+
+      // TSH's own Swap Teams flag. Shown so the operator can see that the
+      // bridge noticed a swap made in TSH's UI rather than in this panel.
+      const swapLine = $("tsh-swap-line");
+      if (s.tshSwapped == null) {
+        swapLine.textContent = "TSH swap state: unknown";
+      } else if (s.tshSwapped) {
+        swapLine.textContent = "TSH swap state: swapped — bridge mapping re-derived";
+      } else {
+        swapLine.textContent = "TSH swap state: normal";
       }
 
       // Current set

@@ -247,6 +247,28 @@ class TshClient {
     }
   }
 
+  /**
+   * Set the stage for the current game in TSH's Individual Game Tracker
+   * (TSH 5.972+). Fronts POST /scoreboard{N}-set-current-stage, which writes
+   * score.{N}.stage_strike.selectedStage and fills the tracker's stage slot.
+   *
+   * Purely cosmetic — callers must not let a failure here block scoring.
+   * @param {string} codename — TSH stage codename, from resolveStage()
+   * @returns {Promise<{ ok: boolean, error?: string }>}
+   */
+  async setCurrentStage(codename) {
+    const url = `${this._config.TSH_URL}/scoreboard${this._config.SCOREBOARD_NUM}-set-current-stage`;
+    try {
+      await axios.post(url, { codename });
+      console.log(`[bridge] TSH stage: ${codename}`);
+      return { ok: true };
+    } catch (err) {
+      const msg = `Failed to set stage "${codename}": ${err.message}`;
+      console.warn(`[bridge] ${msg}`);
+      return { ok: false, error: msg };
+    }
+  }
+
   // ── Bracket actions (proxy TSH's native start.gg integration) ────────────────
 
   /**
@@ -318,6 +340,26 @@ class TshClient {
       const msg = `getCurrentSet failed: ${err.message}`;
       console.error(`[bridge] ${msg}`);
       return { ok: false, error: msg };
+    }
+  }
+
+  /**
+   * Read TSH's own "teams are swapped" flag.
+   * Fronts GET /scoreboard{N}-get-swap, which returns Python's str(bool) —
+   * the literal text "True" or "False", not JSON.
+   *
+   * Lets the bridge notice the operator pressing TSH's Swap Teams button
+   * instead of waiting to re-derive the mapping from names on the next game.
+   * @returns {Promise<{ ok: boolean, data?: boolean, error?: string }>}
+   */
+  async getSwapState() {
+    const url = `${this._config.TSH_URL}/scoreboard${this._config.SCOREBOARD_NUM}-get-swap`;
+    try {
+      const res = await axios.get(url, { timeout: 2000 });
+      return { ok: true, data: String(res.data).trim().toLowerCase() === "true" };
+    } catch (err) {
+      // Polled every 2s — log nothing here or a TSH restart floods the console.
+      return { ok: false, error: `getSwapState failed: ${err.message}` };
     }
   }
 
