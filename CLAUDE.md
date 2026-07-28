@@ -134,7 +134,7 @@ Codenames are the basenames of `user_data/games/ssbm/stage_icon/*.png`. Watch th
 
 - `tshSwapState` starts `null` so the first poll only seeds a baseline — no phantom swap on startup.
 - On a change, `handleTshSwap(state)` re-runs `portMapper.resolve()` against fresh TSH names, updates `teamNum` on the live players, and re-emits `slippi_game_start`. Previously an operator-side swap was only noticed on the *next* game start via name re-derivation.
-- The bridge's own `swapTeams()` never calls TSH's swap endpoint (it only flips the internal map), so any change in this flag is unambiguously operator-initiated — no origin bookkeeping needed.
+- The bridge's own `swapTeams()` never calls TSH's swap endpoint (it only flips the internal map), so any change in this flag means the scoreboard's sides really moved — either from TSH's UI or from the control panel's **Switch Sides** (`POST /api/swap-sides` → `tsh.swapSides()`). The reaction is identical either way, so no origin bookkeeping is needed.
 - Exposed as `tshSwapped` on `control_status` / `/api/status` and rendered in the control panel. `getSwapState()` deliberately does not log failures — it is polled every 2s and would flood the console while TSH restarts.
 
 `PortMapper` remains the scoring authority; this only *detects divergence* rather than delegating the mapping to a single boolean.
@@ -176,6 +176,7 @@ POST /scoreboard1-update-team-N-1         → set character/costume
 POST /score                               → set both scores { team1score, team2score, scoreboard }
 POST /scoreboard1-set-current-stage       → set the current game's stage (TSH 5.972+)
      body: { codename: "battlefield" }
+GET  /scoreboard1-swap-teams              → press TSH's Swap Teams (moves names+scores across sides)
 GET  /scoreboard1-get-swap                → TSH's own teamsSwapped flag; returns "True"/"False" as text
 GET  /scoreboard1-pull-stream             → pull the next queued stream set onto the scoreboard
 GET  /get-sets[?getFinished=1]            → list open (or finished) sets from the bracket provider
@@ -193,7 +194,8 @@ The bridge serves these on its own Express app (port 5001). Browser JS is normal
 GET  /control            → the operator panel HTML (public/control-panel.html)
 GET  /api/identity       → { app: "slippi-bridge", pid } — how a starting bridge recognises a stale one (see Port Reclaim)
 GET  /api/status         → { tsh, slippi, slippiDetail, portMapping, tshSwapped, currentSet, startggEnabled }
-POST /api/swap           → same as Ctrl+Shift+S (calls swapTeams())
+POST /api/swap           → same as Ctrl+Shift+S (calls swapTeams()) — flips the internal port→team map only
+POST /api/swap-sides     → tsh.swapSides() — presses TSH's own Swap Teams, moving names+scores across sides
 POST /api/pull-stream    → tsh.pullStreamSet()
 GET  /api/sets[?finished=1] → tsh.getOpenSets(includeFinished)
 POST /api/load-set       → tsh.loadSet(body.setId), then refreshControlStatus()
@@ -208,7 +210,9 @@ POST /api/report         → reportCurrentSet() (start.gg reportBracketSet)
 - **Refresh is deliberately slow.** TSH's `get_sets` calls `provider.GetMatches()`, an uncached paginated GraphQL query against start.gg on every call. The panel refreshes on open, on the manual `↻`, after a successful load/pull/report, and on a 90s timer that pauses while `document.visibilityState !== "visible"`. Do not turn this into a fast poll.
 - An **empty list is normal** — `get_sets` returns start.gg states 1/6/2 (not started, called, in progress), so a finished bracket legitimately returns 0. The empty state says so and points at the `show finished` toggle (`?finished=1`, which adds state 3); that is distinct from the fetch-failed state.
 
-**Reporting flow (`reportCurrentSet` in index.js):** reads `score.<N>.set_id` + live scores from TSH → refuses if crew / no set_id / `preview` set / tied score → derives the winner team from the higher live score → `startgg.getSetEntrants(setId)` maps team → entrant id (slot 0 = team 1) → `startgg.reportSet(setId, winnerEntrantId, gameData)`. Per-game `gameData` is accumulated in `currentSetGames` (one `{ gameNum, winnerTeam }` per singles/doubles game end; reset in `syncSetTracking()` when `set_id` changes) and is optional — a mismatch falls back to reporting set winner + score only. Manual trigger only; the panel two-step-confirms before POSTing. Singles + doubles; crew battles are excluded.
+**Reporting flow (`reportCurrentSet` in index.js):** reads `score.<N>.set_id` + live scores from TSH → refuses if crew / no set_id / `preview` set / tied score → derives the winner *column* from the higher live score → `entrantSlot(column, swapped)` converts that to a start.gg slot → `startgg.getSetEntrants(setId)` maps slot → entrant id (start.gg slot 0 = slot 1) → `startgg.reportSet(setId, winnerEntrantId, gameData)`.
+
+**Swap state is load-bearing for reporting.** TSH's Swap Teams moves each team to the other column *and keeps that orientation for every set loaded afterwards* — `TSHScoreboardWidget.ChangeSetData` does `scoreContainers.reverse()` / `losersContainers.reverse()` / `teamInstances.reverse()` when `teamsSwapped`, so while swapped, TSH column 1 holds start.gg's slot-2 entrant. `entrantSlot()` applies that inversion; without it the report publishes the loser as the winner. `reportCurrentSet` re-reads `getSwapState()` at report time rather than trusting the 2s poll, falls back to the last polled `tshSwapState`, and **refuses** if neither is available — guessing is worse than not reporting. `handleTshSwap()` also flips the recorded `winnerTeam` of every entry in `currentSetGames`, since those are column numbers and the columns just changed hands (mirrors TSH's own `individualGameTracker.SwapStageResults()`). Per-game `gameData` is accumulated in `currentSetGames` (one `{ gameNum, winnerTeam }` per singles/doubles game end; reset in `syncSetTracking()` when `set_id` changes) and is optional — a mismatch falls back to reporting set winner + score only. Manual trigger only; the panel two-step-confirms before POSTing. Singles + doubles; crew battles are excluded.
 
 ### Theme / design tokens
 

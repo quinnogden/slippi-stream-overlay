@@ -129,6 +129,10 @@ let currentGameState = null;
 // currentSetGames accumulates one { gameNum, winnerTeam } per completed game so
 // the report can include per-game detail. It resets whenever the loaded set_id
 // changes (new set on the scoreboard). Never populated in crew mode.
+//
+// winnerTeam is a TSH column number, so it only means anything alongside the
+// scoreboard's *current* orientation — handleTshSwap() flips these entries when
+// the sides move, exactly as TSH flips its own scores and game tracker.
 let currentSetId    = null;
 let currentSetGames = [];
 
@@ -727,12 +731,14 @@ function evaluateReportability(state, setId) {
 // first poll only seeds the baseline instead of firing a phantom change.
 //
 // The bridge's own swapTeams() never calls TSH's swap endpoint (it only flips
-// the internal port→team map), so any change here is operator-initiated from
-// TSH's UI — no origin bookkeeping needed to tell the two apart.
+// the internal port→team map), so a change here always means the scoreboard's
+// sides actually moved — whether the operator pressed TSH's button or the
+// control panel's Switch Sides (/api/swap-sides). The reaction is the same
+// either way, so no origin bookkeeping is needed.
 let tshSwapState = null;
 
 /**
- * React to the operator pressing TSH's own Swap Teams button.
+ * React to the scoreboard's sides being swapped in TSH.
  *
  * TSH swaps names *and* scores, so re-running the name-based resolve against
  * fresh state re-derives the correct mapping right away rather than waiting for
@@ -744,6 +750,14 @@ function handleTshSwap(state) {
   const t2 = tsh.getTeamInfo(state, 2);
 
   portMapper.resolve(t1, t2);
+
+  // Already-logged games are stored as TSH column numbers, and those columns
+  // just changed hands. TSH moves its own scores and game tracker across; the
+  // per-game log has to move with them or a mid-set swap would report game 1 to
+  // the wrong entrant.
+  for (const g of currentSetGames) {
+    g.winnerTeam = g.winnerTeam === 1 ? 2 : 1;
+  }
 
   if (!currentGameState?.players) return;
 
@@ -816,15 +830,36 @@ async function refreshControlStatus() {
 }
 
 /**
+ * Map a TSH column number to its start.gg entrant slot.
+ *
+ * getSetEntrants() keys entrants by start.gg's own slot order (slot 0 → 1), and
+ * TSH's provider fills column 1 from that same slot 0 — but only while the sides
+ * aren't swapped. TSH's Swap Teams moves each team to the other column and keeps
+ * that orientation for every set loaded afterwards (`scoreContainers.reverse()`
+ * in TSHScoreboardWidget), so while swapped, column 1 holds slot 2's entrant.
+ * Ignoring the flag reports the loser as the winner.
+ *
+ * @param {number} tshTeam — 1 or 2, a scoreboard column
+ * @param {boolean} swapped — TSH's teamsSwapped flag
+ * @returns {number} start.gg entrant slot, 1 or 2
+ */
+function entrantSlot(tshTeam, swapped) {
+  if (!swapped) return tshTeam;
+  return tshTeam === 1 ? 2 : 1;
+}
+
+/**
  * Translate the accumulated per-game winners into BracketSetGameDataInput[].
  * Returns undefined when the log is empty or inconsistent with the final score,
  * so the report falls back to set winner + score only.
+ * @param {object} entrants — slot-keyed entrants from getSetEntrants()
+ * @param {boolean} swapped — TSH's teamsSwapped flag
  */
-function buildGameData(entrants) {
+function buildGameData(entrants, swapped) {
   if (!entrants[1] || !entrants[2] || currentSetGames.length === 0) return undefined;
   return currentSetGames.map((g) => ({
     gameNum:  g.gameNum,
-    winnerId: entrants[g.winnerTeam]?.id,
+    winnerId: entrants[entrantSlot(g.winnerTeam, swapped)]?.id,
   }));
 }
 
@@ -848,12 +883,22 @@ async function reportCurrentSet() {
   }
   const winnerTeam = scores.team1 > scores.team2 ? 1 : 2;
 
+  // Which start.gg entrant a column holds depends on TSH's swap state, so read
+  // it fresh and authoritatively rather than trusting the 2s poll. Guessing
+  // wrong publishes the loser as the winner to a live bracket, so a swap state
+  // that can't be established at all is a refusal, not a default.
+  const swap = await tsh.getSwapState();
+  const swapped = swap.ok ? swap.data : tshSwapState;
+  if (swapped == null) {
+    return { ok: false, error: "Can't read TSH's swap state — reporting could pick the wrong entrant" };
+  }
+
   const ent = await startgg.getSetEntrants(setId);
   if (!ent.ok) return { ok: false, error: ent.error };
-  const winner = ent.entrants[winnerTeam];
+  const winner = ent.entrants[entrantSlot(winnerTeam, swapped)];
   if (!winner) return { ok: false, error: "Could not resolve the winning team's start.gg entrant" };
 
-  const result = await startgg.reportSet(setId, winner.id, buildGameData(ent.entrants));
+  const result = await startgg.reportSet(setId, winner.id, buildGameData(ent.entrants, swapped));
   if (result.ok) {
     // Refresh so the panel reflects the reported state on its next tick.
     refreshControlStatus().catch(() => {});
@@ -881,6 +926,14 @@ app.post("/api/swap", (req, res) => {
   swapTeams();
   refreshControlStatus().catch(() => {});
   res.json({ ok: true });
+});
+
+// Moves the teams to the other side of the scoreboard. The follow-up refresh
+// picks up TSH's flipped teamsSwapped flag and re-derives the port mapping.
+app.post("/api/swap-sides", async (req, res) => {
+  const result = await tsh.swapSides();
+  refreshControlStatus().catch(() => {});
+  res.json(result);
 });
 
 app.post("/api/pull-stream", async (req, res) => {

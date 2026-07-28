@@ -39,6 +39,8 @@
     button.danger:hover:not(:disabled) { border-color: var(--bad); }
     button.wide { width: 100%; }
     button.mini { min-height: 0; padding: 3px 9px; font-size: 12px; }
+    button.compact { min-height: 32px; padding: 6px 12px; font-size: 12px; }
+    .stack { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
     .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: .04em; }
     .b-name { background: rgba(53,194,106,.18); color: var(--ok); }
     .b-character, .b-score { background: rgba(74,157,240,.18); color: var(--info); }
@@ -82,16 +84,17 @@
     .set-players .p2 { text-align: right; }
     .set-players .seed { color: var(--dim); font-size: 11px; }
     .set-players .sc { font-variant-numeric: tabular-nums; color: var(--dim); font-size: 12px; flex: 0 0 auto; }
-    .set-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+    .set-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 10px; }
+    .set-footer .links { display: flex; gap: 12px; }
     .linkish { background: none; border: 0; color: var(--dim); font-size: 11px; text-decoration: underline; cursor: pointer; padding: 4px 0; min-height: 0; }
     .linkish:hover { color: var(--info); }
 
     /* Two columns once there's room — a laptop or tablet shouldn't get one
-       narrow strip. The sets list takes the taller right-hand column. */
+       narrow strip. The right-hand column spans both rows. */
     @media (min-width: 760px) {
       .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
       .cards .card { margin-bottom: 0; }
-      .card-sets { grid-column: 2; grid-row: 1 / span 2; }
+      .card-tall { grid-column: 2; grid-row: 1 / span 2; }
       .sets-list { max-height: 60vh; }
     }
   </style>
@@ -122,31 +125,36 @@
         <div class="hint" id="report-hint"></div>
       </div>
 
-      <!-- Upcoming sets -->
-      <div class="card card-sets">
-        <div class="row between">
-          <div class="label" style="margin:0">Upcoming Sets</div>
-          <button class="mini" id="btn-refresh-sets" title="Refresh from start.gg">↻</button>
-        </div>
-        <button class="wide" id="btn-pull" style="margin-top:8px">⤵ Pull Next Match</button>
-        <input id="set-filter" type="search" placeholder="Filter by player or round…" style="display:none" />
-        <div class="sets-list" id="sets-list"></div>
-        <div class="set-footer">
-          <button class="linkish" id="btn-toggle-finished">show finished</button>
-          <span class="muted" id="sets-stamp"></span>
-        </div>
-      </div>
-
       <!-- Port → Team -->
-      <div class="card">
+      <div class="card card-tall">
         <div class="row between">
           <div class="label" style="margin:0">Port → Team</div>
           <span class="badge b-positional" id="method-badge">—</span>
         </div>
         <div id="ports"></div>
         <div class="hint" id="tsh-swap-line" style="margin-top:8px"></div>
-        <button class="wide" id="btn-swap" style="margin-top:10px">⇄ Swap Teams</button>
-        <div class="hint" id="swap-hint">Same as the Ctrl+Shift+S hotkey. Amber = positional guess — verify before the game starts.</div>
+        <div class="stack" style="margin-top:10px">
+          <button class="compact" id="btn-swap" title="Flip which Slippi port scores for which team">⇄ Swap Teams</button>
+          <button class="compact" id="btn-swap-sides" title="Move both teams to the other side of the scoreboard in TSH">⇆ Switch Sides</button>
+        </div>
+        <div class="hint" id="swap-hint">Swap Teams (or Ctrl+Shift+S) fixes which port scores for which team. Switch Sides moves the names across the scoreboard. Amber = positional guess — verify before the game starts.</div>
+      </div>
+
+      <!-- Upcoming sets -->
+      <div class="card">
+        <div class="row between">
+          <div class="label" style="margin:0">Upcoming Sets</div>
+          <button class="mini" id="btn-refresh-sets" title="Refresh from start.gg">↻</button>
+        </div>
+        <input id="set-filter" type="search" placeholder="Filter by player or round…" style="display:none" />
+        <div class="sets-list" id="sets-list"></div>
+        <div class="set-footer">
+          <div class="links">
+            <button class="linkish" id="btn-toggle-finished">show finished</button>
+            <button class="linkish" id="btn-pull" title="Pull the next queued stream set onto the scoreboard">pull next match</button>
+          </div>
+          <span class="muted" id="sets-stamp"></span>
+        </div>
       </div>
     </div>
   </div>
@@ -384,6 +392,13 @@
     $("btn-swap").onclick = async () => {
       const r = await api("/api/swap");
       toast(r.ok ? "Teams swapped" : ("Swap failed: " + r.error), r.ok);
+    };
+
+    // TSH's own Swap Teams — moves names and scores across the scoreboard. The
+    // bridge's 2s poll sees the flag change and re-derives the port mapping.
+    $("btn-swap-sides").onclick = async () => {
+      const r = await api("/api/swap-sides");
+      toast(r.ok ? "Sides switched" : ("Switch sides failed: " + r.error), r.ok);
     };
 
     $("btn-pull").onclick = async () => {

@@ -355,6 +355,30 @@ class TshClient {
   }
 
   /**
+   * Press TSH's own Swap Teams button — moves each team (names, scores, all
+   * player data) to the other side of the scoreboard. Fronts TSH's
+   * GET /scoreboard{N}-swap-teams, which returns the plain text "OK".
+   *
+   * Distinct from the bridge's swapTeams(), which only flips the internal
+   * port→team map and leaves the scoreboard's sides alone. The 2s
+   * getSwapState() poll notices the flag change afterwards and re-derives the
+   * port mapping against the moved names, so scoring follows automatically.
+   * @returns {Promise<{ ok: boolean, error?: string }>}
+   */
+  async swapSides() {
+    const url = `${this._config.TSH_URL}/scoreboard${this._config.SCOREBOARD_NUM}-swap-teams`;
+    try {
+      await axios.get(url);
+      console.log("[bridge] TSH Swap Teams triggered from the control panel");
+      return { ok: true };
+    } catch (err) {
+      const msg = `swapSides failed: ${err.message}`;
+      console.error(`[bridge] ${msg}`);
+      return { ok: false, error: msg };
+    }
+  }
+
+  /**
    * Read TSH's own "teams are swapped" flag.
    * Fronts GET /scoreboard{N}-get-swap, which returns Python's str(bool) —
    * the literal text "True" or "False", not JSON.
