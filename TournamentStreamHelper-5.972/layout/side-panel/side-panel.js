@@ -86,19 +86,53 @@ class Rotator {
       }
     });
 
-    this._slots = active.length > 0 ? active : ["logo-primary"];
+    const next = active.length > 0 ? active : ["logo-primary"];
 
-    if (this._current && !this._slots.includes(this._current)) {
-      clearTimeout(this._timer);
-      if (this._tl) this._tl.kill();
-      this._current = null;
-      this._index = 0;
-      this._advance();
-    }
+    const changed = next.length !== this._slots.length
+      || next.some((id, i) => id !== this._slots[i]);
+
+    this._slots = next;
+
+    // New data means new panels. Restarting the whole rotation is the only way
+    // to guarantee nothing is left stacked underneath: a rebuild that lands
+    // mid-transition would otherwise strand the panel that was fading.
+    if (changed && this._current) this.restart();
   }
 
   start() {
     this._advance();
+  }
+
+  /**
+   * Hard reset: cancel the pending advance and any in-flight animation, force
+   * every panel except the visible one back to hidden, and rotate from the top.
+   * The current panel is kept so it still fades out rather than cutting.
+   */
+  restart() {
+    clearTimeout(this._timer);
+    if (this._tl) { this._tl.kill(); this._tl = null; }
+    this._hideAllExcept([this._current]);
+    this._index = 0;
+    this._advance();
+  }
+
+  /**
+   * Force-hide every panel not named in `keep`.
+   *
+   * Panels are absolutely stacked and only GSAP's opacity separates them, so a
+   * panel abandoned part-way through a fade stays visible under the next one.
+   * This hard-sets opacity instead of trusting an animation to have completed.
+   */
+  _hideAllExcept(keep = []) {
+    for (const id of PANEL_ORDER) {
+      if (keep.includes(id)) continue;
+      const el = this._resolveEl(id);
+      if (!el) continue;
+      gsap.killTweensOf(el);
+      const pills = el.querySelectorAll(".panel-pill");
+      if (pills.length) gsap.killTweensOf(pills);
+      gsap.set(el, { opacity: 0, scale: 0.97 });
+    }
   }
 
   jumpTo(id) {
@@ -139,6 +173,10 @@ class Rotator {
     if (!incoming) { onDone(); return; }
 
     const outgoing = this._current ? this._resolveEl(this._current) : null;
+
+    // Anything other than these two must not be on screen. Cheap insurance so a
+    // stray panel can never survive more than one transition.
+    this._hideAllExcept([id, this._current]);
 
     this._current = id;
 
@@ -604,12 +642,16 @@ LoadEverything().then(() => {
     const data = event && event.data;
     if (!data) return;
 
-    rotator.buildSlots(data);
+    // Render before rebuilding: buildSlots can restart the rotation, and the
+    // panel it fades in should already hold the new content. renderCrewCards
+    // reads the global, so publish it here rather than leaving it to buildSlots.
+    tshData = data;
     renderPlayerCard(1, data);
     renderPlayerCard(2, data);
     renderCrewCards();
     renderRecentSets(data);
     renderQueue(data);
+    rotator.buildSlots(data);
 
     const name = data.tournamentInfo && data.tournamentInfo.tournamentName;
     if (name) setTournamentName(name);
@@ -640,8 +682,8 @@ LoadEverything().then(() => {
 
       socket.on("slippi_crew_update", (data) => {
         crewState = data;
-        rotator.buildSlots(tshData);
         renderCrewCards();
+        rotator.buildSlots(tshData);
       });
 
       socket.on("slippi_crew_end", () => {
