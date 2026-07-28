@@ -108,10 +108,15 @@
 
   <div id="toast"></div>
 
-  <script src="/socket.io/socket.io.js"></script>
   <script>
     const $ = (id) => document.getElementById(id);
     let status = null;
+
+    // Served from the bridge (http://localhost:5001/control) relative URLs are
+    // correct. Opened as a plain file — an OBS dock pointed at this .html — they
+    // resolve against file:// and every request fails, so fall back to the
+    // bridge's default address. Keep in sync with config.BRIDGE_PORT.
+    const API_BASE = location.protocol.startsWith("http") ? "" : "http://localhost:5001";
 
     function toast(msg, ok) {
       const t = $("toast");
@@ -123,7 +128,7 @@
 
     async function api(path, method = "POST", body) {
       try {
-        const res = await fetch(path, {
+        const res = await fetch(API_BASE + path, {
           method,
           headers: body ? { "Content-Type": "application/json" } : undefined,
           body: body ? JSON.stringify(body) : undefined,
@@ -257,8 +262,17 @@
     };
 
     // ── Live status ──
-    const socket = io();
-    socket.on("control_status", render);
+    // socket.io.js is loaded from API_BASE rather than a static <script> tag so
+    // the file:// fallback above applies to it too.
+    const sio = document.createElement("script");
+    sio.src = API_BASE + "/socket.io/socket.io.js";
+    sio.onload = () => {
+      const socket = API_BASE ? io(API_BASE) : io();
+      socket.on("control_status", render);
+    };
+    sio.onerror = () => toast("Can't reach the bridge at " + (API_BASE || location.origin), false);
+    document.head.appendChild(sio);
+
     // Also fetch once on load in case we connect between pushes.
     api("/api/status", "GET").then((s) => { if (s && s.currentSet) render(s); });
   </script>

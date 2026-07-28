@@ -38,6 +38,17 @@ try {
 
 // ── Express + Socket.io server ────────────────────────────────────────────────
 const app        = express();
+
+// The control panel is normally served from this origin, so same-origin requests
+// need nothing. But an OBS dock pointed at public/control-panel.html directly
+// runs on a file:// origin (Origin: null), which needs CORS to reach /api/*.
+app.use((req, res, next) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+
 app.use(express.json());
 const httpServer = http.createServer(app);
 const io         = new Server(httpServer, { cors: { origin: "*" } });
