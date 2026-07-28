@@ -20,10 +20,21 @@ const PortMapper                         = require("./port-mapper");
 const TshClient                          = require("./tsh-client");
 const StartggClient                      = require("./startgg-client");
 const { createFolderSource, createTcpSource } = require("./game-source");
+const { resolveTshRoot }                 = require("./tsh-root");
 
 // ── TSH root path ─────────────────────────────────────────────────────────────
-const path    = require("path");
-const TSH_ROOT = path.resolve(__dirname, "../TournamentStreamHelper-5.967");
+// Auto-detected from the repo root unless config.TSH_ROOT pins it, so a TSH
+// version bump doesn't require editing this file.
+const path = require("path");
+
+let TSH_ROOT;
+try {
+  TSH_ROOT = resolveTshRoot(path.resolve(__dirname, ".."), config.TSH_ROOT);
+  console.log(`[bridge] TSH root: ${TSH_ROOT}`);
+} catch (e) {
+  console.error(`[bridge] ERROR: ${e.message}`);
+  process.exit(1);
+}
 
 // ── Express + Socket.io server ────────────────────────────────────────────────
 const app        = express();

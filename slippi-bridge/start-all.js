@@ -13,8 +13,18 @@ const path  = require("path");
 const axios = require("axios");
 const { spawn } = require("child_process");
 const config = require("./config");
+const { resolveTshRoot } = require("./tsh-root");
 
-const TSH_ROOT = path.resolve(__dirname, "../TournamentStreamHelper-5.967");
+// Auto-detected unless config.TSH_ROOT pins it — see tsh-root.js.
+let TSH_ROOT;
+try {
+  TSH_ROOT = resolveTshRoot(path.resolve(__dirname, ".."), config.TSH_ROOT);
+  console.log(`[launcher] TSH root: ${TSH_ROOT}`);
+} catch (e) {
+  console.error(`[launcher] ERROR: ${e.message}`);
+  process.exit(1);
+}
+
 const TSH_EXE  = path.join(TSH_ROOT, "TSH.exe");
 const TSH_BAT  = path.join(TSH_ROOT, "TSH_bat.bat");
 

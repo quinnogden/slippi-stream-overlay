@@ -19,6 +19,12 @@ const config = {
   // Which TSH scoreboard number to control (1 for the default scoreboard)
   SCOREBOARD_NUM: 1,
 
+  // Absolute path to the TSH install directory. Leave null to auto-detect the
+  // newest TournamentStreamHelper-* folder sitting next to slippi-bridge/, so a
+  // TSH update needs no code changes. Set it explicitly (in config.local.js if
+  // it's machine-specific) when TSH lives somewhere else.
+  TSH_ROOT: null,
+
   // ── Bridge Server ──────────────────────────────────────────────────────────
   // Port the bridge's Socket.io server listens on for layout connections
   BRIDGE_PORT: 5001,
