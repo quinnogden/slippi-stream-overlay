@@ -282,11 +282,12 @@ Watch out: a fresh extract *creates* these files as empty stubs rather than leav
 
 ## Troubleshooting
 
-**Port already in use:**
+**Port already in use:** normally handled for you — if the port is held by an older slippi-bridge, the new one stops it and takes the port back (`Port 5001 is held by an old slippi-bridge (pid N) — stopping it.`). It only does that for a process that identifies itself as a bridge; if something else is on 5001 it refuses to start and says so. In that case, either free the port:
 ```
 netstat -ano | findstr :5001
 taskkill /PID <pid> /F
 ```
+or move the bridge with `BRIDGE_PORT` in `config.local.js` (remember the OBS browser sources point at 5001 too).
 
 **"TSH did not respond within 60s" — but TSH is clearly running:** it's almost certainly listening on the wrong port. TSH 5.972 changed its default web server port to 5500; this setup expects 5000. Set `general.webserver_port` to `5000` in `user_data/settings.json` (or Settings → General in TSH), then restart TSH. Verify with `curl http://localhost:5000/`.
 

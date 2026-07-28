@@ -71,6 +71,7 @@ TournamentStreamHelper-5.972/  (Python app, port 5000)
 - **`startgg-client.js`** — `StartggClient` class. The **only** module that talks to an external service (start.gg's official GraphQL API, `https://api.start.gg/gql/alpha`). `reportSet()` runs the `reportBracketSet` mutation; `getSetEntrants()` fetches per-team entrant ids (TSH's `/get-match` does *not* expose them). `enabled` is false when no token is configured. All bracket *reading* still goes through TSH's native integration, not this module.
 - **`game-source.js`** — `createFolderSource` / `createTcpSource`. Returns a Node `EventEmitter` firing `game-start` (`rawPlayers, stageId`) and `game-end` (`{ winnerPlayerIndex, isHandwarmer, winnerEndStocks }`). Also exposes `getStatus()` (`{ mode, connected, detail }`) for the control-panel health dot. `index.js` binds to these and never calls mode-specific code directly.
 - **`char_map.js`** — `resolveCharacter(charId, costume, tshRoot)` and `resolveStage(stageId)`. Pure mapping, no I/O. `STAGE_MAP` covers all 30 Slippi stage ids TSH ships an icon for; unmapped ids (target-test stages 33+) return `null`.
+- **`port-guard.js`** — `reclaimPort(port, log)`. Called from the `httpServer` `EADDRINUSE` handler so a stale bridge holding `BRIDGE_PORT` is stopped automatically instead of sending the operator to `netstat`/`taskkill` mid-event. See [Port Reclaim](#port-reclaim).
 - **`tsh-root.js`** — `resolveTshRoot(baseDir, override)`. Finds the versioned TSH install folder so no path hardcodes a version. Only filesystem probing, no config or network. Used by `index.js` and `start-all.js`.
 - **`handwarmer.js`** — `wasHandwarmer(game)`. Weighted heuristic over a slippi-js game object; see [Handwarmer Detection](#handwarmer-detection).
 
@@ -116,6 +117,16 @@ TSH 5.972 added the **Individual Game Tracker**, which records stage / character
 - Per-game *characters* need no bridge work: TSH's `_CopySetLevelCharactersToGame` copies the set-level selection (already pushed via `update-team`) into the game slot automatically.
 
 Codenames are the basenames of `user_data/games/ssbm/stage_icon/*.png`. Watch the spellings that don't match the Slippi enum: `HYRULE_TEMPLE`→`temple`, `POKE_FLOATS`→`pokefloats`, `DREAMLAND`→`dream_land`, `KONGO_JUNGLE_N64`→`kong_jungle_64` (**"kong"**, not "kongo"). `ICETOP` (26) maps to `icicle_mountain` — TSH ships no separate asset.
+
+### Port Reclaim
+
+`EADDRINUSE` on `BRIDGE_PORT` is the normal restart case (closed console, crashed `start-all`, editor still running the old copy), not an operator error, so the new process takes the port back itself — `port-guard.js`.
+
+- **Identity gate.** It only kills a process that answers `GET /api/identity` with `{ app: "slippi-bridge", pid }`. That response supplies the pid directly, so no `netstat` parsing in the normal path. Killing an unrelated program that happened to pick 5001 would be far worse than refusing to start, so an unidentified occupant is reported and left running.
+- **Legacy fallback.** A bridge from before `/api/identity` existed still answers `/api/status` with a shape (`tsh` + `portMapping` keys) nothing else serves; that identifies it, and the pid then comes from `netstat -ano` (`lsof -t` off Windows). One-time path — remove it whenever pre-identity builds stop being in play.
+- **Retry is bind-driven.** Windows releases a killed process's socket asynchronously, so `waitForPortFree()` polls by actually binding a throwaway server rather than sleeping a fixed delay.
+- `portReclaimTried` allows exactly one attempt — a second `EADDRINUSE` exits.
+- The `Socket.io server listening` log is a `httpServer.once("listening")` handler, **not** a `listen()` callback: a `listen()` that fails with `EADDRINUSE` leaves its one-shot callback attached, so the retry fires both and logs twice.
 
 ### TSH-Side Swap Detection
 
@@ -180,6 +191,7 @@ The bridge serves these on its own Express app (port 5001). Browser JS is normal
 
 ```
 GET  /control            → the operator panel HTML (public/control-panel.html)
+GET  /api/identity       → { app: "slippi-bridge", pid } — how a starting bridge recognises a stale one (see Port Reclaim)
 GET  /api/status         → { tsh, slippi, slippiDetail, portMapping, tshSwapped, currentSet, startggEnabled }
 POST /api/swap           → same as Ctrl+Shift+S (calls swapTeams())
 POST /api/pull-stream    → tsh.pullStreamSet()

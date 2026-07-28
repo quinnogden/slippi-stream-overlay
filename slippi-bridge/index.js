@@ -22,6 +22,7 @@ const TshClient                          = require("./tsh-client");
 const StartggClient                      = require("./startgg-client");
 const { createFolderSource, createTcpSource } = require("./game-source");
 const { resolveTshRoot }                 = require("./tsh-root");
+const { reclaimPort }                    = require("./port-guard");
 
 // ── TSH root path ─────────────────────────────────────────────────────────────
 // Auto-detected from the repo root unless config.TSH_ROOT pins it, so a TSH
@@ -63,21 +64,47 @@ io.on("connection", (socket) => {
   socket.emit("control_status", lastControlStatus);
 });
 
+// A stale bridge holding the port is the normal case, not an operator error, so
+// try once to take it back before giving up. reclaimPort only kills a process
+// that identifies itself as a bridge — see port-guard.js.
+let portReclaimTried = false;
+
 httpServer.on("error", (err) => {
-  if (err.code === "EADDRINUSE") {
-    console.error(`[bridge] ERROR: Port ${config.BRIDGE_PORT} is already in use.`);
-    console.error(`         Another instance of slippi-bridge is probably still running.`);
-    console.error(`         Run this to find and kill it:`);
-    console.error(`           netstat -ano | findstr :${config.BRIDGE_PORT}`);
-    console.error(`         then: taskkill /PID <pid> /F`);
+  if (err.code !== "EADDRINUSE") throw err;
+
+  if (portReclaimTried) {
+    console.error(`[bridge] ERROR: Port ${config.BRIDGE_PORT} is still in use after reclaiming it.`);
     process.exit(1);
   }
-  throw err;
+  portReclaimTried = true;
+
+  reclaimPort(config.BRIDGE_PORT, (msg) => console.log(`[bridge] ${msg}`))
+    .then((result) => {
+      if (result.ok) return startListening();
+      console.error(`[bridge] ERROR: Port ${config.BRIDGE_PORT} is already in use — ${result.reason}.`);
+      console.error(`         Find it with:  netstat -ano | findstr :${config.BRIDGE_PORT}`);
+      console.error(`         then:          taskkill /PID <pid> /F`);
+      console.error(`         Or set a different BRIDGE_PORT in config.local.js.`);
+      process.exit(1);
+    })
+    .catch((e) => {
+      console.error(`[bridge] ERROR: could not reclaim port ${config.BRIDGE_PORT}: ${e.message}`);
+      process.exit(1);
+    });
 });
 
-httpServer.listen(config.BRIDGE_PORT, () => {
+// Registered here rather than as a listen() callback: a listen() that fails with
+// EADDRINUSE leaves its one-shot callback attached, so the retry would fire both
+// and log twice.
+httpServer.once("listening", () => {
   console.log(`[bridge] Socket.io server listening on port ${config.BRIDGE_PORT}`);
 });
+
+function startListening() {
+  httpServer.listen(config.BRIDGE_PORT);
+}
+
+startListening();
 
 // ── Core services ─────────────────────────────────────────────────────────────
 const portMapper = new PortMapper();
@@ -838,6 +865,12 @@ async function reportCurrentSet() {
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.get("/control", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "control-panel.html"));
+});
+
+// Lets a bridge that finds this port busy confirm the occupant is one of its
+// own — and which process to stop — instead of asking the operator for netstat.
+app.get("/api/identity", (req, res) => {
+  res.json({ app: "slippi-bridge", pid: process.pid });
 });
 
 app.get("/api/status", async (req, res) => {
