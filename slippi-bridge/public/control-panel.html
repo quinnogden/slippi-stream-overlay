@@ -60,7 +60,11 @@
     button.wide { width: 100%; }
     button.mini { min-height: 0; padding: 3px 9px; font-size: 12px; }
     button.compact { min-height: 32px; padding: 6px 12px; font-size: 12px; }
-    .stack { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+    /* Side by side while there's room; each button's 140px flex-basis makes them
+       wrap to full-width rows on their own once the dock is squeezed narrower
+       than the pair needs. */
+    .btn-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .btn-row > button { flex: 1 1 140px; }
     .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: .04em; }
     .b-name { background: rgba(53,194,106,.18); color: var(--ok); }
     .b-character, .b-score { background: rgba(74,157,240,.18); color: var(--info); }
@@ -186,11 +190,30 @@
         <div class="card-body">
           <div id="ports"></div>
           <div class="hint" id="tsh-swap-line" style="margin-top:8px"></div>
-          <div class="stack" style="margin-top:10px">
+          <div class="btn-row" style="margin-top:10px">
             <button class="compact" id="btn-swap" title="Flip which Slippi port scores for which team">⇄ Swap Teams</button>
             <button class="compact" id="btn-swap-sides" title="Move both teams to the other side of the scoreboard in TSH">⇆ Switch Sides</button>
           </div>
           <div class="hint" id="swap-hint">Swap Teams (or Ctrl+Shift+S) fixes which port scores for which team. Switch Sides moves the names across the scoreboard. Amber = positional guess — verify before the game starts.</div>
+        </div>
+      </div>
+
+      <!-- Upcoming sets -->
+      <div class="card" data-section="sets">
+        <div class="card-head">
+          <button class="head-toggle"><span class="caret">▾</span><span class="label">Upcoming Sets</span></button>
+          <button class="mini" id="btn-refresh-sets" title="Refresh from start.gg">↻</button>
+        </div>
+        <div class="card-body">
+          <input id="set-filter" type="search" placeholder="Filter by player or round…" style="display:none" />
+          <div class="sets-list" id="sets-list"></div>
+          <div class="set-footer">
+            <div class="links">
+              <button class="linkish" id="btn-toggle-finished">show finished</button>
+              <button class="linkish" id="btn-pull" title="Pull the next queued stream set onto the scoreboard">pull next match</button>
+            </div>
+            <span class="muted" id="sets-stamp"></span>
+          </div>
         </div>
       </div>
 
@@ -226,25 +249,6 @@
           </div>
           <div class="hint" id="clip-hint"></div>
           <div class="clip-list" id="clip-list"></div>
-        </div>
-      </div>
-
-      <!-- Upcoming sets -->
-      <div class="card" data-section="sets">
-        <div class="card-head">
-          <button class="head-toggle"><span class="caret">▾</span><span class="label">Upcoming Sets</span></button>
-          <button class="mini" id="btn-refresh-sets" title="Refresh from start.gg">↻</button>
-        </div>
-        <div class="card-body">
-          <input id="set-filter" type="search" placeholder="Filter by player or round…" style="display:none" />
-          <div class="sets-list" id="sets-list"></div>
-          <div class="set-footer">
-            <div class="links">
-              <button class="linkish" id="btn-toggle-finished">show finished</button>
-              <button class="linkish" id="btn-pull" title="Pull the next queued stream set onto the scoreboard">pull next match</button>
-            </div>
-            <span class="muted" id="sets-stamp"></span>
-          </div>
         </div>
       </div>
     </div>
