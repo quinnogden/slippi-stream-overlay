@@ -29,6 +29,10 @@ The bridge tracks which Slippi player port belongs to which player by name, so T
 
 ## Setup
 
+> Setting up on a **new machine**, a **fresh TSH extract**, or a **fresh OBS profile**? Use [docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md) instead of this section. It's an ordered checklist covering the parts this section leaves out — the TSH settings that silently fight the bridge, the OBS replay buffer and WebSocket setup, and a verification pass — plus which files a fresh clone doesn't include. Run `cd slippi-bridge && node preflight.js` at any point to check the mechanical half of it automatically.
+>
+> The steps below are the short version for a machine that's already mostly configured. Other docs: [docs/TESTING.md](docs/TESTING.md), [docs/BRIDGE-API.md](docs/BRIDGE-API.md).
+
 ### 1. Clone and install
 
 ```bash

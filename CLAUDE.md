@@ -12,6 +12,12 @@ A custom streaming overlay for Melee tournaments that bridges live Slippi game d
 
 TSH itself (`TournamentStreamHelper-5.972/`) is a third-party Python app run as a local web server on port 5000. **Only edit files under `layout/`** — everything else in that folder is vendored and can be read for reference but not modified.
 
+### Companion docs — read the relevant one before working, don't re-derive it
+
+- **[docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md)** — setting up on a new machine, a fresh TSH extract, or a fresh OBS profile. Phase-by-phase, marking which steps you can do and which need the operator (GUI, credentials). Front-loads the two silent failures: TSH's `webserver_port` defaulting to 5500, and a TSH release zip overwriting the tracked `layout/`. **When the user says "run the fresh-install checklist", work that document.** Start by running `node slippi-bridge/preflight.js`, which automates its mechanical half (deps, config, TSH install + `user_data`, layout integrity, the four `general` settings, then live TSH/bridge/OBS probes). It is read-only and exits non-zero on any failure.
+- **[docs/TESTING.md](docs/TESTING.md)** — how to verify a change with no bracket running: replaying `.slp` files *faithfully* (a finished replay does **not** reproduce live conditions — see the `rawDataLength` note there), driving the layouts from a stub Socket.io server on 5001, and the regression checklist for the paths that only fail on stream.
+- **[docs/BRIDGE-API.md](docs/BRIDGE-API.md)** — the Socket.io event payloads and `/api/*` routes, with the traps in each. Consult it before changing anything a browser consumes; nothing on either side validates, so a shape change fails silently in a browser source.
+
 ---
 
 ## Running the Bridge
