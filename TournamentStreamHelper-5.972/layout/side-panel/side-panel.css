@@ -941,6 +941,63 @@ body {
 }
 
 
+/* ── Clip-saved toast ─────────────────────────────────────────
+   Rests just below the bottom card's bottom edge (clipped by its
+   overflow:hidden) and is slid up into view by GSAP. Positioned rather than
+   in flow so it never disturbs the rotating panels underneath. */
+.clip-toast {
+  position:    absolute;
+  left:        50%;
+  bottom:      18px;
+  z-index:     10;
+  display:     flex;
+  align-items: center;
+  gap:         12px;
+  padding:     10px 22px;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: none;
+
+  background: rgba(var(--bg-color-rgb), 0.94);
+  border:     1px solid rgba(var(--text-color-rgb), 0.18);
+  box-shadow:
+    0 6px 20px rgba(0,0,0,0.55),
+    0 2px 6px  rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.07);
+
+  /* Resting state. GSAP animates transform/opacity from here; keeping the
+     -50% X in the same transform avoids it being clobbered mid-tween. */
+  transform: translate(-50%, 160%);
+  opacity:   0;
+}
+
+.clip-toast-icon {
+  color:      var(--win-color);
+  font-size:  14px;
+  line-height: 1;
+  text-shadow: 0 0 10px var(--win-color);
+}
+
+.clip-toast-label {
+  font-family:    var(--font);
+  font-size:      26px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color:          var(--text-color);
+}
+
+.clip-toast-detail {
+  font-family: var(--font);
+  font-size:   22px;
+  color:       var(--darkened-text);
+  max-width:   300px;
+  overflow:    hidden;
+  text-overflow: ellipsis;
+}
+
+.clip-toast-detail:empty { display: none; }
+
+
 /* ── Animation kill-switch ────────────────────────────────── */
 body.no-animate .ambient {
   animation: none !important;

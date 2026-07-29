@@ -1,15 +1,7 @@
 const config = {
   // ── Slippi Connection ──────────────────────────────────────────────────────
-  // "tcp"    → connect directly to your Wii's LAN IP (lowest latency)
-  // "folder" → watch a folder where Slippi desktop app writes live .slp files
-  CONNECTION_MODE: "folder",
-
-  // TCP mode: set this to your Wii's local IP address
-  CONSOLE_IP: "192.168.137.2",
-  CONSOLE_PORT: 51441,
-
-  // Folder mode: path to the directory Slippi writes the live game file into
-  // (usually the "CurrentGame" subfolder inside your Slippi replays folder)
+  // Path to the directory the Slippi desktop app writes the live game file into
+  // (usually the "CurrentGame" or Spectate subfolder of your replays folder).
   SLP_FOLDER: "C:/Users/ogden/OneDrive/Documents/Slippi/Spectate/quinn",
 
   // ── TSH Integration ────────────────────────────────────────────────────────
@@ -33,6 +25,31 @@ const config = {
   // Maps Slippi player port index (0-based) to TSH team number (1-based).
   // In a standard 1v1 mirror, port 0 = P1 (left side) and port 1 = P2 (right side).
   PORT_TO_TEAM: { 0: 1, 1: 2 },
+
+  // ── Combo Clipper ──────────────────────────────────────────────────────────
+  // Starting values for live combo detection → OBS replay-buffer saves. These
+  // are only DEFAULTS: the control panel writes operator edits to the gitignored
+  // clipper-settings.json, which wins over anything here. See clipper-settings.js
+  // for the authoritative field list and validation.
+  //
+  // Note config.local.js is merged with a SHALLOW Object.assign below, so an
+  // override here replaces the whole object — clipper-settings.js fills any
+  // missing key from its own DEFAULTS rather than trusting this to be complete.
+  CLIPPER: {
+    enabled: false,               // master toggle — off costs nothing per poll tick
+    obsUrl: "ws://127.0.0.1:4455", // obs-websocket v5 address
+    obsPassword: "",              // obs-websocket password ("" when auth is off)
+    autoStartBuffer: true,        // start OBS's replay buffer if it isn't running
+    minMoves: 4,                  // moves in the conversion
+    minDamage: 30,                // percent dealt across the conversion
+    requireKill: true,            // only clip conversions that took a stock
+    maxComboDurationSec: 0,       // 0 = no cap
+    cooldownSec: 8,               // minimum gap between saves
+    saveDelayMs: 2500,            // wait after detection so the kill lands in the buffer
+    maxClipsPerGame: 0,           // 0 = unlimited
+    clipFolder: "",               // OBS replay output folder (display + OBS script)
+    notifySidePanel: true,        // show the "clip saved" toast on the overlay
+  },
 
   // ── Secrets (do NOT put real values here — this file is committed to git) ────
   // The start.gg personal access token lives in config.local.js (gitignored),

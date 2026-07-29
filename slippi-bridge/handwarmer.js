@@ -1,5 +1,5 @@
 /**
- * handwarmer.js — Handwarmer detection for folder-mode games.
+ * handwarmer.js — Handwarmer detection.
  *
  * Ported from Melee-Ghost-Streamer (Sheepolution/Melee-Ghost-Streamer, app/src/compute.js).
  *

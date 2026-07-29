@@ -25,9 +25,7 @@ The bridge tracks which Slippi player port belongs to which player by name, so T
 
 - [Node.js](https://nodejs.org) 18+
 - [Tournament Stream Helper](https://github.com/nicholasgasior/TournamentStreamHelper) — run it locally so it serves on `http://localhost:5000`
-- One of:
-  - **Slippi Desktop App** in spectate/folder mode (writes live `.slp` files)
-  - **Direct Wii connection** over LAN (TCP mode)
+- **Slippi Desktop App** in spectate/mirror mode, so it writes live `.slp` files to a folder
 
 ## Setup
 
@@ -44,13 +42,8 @@ npm install
 Edit `slippi-bridge/config.js`:
 
 ```js
-CONNECTION_MODE: "folder",   // "folder" or "tcp"
-
-// Folder mode — path where Slippi writes live game files
+// Path where the Slippi Desktop App writes live game files
 SLP_FOLDER: "C:/Users/YourName/Documents/Slippi/Spectate/YourName",
-
-// TCP mode — your Wii's local IP (only used when CONNECTION_MODE is "tcp")
-CONSOLE_IP: "192.168.1.100",
 ```
 
 Leave `TSH_URL`, `SCOREBOARD_NUM`, `TSH_ROOT`, and `BRIDGE_PORT` at their defaults unless you have a specific reason to change them.
@@ -174,12 +167,9 @@ Characters are handled too, without extra work: TSH copies the current scoreboar
 
 This is cosmetic. If a stage can't be identified the bridge logs a warning and moves on — scoring is never affected. Crew battles skip it entirely, since they don't use the game tracker.
 
-## Connection Modes
+## How the bridge reads the game
 
-| Mode | How it works | Best for |
-|------|-------------|----------|
-| `folder` | Polls a directory every 500ms for new `.slp` files | Slippi Desktop App spectate/mirror |
-| `tcp` | Connects directly to the Wii's LAN IP | Lowest latency, direct capture |
+The bridge polls `SLP_FOLDER` every 500ms for new `.slp` files and reads the one Slippi is currently writing, so it sees characters, stages, scores and combos as the game happens.
 
 > `fs.watch` is intentionally not used — it misses new files on Windows/OneDrive paths.
 
@@ -297,7 +287,7 @@ or move the bridge with `BRIDGE_PORT` in `config.local.js` (remember the OBS bro
 
 **Side panel not loading tournament data:** Make sure TSH is running and `out/program_state.json` exists. The side panel polls TSH state directly — it does not need the bridge to be running, but TSH must be up.
 
-**Control panel is blank or shows everything offline:** The panel is served by the bridge, so the bridge must be running (`start-all.bat` or `start-bridge.bat`). The TSH health dot goes green once TSH's API responds; the Slippi dot goes green once the folder watcher is active (folder mode) or the Wii connection is up (TCP mode).
+**Control panel is blank or shows everything offline:** The panel is served by the bridge, so the bridge must be running (`start-all.bat` or `start-bridge.bat`). The TSH health dot goes green once TSH's API responds; the Slippi dot goes green once the watched `SLP_FOLDER` is readable.
 
 **Report button is greyed out:** Hover for the reason. Common causes: no start.gg token in `config.local.js`, the loaded set was entered manually (no start.gg set behind it), the set hasn't started on start.gg yet, the score is tied, or it's a crew battle (not supported).
 

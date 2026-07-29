@@ -27,6 +27,26 @@
     .dot::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--bad); box-shadow: 0 0 6px var(--bad); }
     .dot.up::before { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
     .label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin-bottom: 8px; }
+
+    /* ── Collapsible cards ──
+       The toggle is its own <button> rather than the whole header row, because
+       two headers already carry a control (the method badge, the sets refresh)
+       and a button can't nest a button. */
+    .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .head-toggle {
+      display: flex; align-items: center; gap: 7px; flex: 1 1 auto; min-width: 0;
+      background: none; border: 0; padding: 0; min-height: 32px; text-align: left; cursor: pointer;
+    }
+    .head-toggle:hover:not(:disabled) { border-color: transparent; }
+    .head-toggle:hover .label { color: var(--text); }
+    .head-toggle .label { margin: 0; }
+    .caret { color: var(--dim); font-size: 10px; transition: transform .15s ease; flex: 0 0 auto; }
+    .card.collapsed .caret { transform: rotate(-90deg); }
+    /* display:none, not a max-height transition — .sets-list is its own
+       overflow-y scroller and an animated height would fight it. */
+    .card.collapsed .card-body { display: none; }
+    .card-body { margin-top: 8px; }
+    .head-note { font-size: 11px; color: var(--dim); flex: 0 0 auto; }
     button {
       background: var(--card2); color: var(--text); border: 1px solid var(--line);
       border-radius: 6px; padding: 8px 12px; font-size: 13px; cursor: pointer;
@@ -89,13 +109,39 @@
     .linkish { background: none; border: 0; color: var(--dim); font-size: 11px; text-decoration: underline; cursor: pointer; padding: 4px 0; min-height: 0; }
     .linkish:hover { color: var(--info); }
 
+    /* ── Combo clipper ── */
+    .clip-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-top: 10px; }
+    .clip-fields .full { grid-column: 1 / -1; }
+    .field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .field > span { font-size: 11px; color: var(--dim); }
+    .field input[type="text"], .field input[type="password"], .field input[type="number"] {
+      width: 100%; padding: 7px 8px; font-size: 13px; min-height: 36px;
+      background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+    }
+    .field input:focus { outline: none; border-color: var(--info); }
+    .check { flex-direction: row; align-items: center; gap: 7px; min-height: 36px; }
+    .check input { width: 17px; height: 17px; accent-color: var(--info); flex: 0 0 auto; }
+    .check span { font-size: 12px; color: var(--text); }
+    .switch { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); flex: 0 0 auto; }
+    .switch input { width: 17px; height: 17px; accent-color: var(--ok); }
+    .clip-list { margin-top: 10px; max-height: 26vh; overflow-y: auto; }
+    .clip-row {
+      display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+      padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 12px;
+    }
+    .clip-row:last-child { border-bottom: 0; }
+    .clip-row .when { color: var(--dim); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+    .clip-row .what { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .clip-row.failed .what { color: var(--bad); }
+
     /* Two columns once there's room — a laptop or tablet shouldn't get one
-       narrow strip. The right-hand column spans both rows. */
+       narrow strip. Multicolumn rather than an explicit grid: cards change
+       height every time one is collapsed, and a fixed row/column placement
+       (which is what .card-tall used to do) leaves holes when they do. */
     @media (min-width: 760px) {
-      .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
-      .cards .card { margin-bottom: 0; }
-      .card-tall { grid-column: 2; grid-row: 1 / span 2; }
-      .sets-list { max-height: 60vh; }
+      .cards { columns: 2; column-gap: 10px; }
+      .cards .card { break-inside: avoid; margin: 0 0 10px; display: inline-block; width: 100%; }
+      .sets-list { max-height: 50vh; }
     }
   </style>
 </head>
@@ -106,54 +152,99 @@
       <div class="health">
         <span class="dot" id="dot-tsh">TSH</span>
         <span class="dot" id="dot-slippi">Slippi</span>
+        <span class="dot" id="dot-obs" style="display:none">OBS</span>
+        <button class="linkish" id="btn-collapse-all" title="Collapse or expand every section">collapse all</button>
       </div>
     </div>
 
     <div class="cards">
       <!-- Current set + report -->
-      <div class="card">
-        <div class="label">Current Set</div>
-        <div class="set-teams">
-          <span class="team-tag t1" id="set-t1">—</span>
-          <span class="score" id="score-1">0</span>
-          <span class="vs">–</span>
-          <span class="score" id="score-2">0</span>
-          <span class="team-tag t2" id="set-t2">—</span>
+      <div class="card" data-section="set">
+        <div class="card-head">
+          <button class="head-toggle"><span class="caret">▾</span><span class="label">Current Set</span></button>
         </div>
-        <button class="wide danger" id="btn-report">Report to start.gg</button>
-        <div id="report-confirm"></div>
-        <div class="hint" id="report-hint"></div>
+        <div class="card-body">
+          <div class="set-teams">
+            <span class="team-tag t1" id="set-t1">—</span>
+            <span class="score" id="score-1">0</span>
+            <span class="vs">–</span>
+            <span class="score" id="score-2">0</span>
+            <span class="team-tag t2" id="set-t2">—</span>
+          </div>
+          <button class="wide danger" id="btn-report">Report to start.gg</button>
+          <div id="report-confirm"></div>
+          <div class="hint" id="report-hint"></div>
+        </div>
       </div>
 
       <!-- Port → Team -->
-      <div class="card card-tall">
-        <div class="row between">
-          <div class="label" style="margin:0">Port → Team</div>
+      <div class="card" data-section="ports">
+        <div class="card-head">
+          <button class="head-toggle"><span class="caret">▾</span><span class="label">Port → Team</span></button>
           <span class="badge b-positional" id="method-badge">—</span>
         </div>
-        <div id="ports"></div>
-        <div class="hint" id="tsh-swap-line" style="margin-top:8px"></div>
-        <div class="stack" style="margin-top:10px">
-          <button class="compact" id="btn-swap" title="Flip which Slippi port scores for which team">⇄ Swap Teams</button>
-          <button class="compact" id="btn-swap-sides" title="Move both teams to the other side of the scoreboard in TSH">⇆ Switch Sides</button>
+        <div class="card-body">
+          <div id="ports"></div>
+          <div class="hint" id="tsh-swap-line" style="margin-top:8px"></div>
+          <div class="stack" style="margin-top:10px">
+            <button class="compact" id="btn-swap" title="Flip which Slippi port scores for which team">⇄ Swap Teams</button>
+            <button class="compact" id="btn-swap-sides" title="Move both teams to the other side of the scoreboard in TSH">⇆ Switch Sides</button>
+          </div>
+          <div class="hint" id="swap-hint">Swap Teams (or Ctrl+Shift+S) fixes which port scores for which team. Switch Sides moves the names across the scoreboard. Amber = positional guess — verify before the game starts.</div>
         </div>
-        <div class="hint" id="swap-hint">Swap Teams (or Ctrl+Shift+S) fixes which port scores for which team. Switch Sides moves the names across the scoreboard. Amber = positional guess — verify before the game starts.</div>
+      </div>
+
+      <!-- Combo clipper -->
+      <div class="card" data-section="clipper">
+        <div class="card-head">
+          <button class="head-toggle"><span class="caret">▾</span><span class="label">Combo Clipper</span></button>
+          <label class="switch" title="Detect combos and save the OBS replay buffer">
+            <input type="checkbox" id="clip-enabled" /> on
+          </label>
+        </div>
+        <div class="card-body">
+          <div class="hint" id="clip-status">—</div>
+
+          <div class="clip-fields">
+            <label class="field"><span>Min moves</span><input type="number" id="clip-minMoves" min="1" max="50" step="1" /></label>
+            <label class="field"><span>Min damage %</span><input type="number" id="clip-minDamage" min="0" max="999" step="1" /></label>
+            <label class="field"><span>Cooldown (s)</span><input type="number" id="clip-cooldownSec" min="0" max="600" step="1" /></label>
+            <label class="field"><span>Save delay (ms)</span><input type="number" id="clip-saveDelayMs" min="0" max="60000" step="100" /></label>
+            <label class="field"><span>Max combo (s, 0 = off)</span><input type="number" id="clip-maxComboDurationSec" min="0" max="480" step="1" /></label>
+            <label class="field"><span>Max clips/game (0 = ∞)</span><input type="number" id="clip-maxClipsPerGame" min="0" max="100" step="1" /></label>
+            <label class="field check"><input type="checkbox" id="clip-requireKill" /><span>Only combos that kill</span></label>
+            <label class="field check"><input type="checkbox" id="clip-autoStartBuffer" /><span>Auto-start OBS buffer</span></label>
+            <label class="field check full"><input type="checkbox" id="clip-notifySidePanel" /><span>Show a toast on the side panel</span></label>
+            <label class="field full"><span>OBS WebSocket URL</span><input type="text" id="clip-obsUrl" placeholder="ws://127.0.0.1:4455" /></label>
+            <label class="field full"><span>OBS WebSocket password</span><input type="password" id="clip-obsPassword" placeholder="(blank if auth is off)" /></label>
+            <label class="field full"><span>Replay clip folder (for the OBS playlist script)</span><input type="text" id="clip-clipFolder" placeholder="C:\Users\…\Videos" /></label>
+          </div>
+
+          <div class="row" style="margin-top:10px; gap:8px">
+            <button class="compact primary" id="btn-clip-save">Save settings</button>
+            <button class="compact" id="btn-clip-test" title="Save the replay buffer now — proves the OBS chain works">Test clip now</button>
+          </div>
+          <div class="hint" id="clip-hint"></div>
+          <div class="clip-list" id="clip-list"></div>
+        </div>
       </div>
 
       <!-- Upcoming sets -->
-      <div class="card">
-        <div class="row between">
-          <div class="label" style="margin:0">Upcoming Sets</div>
+      <div class="card" data-section="sets">
+        <div class="card-head">
+          <button class="head-toggle"><span class="caret">▾</span><span class="label">Upcoming Sets</span></button>
           <button class="mini" id="btn-refresh-sets" title="Refresh from start.gg">↻</button>
         </div>
-        <input id="set-filter" type="search" placeholder="Filter by player or round…" style="display:none" />
-        <div class="sets-list" id="sets-list"></div>
-        <div class="set-footer">
-          <div class="links">
-            <button class="linkish" id="btn-toggle-finished">show finished</button>
-            <button class="linkish" id="btn-pull" title="Pull the next queued stream set onto the scoreboard">pull next match</button>
+        <div class="card-body">
+          <input id="set-filter" type="search" placeholder="Filter by player or round…" style="display:none" />
+          <div class="sets-list" id="sets-list"></div>
+          <div class="set-footer">
+            <div class="links">
+              <button class="linkish" id="btn-toggle-finished">show finished</button>
+              <button class="linkish" id="btn-pull" title="Pull the next queued stream set onto the scoreboard">pull next match</button>
+            </div>
+            <span class="muted" id="sets-stamp"></span>
           </div>
-          <span class="muted" id="sets-stamp"></span>
         </div>
       </div>
     </div>
@@ -197,6 +288,62 @@
         ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     }
 
+    // ── Collapsible sections ──
+    // The dock is often squeezed into a corner of OBS next to the preview, so
+    // which sections are open is a per-operator layout choice worth keeping
+    // across reloads (an OBS dock reloads whenever it's reopened).
+    const COLLAPSE_KEY = "streamControl.collapsed";
+
+    function loadCollapsed() {
+      try {
+        const raw = JSON.parse(localStorage.getItem(COLLAPSE_KEY));
+        return new Set(Array.isArray(raw) ? raw : []);
+      } catch (_e) {
+        return new Set();
+      }
+    }
+
+    function saveCollapsed(set) {
+      try {
+        localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...set]));
+      } catch (_e) {
+        // Private-mode / storage-disabled: collapsing still works this session.
+      }
+    }
+
+    let collapsed = loadCollapsed();
+
+    function applyCollapsed() {
+      document.querySelectorAll(".card[data-section]").forEach((card) => {
+        const isShut = collapsed.has(card.dataset.section);
+        card.classList.toggle("collapsed", isShut);
+        const toggle = card.querySelector(".head-toggle");
+        if (toggle) toggle.setAttribute("aria-expanded", String(!isShut));
+      });
+      const allShut = document.querySelectorAll(".card[data-section]").length === collapsed.size;
+      $("btn-collapse-all").textContent = allShut ? "expand all" : "collapse all";
+    }
+
+    document.querySelectorAll(".card[data-section]").forEach((card) => {
+      const toggle = card.querySelector(".head-toggle");
+      if (!toggle) return;
+      toggle.onclick = () => {
+        const key = card.dataset.section;
+        if (collapsed.has(key)) collapsed.delete(key); else collapsed.add(key);
+        saveCollapsed(collapsed);
+        applyCollapsed();
+      };
+    });
+
+    $("btn-collapse-all").onclick = () => {
+      const keys = [...document.querySelectorAll(".card[data-section]")].map((c) => c.dataset.section);
+      collapsed = collapsed.size === keys.length ? new Set() : new Set(keys);
+      saveCollapsed(collapsed);
+      applyCollapsed();
+    };
+
+    applyCollapsed();
+
     // ── Status ──
     function render(s) {
       const prevSetId = status?.currentSet?.setId;
@@ -205,7 +352,8 @@
       $("dot-tsh").textContent = "TSH";
       const sl = $("dot-slippi");
       sl.classList.toggle("up", !!s.slippi);
-      sl.textContent = "Slippi" + (s.slippiDetail?.mode ? " (" + s.slippiDetail.mode + ")" : "");
+      sl.textContent = "Slippi";
+      sl.title = s.slippiDetail?.detail || "";
 
       // Port mapping
       const pm = s.portMapping || { method: "positional", ports: [] };
@@ -249,10 +397,109 @@
         ? "Set ID " + cs.setId + " — reports the live score as the result."
         : (cs.reason || "");
 
+      renderClipper(s.clipper);
+
       // Only repaint the list when the loaded set actually changed — status
       // arrives every 2s and a blind repaint would fight the filter box.
       if (cs.setId !== prevSetId) renderSets();
     }
+
+    // ── Combo clipper ──
+    // Every input here is edited by hand while status keeps arriving every 2s.
+    // clipDirty latches on the first keystroke so a tick can't overwrite what's
+    // being typed; saving clears it and the next tick resyncs from the bridge.
+    let clipDirty = false;
+
+    const CLIP_NUMBER_FIELDS = ["minMoves", "minDamage", "cooldownSec", "saveDelayMs",
+                                "maxComboDurationSec", "maxClipsPerGame"];
+    const CLIP_CHECK_FIELDS  = ["requireKill", "autoStartBuffer", "notifySidePanel"];
+    const CLIP_TEXT_FIELDS   = ["obsUrl", "obsPassword", "clipFolder"];
+
+    function renderClipper(c) {
+      if (!c) return;
+      const s = c.settings || {};
+
+      $("dot-obs").style.display = s.enabled ? "" : "none";
+      $("dot-obs").classList.toggle("up", !!c.obs?.connected);
+
+      if (!clipDirty) {
+        $("clip-enabled").checked = !!s.enabled;
+        for (const f of CLIP_NUMBER_FIELDS) $("clip-" + f).value = s[f] ?? 0;
+        for (const f of CLIP_CHECK_FIELDS)  $("clip-" + f).checked = !!s[f];
+        for (const f of CLIP_TEXT_FIELDS)   $("clip-" + f).value = s[f] ?? "";
+      }
+
+      $("clip-status").textContent = clipperStatusText(c);
+      renderClips(c.recentClips || []);
+    }
+
+    function clipperStatusText(c) {
+      // Conversions only exist for singles, so say so rather than letting the
+      // operator wait for clips that can't come. See combo-detector.js.
+      if (!c.settings?.enabled) return "Off. Turn it on to detect combos and save OBS clips. Singles only — doubles has no combo data.";
+      if (!c.obs?.connected) return c.obs?.lastError || "Connecting to OBS…";
+      if (c.obs?.bufferActive === false) return "OBS connected, but the replay buffer is not running.";
+      return "OBS connected, replay buffer running." +
+             (c.clipsThisGame ? ` ${c.clipsThisGame} clip(s) this game.` : "");
+    }
+
+    function renderClips(clips) {
+      const el = $("clip-list");
+      if (!clips.length) { el.innerHTML = ""; return; }
+      el.innerHTML = clips.slice(0, 5).map((c) => {
+        const when = new Date(c.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const what = c.ok
+          ? (c.playerName || "Clip") +
+            (c.moveCount ? ` · ${c.moveCount} moves, ${c.damage}%` : "") +
+            (c.file ? ` · ${c.file}` : "")
+          : (c.error || "Save failed");
+        return '<div class="clip-row' + (c.ok ? "" : " failed") + '">' +
+               '<span class="what">' + escapeHtml(what) + "</span>" +
+               '<span class="when">' + escapeHtml(when) + "</span></div>";
+      }).join("");
+    }
+
+    function collectClipperSettings() {
+      const out = { enabled: $("clip-enabled").checked };
+      for (const f of CLIP_NUMBER_FIELDS) out[f] = Number($("clip-" + f).value);
+      for (const f of CLIP_CHECK_FIELDS)  out[f] = $("clip-" + f).checked;
+      for (const f of CLIP_TEXT_FIELDS)   out[f] = $("clip-" + f).value;
+      return out;
+    }
+
+    [...CLIP_NUMBER_FIELDS, ...CLIP_TEXT_FIELDS].forEach((f) => {
+      $("clip-" + f).oninput = () => { clipDirty = true; };
+    });
+    CLIP_CHECK_FIELDS.forEach((f) => {
+      $("clip-" + f).onchange = () => { clipDirty = true; };
+    });
+
+    // The master switch applies immediately — it's the one control an operator
+    // reaches for mid-set, and making them press Save too invites a dead toggle.
+    $("clip-enabled").onchange = async () => {
+      const enabled = $("clip-enabled").checked;
+      const r = await api("/api/clipper/toggle", "POST", { enabled });
+      toast(r.ok ? (enabled ? "Combo clipper on" : "Combo clipper off")
+                 : ("Couldn't change it: " + r.error), r.ok);
+    };
+
+    $("btn-clip-save").onclick = async () => {
+      const r = await api("/api/clipper/settings", "POST", collectClipperSettings());
+      clipDirty = false;
+      // save() reports ok:false when only the disk write failed — the settings
+      // are live either way, so the message has to distinguish the two.
+      toast(r.ok ? "Clipper settings saved" : (r.error || "Save failed"), r.ok);
+      if (r.settings) renderClipper({ ...(status?.clipper || {}), settings: r.settings });
+    };
+
+    $("btn-clip-test").onclick = async () => {
+      $("clip-hint").textContent = "Asking OBS to save the buffer…";
+      const r = await api("/api/clipper/test");
+      $("clip-hint").textContent = r.ok
+        ? "Saved" + (r.clip?.file ? ": " + r.clip.file : " (OBS reported no path)")
+        : (r.error || "Test failed");
+      toast(r.ok ? "Test clip saved" : ("Test clip failed: " + r.error), r.ok);
+    };
 
     // ── Upcoming sets ──
     let sets = [];            // last payload from /api/sets

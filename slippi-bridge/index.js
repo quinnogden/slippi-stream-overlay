@@ -1,8 +1,7 @@
 /**
  * slippi-bridge
  *
- * Connects to a Slippi console mirror (TCP via slp-realtime) or live .slp file folder,
- * then pushes game events to:
+ * Watches the folder Slippi writes live .slp files into, then pushes game events to:
  *   1. TSH via HTTP  — auto-increments score when a game ends
  *   2. Socket.io     — pushes character/game data to OBS browser sources
  *
@@ -20,9 +19,12 @@ const config                             = require("./config");
 const PortMapper                         = require("./port-mapper");
 const TshClient                          = require("./tsh-client");
 const StartggClient                      = require("./startgg-client");
-const { createFolderSource, createTcpSource } = require("./game-source");
+const { createFolderSource }              = require("./game-source");
 const { resolveTshRoot }                 = require("./tsh-root");
 const { reclaimPort }                    = require("./port-guard");
+const { ClipperSettings }                = require("./clipper-settings");
+const { ComboDetector }                  = require("./combo-detector");
+const { ObsClient }                      = require("./obs-client");
 
 // ── TSH root path ─────────────────────────────────────────────────────────────
 // Auto-detected from the repo root unless config.TSH_ROOT pins it, so a TSH
@@ -110,6 +112,13 @@ startListening();
 const portMapper = new PortMapper();
 const tsh        = new TshClient(config, TSH_ROOT);
 const startgg    = new StartggClient(config);
+
+// ── Combo clipper ─────────────────────────────────────────────────────────────
+// Settings are read through a getter everywhere so the control panel can retune
+// thresholds mid-set without restarting anything.
+const clipperSettings = new ClipperSettings(config);
+const comboDetector   = new ComboDetector(() => clipperSettings.get());
+const obs             = new ObsClient(() => clipperSettings.get());
 
 // Assigned at the entry point; declared here so the control-status loop can
 // read its connection health without a temporal-dead-zone reference.
@@ -237,7 +246,7 @@ function buildPlayersDoubles(sorted) {
 
 /**
  * Called by the game source when a new game starts.
- * @param {Array} rawPlayers — from slippi-js or slp-realtime
+ * @param {Array} rawPlayers — from slippi-js getSettings()
  * @param {number|null} stageId — Slippi stage ID, or null if unavailable
  */
 function onGameStart(rawPlayers, stageId = null) {
@@ -250,6 +259,7 @@ function onGameStart(rawPlayers, stageId = null) {
   }
 
   syncSetTracking(tshState);
+  clipsThisGame = 0;
 
   const sorted = rawPlayers
     .filter((p) => p != null && p.characterId != null)
@@ -696,6 +706,98 @@ function swapTeams() {
   }
 }
 
+// ── Combo clipper: highlight → OBS replay buffer ──────────────────────────────
+// game-source.js detects the combo; everything time-based lives here so the
+// detector stays pure and testable.
+
+let clipsThisGame  = 0;
+let lastClipAtMs   = 0;
+/** Newest first, capped. Kept on the bridge so a panel reopened mid-set still
+ *  shows what has been banked rather than starting blank. */
+let recentClips    = [];
+const RECENT_CLIPS_MAX = 10;
+
+/** Who threw the combo, in the operator's terms rather than a port number. */
+function describeAttacker(playerIndex) {
+  if (playerIndex == null) return { name: "", teamNum: null };
+  const teamNum = currentGameState?.players?.[playerIndex]?.teamNum
+    ?? portMapper.getTeam(playerIndex, null);
+  const name = portMapper.getPortName(playerIndex) || "";
+  return { name, teamNum };
+}
+
+/**
+ * A combo cleared the bar — bank a clip.
+ *
+ * Deliberately fire-and-forget: this runs off a game event during a live match,
+ * so nothing here may throw into the poll loop or delay scoring.
+ * @param {object} h — highlight from combo-detector.js
+ */
+function onHighlight(h) {
+  const s = clipperSettings.get();
+  if (!s.enabled) return;
+
+  const { name, teamNum } = describeAttacker(h.playerIndex);
+  const who = name || (h.playerIndex == null ? "?" : `port ${h.playerIndex + 1}`);
+  console.log(`[clipper] Combo by ${who}: ${h.moveCount} moves, ${h.damage}%, ` +
+              `${h.durationSec}s${h.didKill ? ", kill" : ""}`);
+
+  if (s.maxClipsPerGame > 0 && clipsThisGame >= s.maxClipsPerGame) {
+    console.log(`[clipper] Skipped — already saved ${clipsThisGame} clip(s) this game (max ${s.maxClipsPerGame})`);
+    return;
+  }
+
+  // One exchange can produce several qualifying conversions back to back; the
+  // replay buffer would save near-identical clips of the same moment.
+  const sinceLast = Date.now() - lastClipAtMs;
+  if (lastClipAtMs && sinceLast < s.cooldownSec * 1000) {
+    console.log(`[clipper] Skipped — ${Math.round(sinceLast / 1000)}s since the last clip (cooldown ${s.cooldownSec}s)`);
+    return;
+  }
+  lastClipAtMs = Date.now();
+  clipsThisGame++;
+
+  // The buffer holds the last N seconds, so the combo is already in it. Waiting
+  // is about the OTHER end: saving the instant the kill registers cuts off the
+  // death animation and the reaction.
+  setTimeout(() => {
+    obs.saveReplayBuffer()
+      .then((r) => recordClip(h, { name, teamNum }, r))
+      .catch((e) => console.warn(`[clipper] Save failed: ${e.message}`));
+  }, s.saveDelayMs);
+}
+
+/** Log the outcome of a save, push it to the panel and the overlay. */
+function recordClip(h, attacker, result) {
+  const clip = {
+    ts: Date.now(),
+    playerName: attacker.name,
+    teamNum: attacker.teamNum,
+    moveCount: h?.moveCount ?? null,
+    damage: h?.damage ?? null,
+    didKill: h?.didKill ?? null,
+    path: result.ok ? (result.path ?? null) : null,
+    file: result.ok && result.path ? path.basename(result.path) : null,
+    ok: result.ok,
+    error: result.ok ? null : result.error,
+  };
+
+  recentClips = [clip, ...recentClips].slice(0, RECENT_CLIPS_MAX);
+
+  if (result.ok) {
+    console.log(`[clipper] Saved clip${clip.file ? `: ${clip.file}` : " (OBS reported no path)"}`);
+    if (clipperSettings.get().notifySidePanel) io.emit("slippi_clip_saved", clip);
+  } else {
+    // Never silent: an operator who thinks clips are being banked and finds an
+    // empty folder at the break is the worst outcome here.
+    console.warn(`[clipper] ${result.error}`);
+    io.emit("slippi_clip_error", clip);
+  }
+
+  refreshControlStatus().catch(() => {});
+  return clip;
+}
+
 // ── Control panel: status, bracket actions, start.gg reporting ────────────────
 // Served to an OBS custom browser dock. Browser→bridge calls are same-origin
 // (bridge port); the bridge makes the TSH/start.gg calls server-side, so there
@@ -704,7 +806,7 @@ function swapTeams() {
 let lastControlStatus = {
   tsh: false,
   slippi: false,
-  slippiDetail: { mode: config.CONNECTION_MODE, connected: false },
+  slippiDetail: { connected: false },
   portMapping: { method: "positional", ports: [] },
   tshSwapped: null,
   currentSet: {
@@ -715,6 +817,12 @@ let lastControlStatus = {
     reason: "starting up",
   },
   startggEnabled: startgg.enabled,
+  clipper: {
+    settings: clipperSettings.get(),
+    obs: obs.getStatus(),
+    recentClips: [],
+    clipsThisGame: 0,
+  },
   ts: 0,
 };
 
@@ -814,7 +922,7 @@ async function refreshControlStatus() {
     }
   }
 
-  const src = source?.getStatus?.() ?? { mode: config.CONNECTION_MODE, connected: false };
+  const src = source?.getStatus?.() ?? { connected: false };
   lastControlStatus = {
     tsh: tshUp,
     slippi: Boolean(src.connected),
@@ -823,6 +931,12 @@ async function refreshControlStatus() {
     tshSwapped: tshSwapState,
     currentSet,
     startggEnabled: startgg.enabled,
+    clipper: {
+      settings: clipperSettings.get(),
+      obs: obs.getStatus(),
+      recentClips,
+      clipsThisGame,
+    },
     ts: Date.now(),
   };
   io.emit("control_status", lastControlStatus);
@@ -958,6 +1072,45 @@ app.post("/api/report", async (req, res) => {
   res.json(await reportCurrentSet());
 });
 
+// ── Combo clipper ─────────────────────────────────────────────────────────────
+app.get("/api/clipper", (req, res) => {
+  res.json({
+    ok: true,
+    settings: clipperSettings.get(),
+    obs: obs.getStatus(),
+    recentClips,
+    clipsThisGame,
+  });
+});
+
+app.post("/api/clipper/settings", (req, res) => {
+  const result = clipperSettings.save(req.body ?? {});
+  // Apply either way: save() returns ok:false when only the disk write failed,
+  // and the operator's change should still take effect for this session.
+  obs.applySettings();
+  refreshControlStatus().catch(() => {});
+  res.json(result);
+});
+
+app.post("/api/clipper/toggle", (req, res) => {
+  const enabled = req.body?.enabled;
+  if (typeof enabled !== "boolean") {
+    return res.status(400).json({ ok: false, error: "enabled (boolean) required" });
+  }
+  const result = clipperSettings.save({ enabled });
+  obs.applySettings();
+  refreshControlStatus().catch(() => {});
+  res.json(result);
+});
+
+// Proves the whole OBS chain (websocket → buffer → file) without waiting for a
+// combo. The one thing an operator can run at a venue before the bracket starts.
+app.post("/api/clipper/test", async (req, res) => {
+  const result = await obs.saveReplayBuffer();
+  const clip = recordClip(null, { name: "Test clip", teamNum: null }, result);
+  res.json({ ok: result.ok, error: result.error ?? null, clip });
+});
+
 // Push status to any connected control panel every 2s.
 setInterval(() => { refreshControlStatus().catch(() => {}); }, 2000);
 
@@ -1024,12 +1177,18 @@ for (const url of lanControlUrls()) {
   console.log(`[bridge]   on phone:    ${url}`);
 }
 console.log(`[bridge] start.gg report: ${startgg.enabled ? "enabled" : "disabled (no token in config.local.js)"}`);
+console.log(`[bridge] Combo clipper:  ${clipperSettings.get().enabled
+  ? `enabled → OBS at ${clipperSettings.get().obsUrl}`
+  : "disabled (turn it on in the control panel)"}`);
 console.log(`[bridge] Keyboard:       Ctrl+Shift+S = swap teams`);
 console.log();
 
-source = config.CONNECTION_MODE === "folder"
-  ? createFolderSource(config)
-  : createTcpSource(config);
+source = createFolderSource(config, comboDetector);
 
 source.on("game-start", onGameStart);
 source.on("game-end",   onGameEnd);
+source.on("highlight",  onHighlight);
+
+// Connect to OBS up front when the clipper is already on, so the control panel
+// shows a real OBS status before the first combo rather than after it.
+obs.applySettings();

@@ -5,11 +5,20 @@ slippi-bridge/package-lock.json
 # Machine-local overrides + secrets (start.gg token). Never commit.
 slippi-bridge/config.local.js
 
+# Combo clipper tunables written by the control panel — per-machine (OBS
+# password, replay folder) and retuned per venue, so it never belongs in git.
+slippi-bridge/clipper-settings.json
+slippi-bridge/clipper-settings.json.tmp
+
 # Exclude all of the third-party TSH app, but keep our custom layout.
 # Version-independent so a TSH update (new TournamentStreamHelper-X.YYY folder)
 # doesn't silently start tracking the whole vendored Python app.
 TournamentStreamHelper-*/*
 !TournamentStreamHelper-*/layout/
+
+# Python bytecode from the OBS scripts (OBS compiles them on load)
+__pycache__/
+*.pyc
 
 # Claude local files
 .claude/

@@ -689,9 +689,74 @@ LoadEverything().then(() => {
       socket.on("slippi_crew_end", () => {
         renderCrewCards();
       });
+
+      // A clip was banked mid-match. Only successful saves reach here — clip
+      // errors go to the operator's control panel, not the broadcast.
+      socket.on("slippi_clip_saved", (clip) => {
+        showClipToast(clip);
+      });
     }
 
     tryConnect(10);
   })();
+
+
+  // ── Clip-saved toast ───────────────────────────────────────────────────────
+
+  /**
+   * Slide a "Clip Saved" pill in over the bottom card's bottom edge, hold, and
+   * slide it back out.
+   *
+   * Queued rather than concurrent: back-to-back clips would otherwise restart
+   * the tween on a visible pill, which reads as a flicker on stream. A queued
+   * clip waits for the current one to leave.
+   */
+  const clipToast = {
+    el:      null,
+    tl:      null,
+    pending: null,
+    busy:    false,
+  };
+
+  function showClipToast(clip) {
+    if (!clipToast.el) clipToast.el = document.querySelector(".clip-toast");
+    if (!clipToast.el) return;
+
+    if (clipToast.busy) {
+      // Keep only the newest — a backlog of stale pills is worse than a gap.
+      clipToast.pending = clip;
+      return;
+    }
+    clipToast.busy = true;
+
+    const detail = clipToastDetail(clip);
+    clipToast.el.querySelector(".clip-toast-detail").textContent = detail;
+
+    // Kill any timeline still finishing so its onComplete can't fight this one
+    // (same discipline as Rotator._transitionTo).
+    if (clipToast.tl) clipToast.tl.kill();
+
+    clipToast.tl = gsap.timeline({
+      onComplete: () => {
+        clipToast.busy = false;
+        const next = clipToast.pending;
+        clipToast.pending = null;
+        if (next) showClipToast(next);
+      },
+    });
+
+    clipToast.tl
+      .set(clipToast.el, { y: "160%", opacity: 0 })
+      .to(clipToast.el, { y: "0%", opacity: 1, duration: 0.45, ease: "back.out(1.4)" })
+      .to(clipToast.el, { y: "160%", opacity: 0, duration: 0.4, ease: "power2.in" }, "+=3.2");
+  }
+
+  /** "jiggles · 5 moves, 41%" — empty when the bridge sent no detail. */
+  function clipToastDetail(clip) {
+    const bits = [];
+    if (clip?.playerName) bits.push(clip.playerName);
+    if (clip?.moveCount)  bits.push(`${clip.moveCount} moves, ${Math.round(clip.damage ?? 0)}%`);
+    return bits.join(" · ");
+  }
 
 }); // end LoadEverything().then()
