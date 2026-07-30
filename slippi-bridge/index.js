@@ -14,17 +14,17 @@ const os      = require("os");
 const express = require("express");
 const { Server } = require("socket.io");
 
-const { resolveCharacter, resolveStage } = require("./char_map");
+const { resolveCharacter, resolveStage } = require("./lib/char_map");
 const config                             = require("./config");
-const PortMapper                         = require("./port-mapper");
-const TshClient                          = require("./tsh-client");
-const StartggClient                      = require("./startgg-client");
-const { createFolderSource }              = require("./game-source");
-const { resolveTshRoot }                 = require("./tsh-root");
-const { reclaimPort }                    = require("./port-guard");
-const { ClipperSettings }                = require("./clipper-settings");
-const { ComboDetector }                  = require("./combo-detector");
-const { ObsClient }                      = require("./obs-client");
+const PortMapper                         = require("./lib/port-mapper");
+const TshClient                          = require("./lib/tsh-client");
+const StartggClient                      = require("./lib/startgg-client");
+const { createFolderSource }             = require("./lib/game-source");
+const { resolveTshRoot }                 = require("./lib/tsh-root");
+const { reclaimPort }                    = require("./lib/port-guard");
+const { ClipperSettings }                = require("./lib/clipper-settings");
+const { ComboDetector }                  = require("./lib/combo-detector");
+const { ObsClient }                      = require("./lib/obs-client");
 
 // ── TSH root path ─────────────────────────────────────────────────────────────
 // Auto-detected from the repo root unless config.TSH_ROOT pins it, so a TSH

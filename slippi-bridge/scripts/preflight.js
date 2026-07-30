@@ -22,7 +22,10 @@ const path = require("path");
 const http = require("http");
 const { execFileSync } = require("child_process");
 
-const REPO_ROOT = path.resolve(__dirname, "..");
+// This script lives in slippi-bridge/scripts/, so the bridge folder is one level
+// up and the repo root (holding the TournamentStreamHelper-* folder) is two.
+const BRIDGE_DIR = path.resolve(__dirname, "..");
+const REPO_ROOT  = path.resolve(__dirname, "..", "..");
 
 const argv     = process.argv.slice(2);
 const OFFLINE  = argv.includes("--offline");
@@ -107,18 +110,18 @@ function checkNode() {
 function checkDeps() {
   at("dependencies");
 
-  const pkgPath = path.join(__dirname, "package.json");
+  const pkgPath = path.join(BRIDGE_DIR, "package.json");
   const pkg = parseJson(exists(pkgPath) ? fs.readFileSync(pkgPath, "utf8") : "");
   if (!pkg) { fail("package.json", "missing or unparseable"); return; }
 
-  if (!exists(path.join(__dirname, "node_modules"))) {
+  if (!exists(path.join(BRIDGE_DIR, "node_modules"))) {
     fail("node_modules", "not installed", "cd slippi-bridge && npm install");
     return;
   }
 
   const missing = [];
   for (const dep of Object.keys(pkg.dependencies ?? {})) {
-    try { require.resolve(dep, { paths: [__dirname] }); }
+    try { require.resolve(dep, { paths: [BRIDGE_DIR] }); }
     catch { missing.push(dep); }
   }
 
@@ -141,7 +144,7 @@ function checkBridgeConfig() {
 
   let config;
   try {
-    config = require("./config");
+    config = require("../config");
   } catch (e) {
     fail("config.js", `failed to load: ${e.message}`);
     return null;
@@ -149,7 +152,7 @@ function checkBridgeConfig() {
   pass("config.js", "loaded");
 
   // config.local.js — optional, but it's where the token and per-machine paths go.
-  if (exists(path.join(__dirname, "config.local.js"))) {
+  if (exists(path.join(BRIDGE_DIR, "config.local.js"))) {
     pass("config.local.js", "present");
   } else {
     warn("config.local.js", "absent — start.gg reporting stays disabled and machine-specific paths fall back to committed defaults",
@@ -184,7 +187,7 @@ function checkTshInstall(config) {
 
   let tshRoot;
   try {
-    const { resolveTshRoot } = require("./tsh-root");
+    const { resolveTshRoot } = require("../lib/tsh-root");
     tshRoot = resolveTshRoot(REPO_ROOT, config?.TSH_ROOT ?? null);
     pass("TSH root", path.basename(tshRoot));
   } catch (e) {
@@ -339,14 +342,14 @@ function checkClipper(config) {
 
   let settings;
   try {
-    const { ClipperSettings } = require("./clipper-settings");
+    const { ClipperSettings } = require("../lib/clipper-settings");
     settings = new ClipperSettings(config).get();
   } catch (e) {
     fail("clipper settings", `could not load: ${e.message}`);
     return null;
   }
 
-  const file = path.join(__dirname, "clipper-settings.json");
+  const file = path.join(BRIDGE_DIR, "clipper-settings.json");
   if (exists(file)) {
     if (parseJson(fs.readFileSync(file, "utf8"))) pass("clipper-settings.json", "present and valid");
     else warn("clipper-settings.json", "not valid JSON — the bridge falls back to committed defaults and logs it",

@@ -6,7 +6,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "preflight": "node preflight.js"
+    "start-all": "node scripts/start-all.js",
+    "preflight": "node scripts/preflight.js"
   },
   "dependencies": {
     "@slippi/slippi-js": "^6.5.0",

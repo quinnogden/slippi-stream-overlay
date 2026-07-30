@@ -20,7 +20,10 @@
 const fs   = require("fs");
 const path = require("path");
 
-const SETTINGS_FILE = path.join(__dirname, "clipper-settings.json");
+// Lives at the slippi-bridge folder root (one level up from lib/), not beside
+// this module: .gitignore pins that exact path, and the file holds the OBS
+// password. Moving it risks committing a secret.
+const SETTINGS_FILE = path.join(__dirname, "..", "clipper-settings.json");
 
 /** Complete, valid settings. Any layer above may override individual keys. */
 const DEFAULTS = {

@@ -12,13 +12,18 @@ const fs    = require("fs");
 const path  = require("path");
 const axios = require("axios");
 const { spawn } = require("child_process");
-const config = require("./config");
-const { resolveTshRoot } = require("./tsh-root");
+const config = require("../config");
+const { resolveTshRoot } = require("../lib/tsh-root");
+
+// This script lives in slippi-bridge/scripts/, so the bridge folder is one level
+// up and the repo root (where the TournamentStreamHelper-* folder sits) is two.
+const BRIDGE_DIR = path.resolve(__dirname, "..");
+const REPO_ROOT  = path.resolve(__dirname, "..", "..");
 
 // Auto-detected unless config.TSH_ROOT pins it — see tsh-root.js.
 let TSH_ROOT;
 try {
-  TSH_ROOT = resolveTshRoot(path.resolve(__dirname, ".."), config.TSH_ROOT);
+  TSH_ROOT = resolveTshRoot(REPO_ROOT, config.TSH_ROOT);
   console.log(`[launcher] TSH root: ${TSH_ROOT}`);
 } catch (e) {
   console.error(`[launcher] ERROR: ${e.message}`);
@@ -70,7 +75,7 @@ async function waitForTsh() {
 /** Start the bridge in this console (inherits stdio for logs + keypress swap). */
 function startBridge() {
   console.log("\n[launcher] TSH is up — starting the bridge.\n");
-  const bridge = spawn(process.execPath, ["index.js"], { cwd: __dirname, stdio: "inherit" });
+  const bridge = spawn(process.execPath, ["index.js"], { cwd: BRIDGE_DIR, stdio: "inherit" });
   bridge.on("exit", (code) => process.exit(code ?? 0));
 }
 
