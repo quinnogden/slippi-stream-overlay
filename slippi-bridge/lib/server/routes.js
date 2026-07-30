@@ -12,13 +12,14 @@ const path = require("path");
  * @param {import("express").Express} app
  * @param {object} deps — {
  *   publicDir, tsh, clipperSettings, obs, state,
- *   refreshControlStatus, reportCurrentSet, switchBracket, swapTeams, recordClip
+ *   refreshControlStatus, reportCurrentSet, startCurrentSet, switchBracket,
+ *   swapTeams, recordClip
  * }
  */
 function registerRoutes(app, deps) {
   const {
     publicDir, tsh, clipperSettings, obs, state,
-    refreshControlStatus, reportCurrentSet, switchBracket, swapTeams, recordClip,
+    refreshControlStatus, reportCurrentSet, startCurrentSet, switchBracket, swapTeams, recordClip,
   } = deps;
 
   app.get("/control", (req, res) => {
@@ -75,6 +76,12 @@ function registerRoutes(app, deps) {
       return res.status(400).json({ ok: false, error: 'kind ("singles" | "doubles") required' });
     }
     res.json(await switchBracket(kind));
+  });
+
+  // start.gg's "Start match" for the loaded set. No body: the set is whatever
+  // TSH has loaded, which is what the panel is showing.
+  app.post("/api/start-set", async (req, res) => {
+    res.json(await startCurrentSet());
   });
 
   app.post("/api/report", async (req, res) => {

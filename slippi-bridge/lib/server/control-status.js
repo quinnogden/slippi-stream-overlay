@@ -6,6 +6,7 @@
  */
 
 const { evaluateReportability } = require("./report-set");
+const { evaluateStartability }  = require("./start-set");
 
 function createControlStatus(ctx) {
   const { config, tsh, portMapper, startgg, clipperSettings, obs, io, state } = ctx;
@@ -22,6 +23,8 @@ function createControlStatus(ctx) {
       teamNames: { team1: "", team2: "" },
       canReport: false,
       reason: "starting up",
+      canStart: false,
+      startReason: "starting up",
     },
     tournament: { name: "", eventName: "" },
     shortLink: config.BRACKETS?.shortLink ?? "",
@@ -96,6 +99,8 @@ function createControlStatus(ctx) {
       teamNames: { team1: "", team2: "" },
       canReport: false,
       reason: tshUp ? null : "TSH not reachable",
+      canStart: false,
+      startReason: tshUp ? null : "TSH not reachable",
     };
     // What TSH's provider actually loaded. Filled from the state read below, so
     // surfacing it costs the tick no extra round-trip.
@@ -107,12 +112,17 @@ function createControlStatus(ctx) {
         const setId    = tsh.getSetId(tshState);
         const { t1, t2 } = tsh.getTeamInfos(tshState);
         const { canReport, reason } = evaluateReportability(ctx, tshState, setId);
+        // Synchronous by contract — it reads a cache and schedules its own
+        // lookup in the background, so the tick never waits on start.gg.
+        const startable = evaluateStartability(ctx, tshState, setId);
         currentSet = {
           setId,
           scores: tsh.getLiveScores(tshState),
           teamNames: { team1: t1.name, team2: t2.name },
           canReport,
           reason,
+          canStart: startable.canStart,
+          startReason: startable.reason,
         };
         tournament = tsh.getTournamentInfo(tshState);
 
@@ -130,6 +140,7 @@ function createControlStatus(ctx) {
         }
       } catch {
         currentSet.reason = "TSH state unreadable";
+        currentSet.startReason = "TSH state unreadable";
       }
     }
 

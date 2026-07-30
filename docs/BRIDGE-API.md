@@ -114,6 +114,8 @@ The full control-panel snapshot. Pushed **every 2 seconds** and on connect. Iden
     teamNames: { team1: "…", team2: "…" },
     canReport: true,
     reason: "",                    // why reporting is blocked, when canReport is false
+    canStart: false,               // start.gg still has this set as not-started/called
+    startReason: "…",              // why starting is blocked, when canStart is false
   },
   tournament: {                    // what TSH's provider actually has loaded
     name: "Hundred Acres #43",     // "" when nothing is loaded
@@ -157,6 +159,7 @@ A permissive CORS middleware fronts every route. It exists for exactly one case:
 | `GET` | `/api/sets[?finished=1]` | Open sets from TSH's bracket provider; `finished=1` adds completed ones |
 | `POST` | `/api/load-set` | `{ setId }` → load it, then refresh status |
 | `POST` | `/api/bracket` | `{ kind: "singles" \| "doubles" }` → point TSH at this week's event for that format |
+| `POST` | `/api/start-set` | Mark the loaded set in progress on start.gg (`markSetInProgress`). No body |
 | `POST` | `/api/report` | Report the current set to start.gg. Manual trigger only |
 | `GET` | `/api/clipper` | `{ settings, obs, recentClips, clipsThisGame, supported }` |
 | `POST` | `/api/clipper/settings` | Validate, clamp, persist to `clipper-settings.json`, apply live |
@@ -185,6 +188,24 @@ Three things a consumer has to know:
 `warning` may be set on a successful response — it means the event was **not** verified against start.gg (no token, or the lookup failed) and the configured `fallbackSlug` was appended instead. Surface it; TSH accepts a stale slug without complaint and leaves an empty bracket.
 
 Switching is **non-destructive**: TSH keeps the loaded set's names, scores and `set_id`, so a pending `/api/report` still targets the right set. That is why the panel asks for no confirmation.
+
+### `/api/start-set` and `currentSet.canStart`
+
+`canStart` is true only while start.gg reports the loaded set as state **1** (created) or **6**
+(called). It is **not** part of the 2s tick's round-trips: `lib/server/start-set.js` caches the
+state per set id and fetches it once, in the background, the first time a set id appears. Polling
+it would spend 30 of start.gg's 80-requests-per-60s on a value that changes twice a set, and the
+first casualty would be reporting.
+
+Consequences for a consumer:
+
+- **`canStart: false` with `startReason: "Checking start.gg…"` is the normal first tick** after a
+  set loads. The real answer lands a tick or two later.
+- A **preview set id** (`preview_3400584_1_5`) is never startable — start.gg hasn't created the set
+  yet because the bracket hasn't been started. Every set in an unstarted event has one, so the
+  button legitimately never appears until the TO starts the bracket. Same reason `canReport` is
+  false there.
+- The route re-checks `canStart` server-side, so a stale panel can't start a finished set.
 
 ### `/api/sets` is deliberately slow
 

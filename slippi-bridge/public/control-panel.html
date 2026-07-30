@@ -172,6 +172,11 @@
             <span class="score" id="score-2">0</span>
             <span class="team-tag t2" id="set-t2">—</span>
           </div>
+          <!-- Only shown while the loaded set hasn't started on start.gg —
+               there is nothing for it to do otherwise, and a permanently
+               disabled button on the busiest card is just noise. -->
+          <button class="wide primary" id="btn-start-set" style="display:none; margin-bottom:8px"
+                  title="Mark this set in progress on start.gg">Start Set on start.gg</button>
           <button class="wide danger" id="btn-report">Report to start.gg</button>
           <div id="report-confirm"></div>
           <div class="hint" id="report-hint"></div>
@@ -195,24 +200,6 @@
         </div>
       </div>
 
-      <!-- This week's bracket. Before Upcoming Sets on purpose: the operator's
-           flow is switch bracket, then pick a set, and document order is all
-           that matters under the multicolumn layout. -->
-      <div class="card" data-section="bracket">
-        <div class="card-head">
-          <button class="head-toggle"><span class="caret">▾</span><span class="label">Bracket</span></button>
-        </div>
-        <div class="card-body">
-          <div class="btn-row">
-            <button class="compact" id="btn-bracket-singles" data-kind="singles"
-                    title="Point TSH at this week's singles event">Singles Bracket</button>
-            <button class="compact" id="btn-bracket-doubles" data-kind="doubles"
-                    title="Point TSH at this week's doubles event">Doubles Bracket</button>
-          </div>
-          <div class="hint" id="bracket-hint">—</div>
-        </div>
-      </div>
-
       <!-- Upcoming sets -->
       <div class="card" data-section="sets">
         <div class="card-head">
@@ -229,6 +216,25 @@
             </div>
             <span class="muted" id="sets-stamp"></span>
           </div>
+        </div>
+      </div>
+
+      <!-- This week's bracket. After Upcoming Sets: the sets list is the card
+           the operator works from all night, and the bracket buttons are pressed
+           only when the format changes. Document order is all that matters
+           under the multicolumn layout. -->
+      <div class="card" data-section="bracket">
+        <div class="card-head">
+          <button class="head-toggle"><span class="caret">▾</span><span class="label">Bracket</span></button>
+        </div>
+        <div class="card-body">
+          <div class="btn-row">
+            <button class="compact" id="btn-bracket-singles" data-kind="singles"
+                    title="Point TSH at this week's singles event">Singles Bracket</button>
+            <button class="compact" id="btn-bracket-doubles" data-kind="doubles"
+                    title="Point TSH at this week's doubles event">Doubles Bracket</button>
+          </div>
+          <div class="hint" id="bracket-hint">—</div>
         </div>
       </div>
 
@@ -444,6 +450,15 @@
       $("report-hint").textContent = cs.canReport
         ? "Set ID " + cs.setId + " — reports the live score as the result."
         : (cs.reason || "");
+
+      // Appears only while start.gg still has this set as not-started/called.
+      // Skipped entirely while a press is in flight so the 2s tick can't
+      // re-enable the button mid-request.
+      if (!startBusy) {
+        const btnStart = $("btn-start-set");
+        btnStart.style.display = cs.canStart ? "" : "none";
+        btnStart.disabled = !cs.canStart;
+      }
 
       // What TSH says is actually loaded. /set-tournament returns "OK" before the
       // load finishes, so this line — not the toast — is the real confirmation.
@@ -779,6 +794,22 @@
       showFinished = !showFinished;
       $("btn-toggle-finished").textContent = showFinished ? "hide finished" : "show finished";
       fetchSets();
+    };
+
+    // Start the loaded set on start.gg. No confirm: it only moves the set from
+    // not-started to in-progress, which is what loading it onto the stream
+    // scoreboard means anyway, and start.gg refuses it for any other state.
+    let startBusy = false;
+
+    $("btn-start-set").onclick = async () => {
+      startBusy = true;
+      $("btn-start-set").disabled = true;
+      const r = await api("/api/start-set");
+      startBusy = false;
+      // Leave the button as it is on failure — the next tick re-reads the real
+      // state from start.gg and hides it if it turned out to be started already.
+      toast(r.ok ? "Set started on start.gg" : ("Couldn't start the set: " + r.error), r.ok);
+      if (r.ok) fetchSets();
     };
 
     // Two-step confirm for reporting (avoids accidental publish to the live bracket)

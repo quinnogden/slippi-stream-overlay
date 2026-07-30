@@ -35,6 +35,7 @@ const { lanControlUrls }     = require("./lib/lan-urls");
 const { createServer }        = require("./lib/server/app");
 const { createControlStatus } = require("./lib/server/control-status");
 const { createReportSet }     = require("./lib/server/report-set");
+const { createStartSet }      = require("./lib/server/start-set");
 const { createBracketSwitch } = require("./lib/server/bracket-switch");
 const { registerRoutes }      = require("./lib/server/routes");
 
@@ -74,6 +75,7 @@ const ctx = {
 const controlStatus = createControlStatus(ctx);
 const clipRecorder  = createClipRecorder(ctx, controlStatus.refresh);
 const { reportCurrentSet } = createReportSet(ctx, controlStatus.refresh);
+const { startCurrentSet }  = createStartSet(ctx, controlStatus.refresh);
 const bracketSwitch = createBracketSwitch(ctx, controlStatus.refresh);
 const modes         = createModes(ctx);
 const swapTeams     = createSwap(ctx);
@@ -86,6 +88,7 @@ registerRoutes(app, {
   state: ctx.state,
   refreshControlStatus: controlStatus.refresh,
   reportCurrentSet,
+  startCurrentSet,
   switchBracket: bracketSwitch.switchBracket,
   swapTeams,
   recordClip: clipRecorder.recordClip,

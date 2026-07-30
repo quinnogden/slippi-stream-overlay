@@ -81,7 +81,7 @@ slippi-bridge/
   public/control-panel.html the operator dock
   lib/                      every module below
     modes/                  singles.js  doubles.js  crew.js  index.js (dispatcher)
-    server/                 app.js  routes.js  control-status.js  report-set.js
+    server/                 app.js  routes.js  control-status.js  report-set.js  start-set.js
   scripts/                  preflight.js  start-all.js
 ```
 
@@ -109,7 +109,7 @@ Reached as `ctx.state`. **The file documents which module writes which field —
 
 - **`port-mapper.js`** — `PortMapper` class. Owns all port→team tracking state (`_portToTeam`, `_portToName`, `_portScore`). Never reads files or makes HTTP calls — all data is passed in. `getResolutionInfo()` reports the current mapping plus which heuristic set it (`_resolutionMethod`: name / score / character / positional / manual).
 - **`tsh-client.js`** — `TshClient` class; all I/O with TSH. Reads `program_state.json` (`readState()` + pure accessors), calls the TSH HTTP API, and returns typed `{ ok, error?, data? }` results. Every HTTP method goes through one private `_call()`; every state accessor through `_team()`, so the `score.<sb>.team.<n>` dig exists once. Includes bracket-action fronts (`pullStreamSet`, `getOpenSets`, `loadSet`), state accessors (`getSetId`, `getLiveScores`, `getTeamInfos`), crew helpers (`isCrewBattle`, `getActivePlayerName`, `getActivePlayerCharacter`), and a `ping()` health probe.
-- **`startgg-client.js`** — `StartggClient` class. The **only** module that talks to an external service, which is the invariant worth keeping: two would mean two places handling token expiry, rate limits and timeouts. Three GraphQL methods (`https://api.start.gg/gql/alpha`, all through one private `_gql()`): `reportSet()` runs the `reportBracketSet` mutation, `getSetEntrants()` fetches per-team entrant ids (TSH's `/get-match` does *not* expose them), and `listEvents()` fetches a tournament's event list for the bracket switcher. `resolveShortLink()` is the odd one out — deliberately **not** GraphQL (the API returns `null` for a short slug; only start.gg's web redirect resolves one) and deliberately **not** gated on `enabled`, since it needs no token. `enabled` is false when no token is configured. Bracket *reading during a set* still goes through TSH's native integration.
+- **`startgg-client.js`** — `StartggClient` class. The **only** module that talks to an external service, which is the invariant worth keeping: two would mean two places handling token expiry, rate limits and timeouts. Five GraphQL methods (`https://api.start.gg/gql/alpha`, all through one private `_gql()`): `reportSet()` runs the `reportBracketSet` mutation, `getSetEntrants()` fetches per-team entrant ids (TSH's `/get-match` does *not* expose them), `listEvents()` fetches a tournament's event list for the bracket switcher, and `getSetState()` / `startSet()` back the Start Set button (`markSetInProgress`). `resolveShortLink()` is the odd one out — deliberately **not** GraphQL (the API returns `null` for a short slug; only start.gg's web redirect resolves one) and deliberately **not** gated on `enabled`, since it needs no token. `enabled` is false when no token is configured. Bracket *reading during a set* still goes through TSH's native integration.
 - **`game-source.js`** — `createFolderSource(config, detector?)`. Polls `SLP_FOLDER` and returns a Node `EventEmitter` firing `game-start` (`rawPlayers, stageId`), `game-end` (`{ winnerPlayerIndex, isHandwarmer, winnerEndStocks }`) and `highlight` (one detected combo). Also exposes `getStatus()` (`{ connected, detail }`) for the control-panel health dot. The mode handlers bind to these events rather than reading `.slp` files, which keeps them testable against a mock emitter.
 - **`combo-detector.js`** — `ComboDetector`. Pure: given a live `SlippiGame`, returns the conversions that just finished and clear the operator's thresholds. No I/O, no timers — all rate limiting lives in `lib/clip-recorder.js`. See [Combo Clipper](#combo-clipper--obs-replay-buffer).
 - **`clip-recorder.js`** — `createClipRecorder(ctx, refresh)`. The clipper's time-based half: cooldown, per-game cap, save delay, and the `recentClips` ring.
@@ -132,6 +132,7 @@ Reached as `ctx.state`. **The file documents which module writes which field —
   `ping()` runs only as a fallback (`/get-swap` is 5.972+). Concurrent `refresh()` callers share one
   in-flight rebuild — eight call sites invoke it, several in bursts when the operator clicks around.
 - **`report-set.js`** — `reportCurrentSet()`, `evaluateReportability()`, `entrantSlot()`.
+- **`start-set.js`** — `startCurrentSet()` (start.gg's `markSetInProgress`) and `evaluateStartability()`. See [Start Set](#start-set).
 - **`bracket-switch.js`** — the Singles/Doubles buttons. Pure helpers (`normalizeBrackets`, `normalizeEventUrl`, `sameEvent`, `pickEvent`) plus `createBracketSwitch(ctx, refresh)`. See [Bracket switcher](#bracket-switcher).
 
 ### Port→Team Assignment (`PortMapper`)
@@ -261,13 +262,14 @@ POST /api/pull-stream    → tsh.pullStreamSet()
 GET  /api/sets[?finished=1] → tsh.getOpenSets(includeFinished)
 POST /api/load-set       → tsh.loadSet(body.setId), then refreshControlStatus()
 POST /api/bracket        → { kind: "singles" | "doubles" } — point TSH at this week's event for that format
+POST /api/start-set      → startCurrentSet() (start.gg markSetInProgress) — no body
 POST /api/report         → reportCurrentSet() (start.gg reportBracketSet)
 GET  /api/clipper        → { settings, obs, recentClips, clipsThisGame, supported }
 POST /api/clipper/settings → validate + persist + apply (clipper-settings.json)
 POST /api/clipper/toggle → { enabled } — the master switch, applied immediately
 POST /api/clipper/test   → save the replay buffer now (proves the OBS chain)
 ```
-`control_status` is also pushed over Socket.io every 2s and on connect. The panel shows TSH/Slippi/OBS health, the current set + report button, the upcoming-sets picker, the combo clipper, and the port→team guess with the heuristic that decided it (a positional guess is flagged as low-confidence) plus TSH's own swap state (`tshSwapped`) and a swap button.
+`control_status` is also pushed over Socket.io every 2s and on connect. The panel shows TSH/Slippi/OBS health, the current set + its start/report buttons, the upcoming-sets picker, the combo clipper, and the port→team guess with the heuristic that decided it (a positional guess is flagged as low-confidence) plus TSH's own swap state (`tshSwapped`) and a swap button.
 
 **Every section collapses**, so the dock survives being squeezed next to the OBS preview. Each `.card` carries a `data-section` key, splits into `.card-head` + `.card-body`, and toggles `.collapsed` (`display: none` on the body — *not* an animated `max-height`, which would fight `.sets-list`'s own `overflow-y` scroller). The toggle is its own `<button class="head-toggle">` rather than the whole header row, because two headers already carry a control (the method badge, the sets refresh) and a button can't nest a button. Collapsed keys persist in `localStorage` under `streamControl.collapsed` — an OBS dock reloads every time it's reopened, so the layout choice has to survive that.
 
@@ -285,6 +287,17 @@ The ≥760px layout is **CSS multicolumn**, not a grid. It used to be `grid-temp
 **Reporting flow (`reportCurrentSet` in index.js):** reads `score.<N>.set_id` + live scores from TSH → refuses if crew / no set_id / `preview` set / tied score → derives the winner *column* from the higher live score → `entrantSlot(column, swapped)` converts that to a start.gg slot → `startgg.getSetEntrants(setId)` maps slot → entrant id (start.gg slot 0 = slot 1) → `startgg.reportSet(setId, winnerEntrantId, gameData)`.
 
 **Swap state is load-bearing for reporting.** TSH's Swap Teams moves each team to the other column *and keeps that orientation for every set loaded afterwards* — `TSHScoreboardWidget.ChangeSetData` does `scoreContainers.reverse()` / `losersContainers.reverse()` / `teamInstances.reverse()` when `teamsSwapped`, so while swapped, TSH column 1 holds start.gg's slot-2 entrant. `entrantSlot()` applies that inversion; without it the report publishes the loser as the winner. `reportCurrentSet` re-reads `getSwapState()` at report time rather than trusting the 2s poll, falls back to the last polled `tshSwapState`, and **refuses** if neither is available — guessing is worse than not reporting. `handleTshSwap()` also flips the recorded `winnerTeam` of every entry in `currentSetGames`, since those are column numbers and the columns just changed hands (mirrors TSH's own `individualGameTracker.SwapStageResults()`). Per-game `gameData` is accumulated in `currentSetGames` (one `{ gameNum, winnerTeam }` per singles/doubles game end; reset in `syncSetTracking()` when `set_id` changes) and is optional — a mismatch falls back to reporting set winner + score only. Manual trigger only; the panel two-step-confirms before POSTing. Singles + doubles; crew battles are excluded.
+
+### Start Set
+
+`lib/server/start-set.js` — the **Start Set on start.gg** button in the Current Set card, which runs start.gg's `markSetInProgress` (the API behind its own "Start match"). It saves the TO opening the bracket page just to start a set they have already loaded on the stream scoreboard.
+
+- **The button only exists while it applies.** `currentSet.canStart` is true only for start.gg states **1** (created) and **6** (called); the panel hides the button otherwise rather than showing a permanently-disabled control on its busiest card. `startReason` carries the refusal.
+- **The state is cached per set id, never polled.** `evaluateStartability()` is called from the 2s tick and is **synchronous by contract**: it answers from the cache and schedules the one lookup in the background. A query per tick would spend 30 of start.gg's 80-per-60s on a value that changes twice a set, and the first thing to break would be *reporting* — far from the cause. `tests/start-set.test.js` pins this.
+- **The first tick after a set loads reads "Checking start.gg…"** — that's the lookup in flight, not a failure.
+- **Preview set ids are never startable.** An event start.gg hasn't started yet has no real sets, so TSH reports `preview_<phase>_<round>_<n>` and there is nothing to mark in progress. Every set in a `CREATED` event looks like this, so the button legitimately stays hidden until the TO starts the bracket — the same reason reporting is blocked there.
+- **No confirm, and no automatic trigger.** Starting is non-destructive and start.gg rejects it for any other state, so a misclick costs nothing. It is deliberately *not* fired from the first game start: a handwarmer, a restart, or a set loaded by mistake would each mark the wrong set.
+- The route re-evaluates server-side, so a stale panel can't start a finished set.
 
 ### Bracket switcher
 

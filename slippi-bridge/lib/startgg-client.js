@@ -9,6 +9,10 @@
  *
  *   - reportSet()        — reportBracketSet; TSH has no reporting capability.
  *   - getSetEntrants()   — TSH's /get-match doesn't expose entrant ids.
+ *   - getSetState()      — TSH's set list doesn't carry start.gg's set state, so
+ *                          nothing else can tell a not-yet-started set from a
+ *                          running one.
+ *   - startSet()         — markSetInProgress; TSH can't start a set either.
  *   - listEvents()       — the bracket switcher needs a tournament's real event
  *                          list before TSH has been pointed at anything.
  *   - resolveShortLink() — deliberately NOT GraphQL and deliberately NOT gated
@@ -53,6 +57,20 @@ query setEntrants($setId: ID!) {
     id
     slots { slotIndex entrant { id name } }
   }
+}`.trim();
+
+// start.gg's set states: 1 = not started, 2 = in progress, 3 = completed,
+// 6 = called to station. TSH's /get-sets returns 1/6/2 without saying which,
+// so this is the only way to know whether "Start set" would do anything.
+const SET_STATE_QUERY = `
+query setState($setId: ID!) {
+  set(id: $setId) { id state }
+}`.trim();
+
+// The API equivalent of start.gg's own "Start match" button.
+const START_SET_MUTATION = `
+mutation startSet($setId: ID!) {
+  markSetInProgress(setId: $setId) { id state }
 }`.trim();
 
 // event.slug already comes back as "tournament/<t>/event/<e>" — exactly the
@@ -188,6 +206,58 @@ class StartggClient {
       if (ent?.id != null) entrants[i + 1] = { id: String(ent.id), name: ent.name ?? "" };
     });
     return { ok: true, entrants };
+  }
+
+  /**
+   * The set's current start.gg state (1 not started, 2 in progress, 3 done,
+   * 6 called). Used to decide whether the panel's Start Set button applies.
+   *
+   * Deliberately a separate round-trip rather than a field on the 2s status
+   * tick: start.gg allows 80 requests/60s, and polling this would spend most of
+   * that budget on a value that changes twice per set. start-set.js caches it
+   * per set id.
+   *
+   * @param {string|number} setId
+   * @returns {Promise<{ ok: boolean, state?: number, error?: string }>}
+   */
+  async getSetState(setId) {
+    if (!this.enabled) return { ok: false, error: "start.gg token not configured" };
+
+    const res = await this._gql(SET_STATE_QUERY, { setId: String(setId) });
+    if (!res.ok) return res;
+
+    const state = res.data?.set?.state;
+    if (state == null) {
+      return { ok: false, error: `start.gg doesn't recognise set ${setId}` };
+    }
+    return { ok: true, state: Number(state) };
+  }
+
+  /**
+   * Mark a set in progress on start.gg — the API's "Start match".
+   *
+   * Safe to the bracket: it only moves the set from not-started/called to
+   * in-progress, and start.gg rejects it (via the errors array) for a set that
+   * is already running or finished.
+   *
+   * @param {string|number} setId
+   * @returns {Promise<{ ok: boolean, state?: number, error?: string }>}
+   */
+  async startSet(setId) {
+    if (!this.enabled) return { ok: false, error: "start.gg token not configured" };
+    if (setId == null) return { ok: false, error: "startSet requires a set id" };
+
+    const res = await this._gql(START_SET_MUTATION, { setId: String(setId) },
+                                "start.gg wouldn't start the set");
+    if (!res.ok) return res;
+
+    const result = res.data?.markSetInProgress;
+    if (!result) {
+      return { ok: false, error: "start.gg returned no set (unexpected response shape)" };
+    }
+
+    console.log(`[bridge] Marked set ${setId} in progress on start.gg (state ${result.state})`);
+    return { ok: true, state: Number(result.state) };
   }
 
   // ── Bracket switcher ────────────────────────────────────────────────────────
