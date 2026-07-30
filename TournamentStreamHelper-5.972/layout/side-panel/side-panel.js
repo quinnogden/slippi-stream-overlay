@@ -96,10 +96,28 @@ class Rotator {
 
     this._slots = next;
 
-    // New data means new panels. Restarting the whole rotation is the only way
-    // to guarantee nothing is left stacked underneath: a rebuild that lands
-    // mid-transition would otherwise strand the panel that was fading.
-    if (changed && this._current) this.restart();
+    if (!changed || !this._current) return;
+
+    // The visible panel survived the rebuild, so leave it alone: keep it on
+    // screen for its full dwell and just re-aim the cursor at whatever now
+    // follows it (_index points into the old list and is meaningless now).
+    //
+    // Restarting here instead is what caused the logo to flash repeatedly.
+    // Loading a set is not one state push but many — TSH clears the names,
+    // then answers last_sets.1, history_sets.1, last_sets.2, history_sets.2
+    // and recent_sets as separate async replies, each its own write. Every one
+    // that flips a slot predicate changes the list, and since restart() rotates
+    // from the top and slot 0 is always logo-primary, each was a fresh logo.
+    const pos = this._slots.indexOf(this._current);
+    if (pos !== -1) {
+      this._index = (pos + 1) % this._slots.length;
+      return;
+    }
+
+    // The visible panel has dropped out of the rotation. It must not stay on
+    // screen, and only a restart guarantees nothing is left stacked underneath:
+    // a rebuild landing mid-transition would otherwise strand the fading panel.
+    this.restart();
   }
 
   start() {

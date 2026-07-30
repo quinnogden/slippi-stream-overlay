@@ -1,0 +1,891 @@
+{
+  "tournamentInfo": {
+    "tournamentName": "Hundred Acres #42"
+  },
+  "streamQueue": {
+    "main-stage": {
+      "sets": [
+        {
+          "id": 1,
+          "match": "Winners Semis",
+          "teams": [
+            {
+              "players": [
+                {
+                  "name": "CASEY",
+                  "team": ""
+                }
+              ]
+            },
+            {
+              "players": [
+                {
+                  "name": "DREW",
+                  "team": "TSM"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "match": "Losers Quarters",
+          "teams": [
+            {
+              "players": [
+                {
+                  "name": "ELLIS",
+                  "team": ""
+                }
+              ]
+            },
+            {
+              "players": [
+                {
+                  "name": "FINCH",
+                  "team": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "match": "Winners Finals",
+          "teams": [
+            {
+              "players": [
+                {
+                  "name": "GRAY",
+                  "team": ""
+                }
+              ]
+            },
+            {
+              "players": [
+                {
+                  "name": "HOLLIS",
+                  "team": ""
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "score": {
+    "1": {
+      "team": {
+        "1": {
+          "color": "#fe3636",
+          "teamName": "",
+          "losers": false,
+          "score": 0,
+          "logo": "",
+          "player": {
+            "1": {
+              "name": "AVERY",
+              "team": "",
+              "seed": 20,
+              "pronoun": "",
+              "country": null,
+              "state": null,
+              "city": null,
+              "real_name": "",
+              "twitter": "",
+              "birthday": "",
+              "id": "1000001",
+              "mergedName": "AVERY",
+              "mergedOnlyName": "AVERY",
+              "avatar": "",
+              "online_avatar": "",
+              "wins": 3,
+              "losses": 2,
+              "winPercentage": "60%",
+              "mains": {},
+              "character": {
+                "1": {
+                  "codename": "falco",
+                  "display_name": "Falco",
+                  "en_name": "Falco",
+                  "modded": false,
+                  "name": "Falco",
+                  "assets": {
+                    "CSProject_AltFull": {
+                      "asset": "./user_data/games/ssbm//CSProject_AltFull/falco_0.png",
+                      "average_size": {
+                        "x": 889.4674556213017,
+                        "y": 1334.2011834319526
+                      },
+                      "eyesight": {
+                        "x": 467,
+                        "y": 189
+                      },
+                      "image_size": {
+                        "x": 1000,
+                        "y": 1500
+                      },
+                      "rescaling_factor": 0.89,
+                      "type": [
+                        "full"
+                      ],
+                      "uncropped_edge": [
+                        "u",
+                        "d",
+                        "l",
+                        "r"
+                      ]
+                    },
+                    "CSProject_Icon": {
+                      "asset": "./user_data/games/ssbm//CSProject_Icon/falco-0.png",
+                      "average_size": {
+                        "x": 144,
+                        "y": 144
+                      },
+                      "image_size": {
+                        "x": 144,
+                        "y": 144
+                      },
+                      "type": [
+                        "icon_hd"
+                      ],
+                      "uncropped_edge": [
+                        "u",
+                        "d",
+                        "l",
+                        "r"
+                      ]
+                    },
+                    "CSProject_MeleeFull": {
+                      "asset": "./user_data/games/ssbm//CSProject_MeleeFull/falco_0.png",
+                      "average_size": {
+                        "x": 911.301775147929,
+                        "y": 1366.9526627218936
+                      },
+                      "eyesight": {
+                        "x": 552,
+                        "y": 236
+                      },
+                      "image_size": {
+                        "x": 1000,
+                        "y": 1500
+                      },
+                      "rescaling_factor": 0.89,
+                      "type": [
+                        "full"
+                      ],
+                      "uncropped_edge": [
+                        "u",
+                        "d",
+                        "l",
+                        "r"
+                      ]
+                    },
+                    "base_files/icon": {
+                      "asset": "./user_data/games/ssbm//base_files/icon/chara_2_falco_00.png",
+                      "average_size": {
+                        "x": 24,
+                        "y": 24.00588235294118
+                      },
+                      "image_size": {
+                        "x": 24,
+                        "y": 24
+                      },
+                      "type": [
+                        "icon"
+                      ],
+                      "uncropped_edge": [
+                        "u",
+                        "d",
+                        "l",
+                        "r"
+                      ]
+                    },
+                    "full": {
+                      "asset": "./user_data/games/ssbm//full/falco_0.png",
+                      "average_size": {
+                        "x": 899.7723577235772,
+                        "y": 899.2682926829268
+                      },
+                      "eyesight": {
+                        "x": 576,
+                        "y": 278
+                      },
+                      "image_size": {
+                        "x": 842,
+                        "y": 841
+                      },
+                      "type": [
+                        "full"
+                      ],
+                      "uncropped_edge": [
+                        "u",
+                        "d",
+                        "l",
+                        "r"
+                      ]
+                    },
+                    "portrait": {
+                      "asset": "./user_data/games/ssbm//portrait/falco_0.png",
+                      "average_size": {
+                        "x": 136,
+                        "y": 188
+                      },
+                      "eyesight": {
+                        "x": 101,
+                        "y": 47
+                      },
+                      "image_size": {
+                        "x": 136,
+                        "y": 188
+                      },
+                      "type": [
+                        "portrait"
+                      ]
+                    }
+                  },
+                  "skin": 0,
+                  "variant": {}
+                }
+              }
+            }
+          }
+        },
+        "2": {
+          "color": "#2e89ff",
+          "teamName": "",
+          "losers": false,
+          "score": 0,
+          "logo": "",
+          "player": {
+            "1": {
+              "name": "BLAKE",
+              "team": "",
+              "seed": 21,
+              "pronoun": "",
+              "country": null,
+              "state": null,
+              "city": null,
+              "real_name": "",
+              "twitter": "",
+              "birthday": "",
+              "id": "1000002",
+              "mergedName": "BLAKE",
+              "mergedOnlyName": "BLAKE",
+              "avatar": "",
+              "online_avatar": "",
+              "wins": 3,
+              "losses": 2,
+              "winPercentage": "60%",
+              "mains": {},
+              "character": {
+                "1": {
+                  "codename": "captain_falcon",
+                  "display_name": "Captain Falcon",
+                  "en_name": "Captain Falcon",
+                  "modded": false,
+                  "name": "Captain Falcon",
+                  "assets": {
+                    "CSProject_AltFull": {
+                      "asset": "./user_data/games/ssbm//CSProject_AltFull/captain_falcon_0.png",
+                      "average_size": {
+                        "x": 889.4674556213017,
+                        "y": 1334.2011834319526
+                      },
+                      "eyesight": {
+                        "x": 470,
+                        "y": 132
+                      },
+                      "image_size": {
+                        "x": 1000,
+                        "y": 1500
+                      },
+                      "type": [
+                        "full"
+                      ],
+                      "uncropped_edge": [
+                        "u",
+                        "d",
+                        "l",
+                        "r"
+                      ]
+                    },
+                    "CSProject_Icon": {
+                      "asset": "./user_data/games/ssbm//CSProject_Icon/captain_falcon-0.png",
+                      "average_size": {
+                        "x": 144,
+                        "y": 144
+                      },
+                      "image_size": {
+                        "x": 144,
+                        "y": 144
+                      },
+                      "type": [
+                        "icon_hd"
+                      ],
+                      "uncropped_edge": [
+                        "u",
+                        "d",
+                        "l",
+                        "r"
+                      ]
+                    },
+                    "CSProject_MeleeFull": {
+                      "asset": "./user_data/games/ssbm//CSProject_MeleeFull/captain_falcon_0.png",
+                      "average_size": {
+                        "x": 911.301775147929,
+                        "y": 1366.9526627218936
+                      },
+                      "eyesight": {
+                        "x": 530,
+                        "y": 115
+                      },
+                      "image_size": {
+                        "x": 1000,
+                        "y": 1500
+                      },
+                      "rescaling_factor": 1.1,
+                      "type": [
+                        "full"
+                      ],
+                      "uncropped_edge": [
+                        "u",
+                        "d",
+                        "l",
+                        "r"
+                      ]
+                    },
+                    "base_files/icon": {
+                      "asset": "./user_data/games/ssbm//base_files/icon/chara_2_captain_falcon_00.png",
+                      "average_size": {
+                        "x": 24,
+                        "y": 24.00588235294118
+                      },
+                      "image_size": {
+                        "x": 24,
+                        "y": 24
+                      },
+                      "type": [
+                        "icon"
+                      ],
+                      "uncropped_edge": [
+                        "u",
+                        "d",
+                        "l",
+                        "r"
+                      ]
+                    },
+                    "full": {
+                      "asset": "./user_data/games/ssbm//full/captain_falcon_0.png",
+                      "average_size": {
+                        "x": 899.7723577235772,
+                        "y": 899.2682926829268
+                      },
+                      "eyesight": {
+                        "x": 574,
+                        "y": 286
+                      },
+                      "image_size": {
+                        "x": 942,
+                        "y": 941
+                      },
+                      "type": [
+                        "full"
+                      ],
+                      "uncropped_edge": [
+                        "u",
+                        "d",
+                        "l",
+                        "r"
+                      ]
+                    },
+                    "portrait": {
+                      "asset": "./user_data/games/ssbm//portrait/captain_falcon_0.png",
+                      "average_size": {
+                        "x": 136,
+                        "y": 188
+                      },
+                      "eyesight": {
+                        "x": 105,
+                        "y": 29
+                      },
+                      "image_size": {
+                        "x": 136,
+                        "y": 188
+                      },
+                      "type": [
+                        "portrait"
+                      ]
+                    }
+                  },
+                  "skin": 0,
+                  "variant": {}
+                }
+              }
+            }
+          }
+        }
+      },
+      "history_sets": {
+        "1": {
+          "1": {
+            "placement": 9,
+            "event_name": "Melee Singles (Flex Bo5)",
+            "tournament_name": "Hundred Acres #42",
+            "tournament_picture": "",
+            "entrants": 38,
+            "event_date_month": "July",
+            "event_date_day": "23",
+            "event_date_year": "2026"
+          },
+          "2": {
+            "placement": 4,
+            "event_name": "Melee Doubles",
+            "tournament_name": "Hundred Acres #42",
+            "tournament_picture": "",
+            "entrants": 10,
+            "event_date_month": "July",
+            "event_date_day": "23",
+            "event_date_year": "2026"
+          },
+          "3": {
+            "placement": 9,
+            "event_name": "Melee Singles (Flex Bo5)",
+            "tournament_name": "Hundred Acres #35",
+            "tournament_picture": "",
+            "entrants": 27,
+            "event_date_month": "June",
+            "event_date_day": "04",
+            "event_date_year": "2026"
+          },
+          "4": {
+            "placement": 9,
+            "event_name": "Melee Doubles",
+            "tournament_name": "Hundred Acres #35",
+            "tournament_picture": "",
+            "entrants": 10,
+            "event_date_month": "June",
+            "event_date_day": "04",
+            "event_date_year": "2026"
+          },
+          "5": {
+            "placement": 25,
+            "event_name": "Melee Singles (Flex Bo5)",
+            "tournament_name": "Hundred Acres #27 | Crews",
+            "tournament_picture": "",
+            "entrants": 39,
+            "event_date_month": "April",
+            "event_date_day": "09",
+            "event_date_year": "2026"
+          },
+          "6": {
+            "placement": 9,
+            "event_name": "Melee Doubles",
+            "tournament_name": "Hundred Acres #22",
+            "tournament_picture": "",
+            "entrants": 9,
+            "event_date_month": "March",
+            "event_date_day": "05",
+            "event_date_year": "2026"
+          },
+          "7": {
+            "placement": 17,
+            "event_name": "Melee Singles (Flex Bo5)",
+            "tournament_name": "Hundred Acres #22",
+            "tournament_picture": "",
+            "entrants": 31,
+            "event_date_month": "March",
+            "event_date_day": "05",
+            "event_date_year": "2026"
+          },
+          "8": {
+            "placement": 7,
+            "event_name": "Melee Singles (Flex Bo5)",
+            "tournament_name": "Hundred Acres #20",
+            "tournament_picture": "",
+            "entrants": 19,
+            "event_date_month": "February",
+            "event_date_day": "19",
+            "event_date_year": "2026"
+          },
+          "9": {
+            "placement": 2,
+            "event_name": "Melee Doubles",
+            "tournament_name": "Hundred Acres #20",
+            "tournament_picture": "",
+            "entrants": 7,
+            "event_date_month": "February",
+            "event_date_day": "19",
+            "event_date_year": "2026"
+          },
+          "10": {
+            "placement": 25,
+            "event_name": "Melee Singles (8:00PM)",
+            "tournament_name": "The Grotto #73 - Road to The Caves Reopen",
+            "tournament_picture": "",
+            "entrants": 30,
+            "event_date_month": "January",
+            "event_date_day": "26",
+            "event_date_year": "2026"
+          }
+        },
+        "2": {
+          "1": {
+            "placement": 7,
+            "event_name": "Melee Singles (8:00PM)",
+            "tournament_name": "The Grotto #99 - Winner's Choice of 20$ or two eve lessons!",
+            "tournament_picture": "",
+            "entrants": 11,
+            "event_date_month": "July",
+            "event_date_day": "27",
+            "event_date_year": "2026"
+          },
+          "2": {
+            "placement": 7,
+            "event_name": "Melee Singles",
+            "tournament_name": "Solution #18",
+            "tournament_picture": "",
+            "entrants": 10,
+            "event_date_month": "July",
+            "event_date_day": "26",
+            "event_date_year": "2026"
+          },
+          "3": {
+            "placement": 3,
+            "event_name": "Melee Doubles",
+            "tournament_name": "Solution #18",
+            "tournament_picture": "",
+            "entrants": 3,
+            "event_date_month": "July",
+            "event_date_day": "26",
+            "event_date_year": "2026"
+          },
+          "4": {
+            "placement": 13,
+            "event_name": "Melee Singles (Flex Bo5)",
+            "tournament_name": "Hundred Acres #42",
+            "tournament_picture": "",
+            "entrants": 38,
+            "event_date_month": "July",
+            "event_date_day": "23",
+            "event_date_year": "2026"
+          },
+          "5": {
+            "placement": 13,
+            "event_name": "Melee Singles (Flex Bo5)",
+            "tournament_name": "Hundred Acres #40",
+            "tournament_picture": "",
+            "entrants": 31,
+            "event_date_month": "July",
+            "event_date_day": "09",
+            "event_date_year": "2026"
+          },
+          "6": {
+            "placement": 41,
+            "event_name": "Melee Singles (Waterfall)",
+            "tournament_name": "MDVA Arcadian Summer 2026 @ The Park RVA",
+            "tournament_picture": "",
+            "entrants": 115,
+            "event_date_month": "July",
+            "event_date_day": "05",
+            "event_date_year": "2026"
+          },
+          "7": {
+            "placement": 13,
+            "event_name": "Melee Singles",
+            "tournament_name": "Solution #17",
+            "tournament_picture": "",
+            "entrants": 16,
+            "event_date_month": "June",
+            "event_date_day": "28",
+            "event_date_year": "2026"
+          },
+          "8": {
+            "placement": 13,
+            "event_name": "Melee Singles",
+            "tournament_name": "Solution #16",
+            "tournament_picture": "",
+            "entrants": 20,
+            "event_date_month": "May",
+            "event_date_day": "31",
+            "event_date_year": "2026"
+          },
+          "9": {
+            "placement": 13,
+            "event_name": "Melee Singles (Flex Bo5)",
+            "tournament_name": "Hundred Acres #33",
+            "tournament_picture": "",
+            "entrants": 37,
+            "event_date_month": "May",
+            "event_date_day": "21",
+            "event_date_year": "2026"
+          },
+          "10": {
+            "placement": 7,
+            "event_name": "Melee Doubles",
+            "tournament_name": "Hundred Acres #33",
+            "tournament_picture": "",
+            "entrants": 8,
+            "event_date_month": "May",
+            "event_date_day": "21",
+            "event_date_year": "2026"
+          }
+        }
+      },
+      "last_sets": {
+        "1": {
+          "1": {
+            "phase_id": "",
+            "phase_name": "Bracket",
+            "round_name": "Losers Round 5",
+            "player_score": 2,
+            "player_seed": 0,
+            "player_team": null,
+            "player_name": "AVERY",
+            "player_char": {
+              "character": {}
+            },
+            "oponent_score": 3,
+            "oponent_seed": 0,
+            "oponent_team": "",
+            "oponent_name": "CASEY",
+            "oponent_char": {
+              "character": {}
+            }
+          },
+          "2": {
+            "phase_id": "",
+            "phase_name": "Bracket",
+            "round_name": "Losers Round 4",
+            "player_score": 2,
+            "player_seed": 0,
+            "player_team": null,
+            "player_name": "AVERY",
+            "player_char": {
+              "character": {}
+            },
+            "oponent_score": 0,
+            "oponent_seed": 0,
+            "oponent_team": "",
+            "oponent_name": "DREW",
+            "oponent_char": {
+              "character": {}
+            }
+          },
+          "3": {
+            "phase_id": "",
+            "phase_name": "Bracket",
+            "round_name": "Losers Round 3",
+            "player_score": 2,
+            "player_seed": 0,
+            "player_team": null,
+            "player_name": "AVERY",
+            "player_char": {
+              "character": {}
+            },
+            "oponent_score": 0,
+            "oponent_seed": 0,
+            "oponent_team": "",
+            "oponent_name": "ELLIS",
+            "oponent_char": {
+              "character": {}
+            }
+          },
+          "4": {
+            "phase_id": "",
+            "phase_name": "Bracket",
+            "round_name": "Losers Round 2",
+            "player_score": 3,
+            "player_seed": 0,
+            "player_team": null,
+            "player_name": "AVERY",
+            "player_char": {
+              "character": {}
+            },
+            "oponent_score": 1,
+            "oponent_seed": 0,
+            "oponent_team": "",
+            "oponent_name": "FINCH",
+            "oponent_char": {
+              "character": {}
+            }
+          },
+          "5": {
+            "phase_id": "",
+            "phase_name": "Bracket",
+            "round_name": "Winners Round 2",
+            "player_score": 2,
+            "player_seed": 0,
+            "player_team": null,
+            "player_name": "AVERY",
+            "player_char": {
+              "character": {}
+            },
+            "oponent_score": 3,
+            "oponent_seed": 0,
+            "oponent_team": "",
+            "oponent_name": "GRAY",
+            "oponent_char": {
+              "character": {}
+            }
+          }
+        },
+        "2": {
+          "1": {
+            "phase_id": "",
+            "phase_name": "Bracket",
+            "round_name": "Losers Round 4",
+            "player_score": 0,
+            "player_seed": 0,
+            "player_team": null,
+            "player_name": "BLAKE",
+            "player_char": {
+              "character": {}
+            },
+            "oponent_score": 2,
+            "oponent_seed": 0,
+            "oponent_team": "",
+            "oponent_name": "HOLLIS",
+            "oponent_char": {
+              "character": {}
+            }
+          },
+          "2": {
+            "phase_id": "",
+            "phase_name": "Bracket",
+            "round_name": "Losers Round 3",
+            "player_score": 3,
+            "player_seed": 0,
+            "player_team": null,
+            "player_name": "BLAKE",
+            "player_char": {
+              "character": {}
+            },
+            "oponent_score": 1,
+            "oponent_seed": 0,
+            "oponent_team": "",
+            "oponent_name": "INDIA",
+            "oponent_char": {
+              "character": {}
+            }
+          },
+          "3": {
+            "phase_id": "",
+            "phase_name": "Bracket",
+            "round_name": "Losers Round 2",
+            "player_score": 2,
+            "player_seed": 0,
+            "player_team": null,
+            "player_name": "BLAKE",
+            "player_char": {
+              "character": {}
+            },
+            "oponent_score": 0,
+            "oponent_seed": 0,
+            "oponent_team": "",
+            "oponent_name": "JUNO",
+            "oponent_char": {
+              "character": {}
+            }
+          },
+          "4": {
+            "phase_id": "",
+            "phase_name": "Bracket",
+            "round_name": "Losers Round 1",
+            "player_score": 2,
+            "player_seed": 0,
+            "player_team": null,
+            "player_name": "BLAKE",
+            "player_char": {
+              "character": {}
+            },
+            "oponent_score": 0,
+            "oponent_seed": 0,
+            "oponent_team": "",
+            "oponent_name": "CASEY",
+            "oponent_char": {
+              "character": {}
+            }
+          },
+          "5": {
+            "phase_id": "",
+            "phase_name": "Bracket",
+            "round_name": "Winners Round 2",
+            "player_score": 2,
+            "player_seed": 0,
+            "player_team": null,
+            "player_name": "BLAKE",
+            "player_char": {
+              "character": {}
+            },
+            "oponent_score": 3,
+            "oponent_seed": 0,
+            "oponent_team": "",
+            "oponent_name": "DREW",
+            "oponent_char": {
+              "character": {}
+            }
+          }
+        }
+      },
+      "recent_sets": {
+        "state": "done",
+        "request_time": 0,
+        "sets": [
+          {
+            "id": 900001,
+            "tournament": "Hundred Acres #42",
+            "event": "Melee Singles (Flex Bo5)",
+            "online": false,
+            "score": [
+              2,
+              0
+            ],
+            "timestamp": 1784845800,
+            "winner": 0,
+            "round": "Losers Round 4",
+            "phase_name": "Bracket",
+            "phase_id": "",
+            "p1_char": {
+              "character": {}
+            },
+            "p2_char": {
+              "character": {}
+            }
+          },
+          {
+            "id": 900002,
+            "tournament": "GG Bi-Weekly #8 - Richmond, Virginia ($75 Pot Bonus)",
+            "event": "Melee Singles",
+            "online": false,
+            "score": [
+              3,
+              2
+            ],
+            "timestamp": 1753309800,
+            "winner": 0,
+            "round": "Losers Round 2",
+            "phase_name": "Bracket",
+            "phase_id": "",
+            "p1_char": {
+              "character": {}
+            },
+            "p2_char": {
+              "character": {}
+            }
+          }
+        ]
+      },
+      "phase": "Bracket - Top 16",
+      "match": "Losers Round 4",
+      "best_of": 0,
+      "best_of_text": "",
+      "round": -7,
+      "station": null,
+      "set_id": "900000001",
+      "teamsSwapped": false
+    }
+  },
+  "timestamp": 0
+}
