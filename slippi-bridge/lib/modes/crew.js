@@ -38,11 +38,10 @@ function createCrew(ctx) {
     }
 
     // Port mapping: same as singles (name + character history, skip score matching)
-    const t1Info = tsh.getTeamInfo(tshState, 1);
-    const t2Info = tsh.getTeamInfo(tshState, 2);
-    resolvePorts(ctx, sorted, tshState, t1Info, t2Info);
+    const { t1, t2 } = tsh.getTeamInfos(tshState);
+    resolvePorts(ctx, sorted, tshState, t1, t2);
 
-    const players = buildPlayersSingles(portMapper, sorted, ctx.TSH_ROOT);
+    const players = buildPlayersSingles(portMapper, sorted);
     state.currentGameState = { players, isDoubles: false, isCrew: true };
 
     pushCharacters(tsh, players);

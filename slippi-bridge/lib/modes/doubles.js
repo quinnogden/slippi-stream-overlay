@@ -27,20 +27,18 @@ function createDoubles(ctx) {
   const { tsh, portMapper, io, state } = ctx;
 
   function onGameStart(sorted, tshState) {
-    const groups  = groupByTeamId(sorted);
-    const t1Info  = tshState ? tsh.getTeamInfo(tshState, 1) : { name: "", score: 0 };
-    const t2Info  = tshState ? tsh.getTeamInfo(tshState, 2) : { name: "", score: 0 };
-    const t1Names = tshState ? tsh.getTeamPlayerNames(tshState, 1) : [];
-    const t2Names = tshState ? tsh.getTeamPlayerNames(tshState, 2) : [];
+    const groups     = groupByTeamId(sorted);
+    const { t1, t2 } = tsh.getTeamInfos(tshState);
+    const t1Names    = tshState ? tsh.getTeamPlayerNames(tshState, 1) : [];
+    const t2Names    = tshState ? tsh.getTeamPlayerNames(tshState, 2) : [];
 
-    portMapper.resolveDoubles(groups, t1Info, t2Info, t1Names, t2Names);
+    portMapper.resolveDoubles(groups, t1, t2, t1Names, t2Names);
 
     if (!portMapper.hasMapping() && tshState) {
       portMapper.tryCharacterBasedDoubles(
         groups,
         tsh.getPreloadedChars(tshState),
-        resolveCharacter,
-        ctx.TSH_ROOT
+        resolveCharacter
       );
     }
 

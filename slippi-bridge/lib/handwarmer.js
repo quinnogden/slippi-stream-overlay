@@ -17,8 +17,6 @@
  *     Duration < 60s                     → +1  (if startStocks > 2)
  */
 
-const { GameEndMethod } = require("@slippi/slippi-js");
-
 const LRAS_METHOD = 7; // GameEndMethod.NO_CONTEST
 
 /**

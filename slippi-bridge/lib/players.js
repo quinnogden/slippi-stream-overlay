@@ -38,15 +38,14 @@ function groupByTeamId(sorted) {
  * Uses first and last port (outer ports) as the two players.
  * @param {object} portMapper
  * @param {Array} sorted — players sorted ascending by playerIndex
- * @param {string} tshRoot
  * @returns {Object} players keyed by playerIndex
  */
-function buildPlayersSingles(portMapper, sorted, tshRoot) {
+function buildPlayersSingles(portMapper, sorted) {
   const players = {};
   [sorted[0], sorted[sorted.length - 1]].forEach((raw, i) => {
     const teamNum      = portMapper.getTeam(raw.playerIndex, i + 1);
     const costumeIndex = raw.characterColor ?? 0;
-    const charInfo     = resolveCharacter(raw.characterId, costumeIndex, tshRoot);
+    const charInfo     = resolveCharacter(raw.characterId, costumeIndex);
     if (!charInfo) {
       console.warn(`[bridge] Unknown character ID: ${raw.characterId}`);
       return;
@@ -84,7 +83,7 @@ function buildPlayersDoubles(portMapper, sorted) {
  * Name-based port resolution, falling back to TSH's preloaded character history.
  * Shared by the singles and crew handlers, which resolve ports identically.
  *
- * @param {object} ctx — { portMapper, tsh, TSH_ROOT }
+ * @param {object} ctx — { portMapper, tsh }
  * @param {Array} sorted
  * @param {object|null} tshState
  * @param {{ name: string, score: number }} t1Info
@@ -97,8 +96,7 @@ function resolvePorts(ctx, sorted, tshState, t1Info, t2Info) {
     ctx.portMapper.tryCharacterBased(
       sorted,
       ctx.tsh.getPreloadedChars(tshState),
-      resolveCharacter,
-      ctx.TSH_ROOT
+      resolveCharacter
     );
   }
 }

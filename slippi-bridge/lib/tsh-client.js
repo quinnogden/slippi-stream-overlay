@@ -196,21 +196,55 @@ class TshClient {
   // ── HTTP calls ──────────────────────────────────────────────────────────────
 
   /**
+   * One call to TSH's HTTP API.
+   *
+   * Every route below is the same shape — build a URL, await axios, log, and
+   * return `{ ok }` rather than throwing — so it is written once here. Callers
+   * supply only what actually differs.
+   *
+   * @param {string} route — path only, e.g. "/get-sets"
+   * @param {object} [opts]
+   * @param {"get"|"post"} [opts.method="get"]
+   * @param {object} [opts.params] — query string (GET)
+   * @param {object} [opts.body]   — JSON body (POST)
+   * @param {number} [opts.timeout]
+   * @param {string} [opts.success] — logged at info level when the call succeeds
+   * @param {string} [opts.failure] — prefix for the error message
+   * @param {"error"|"warn"|"silent"} [opts.onError="error"] — how loudly to fail
+   * @returns {Promise<{ ok: boolean, data?: any, error?: string }>}
+   */
+  async _call(route, opts = {}) {
+    const { method = "get", params, body, timeout, success, failure, onError = "error" } = opts;
+    const url = `${this._config.TSH_URL}${route}`;
+    try {
+      const res = method === "post"
+        ? await axios.post(url, body, { timeout })
+        : await axios.get(url, { params, timeout });
+      if (success) console.log(`[bridge] ${success}`);
+      return { ok: true, data: res.data };
+    } catch (err) {
+      const msg = `${failure}: ${err.message}`;
+      if (onError === "error")     console.error(`[bridge] ${msg}`);
+      else if (onError === "warn") console.warn(`[bridge] ${msg}`);
+      return { ok: false, error: msg };
+    }
+  }
+
+  /** A scoreboard-scoped route, e.g. _sbRoute("-pull-stream"). */
+  _sbRoute(suffix) {
+    return `/scoreboard${this._sb}${suffix}`;
+  }
+
+  /**
    * Increment the score for a team via TSH HTTP API.
    * @param {number} teamNumber — 1 or 2
    * @returns {Promise<{ ok: boolean, error?: string }>}
    */
-  async incrementScore(teamNumber) {
-    const url = `${this._config.TSH_URL}/scoreboard${this._config.SCOREBOARD_NUM}-team${teamNumber}-scoreup`;
-    try {
-      await axios.get(url);
-      console.log(`[bridge] Score incremented for team ${teamNumber}`);
-      return { ok: true };
-    } catch (err) {
-      const msg = `Failed to increment score for team ${teamNumber}: ${err.message}`;
-      console.error(`[bridge] ${msg}`);
-      return { ok: false, error: msg };
-    }
+  incrementScore(teamNumber) {
+    return this._call(this._sbRoute(`-team${teamNumber}-scoreup`), {
+      success: `Score incremented for team ${teamNumber}`,
+      failure: `Failed to increment score for team ${teamNumber}`,
+    });
   }
 
   /**
@@ -220,21 +254,17 @@ class TshClient {
    * @param {number} team2Score
    * @returns {Promise<{ ok: boolean, error?: string }>}
    */
-  async setScore(team1Score, team2Score) {
-    const url = `${this._config.TSH_URL}/score`;
-    try {
-      await axios.post(url, {
+  setScore(team1Score, team2Score) {
+    return this._call("/score", {
+      method: "post",
+      body: {
         team1score: team1Score,
         team2score: team2Score,
         scoreboard: this._config.SCOREBOARD_NUM,
-      });
-      console.log(`[bridge] Scores set: team1=${team1Score} team2=${team2Score}`);
-      return { ok: true };
-    } catch (err) {
-      const msg = `setScore failed: ${err.message}`;
-      console.error(`[bridge] ${msg}`);
-      return { ok: false, error: msg };
-    }
+      },
+      success: `Scores set: team1=${team1Score} team2=${team2Score}`,
+      failure: "setScore failed",
+    });
   }
 
   /**
@@ -243,18 +273,12 @@ class TshClient {
    * @param {string} hexColor   — e.g. '#D32F2F'
    * @returns {Promise<{ ok: boolean, error?: string }>}
    */
-  async setTeamColor(teamNumber, hexColor) {
+  setTeamColor(teamNumber, hexColor) {
     const color = hexColor.replace("#", "");
-    const url = `${this._config.TSH_URL}/scoreboard${this._config.SCOREBOARD_NUM}-team${teamNumber}-color-${color}`;
-    try {
-      await axios.get(url);
-      console.log(`[bridge] TSH team ${teamNumber} color set to #${color}`);
-      return { ok: true };
-    } catch (err) {
-      const msg = `Failed to set color for team ${teamNumber}: ${err.message}`;
-      console.error(`[bridge] ${msg}`);
-      return { ok: false, error: msg };
-    }
+    return this._call(this._sbRoute(`-team${teamNumber}-color-${color}`), {
+      success: `TSH team ${teamNumber} color set to #${color}`,
+      failure: `Failed to set color for team ${teamNumber}`,
+    });
   }
 
   /**
@@ -264,18 +288,13 @@ class TshClient {
    * @param {number} costumeIndex
    * @returns {Promise<{ ok: boolean, error?: string }>}
    */
-  async setCharacter(teamNumber, charDisplayName, costumeIndex) {
-    const url  = `${this._config.TSH_URL}/scoreboard${this._config.SCOREBOARD_NUM}-update-team-${teamNumber}-1`;
-    const body = { mains: { ssbm: [[charDisplayName, costumeIndex]] } };
-    try {
-      await axios.post(url, body);
-      console.log(`[bridge] TSH team ${teamNumber}: ${charDisplayName} costume ${costumeIndex}`);
-      return { ok: true };
-    } catch (err) {
-      const msg = `Failed to set character for team ${teamNumber}: ${err.message}`;
-      console.error(`[bridge] ${msg}`);
-      return { ok: false, error: msg };
-    }
+  setCharacter(teamNumber, charDisplayName, costumeIndex) {
+    return this._call(this._sbRoute(`-update-team-${teamNumber}-1`), {
+      method: "post",
+      body: { mains: { ssbm: [[charDisplayName, costumeIndex]] } },
+      success: `TSH team ${teamNumber}: ${charDisplayName} costume ${costumeIndex}`,
+      failure: `Failed to set character for team ${teamNumber}`,
+    });
   }
 
   /**
@@ -283,21 +302,19 @@ class TshClient {
    * (TSH 5.972+). Fronts POST /scoreboard{N}-set-current-stage, which writes
    * score.{N}.stage_strike.selectedStage and fills the tracker's stage slot.
    *
-   * Purely cosmetic — callers must not let a failure here block scoring.
+   * Purely cosmetic — callers must not let a failure here block scoring, which
+   * is why it only warns.
    * @param {string} codename — TSH stage codename, from resolveStage()
    * @returns {Promise<{ ok: boolean, error?: string }>}
    */
-  async setCurrentStage(codename) {
-    const url = `${this._config.TSH_URL}/scoreboard${this._config.SCOREBOARD_NUM}-set-current-stage`;
-    try {
-      await axios.post(url, { codename });
-      console.log(`[bridge] TSH stage: ${codename}`);
-      return { ok: true };
-    } catch (err) {
-      const msg = `Failed to set stage "${codename}": ${err.message}`;
-      console.warn(`[bridge] ${msg}`);
-      return { ok: false, error: msg };
-    }
+  setCurrentStage(codename) {
+    return this._call(this._sbRoute("-set-current-stage"), {
+      method: "post",
+      body: { codename },
+      success: `TSH stage: ${codename}`,
+      failure: `Failed to set stage "${codename}"`,
+      onError: "warn",
+    });
   }
 
   // ── Bracket actions (proxy TSH's native start.gg integration) ────────────────
@@ -307,17 +324,11 @@ class TshClient {
    * Fronts TSH's GET /scoreboard{N}-pull-stream.
    * @returns {Promise<{ ok: boolean, error?: string }>}
    */
-  async pullStreamSet() {
-    const url = `${this._config.TSH_URL}/scoreboard${this._config.SCOREBOARD_NUM}-pull-stream`;
-    try {
-      await axios.get(url);
-      console.log("[bridge] Pulled next stream set");
-      return { ok: true };
-    } catch (err) {
-      const msg = `pullStreamSet failed: ${err.message}`;
-      console.error(`[bridge] ${msg}`);
-      return { ok: false, error: msg };
-    }
+  pullStreamSet() {
+    return this._call(this._sbRoute("-pull-stream"), {
+      success: "Pulled next stream set",
+      failure: "pullStreamSet failed",
+    });
   }
 
   /**
@@ -336,17 +347,12 @@ class TshClient {
    * @returns {Promise<{ ok: boolean, data?: Array, error?: string }>}
    */
   async getOpenSets(includeFinished = false) {
-    const url = `${this._config.TSH_URL}/get-sets`;
-    try {
-      const res = await axios.get(url, {
-        params: includeFinished ? { getFinished: true } : undefined,
-      });
-      return { ok: true, data: Array.isArray(res.data) ? res.data : [] };
-    } catch (err) {
-      const msg = `getOpenSets failed: ${err.message}`;
-      console.error(`[bridge] ${msg}`);
-      return { ok: false, error: msg };
-    }
+    const res = await this._call("/get-sets", {
+      params: includeFinished ? { getFinished: true } : undefined,
+      failure: "getOpenSets failed",
+    });
+    // The panel iterates this, so a non-array body must not reach it.
+    return res.ok ? { ok: true, data: Array.isArray(res.data) ? res.data : [] } : res;
   }
 
   /**
@@ -355,34 +361,12 @@ class TshClient {
    * @param {string|number} setId
    * @returns {Promise<{ ok: boolean, error?: string }>}
    */
-  async loadSet(setId) {
-    const url = `${this._config.TSH_URL}/scoreboard${this._config.SCOREBOARD_NUM}-load-set`;
-    try {
-      await axios.get(url, { params: { set: setId } });
-      console.log(`[bridge] Loaded set ${setId}`);
-      return { ok: true };
-    } catch (err) {
-      const msg = `loadSet(${setId}) failed: ${err.message}`;
-      console.error(`[bridge] ${msg}`);
-      return { ok: false, error: msg };
-    }
-  }
-
-  /**
-   * Return the id of the set currently selected on the scoreboard.
-   * Fronts TSH's GET /scoreboard{N}-get-set.
-   * @returns {Promise<{ ok: boolean, data?: string, error?: string }>}
-   */
-  async getCurrentSet() {
-    const url = `${this._config.TSH_URL}/scoreboard${this._config.SCOREBOARD_NUM}-get-set`;
-    try {
-      const res = await axios.get(url);
-      return { ok: true, data: res.data };
-    } catch (err) {
-      const msg = `getCurrentSet failed: ${err.message}`;
-      console.error(`[bridge] ${msg}`);
-      return { ok: false, error: msg };
-    }
+  loadSet(setId) {
+    return this._call(this._sbRoute("-load-set"), {
+      params: { set: setId },
+      success: `Loaded set ${setId}`,
+      failure: `loadSet(${setId}) failed`,
+    });
   }
 
   /**
@@ -396,17 +380,11 @@ class TshClient {
    * port mapping against the moved names, so scoring follows automatically.
    * @returns {Promise<{ ok: boolean, error?: string }>}
    */
-  async swapSides() {
-    const url = `${this._config.TSH_URL}/scoreboard${this._config.SCOREBOARD_NUM}-swap-teams`;
-    try {
-      await axios.get(url);
-      console.log("[bridge] TSH Swap Teams triggered from the control panel");
-      return { ok: true };
-    } catch (err) {
-      const msg = `swapSides failed: ${err.message}`;
-      console.error(`[bridge] ${msg}`);
-      return { ok: false, error: msg };
-    }
+  swapSides() {
+    return this._call(this._sbRoute("-swap-teams"), {
+      success: "TSH Swap Teams triggered from the control panel",
+      failure: "swapSides failed",
+    });
   }
 
   /**
@@ -416,17 +394,21 @@ class TshClient {
    *
    * Lets the bridge notice the operator pressing TSH's Swap Teams button
    * instead of waiting to re-derive the mapping from names on the next game.
+   *
+   * Silent on failure: it is polled every 2s, so logging would flood the console
+   * for as long as TSH is restarting. It doubles as the control-status loop's
+   * liveness probe — see server/control-status.js#probeTsh.
    * @returns {Promise<{ ok: boolean, data?: boolean, error?: string }>}
    */
   async getSwapState() {
-    const url = `${this._config.TSH_URL}/scoreboard${this._config.SCOREBOARD_NUM}-get-swap`;
-    try {
-      const res = await axios.get(url, { timeout: 2000 });
-      return { ok: true, data: String(res.data).trim().toLowerCase() === "true" };
-    } catch (err) {
-      // Polled every 2s — log nothing here or a TSH restart floods the console.
-      return { ok: false, error: `getSwapState failed: ${err.message}` };
-    }
+    const res = await this._call(this._sbRoute("-get-swap"), {
+      timeout: 2000,
+      failure: "getSwapState failed",
+      onError: "silent",
+    });
+    return res.ok
+      ? { ok: true, data: String(res.data).trim().toLowerCase() === "true" }
+      : res;
   }
 
   /**

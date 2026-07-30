@@ -21,7 +21,7 @@ const PortMapper             = require("./lib/port-mapper");
 const TshClient              = require("./lib/tsh-client");
 const StartggClient          = require("./lib/startgg-client");
 const { createFolderSource } = require("./lib/game-source");
-const { resolveTshRoot }     = require("./lib/tsh-root");
+const { resolveOrExit }      = require("./lib/tsh-root");
 const { ClipperSettings }    = require("./lib/clipper-settings");
 const { ComboDetector }      = require("./lib/combo-detector");
 const { ObsClient }          = require("./lib/obs-client");
@@ -40,14 +40,7 @@ const { registerRoutes }      = require("./lib/server/routes");
 // ── TSH root path ─────────────────────────────────────────────────────────────
 // Auto-detected from the repo root unless config.TSH_ROOT pins it, so a TSH
 // version bump doesn't require editing this file.
-let TSH_ROOT;
-try {
-  TSH_ROOT = resolveTshRoot(path.resolve(__dirname, ".."), config.TSH_ROOT);
-  console.log(`[bridge] TSH root: ${TSH_ROOT}`);
-} catch (e) {
-  console.error(`[bridge] ERROR: ${e.message}`);
-  process.exit(1);
-}
+const TSH_ROOT = resolveOrExit(path.resolve(__dirname, ".."), config.TSH_ROOT, "bridge");
 
 // ── Server ────────────────────────────────────────────────────────────────────
 const { app, io, start: startListening } = createServer(config);

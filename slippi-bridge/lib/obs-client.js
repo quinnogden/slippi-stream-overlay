@@ -87,7 +87,7 @@ class ObsClient {
     const changed = s.obsUrl !== this._appliedUrl || s.obsPassword !== this._appliedPassword;
     if (changed && this._connected) {
       // Address or password moved — drop the old socket so the new one is used.
-      this._teardown({ keepEnabled: true });
+      this._teardown();
     }
     this._connect().catch(() => {});
   }

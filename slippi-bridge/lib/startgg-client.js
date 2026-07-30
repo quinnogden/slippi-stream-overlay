@@ -68,11 +68,37 @@ class StartggClient {
       variables.gameData = gameData;
     }
 
+    const res = await this._gql(REPORT_MUTATION, variables, "start.gg rejected the report");
+    if (!res.ok) return res;
+
+    const result = res.data?.reportBracketSet;
+    if (!result) {
+      return { ok: false, error: "start.gg returned no result (unexpected response shape)" };
+    }
+
+    console.log(`[bridge] Reported set ${setId} to start.gg (state ${result.state})`);
+    return { ok: true, state: result.state };
+  }
+
+  /**
+   * One GraphQL round-trip against start.gg.
+   *
+   * Both callers post to the same endpoint with the same headers and timeout,
+   * and have to handle the same three failure modes — a rejected token, the rate
+   * limit, and GraphQL's habit of returning HTTP 200 with an `errors` array on
+   * logical failures (set not in a reportable state, insufficient permission).
+   *
+   * @param {string} query
+   * @param {object} variables
+   * @param {string} [errorPrefix] — prepended to a GraphQL-level error message
+   * @returns {Promise<{ ok: boolean, data?: object, error?: string }>}
+   */
+  async _gql(query, variables, errorPrefix) {
     let res;
     try {
       res = await axios.post(
         ENDPOINT,
-        { query: REPORT_MUTATION, variables },
+        { query, variables },
         {
           headers: {
             "Content-Type": "application/json",
@@ -93,21 +119,13 @@ class StartggClient {
       return { ok: false, error: `Network error contacting start.gg: ${err.message}` };
     }
 
-    // GraphQL returns HTTP 200 with an `errors` array on logical failures
-    // (e.g. set not in a reportable state, insufficient permission).
     const gqlErrors = res.data?.errors;
     if (Array.isArray(gqlErrors) && gqlErrors.length > 0) {
       const msg = gqlErrors.map((e) => e.message).join("; ");
-      return { ok: false, error: `start.gg rejected the report: ${msg}` };
+      return { ok: false, error: errorPrefix ? `${errorPrefix}: ${msg}` : msg };
     }
 
-    const result = res.data?.data?.reportBracketSet;
-    if (!result) {
-      return { ok: false, error: "start.gg returned no result (unexpected response shape)" };
-    }
-
-    console.log(`[bridge] Reported set ${setId} to start.gg (state ${result.state})`);
-    return { ok: true, state: result.state };
+    return { ok: true, data: res.data?.data };
   }
 
   /**
@@ -119,34 +137,11 @@ class StartggClient {
     if (!this.enabled) {
       return { ok: false, error: "start.gg token not configured" };
     }
-    let res;
-    try {
-      res = await axios.post(
-        ENDPOINT,
-        { query: SET_ENTRANTS_QUERY, variables: { setId: String(setId) } },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            Authorization: `Bearer ${this._token}`,
-          },
-          timeout: 10000,
-        }
-      );
-    } catch (err) {
-      const status = err.response?.status;
-      if (status === 401 || status === 403) {
-        return { ok: false, error: "start.gg rejected the token (invalid or expired)." };
-      }
-      return { ok: false, error: `Network error contacting start.gg: ${err.message}` };
-    }
 
-    const gqlErrors = res.data?.errors;
-    if (Array.isArray(gqlErrors) && gqlErrors.length > 0) {
-      return { ok: false, error: gqlErrors.map((e) => e.message).join("; ") };
-    }
+    const res = await this._gql(SET_ENTRANTS_QUERY, { setId: String(setId) });
+    if (!res.ok) return res;
 
-    const slots = res.data?.data?.set?.slots;
+    const slots = res.data?.set?.slots;
     if (!Array.isArray(slots) || slots.length < 2) {
       return { ok: false, error: "start.gg returned no entrants for this set (is it a real, seeded set?)" };
     }

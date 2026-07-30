@@ -436,7 +436,7 @@ async function probeBridge(config) {
   s.slippi ? pass("Health: Slippi", "up")   : fail("Health: Slippi", `SLP_FOLDER unreadable: ${s.slippiDetail?.detail ?? ""}`);
 
   if (s.portMapping) {
-    const m = s.portMapping.method ?? s.portMapping.resolutionMethod ?? "unknown";
+    const m = s.portMapping.method ?? "unknown";
     if (m === "positional") warn("Port → Team", "decided positionally — a low-confidence guess; verify sides before game 1");
     else info("Port → Team", `decided by ${m}`);
   }

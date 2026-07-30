@@ -6,6 +6,22 @@
  * player info) is passed in — the class never reads files or makes HTTP calls.
  */
 
+/**
+ * Do two port→team maps say the same thing?
+ *
+ * Used only to decide whether a resolution is worth logging, so it must be
+ * cheap — this replaces stringifying both maps on every game start.
+ * @param {Object|null} a
+ * @param {Object|null} b
+ */
+function sameMapping(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  return keys.every((k) => a[k] === b[k]);
+}
+
 class PortMapper {
   constructor() {
     this._portToTeam = null; // { [playerIndex]: teamNum } | null  (null = use positional default)
@@ -66,6 +82,23 @@ class PortMapper {
   // ── State updates ───────────────────────────────────────────────────────────
 
   /**
+   * Forget everything and fall back to positional assignment on the next game.
+   * @param {string} reason — logged, so the operator can see why sides moved
+   */
+  _reset(reason) {
+    console.log(`[bridge] ${reason}; resetting port-team mapping`);
+    this._portToTeam       = null;
+    this._portToName       = {};
+    this._portScore        = {};
+    this._resolutionMethod = null;
+  }
+
+  /** True when any mapping state has been accumulated. */
+  _hasState() {
+    return this._portToTeam !== null || Object.keys(this._portToName).length > 0;
+  }
+
+  /**
    * Called before each game start. Uses TSH team info to update the mapping.
    *
    * @param {{ name: string, score: number }} t1  — team 1 info from TshClient
@@ -74,13 +107,7 @@ class PortMapper {
   resolve(t1, t2) {
     // ── Reset on 0-0 (new set) ──────────────────────────────────────────────
     if (t1.score === 0 && t2.score === 0) {
-      if (this._portToTeam !== null || Object.keys(this._portToName).length > 0) {
-        console.log("[bridge] Scores are 0-0; resetting port-team mapping");
-        this._portToTeam = null;
-        this._portToName = {};
-        this._portScore  = {};
-        this._resolutionMethod = null;
-      }
+      if (this._hasState()) this._reset("Scores are 0-0");
       return;
     }
 
@@ -96,11 +123,7 @@ class PortMapper {
     const anyNameMatch = storedNames.some((n) => n && currentNames.includes(n));
 
     if (storedNames.some((n) => n) && currentNames.length > 0 && !anyNameMatch) {
-      console.log("[bridge] Player names completely changed; resetting port-team mapping");
-      this._portToTeam = null;
-      this._portToName = {};
-      this._portScore  = {};
-      this._resolutionMethod = null;
+      this._reset("Player names completely changed");
       return;
     }
 
@@ -142,7 +165,7 @@ class PortMapper {
     // ── Validate and apply ────────────────────────────────────────────────────
     const teams = Object.values(newMapping);
     if (teams.length === 2 && new Set(teams).size === 2) {
-      const changed = JSON.stringify(this._portToTeam) !== JSON.stringify(newMapping);
+      const changed = !sameMapping(this._portToTeam, newMapping);
       this._portToTeam = newMapping;
       this._resolutionMethod = method;
       if (changed) {
@@ -158,14 +181,13 @@ class PortMapper {
    *   Players sorted ascending by playerIndex (first + last used as P1/P2).
    * @param {{ t1: Array<{name:string,skin:number}>, t2: Array<{name:string,skin:number}> }} charHistory
    *   Preloaded chars per team — each is an array (index 0 = player 1).
-   * @param {Function} resolveCharFn  — resolveCharacter(charId, costume, tshRoot) from char_map
-   * @param {string} tshRoot
+   * @param {Function} resolveCharFn  — resolveCharacter(charId, costume) from char_map
    */
-  tryCharacterBased(sorted, charHistory, resolveCharFn, tshRoot) {
+  tryCharacterBased(sorted, charHistory, resolveCharFn) {
     const [rawA, rawB] = [sorted[0], sorted[sorted.length - 1]];
 
-    const charA    = resolveCharFn(rawA.characterId, rawA.characterColor ?? 0, tshRoot)?.display;
-    const charB    = resolveCharFn(rawB.characterId, rawB.characterColor ?? 0, tshRoot)?.display;
+    const charA    = resolveCharFn(rawA.characterId, rawA.characterColor ?? 0)?.display;
+    const charB    = resolveCharFn(rawB.characterId, rawB.characterColor ?? 0)?.display;
     const costumeA = rawA.characterColor ?? 0;
     const costumeB = rawB.characterColor ?? 0;
 
@@ -217,16 +239,15 @@ class PortMapper {
    * @param {{ t1: Array<{name,skin}>, t2: Array<{name,skin}> }} charHistory
    *   Preloaded chars per TSH team (up to 2 per team).
    * @param {Function} resolveCharFn
-   * @param {string} tshRoot
    */
-  tryCharacterBasedDoubles(groups, charHistory, resolveCharFn, tshRoot) {
+  tryCharacterBasedDoubles(groups, charHistory, resolveCharFn) {
     const teamIds = Object.keys(groups).map(Number);
     if (teamIds.length !== 2) return;
 
     const scoreGroup = (players, tshChars) => {
       let hits = 0;
       for (const raw of players) {
-        const display = resolveCharFn(raw.characterId, raw.characterColor ?? 0, tshRoot)?.display;
+        const display = resolveCharFn(raw.characterId, raw.characterColor ?? 0)?.display;
         if (!display) continue;
         for (const pre of tshChars) {
           if (pre.name && display === pre.name) { hits++; break; }
@@ -273,13 +294,7 @@ class PortMapper {
   resolveDoubles(groups, t1, t2, t1Names, t2Names) {
     // ── Reset on 0-0 ────────────────────────────────────────────────────────
     if (t1.score === 0 && t2.score === 0) {
-      if (this._portToTeam !== null || Object.keys(this._portToName).length > 0) {
-        console.log("[bridge] Scores are 0-0; resetting port-team mapping (doubles)");
-        this._portToTeam = null;
-        this._portToName = {};
-        this._portScore  = {};
-        this._resolutionMethod = null;
-      }
+      if (this._hasState()) this._reset("Scores are 0-0 (doubles)");
       return;
     }
 
@@ -366,7 +381,7 @@ class PortMapper {
     const mapping = {};
     for (const raw of groups[tidA]) mapping[raw.playerIndex] = teamA;
     for (const raw of groups[tidB]) mapping[raw.playerIndex] = teamB;
-    const changed = JSON.stringify(this._portToTeam) !== JSON.stringify(mapping);
+    const changed = !sameMapping(this._portToTeam, mapping);
     this._portToTeam = mapping;
     if (changed) console.log("[bridge] Resolved port→team (doubles):", JSON.stringify(this._portToTeam));
   }
@@ -423,14 +438,12 @@ class PortMapper {
    * @returns {true | null}  true on success, null if fewer than 2 ports are known.
    */
   swap(currentPlayers) {
-    // Collect all known ports
-    const knownPorts = [
-      ...Object.keys(this._portToName),
-      ...Object.keys(this._portScore),
-      ...(this._portToTeam ? Object.keys(this._portToTeam) : []),
-      ...(currentPlayers ? Object.values(currentPlayers).map((p) => String(p.playerIndex)) : []),
-    ];
-    const ports = [...new Set(knownPorts)].map(Number).sort((a, b) => a - b);
+    // Every port the mapper knows about, plus any in the live game it hasn't
+    // recorded yet (a swap can be pressed before the first game end).
+    const ports = [...new Set([
+      ...this.getKnownPorts(),
+      ...(currentPlayers ? Object.values(currentPlayers).map((p) => p.playerIndex) : []),
+    ])].sort((a, b) => a - b);
 
     if (ports.length < 2) return null;
 

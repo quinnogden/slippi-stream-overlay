@@ -21,10 +21,8 @@ const config = {
   // Port the bridge's Socket.io server listens on for layout connections
   BRIDGE_PORT: 5001,
 
-  // ── Port Mapping ───────────────────────────────────────────────────────────
-  // Maps Slippi player port index (0-based) to TSH team number (1-based).
-  // In a standard 1v1 mirror, port 0 = P1 (left side) and port 1 = P2 (right side).
-  PORT_TO_TEAM: { 0: 1, 1: 2 },
+  // Port→team assignment has no config: PortMapper derives it per game from
+  // names, then scores, then TSH's character history, then port order.
 
   // ── Combo Clipper ──────────────────────────────────────────────────────────
   // Starting values for live combo detection → OBS replay-buffer saves. These

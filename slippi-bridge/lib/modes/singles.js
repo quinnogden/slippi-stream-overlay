@@ -17,13 +17,12 @@ function createSingles(ctx) {
   const { tsh, portMapper, io, state } = ctx;
 
   function onGameStart(sorted, tshState) {
-    const t1Info = tshState ? tsh.getTeamInfo(tshState, 1) : { name: "", score: 0 };
-    const t2Info = tshState ? tsh.getTeamInfo(tshState, 2) : { name: "", score: 0 };
-    const startedAtZeroZero = t1Info.score === 0 && t2Info.score === 0;
+    const { t1, t2 } = tsh.getTeamInfos(tshState);
+    const startedAtZeroZero = t1.score === 0 && t2.score === 0;
 
-    resolvePorts(ctx, sorted, tshState, t1Info, t2Info);
+    resolvePorts(ctx, sorted, tshState, t1, t2);
 
-    const players = buildPlayersSingles(portMapper, sorted, ctx.TSH_ROOT);
+    const players = buildPlayersSingles(portMapper, sorted);
     state.currentGameState = { players, isDoubles: false, startedAtZeroZero };
 
     pushCharacters(tsh, players);

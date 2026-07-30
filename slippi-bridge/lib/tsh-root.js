@@ -94,4 +94,27 @@ function resolveTshRoot(baseDir, override) {
   return candidates[0];
 }
 
-module.exports = { resolveTshRoot, looksLikeTshRoot };
+/**
+ * resolveTshRoot, but for a process that cannot continue without it.
+ *
+ * Both entry points (index.js, scripts/start-all.js) want the same thing: log
+ * the resolved root, or print the error and exit 1. Nothing useful happens after
+ * a failure, so the try/catch was copy-pasted rather than meaningful.
+ *
+ * @param {string} baseDir
+ * @param {string|null} override
+ * @param {string} tag — log prefix, e.g. "bridge" or "launcher"
+ * @returns {string} absolute path to the TSH root
+ */
+function resolveOrExit(baseDir, override, tag) {
+  try {
+    const root = resolveTshRoot(baseDir, override);
+    console.log(`[${tag}] TSH root: ${root}`);
+    return root;
+  } catch (e) {
+    console.error(`[${tag}] ERROR: ${e.message}`);
+    process.exit(1);
+  }
+}
+
+module.exports = { resolveTshRoot, resolveOrExit, looksLikeTshRoot };

@@ -36,25 +36,25 @@ const CHAR_MAP = {
 };
 
 /**
- * Resolves a Slippi character ID + costume to display info and icon path.
+ * Resolves a Slippi character ID + costume to TSH display info.
+ *
+ * Deliberately returns no icon path: the layouts build `chara_2_{codename}_{skin}.png`
+ * themselves from a browser-relative base, so a bridge-side absolute path was
+ * emitted on every game start and read by nothing.
+ *
  * @param {number} charId       - Slippi character ID (0–25)
  * @param {number} costumeIndex - Slippi characterColor field (0-based)
- * @param {string} tshRoot      - Path to TSH install root
- * @returns {{ codename, display, charId, costumeIndex, iconPath } | null}
+ * @returns {{ codename, display, charId, costumeIndex } | null}
  */
-function resolveCharacter(charId, costumeIndex, tshRoot) {
+function resolveCharacter(charId, costumeIndex) {
   const char = CHAR_MAP[charId];
   if (!char) return null;
-
-  const costume = String(costumeIndex ?? 0).padStart(2, "0");
-  const iconPath = `${tshRoot}/user_data/games/ssbm/base_files/icon/chara_2_${char.codename}_${costume}.png`;
 
   return {
     charId,
     costumeIndex: costumeIndex ?? 0,
     codename: char.codename,
     display: char.display,
-    iconPath,
   };
 }
 

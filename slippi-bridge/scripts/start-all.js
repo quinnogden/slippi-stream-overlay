@@ -13,7 +13,7 @@ const path  = require("path");
 const axios = require("axios");
 const { spawn } = require("child_process");
 const config = require("../config");
-const { resolveTshRoot } = require("../lib/tsh-root");
+const { resolveOrExit } = require("../lib/tsh-root");
 
 // This script lives in slippi-bridge/scripts/, so the bridge folder is one level
 // up and the repo root (where the TournamentStreamHelper-* folder sits) is two.
@@ -21,14 +21,7 @@ const BRIDGE_DIR = path.resolve(__dirname, "..");
 const REPO_ROOT  = path.resolve(__dirname, "..", "..");
 
 // Auto-detected unless config.TSH_ROOT pins it — see tsh-root.js.
-let TSH_ROOT;
-try {
-  TSH_ROOT = resolveTshRoot(REPO_ROOT, config.TSH_ROOT);
-  console.log(`[launcher] TSH root: ${TSH_ROOT}`);
-} catch (e) {
-  console.error(`[launcher] ERROR: ${e.message}`);
-  process.exit(1);
-}
+const TSH_ROOT = resolveOrExit(REPO_ROOT, config.TSH_ROOT, "launcher");
 
 const TSH_EXE  = path.join(TSH_ROOT, "TSH.exe");
 const TSH_BAT  = path.join(TSH_ROOT, "TSH_bat.bat");
@@ -56,16 +49,26 @@ function launchTsh() {
   return false;
 }
 
-/** Resolve true once TSH's web server answers (any HTTP response counts). */
-async function waitForTsh() {
+/** One probe: true if TSH's web server answers at all (a 404 still counts). */
+async function tshResponds(timeout) {
+  try {
+    await axios.get(`${config.TSH_URL}/`, { timeout });
+    return true;
+  } catch (err) {
+    return Boolean(err.response);
+  }
+}
+
+/**
+ * Resolve true once TSH's web server answers.
+ * @param {{ once?: boolean }} [opts] — once: probe a single time, print nothing
+ */
+async function waitForTsh({ once = false } = {}) {
+  if (once) return tshResponds(1500);
+
   const deadline = Date.now() + READY_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    try {
-      await axios.get(`${config.TSH_URL}/`, { timeout: 2000 });
-      return true;
-    } catch (err) {
-      if (err.response) return true; // even a 404 means the server is up
-    }
+    if (await tshResponds(2000)) return true;
     process.stdout.write(".");
     await sleep(POLL_INTERVAL_MS);
   }
@@ -80,12 +83,7 @@ function startBridge() {
 }
 
 (async () => {
-  const alreadyUp = await (async () => {
-    try { await axios.get(`${config.TSH_URL}/`, { timeout: 1500 }); return true; }
-    catch (err) { return Boolean(err.response); }
-  })();
-
-  if (alreadyUp) {
+  if (await waitForTsh({ once: true })) {
     console.log("[launcher] TSH already running.");
   } else if (!launchTsh()) {
     console.error("[launcher] Start TSH manually, then run start-bridge.bat.");
