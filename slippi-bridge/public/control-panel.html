@@ -20,7 +20,6 @@
     h1 { font-size: 15px; margin: 0; letter-spacing: .04em; text-transform: uppercase; color: var(--dim); }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
     .row { display: flex; align-items: center; gap: 8px; }
-    .between { justify-content: space-between; }
     .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 10px; flex-wrap: wrap; }
     .health { display: flex; gap: 14px; }
     .dot { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
@@ -37,7 +36,6 @@
       display: flex; align-items: center; gap: 7px; flex: 1 1 auto; min-width: 0;
       background: none; border: 0; padding: 0; min-height: 32px; text-align: left; cursor: pointer;
     }
-    .head-toggle:hover:not(:disabled) { border-color: transparent; }
     .head-toggle:hover .label { color: var(--text); }
     .head-toggle .label { margin: 0; }
     .caret { color: var(--dim); font-size: 10px; transition: transform .15s ease; flex: 0 0 auto; }
@@ -46,7 +44,6 @@
        overflow-y scroller and an animated height would fight it. */
     .card.collapsed .card-body { display: none; }
     .card-body { margin-top: 8px; }
-    .head-note { font-size: 11px; color: var(--dim); flex: 0 0 auto; }
     button {
       background: var(--card2); color: var(--text); border: 1px solid var(--line);
       border-radius: 6px; padding: 8px 12px; font-size: 13px; cursor: pointer;
@@ -140,8 +137,8 @@
 
     /* Two columns once there's room — a laptop or tablet shouldn't get one
        narrow strip. Multicolumn rather than an explicit grid: cards change
-       height every time one is collapsed, and a fixed row/column placement
-       (which is what .card-tall used to do) leaves holes when they do. */
+       height every time one is collapsed, and pinning a card to a fixed
+       row/column leaves holes the moment they do. */
     @media (min-width: 760px) {
       .cards { columns: 2; column-gap: 10px; }
       .cards .card { break-inside: avoid; margin: 0 0 10px; display: inline-block; width: 100%; }
@@ -228,20 +225,10 @@
         <div class="card-body">
           <div class="hint" id="clip-status">—</div>
 
-          <div class="clip-fields">
-            <label class="field"><span>Min moves</span><input type="number" id="clip-minMoves" min="1" max="50" step="1" /></label>
-            <label class="field"><span>Min damage %</span><input type="number" id="clip-minDamage" min="0" max="999" step="1" /></label>
-            <label class="field"><span>Cooldown (s)</span><input type="number" id="clip-cooldownSec" min="0" max="600" step="1" /></label>
-            <label class="field"><span>Save delay (ms)</span><input type="number" id="clip-saveDelayMs" min="0" max="60000" step="100" /></label>
-            <label class="field"><span>Max combo (s, 0 = off)</span><input type="number" id="clip-maxComboDurationSec" min="0" max="480" step="1" /></label>
-            <label class="field"><span>Max clips/game (0 = ∞)</span><input type="number" id="clip-maxClipsPerGame" min="0" max="100" step="1" /></label>
-            <label class="field check"><input type="checkbox" id="clip-requireKill" /><span>Only combos that kill</span></label>
-            <label class="field check"><input type="checkbox" id="clip-autoStartBuffer" /><span>Auto-start OBS buffer</span></label>
-            <label class="field check full"><input type="checkbox" id="clip-notifySidePanel" /><span>Show a toast on the side panel</span></label>
-            <label class="field full"><span>OBS WebSocket URL</span><input type="text" id="clip-obsUrl" placeholder="ws://127.0.0.1:4455" /></label>
-            <label class="field full"><span>OBS WebSocket password</span><input type="password" id="clip-obsPassword" placeholder="(blank if auth is off)" /></label>
-            <label class="field full"><span>Replay clip folder (for the OBS playlist script)</span><input type="text" id="clip-clipFolder" placeholder="C:\Users\…\Videos" /></label>
-          </div>
+          <!-- Rendered from CLIP_FIELDS below: the ids used to be written out
+               here AND listed again in JS, and any drift between the two threw
+               inside render(), which has no try/catch and freezes the panel. -->
+          <div class="clip-fields" id="clip-fields"></div>
 
           <div class="row" style="margin-top:10px; gap:8px">
             <button class="compact primary" id="btn-clip-save">Save settings</button>
@@ -285,6 +272,45 @@
       } catch (e) {
         return { ok: false, error: String(e) };
       }
+    }
+
+    /**
+     * Fire an action and toast the outcome — the shape every button here shares.
+     * @param {string} path
+     * @param {string|((r:object)=>string)} okMsg  — toast text on success
+     * @param {string} failLabel — prefixed to the error on failure
+     * @param {object} [opts] — { body, method, then } (then runs only on success)
+     */
+    async function act(path, okMsg, failLabel, opts = {}) {
+      const r = await api(path, opts.method || "POST", opts.body);
+      toast(r.ok ? (typeof okMsg === "function" ? okMsg(r) : okMsg)
+                 : (failLabel + ": " + r.error), r.ok);
+      if (r.ok && opts.then) opts.then(r);
+      return r;
+    }
+
+    /**
+     * The inline confirm used before anything destructive (loading over a set in
+     * progress, publishing a result to a live bracket).
+     * @param {{ html: string, confirmLabel: string, onConfirm: Function, onCancel?: Function }} o
+     * @returns {HTMLElement}
+     */
+    function confirmBox(o) {
+      const box = document.createElement("div");
+      box.className = "confirm";
+      const msg = document.createElement("div");
+      msg.style.marginBottom = "8px";
+      msg.innerHTML = o.html;
+      const yes = document.createElement("button");
+      yes.className = "danger";
+      yes.textContent = o.confirmLabel;
+      yes.onclick = () => o.onConfirm(box);
+      const no = document.createElement("button");
+      no.textContent = "Cancel";
+      no.style.marginLeft = "8px";
+      no.onclick = () => o.onCancel?.();
+      box.append(msg, yes, no);
+      return box;
     }
 
     function escapeHtml(str) {
@@ -352,11 +378,10 @@
     function render(s) {
       const prevSetId = status?.currentSet?.setId;
       status = s;
+      // Labels are static markup; only the up/down class and tooltip change.
       $("dot-tsh").classList.toggle("up", !!s.tsh);
-      $("dot-tsh").textContent = "TSH";
       const sl = $("dot-slippi");
       sl.classList.toggle("up", !!s.slippi);
-      sl.textContent = "Slippi";
       sl.title = s.slippiDetail?.detail || "";
 
       // Port mapping
@@ -414,10 +439,43 @@
     // being typed; saving clears it and the next tick resyncs from the bridge.
     let clipDirty = false;
 
-    const CLIP_NUMBER_FIELDS = ["minMoves", "minDamage", "cooldownSec", "saveDelayMs",
-                                "maxComboDurationSec", "maxClipsPerGame"];
-    const CLIP_CHECK_FIELDS  = ["requireKill", "autoStartBuffer", "notifySidePanel"];
-    const CLIP_TEXT_FIELDS   = ["obsUrl", "obsPassword", "clipFolder"];
+    // Single source of truth for the clipper form: the markup, the read/write
+    // loops and the dirty-tracking all derive from this. Key names must match
+    // clipper-settings.js's field list exactly — the bridge validates and clamps
+    // every value, so the min/max here are only a nicety for the number spinners.
+    const CLIP_FIELDS = [
+      { key: "minMoves",            label: "Min moves",             type: "number", min: 1, max: 50 },
+      { key: "minDamage",           label: "Min damage %",          type: "number", min: 0, max: 999 },
+      { key: "cooldownSec",         label: "Cooldown (s)",          type: "number", min: 0, max: 600 },
+      { key: "saveDelayMs",         label: "Save delay (ms)",       type: "number", min: 0, max: 60000, step: 100 },
+      { key: "maxComboDurationSec", label: "Max combo (s, 0 = off)", type: "number", min: 0, max: 480 },
+      { key: "maxClipsPerGame",     label: "Max clips/game (0 = ∞)", type: "number", min: 0, max: 100 },
+      { key: "requireKill",         label: "Only combos that kill",  type: "check" },
+      { key: "autoStartBuffer",     label: "Auto-start OBS buffer",  type: "check" },
+      { key: "notifySidePanel",     label: "Show a toast on the side panel", type: "check", full: true },
+      { key: "obsUrl",              label: "OBS WebSocket URL",      type: "text", full: true, placeholder: "ws://127.0.0.1:4455" },
+      { key: "obsPassword",         label: "OBS WebSocket password", type: "password", full: true, placeholder: "(blank if auth is off)" },
+      { key: "clipFolder",          label: "Replay clip folder (for the OBS playlist script)", type: "text", full: true, placeholder: "C:\\Users\\…\\Videos" },
+    ];
+
+    (function buildClipFields() {
+      $("clip-fields").innerHTML = CLIP_FIELDS.map((f) => {
+        const cls = "field" + (f.type === "check" ? " check" : "") + (f.full ? " full" : "");
+        const span = "<span>" + escapeHtml(f.label) + "</span>";
+        if (f.type === "check") {
+          return '<label class="' + cls + '"><input type="checkbox" id="clip-' + f.key + '" />' + span + "</label>";
+        }
+        const attrs = f.type === "number"
+          ? ' min="' + f.min + '" max="' + f.max + '" step="' + (f.step ?? 1) + '"'
+          : (f.placeholder ? ' placeholder="' + escapeHtml(f.placeholder) + '"' : "");
+        return '<label class="' + cls + '">' + span +
+               '<input type="' + f.type + '" id="clip-' + f.key + '"' + attrs + " /></label>";
+      }).join("");
+    })();
+
+    const CLIP_NUMBER_FIELDS = CLIP_FIELDS.filter((f) => f.type === "number").map((f) => f.key);
+    const CLIP_CHECK_FIELDS  = CLIP_FIELDS.filter((f) => f.type === "check").map((f) => f.key);
+    const CLIP_TEXT_FIELDS   = CLIP_FIELDS.filter((f) => f.type === "text" || f.type === "password").map((f) => f.key);
 
     function renderClipper(c) {
       if (!c) return;
@@ -480,18 +538,18 @@
 
     // The master switch applies immediately — it's the one control an operator
     // reaches for mid-set, and making them press Save too invites a dead toggle.
-    $("clip-enabled").onchange = async () => {
+    $("clip-enabled").onchange = () => {
       const enabled = $("clip-enabled").checked;
-      const r = await api("/api/clipper/toggle", "POST", { enabled });
-      toast(r.ok ? (enabled ? "Combo clipper on" : "Combo clipper off")
-                 : ("Couldn't change it: " + r.error), r.ok);
+      act("/api/clipper/toggle", enabled ? "Combo clipper on" : "Combo clipper off",
+          "Couldn't change it", { body: { enabled } });
     };
 
     $("btn-clip-save").onclick = async () => {
       const r = await api("/api/clipper/settings", "POST", collectClipperSettings());
       clipDirty = false;
       // save() reports ok:false when only the disk write failed — the settings
-      // are live either way, so the message has to distinguish the two.
+      // are live either way, so the message has to distinguish the two. That's
+      // why this doesn't go through act().
       toast(r.ok ? "Clipper settings saved" : (r.error || "Save failed"), r.ok);
       if (r.settings) renderClipper({ ...(status?.clipper || {}), settings: r.settings });
     };
@@ -590,19 +648,14 @@
     }
 
     function buildLoadConfirm(set) {
-      const box = document.createElement("div");
-      box.className = "confirm";
-      box.innerHTML = "<div style='margin-bottom:8px'>The current set is at <b>" +
-        (status?.currentSet?.scores?.team1 ?? 0) + "–" + (status?.currentSet?.scores?.team2 ?? 0) +
-        "</b>. Loading this replaces it.</div>";
-      const yes = document.createElement("button");
-      yes.className = "danger"; yes.textContent = "Load anyway";
-      yes.onclick = () => { pendingSet = null; loadSet(set); };
-      const no = document.createElement("button");
-      no.textContent = "Cancel"; no.style.marginLeft = "8px";
-      no.onclick = () => { pendingSet = null; renderSets(); };
-      box.appendChild(yes); box.appendChild(no);
-      return box;
+      return confirmBox({
+        html: "The current set is at <b>" +
+          (status?.currentSet?.scores?.team1 ?? 0) + "–" +
+          (status?.currentSet?.scores?.team2 ?? 0) + "</b>. Loading this replaces it.",
+        confirmLabel: "Load anyway",
+        onConfirm: () => { pendingSet = null; loadSet(set); },
+        onCancel:  () => { pendingSet = null; renderSets(); },
+      });
     }
 
     /** One tap loads, except when it would discard a set already in progress. */
@@ -615,10 +668,9 @@
       loadSet(set);
     }
 
-    async function loadSet(set) {
-      const r = await api("/api/load-set", "POST", { setId: set.id });
-      toast(r.ok ? "Loaded " + (set.round_name || "set") : ("Load failed: " + r.error), r.ok);
-      if (r.ok) fetchSets();
+    function loadSet(set) {
+      return act("/api/load-set", "Loaded " + (set.round_name || "set"), "Load failed",
+                 { body: { setId: set.id }, then: fetchSets });
     }
 
     async function fetchSets() {
@@ -640,23 +692,15 @@
     }
 
     // ── Actions ──
-    $("btn-swap").onclick = async () => {
-      const r = await api("/api/swap");
-      toast(r.ok ? "Teams swapped" : ("Swap failed: " + r.error), r.ok);
-    };
+    $("btn-swap").onclick = () => act("/api/swap", "Teams swapped", "Swap failed");
 
     // TSH's own Swap Teams — moves names and scores across the scoreboard. The
     // bridge's 2s poll sees the flag change and re-derives the port mapping.
-    $("btn-swap-sides").onclick = async () => {
-      const r = await api("/api/swap-sides");
-      toast(r.ok ? "Sides switched" : ("Switch sides failed: " + r.error), r.ok);
-    };
+    $("btn-swap-sides").onclick = () =>
+      act("/api/swap-sides", "Sides switched", "Switch sides failed");
 
-    $("btn-pull").onclick = async () => {
-      const r = await api("/api/pull-stream");
-      toast(r.ok ? "Pulled next match" : ("Pull failed: " + r.error), r.ok);
-      if (r.ok) fetchSets();
-    };
+    $("btn-pull").onclick = () =>
+      act("/api/pull-stream", "Pulled next match", "Pull failed", { then: fetchSets });
 
     $("btn-refresh-sets").onclick = () => fetchSets();
     $("set-filter").oninput = () => renderSets();
@@ -675,25 +719,18 @@
       const winner = t1 > t2 ? (cs.teamNames.team1 || "Team 1") : (cs.teamNames.team2 || "Team 2");
       const box = $("report-confirm");
       box.innerHTML = "";
-      const c = document.createElement("div");
-      c.className = "confirm";
-      c.innerHTML = "<div style='margin-bottom:8px'>Report <b>" + escapeHtml(winner) +
-        "</b> wins <b>" + t1 + "–" + t2 + "</b> to start.gg?</div>";
-      const yes = document.createElement("button");
-      yes.className = "danger"; yes.textContent = "Yes, report it";
-      const no = document.createElement("button");
-      no.textContent = "Cancel"; no.style.marginLeft = "8px";
-      no.onclick = () => { box.innerHTML = ""; };
-      yes.onclick = async () => {
-        box.innerHTML = '<div class="muted">Reporting…</div>';
-        const r = await api("/api/report");
-        box.innerHTML = "";
-        toast(r.ok ? ("Reported: " + r.winnerName + " " + r.score) : ("Report failed: " + r.error), r.ok);
-        // The reported set leaves the open list, so the next one is one tap away.
-        if (r.ok) fetchSets();
-      };
-      c.appendChild(yes); c.appendChild(no);
-      box.appendChild(c);
+      box.appendChild(confirmBox({
+        html: "Report <b>" + escapeHtml(winner) + "</b> wins <b>" + t1 + "–" + t2 + "</b> to start.gg?",
+        confirmLabel: "Yes, report it",
+        onCancel: () => { box.innerHTML = ""; },
+        onConfirm: async () => {
+          box.innerHTML = '<div class="muted">Reporting…</div>';
+          // The reported set leaves the open list, so the next one is one tap away.
+          await act("/api/report", (r) => "Reported: " + r.winnerName + " " + r.score,
+                    "Report failed", { then: fetchSets });
+          box.innerHTML = "";
+        },
+      }));
     };
 
     // ── Live status ──
@@ -708,8 +745,9 @@
     sio.onerror = () => toast("Can't reach the bridge at " + (API_BASE || location.origin), false);
     document.head.appendChild(sio);
 
-    // Also fetch once on load in case we connect between pushes.
-    api("/api/status", "GET").then((s) => { if (s && s.currentSet) render(s); });
+    // No status fetch on load: the bridge pushes control_status to every socket
+    // as it connects, so one would only duplicate a TSH round-trip per reload —
+    // and an OBS dock reloads every time it's reopened.
 
     // Every refresh is a live paginated start.gg query on TSH's side, so this
     // stays slow and pauses entirely while the panel isn't on screen.
