@@ -10,12 +10,15 @@ Elsewhere in the repo:
 
 - [../README.md](../README.md) — what the overlay does, feature by feature; the operator-facing manual.
 - [../CLAUDE.md](../CLAUDE.md) — architecture, module boundaries, and the non-obvious constraints behind the code. The map to read before changing anything.
-- `slippi-bridge/preflight.js` — `node preflight.js` (add `--offline` to skip network probes) automates the mechanical parts of the fresh-install checklist.
+- `slippi-bridge/scripts/preflight.js` — `node scripts/preflight.js` (add `--offline` to skip network probes) automates the mechanical parts of the fresh-install checklist.
 
 ## Conventions these docs assume
 
-- **Only `layout/` is ours inside `TournamentStreamHelper-*/`.** Everything else there is a vendored third-party Python app: read it for reference, never edit it.
-- **Never hardcode the TSH folder name** — it carries the version. Use `resolveTshRoot()` from `tsh-root.js`.
-- **`config.js` is committed; secrets go in `config.local.js`** (gitignored). Clipper tunables live in `clipper-settings.json` (also gitignored) — `config.CLIPPER` is only the default layer.
+- **Only `layout/` is ours inside `TournamentStreamHelper-*/`.** Everything else there is a vendored third-party Python app: read it for reference, never edit it. Within it, `layout/shared/` is ours and `layout/include/` is not.
+- **`slippi-bridge/index.js` is a composition root.** Behaviour goes in `lib/`; `index.js` only builds services and wires them together.
 - **Client modules return `{ ok, error?, data? }` rather than throwing.** Every caller is either an Express handler or a fire-and-forget game event, and neither should be able to take the bridge down because TSH or OBS happens to be closed.
 - **Nothing may block scoring.** Stage reporting, clip saving and status refreshes are all best-effort and isolated from the path that awards a point.
+
+The path, secrets and TSH-version rules these docs rely on are in
+[CLAUDE.md → Known Gotchas](../CLAUDE.md#known-gotchas) — kept in one place rather than restated
+here, because a copy is a copy that goes stale.

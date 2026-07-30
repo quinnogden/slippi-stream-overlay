@@ -25,7 +25,6 @@ The whole `currentGameState`. Emitted on game start, on a manual or TSH-side swa
       costumeIndex: 2,          // player.characterColor
       codename: "fox",          // TSH asset codename
       display: "Fox",           // TSH display name, used by the update-team API
-      iconPath: "…/chara_2_fox_02.png",
     },
     // …
   },
@@ -37,6 +36,7 @@ The whole `currentGameState`. Emitted on game start, on a manual or TSH-side swa
 ```
 
 - A player whose character id doesn't resolve is **omitted** from `players` — don't assume two entries.
+- There is deliberately **no icon path**. Build it browser-side with `charIconSrc(codename, costumeIndex)` from `layout/shared/tsh-assets.js`; a bridge-side absolute path is useless to a browser source.
 - `players` is an object, not an array, and its keys are port indices. `Object.values()` is the safe iteration.
 - Consumers must detect doubles from the DOM rather than trusting a cached `isDoubles`; see the `tsh_update` note in [CLAUDE.md](../CLAUDE.md).
 
@@ -137,7 +137,7 @@ Two consumer rules learned the hard way:
 
 ## HTTP routes
 
-All under `http://localhost:5001`. Responses are `{ ok, error?, data? }` — the same convention as `tsh-client.js` and `startgg-client.js` — with the exception of `/api/status`, which returns the status object directly.
+All under `http://localhost:5001`. Responses are `{ ok, error?, data? }` — the same convention as `lib/tsh-client.js` and `lib/startgg-client.js` — with the exception of `/api/status`, which returns the status object directly.
 
 A permissive CORS middleware fronts every route. It exists for exactly one case: an OBS dock pointed at `control-panel.html` as a **file**, which runs on a `file://` origin (`Origin: null`) and would otherwise be unable to reach `/api/*`. Same-origin dock use needs none of it.
 

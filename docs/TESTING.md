@@ -7,7 +7,7 @@ Almost nothing here has automated tests, and the expensive failures are the ones
 **Start with the cheap one:**
 
 ```bash
-cd slippi-bridge && node preflight.js --offline
+cd slippi-bridge && node scripts/preflight.js --offline
 ```
 
 That covers config, dependencies, the TSH install, the four `general` settings, and layout integrity without touching the network. Drop `--offline` once TSH, the bridge and OBS are up. See [FRESH-INSTALL.md](FRESH-INSTALL.md).
@@ -22,17 +22,17 @@ That covers config, dependencies, the TSH install, the four `general` settings, 
 cd slippi-bridge
 
 # Character + stage mapping
-node -e 'const {resolveCharacter,resolveStage}=require("./char_map");
+node -e 'const {resolveCharacter,resolveStage}=require("./lib/char_map");
 console.log(resolveCharacter(2, 3, null));   // Fox, costume 3
 console.log(resolveStage(31), resolveStage(33));  // battlefield, then null (target test)'
 
 # Port mapping — no TSH needed, everything is passed in
-node -e 'const {PortMapper}=require("./port-mapper"); const m=new PortMapper();
+node -e 'const PortMapper=require("./lib/port-mapper"); const m=new PortMapper();
 m.resolve({name:"ALICE",score:1},{name:"BOB",score:0});
 console.log(m.getResolutionInfo());'
 
 # Settings validation and clamping (values arrive from a browser form)
-node -e 'const {ClipperSettings}=require("./clipper-settings");
+node -e 'const {ClipperSettings}=require("./lib/clipper-settings");
 const s=new ClipperSettings(require("./config"));
 console.log(s.save({minMoves:"999", minDamage:"abc", enabled:"true"}));'
 ```
@@ -86,7 +86,7 @@ const t = setInterval(() => {
 
 Expected: `[bridge] New game file:`, then a `slippi_game_start`, `[clipper]` lines if the clipper is on, then one `[handwarmer]` line and a `game-end` with the right winner.
 
-**B. The OneDrive hazard** — copy a *finished* replay in slowly **without** zeroing the header (`cp` a large file across a slow link, or write it in chunks keeping the real length). Expected: `[bridge] Parser read past EOF … rebuilding`, and then normal behaviour. That log line is the guard in [game-source.js](../slippi-bridge/game-source.js) working. If you instead see silence and no `game-end`, the guard has regressed — this is the single most damaging regression possible in that file, because it costs the remainder of a set.
+**B. The OneDrive hazard** — copy a *finished* replay in slowly **without** zeroing the header (`cp` a large file across a slow link, or write it in chunks keeping the real length). Expected: `[bridge] Parser read past EOF … rebuilding`, and then normal behaviour. That log line is the guard in [game-source.js](../slippi-bridge/lib/game-source.js) working. If you instead see silence and no `game-end`, the guard has regressed — this is the single most damaging regression possible in that file, because it costs the remainder of a set.
 
 ### Testing the handlers without any file at all
 
@@ -151,7 +151,7 @@ Note the toast is deliberately unreachable from the browser console — the layo
 
 ### Scoreboard
 
-- Use `melee.html`. `index.html` doesn't load the bridge's Socket.io client.
+- Use `melee.html`. There is no `index.html` in `scoreboard/`, and `meleePlayers.html` deliberately doesn't load the bridge client.
 - The costume patch is timed off the `tsh_update` DOM event with a 150ms delay. To test it, change the character in TSH and confirm the icon ends on the **right costume** — TSH defaults to costume 0, so a broken patch looks like "always costume 0", not like an error.
 - Switch TSH from singles to doubles with the page open: icons must clear immediately. That path reads the DOM, not cached bridge state, precisely so this works.
 

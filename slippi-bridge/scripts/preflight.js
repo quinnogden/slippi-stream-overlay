@@ -204,6 +204,9 @@ function checkTshInstall(config) {
   // OBS shows the wrong overlay with no error anywhere.
   const required = [
     "theme.css", "main.css", "logo.png", "ThePark.png",
+    // shared/ is loaded by the scoreboard, side panel and bracket alike; without
+    // it the character icons and the bridge connection both silently vanish.
+    "shared/tsh-assets.js", "shared/slippi-bridge-client.js",
     "scoreboard/melee.html", "scoreboard/meleePlayers.html", "scoreboard/index.js", "scoreboard/index.css",
     "side-panel/side-panel.html", "side-panel/side-panel.js", "side-panel/side-panel.css",
     "bracket/index.html", "bracket/index.js", "bracket/index.css",

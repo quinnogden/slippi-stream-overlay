@@ -29,7 +29,7 @@ The bridge tracks which Slippi player port belongs to which player by name, so T
 
 ## Setup
 
-> Setting up on a **new machine**, a **fresh TSH extract**, or a **fresh OBS profile**? Use [docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md) instead of this section. It's an ordered checklist covering the parts this section leaves out — the TSH settings that silently fight the bridge, the OBS replay buffer and WebSocket setup, and a verification pass — plus which files a fresh clone doesn't include. Run `cd slippi-bridge && node preflight.js` at any point to check the mechanical half of it automatically.
+> Setting up on a **new machine**, a **fresh TSH extract**, or a **fresh OBS profile**? Use [docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md) instead of this section. It's an ordered checklist covering the parts this section leaves out — the TSH settings that silently fight the bridge, the OBS replay buffer and WebSocket setup, and a verification pass — plus which files a fresh clone doesn't include. Run `cd slippi-bridge && node scripts/preflight.js` at any point to check the mechanical half of it automatically.
 >
 > The steps below are the short version for a machine that's already mostly configured. Other docs: [docs/TESTING.md](docs/TESTING.md), [docs/BRIDGE-API.md](docs/BRIDGE-API.md).
 
@@ -101,7 +101,7 @@ Or double-click `slippi-bridge/start-bridge.bat`. Both batch files use a relativ
 ```
 http://localhost:5000/layout/scoreboard/melee.html
 ```
-Use `melee.html`, not `index.html` — it conditionally loads the Socket.io client from the bridge.
+Use `melee.html` — there is no `index.html` here. It loads the shared bridge client, which pulls the Socket.io client from the bridge and no-ops when the bridge is down.
 
 **Side panel** — add a second Browser Source at:
 ```
@@ -295,4 +295,4 @@ or move the bridge with `BRIDGE_PORT` in `config.local.js` (remember the OBS bro
 
 **Report button is greyed out:** Hover for the reason. Common causes: no start.gg token in `config.local.js`, the loaded set was entered manually (no start.gg set behind it), the set hasn't started on start.gg yet, the score is tied, or it's a crew battle (not supported).
 
-**Score incremented on a warm-up game:** The handwarmer threshold may need tuning. Check `slippi-bridge/handwarmer.js` — the weighted score cutoff is at the top of the file.
+**Score incremented on a warm-up game:** The handwarmer threshold may need tuning. Check `slippi-bridge/lib/handwarmer.js` — the weighted score cutoff is at the top of the file.

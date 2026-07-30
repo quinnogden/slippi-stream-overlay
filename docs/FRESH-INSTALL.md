@@ -16,12 +16,12 @@ Work the phases in order. Phase 4's TSH settings and Phase 6's replay buffer are
 
 ```bash
 cd slippi-bridge
-node preflight.js              # everything, including live probes
-node preflight.js --offline    # files and config only — no network
-node preflight.js --json       # machine-readable
+node scripts/preflight.js              # everything, including live probes
+node scripts/preflight.js --offline    # files and config only — no network
+node scripts/preflight.js --json       # machine-readable
 ```
 
-[preflight.js](../slippi-bridge/preflight.js) automates Phases 3, 4 and 8 and parts of Phase 2: dependency resolution, config, the TSH install and `user_data`, layout integrity, the four `general` settings, then live probes of TSH, the bridge and OBS (including the replay buffer's length). It exits non-zero if anything fails.
+[preflight.js](../slippi-bridge/scripts/preflight.js) automates Phases 3, 4 and 8 and parts of Phase 2: dependency resolution, config, the TSH install and `user_data`, layout integrity, the four `general` settings, then live probes of TSH, the bridge and OBS (including the replay buffer's length). It exits non-zero if anything fails.
 
 It is **read-only** — it prints the exact command or menu path to fix each finding rather than changing your tournament config itself. It also runs before `npm install`, so it can diagnose a missing `node_modules`.
 
@@ -128,7 +128,7 @@ Four keys in `user_data/settings.json` under `general`. Claude reads and reports
 ### Scene sources
 - [ ] Canvas **1920 × 1080** (Settings → Video)
 - [ ] **Scoreboard** browser source → `http://localhost:5000/layout/scoreboard/melee.html` at **1920 × 1080**
-      *Use `melee.html`, not `index.html` — only `melee.html` loads the bridge's Socket.io client.*
+      *Use `melee.html` — there is no `index.html` here, and only `melee.html` loads the bridge's Socket.io client.*
 - [ ] **Side panel** browser source → `http://localhost:5000/layout/side-panel/side-panel.html` at **611 × 1080**
       Add `?animate=false` to drop the ambient animation.
 - [ ] **Webcam source layered behind** the side panel — the panel has a transparent **587 × 330** cutout for it
