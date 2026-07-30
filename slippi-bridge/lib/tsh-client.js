@@ -18,6 +18,9 @@ class TshClient {
     this._config  = config;
     this._tshRoot = tshRoot;
     this._statePath = path.join(tshRoot, "out/program_state.json");
+    // Every key in program_state.json is a string, and the scoreboard number is
+    // in most of the paths below and every HTTP route — resolve it once.
+    this._sb = String(config.SCOREBOARD_NUM);
   }
 
   // ── State file ──────────────────────────────────────────────────────────────
@@ -53,6 +56,23 @@ class TshClient {
   // ── Pure accessors (operate on a state returned by readState()) ─────────────
 
   /**
+   * The team subtree for a scoreboard column. Every accessor below starts here,
+   * so the `score.<sb>.team.<n>` dig is written once rather than eight times.
+   * @param {object|null} state
+   * @param {number|string} teamNum — 1 or 2
+   */
+  _team(state, teamNum) {
+    return state?.score?.[this._sb]?.team?.[String(teamNum)];
+  }
+
+  /** Trimmed, non-empty player names for a team. */
+  _names(state, teamNum) {
+    return Object.values(this._team(state, teamNum)?.player ?? {})
+      .map((p) => (p?.name ?? "").trim())
+      .filter(Boolean);
+  }
+
+  /**
    * Extract team name and score for a given team number.
    * In doubles, name is "Player1 / Player2" (concatenated from both players).
    * @param {object} state   — from readState()
@@ -60,14 +80,23 @@ class TshClient {
    * @returns {{ name: string, score: number }}
    */
   getTeamInfo(state, teamNum) {
-    const team = state?.score?.[String(this._config.SCOREBOARD_NUM)]?.team?.[String(teamNum)];
-    const names = Object.values(team?.player ?? {})
-      .map((p) => (p?.name ?? "").trim())
-      .filter(Boolean);
     return {
-      name:  names.join(" / "),
-      score: team?.score ?? 0,
+      name:  this._names(state, teamNum).join(" / "),
+      score: this._team(state, teamNum)?.score ?? 0,
     };
+  }
+
+  /**
+   * Both teams' info at once, tolerating a null state.
+   *
+   * Callers that have just read (or failed to read) TSH otherwise repeat the
+   * same `state ? getTeamInfo(state, n) : { name: "", score: 0 }` pair.
+   * @param {object|null} state
+   * @returns {{ t1: { name: string, score: number }, t2: { name: string, score: number } }}
+   */
+  getTeamInfos(state) {
+    if (!state) return { t1: { name: "", score: 0 }, t2: { name: "", score: 0 } };
+    return { t1: this.getTeamInfo(state, 1), t2: this.getTeamInfo(state, 2) };
   }
 
   /**
@@ -77,10 +106,7 @@ class TshClient {
    * @returns {string[]}
    */
   getTeamPlayerNames(state, teamNum) {
-    const team = state?.score?.[String(this._config.SCOREBOARD_NUM)]?.team?.[String(teamNum)];
-    return Object.values(team?.player ?? {})
-      .map((p) => (p?.name ?? "").trim())
-      .filter(Boolean);
+    return this._names(state, teamNum);
   }
 
   /**
@@ -90,8 +116,7 @@ class TshClient {
    * @returns {boolean}
    */
   isDoubles(state) {
-    const team = state?.score?.[String(this._config.SCOREBOARD_NUM)]?.team?.["1"];
-    return Object.keys(team?.player ?? {}).length > 1;
+    return Object.keys(this._team(state, 1)?.player ?? {}).length > 1;
   }
 
   /**
@@ -101,8 +126,7 @@ class TshClient {
    * @returns {boolean}
    */
   isCrewBattle(state) {
-    const team = state?.score?.[String(this._config.SCOREBOARD_NUM)]?.team?.["1"];
-    return Object.keys(team?.player ?? {}).length >= 4;
+    return Object.keys(this._team(state, 1)?.player ?? {}).length >= 4;
   }
 
   /**
@@ -113,9 +137,19 @@ class TshClient {
    * @returns {string}
    */
   getActivePlayerName(state, teamNum) {
-    const player = state?.score?.[String(this._config.SCOREBOARD_NUM)]
-      ?.team?.[String(teamNum)]?.player?.["1"];
-    return (player?.name ?? "").trim();
+    return (this._team(state, teamNum)?.player?.["1"]?.name ?? "").trim();
+  }
+
+  /**
+   * The preloaded character entry for a team's slot-1 player, as TSH stores it
+   * (`{ name, codename, skin, assets }`). Used by crew mode to show a character
+   * for a player who hasn't played a game yet.
+   * @param {object} state
+   * @param {number} teamNum — 1 or 2
+   * @returns {object|undefined}
+   */
+  getActivePlayerCharacter(state, teamNum) {
+    return this._team(state, teamNum)?.player?.["1"]?.character?.["1"];
   }
 
   /**
@@ -125,16 +159,14 @@ class TshClient {
    * @returns {{ t1: Array<{name:string, skin:number}>, t2: Array<{name:string, skin:number}> }}
    */
   getPreloadedChars(state) {
-    const getEntries = (teamNum) => {
-      const team = state?.score?.[String(this._config.SCOREBOARD_NUM)]?.team?.[String(teamNum)];
-      return Object.values(team?.player ?? {}).map((player) => {
+    const getEntries = (teamNum) =>
+      Object.values(this._team(state, teamNum)?.player ?? {}).map((player) => {
         const entry = player?.character?.["1"];
         return {
           name: (entry?.name ?? "").trim(),
           skin: entry?.skin ?? -1,
         };
       });
-    };
     return { t1: getEntries(1), t2: getEntries(2) };
   }
 
@@ -146,7 +178,7 @@ class TshClient {
    * @returns {string|number|null}
    */
   getSetId(state) {
-    return state?.score?.[String(this._config.SCOREBOARD_NUM)]?.set_id ?? null;
+    return state?.score?.[this._sb]?.set_id ?? null;
   }
 
   /**
@@ -155,10 +187,9 @@ class TshClient {
    * @returns {{ team1: number, team2: number }}
    */
   getLiveScores(state) {
-    const sb = String(this._config.SCOREBOARD_NUM);
     return {
-      team1: state?.score?.[sb]?.team?.["1"]?.score ?? 0,
-      team2: state?.score?.[sb]?.team?.["2"]?.score ?? 0,
+      team1: this._team(state, 1)?.score ?? 0,
+      team2: this._team(state, 2)?.score ?? 0,
     };
   }
 
