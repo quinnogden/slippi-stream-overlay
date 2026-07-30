@@ -18,6 +18,7 @@ class TshClient {
     this._config  = config;
     this._tshRoot = tshRoot;
     this._statePath = path.join(tshRoot, "out/program_state.json");
+    this._settingsPath = path.join(tshRoot, "user_data/settings.json");
     // Every key in program_state.json is a string, and the scoreboard number is
     // in most of the paths below and every HTTP route — resolve it once.
     this._sb = String(config.SCOREBOARD_NUM);
@@ -179,6 +180,38 @@ class TshClient {
    */
   getSetId(state) {
     return state?.score?.[this._sb]?.set_id ?? null;
+  }
+
+  /**
+   * Tournament + event names as TSH's provider last reported them.
+   *
+   * This is the real confirmation that a bracket switch landed: /set-tournament
+   * returns before TSH's thread pool finishes loading, so its "OK" proves
+   * nothing, whereas these fields only change once the provider has answered.
+   * @param {object|null} state — from readState()
+   * @returns {{ name: string, eventName: string }}
+   */
+  getTournamentInfo(state) {
+    const t = state?.tournamentInfo ?? {};
+    return { name: (t.tournamentName ?? "").trim(), eventName: (t.eventName ?? "").trim() };
+  }
+
+  /**
+   * TSH's currently-loaded tournament URL, from user_data/settings.json.
+   *
+   * READ ONLY. SettingsManager owns that file and rewrites the whole thing on
+   * every Set(), and TSH never re-reads it at runtime — a bridge-side write
+   * would be both ineffective and clobbered. Used only to spot that a bracket is
+   * already loaded, because /set-tournament silently does nothing in that case.
+   *
+   * @returns {string|null} — null means "unknown", not "none loaded"
+   */
+  readTournamentUrl() {
+    try {
+      return JSON.parse(fs.readFileSync(this._settingsPath, "utf8")).TOURNAMENT_URL ?? null;
+    } catch {
+      return null; // missing / unparseable just means we can't tell
+    }
   }
 
   /**
@@ -366,6 +399,57 @@ class TshClient {
       params: { set: setId },
       success: `Loaded set ${setId}`,
       failure: `loadSet(${setId}) failed`,
+    });
+  }
+
+  /**
+   * Point TSH at a tournament event. Fronts TSH's GET /set-tournament?url=,
+   * which writes TOURNAMENT_URL and signals its provider to re-pull the
+   * tournament, phases and entrants at runtime. TSH does not watch
+   * settings.json, so this route is the only way to switch brackets live.
+   *
+   * Three TSH-side traps this cannot paper over:
+   *   - The url must be a full ".../tournament/<t>/event/<e>". TSH's provider
+   *     does url.split("start.gg/")[1] at ~11 query sites, so anything trailing
+   *     the event slug corrupts every bracket request it makes afterwards.
+   *   - It returns the plain string "OK" *even when it did nothing* — and
+   *     re-sending the currently-loaded url is exactly that no-op
+   *     (SetTournamentSignal early-returns when provider.url matches). Pass the
+   *     same scheme-less form TSH stores so that comparison stays predictable,
+   *     and use updateBracket() when a real re-pull is what's wanted.
+   *   - Nothing validates the event exists. A stale slug is accepted, logs
+   *     nothing, and leaves an empty bracket.
+   *
+   * @param {string} url — e.g. "start.gg/tournament/hundred-acres-43/event/melee-doubles"
+   * @returns {Promise<{ ok: boolean, error?: string }>}
+   */
+  setTournament(url) {
+    // An empty url UNSETS TSH's tournament — refuse it here rather than let a
+    // missing config value quietly wipe the operator's bracket.
+    if (!url) {
+      return Promise.resolve({ ok: false, error: "setTournament needs a url — an empty one unsets TSH's tournament" });
+    }
+    return this._call("/set-tournament", {
+      params: { url },
+      timeout: 10000,
+      success: `TSH tournament set to ${url}`,
+      failure: "setTournament failed",
+    });
+  }
+
+  /**
+   * Re-pull the loaded bracket from the provider. Fronts GET /update-bracket.
+   *
+   * Only meaningful once a tournament is loaded: update_bracket() dereferences
+   * its provider with no null check, so calling this with nothing loaded is a
+   * 500 rather than a no-op. Callers must know a bracket is in place.
+   * @returns {Promise<{ ok: boolean, error?: string }>}
+   */
+  updateBracket() {
+    return this._call("/update-bracket", {
+      timeout: 15000,
+      success: "Re-pulled the bracket from the provider",
+      failure: "updateBracket failed",
     });
   }
 

@@ -40,6 +40,7 @@ Config is in [slippi-bridge/config.js](slippi-bridge/config.js):
 - `TSH_ROOT`: absolute path to the TSH install. Default `null` = auto-detect (see below).
 - `BRIDGE_PORT`: Socket.io + control-panel port (default `5001`)
 - `STARTGG_TOKEN`: start.gg personal access token for result reporting. **Never put the real value in config.js (git-tracked).** Set it in `slippi-bridge/config.local.js` (gitignored, copied from `config.local.example.js`); `config.js` merges it over itself at load via `Object.assign` in a try/catch. Missing token → reporting disables itself, the rest of the bridge runs normally.
+- `BRACKETS`: the control panel's Singles/Doubles buttons — `shortLink` (the series' stable start.gg short link, **hyphenated**) plus a `match` keyword list and a `fallbackSlug` per format. Nothing here changes week to week; the TO re-points the short link at each new tournament. See [Bracket switcher](#bracket-switcher).
 - `CLIPPER`: starting values for the combo clipper. Only defaults — the control panel writes operator edits to the gitignored `clipper-settings.json`, which wins. See [Combo Clipper](#combo-clipper--obs-replay-buffer).
 
 **Locating TSH (`slippi-bridge/lib/tsh-root.js`):** TSH ships as a versioned folder, so the path is resolved at startup rather than hardcoded — `resolveTshRoot(baseDir, override)` scans the repo root for `TournamentStreamHelper*` directories, keeps only those that look like a real install (a `layout/` subfolder **plus** one of `TSH.exe` / `TSH_bat.bat` / `main.py`), and picks the highest version by **numeric** component-wise comparison (so `5.1001` > `5.972` > `5.99`). `config.TSH_ROOT` short-circuits the scan. Both `index.js` and `scripts/start-all.js` call it via `resolveOrExit()` and log the resolved root; failure exits with an actionable message. **Updating TSH is therefore: extract the new folder, copy `layout/` back, copy `user_data/` across — no code edits.**
@@ -108,7 +109,7 @@ Reached as `ctx.state`. **The file documents which module writes which field —
 
 - **`port-mapper.js`** — `PortMapper` class. Owns all port→team tracking state (`_portToTeam`, `_portToName`, `_portScore`). Never reads files or makes HTTP calls — all data is passed in. `getResolutionInfo()` reports the current mapping plus which heuristic set it (`_resolutionMethod`: name / score / character / positional / manual).
 - **`tsh-client.js`** — `TshClient` class; all I/O with TSH. Reads `program_state.json` (`readState()` + pure accessors), calls the TSH HTTP API, and returns typed `{ ok, error?, data? }` results. Every HTTP method goes through one private `_call()`; every state accessor through `_team()`, so the `score.<sb>.team.<n>` dig exists once. Includes bracket-action fronts (`pullStreamSet`, `getOpenSets`, `loadSet`), state accessors (`getSetId`, `getLiveScores`, `getTeamInfos`), crew helpers (`isCrewBattle`, `getActivePlayerName`, `getActivePlayerCharacter`), and a `ping()` health probe.
-- **`startgg-client.js`** — `StartggClient` class. The **only** module that talks to an external service (start.gg's official GraphQL API, `https://api.start.gg/gql/alpha`). Both calls go through one private `_gql()`. `reportSet()` runs the `reportBracketSet` mutation; `getSetEntrants()` fetches per-team entrant ids (TSH's `/get-match` does *not* expose them). `enabled` is false when no token is configured. All bracket *reading* still goes through TSH's native integration, not this module.
+- **`startgg-client.js`** — `StartggClient` class. The **only** module that talks to an external service, which is the invariant worth keeping: two would mean two places handling token expiry, rate limits and timeouts. Three GraphQL methods (`https://api.start.gg/gql/alpha`, all through one private `_gql()`): `reportSet()` runs the `reportBracketSet` mutation, `getSetEntrants()` fetches per-team entrant ids (TSH's `/get-match` does *not* expose them), and `listEvents()` fetches a tournament's event list for the bracket switcher. `resolveShortLink()` is the odd one out — deliberately **not** GraphQL (the API returns `null` for a short slug; only start.gg's web redirect resolves one) and deliberately **not** gated on `enabled`, since it needs no token. `enabled` is false when no token is configured. Bracket *reading during a set* still goes through TSH's native integration.
 - **`game-source.js`** — `createFolderSource(config, detector?)`. Polls `SLP_FOLDER` and returns a Node `EventEmitter` firing `game-start` (`rawPlayers, stageId`), `game-end` (`{ winnerPlayerIndex, isHandwarmer, winnerEndStocks }`) and `highlight` (one detected combo). Also exposes `getStatus()` (`{ connected, detail }`) for the control-panel health dot. The mode handlers bind to these events rather than reading `.slp` files, which keeps them testable against a mock emitter.
 - **`combo-detector.js`** — `ComboDetector`. Pure: given a live `SlippiGame`, returns the conversions that just finished and clear the operator's thresholds. No I/O, no timers — all rate limiting lives in `lib/clip-recorder.js`. See [Combo Clipper](#combo-clipper--obs-replay-buffer).
 - **`clip-recorder.js`** — `createClipRecorder(ctx, refresh)`. The clipper's time-based half: cooldown, per-game cap, save delay, and the `recentClips` ring.
@@ -131,6 +132,7 @@ Reached as `ctx.state`. **The file documents which module writes which field —
   `ping()` runs only as a fallback (`/get-swap` is 5.972+). Concurrent `refresh()` callers share one
   in-flight rebuild — eight call sites invoke it, several in bursts when the operator clicks around.
 - **`report-set.js`** — `reportCurrentSet()`, `evaluateReportability()`, `entrantSlot()`.
+- **`bracket-switch.js`** — the Singles/Doubles buttons. Pure helpers (`normalizeBrackets`, `normalizeEventUrl`, `sameEvent`, `pickEvent`) plus `createBracketSwitch(ctx, refresh)`. See [Bracket switcher](#bracket-switcher).
 
 ### Port→Team Assignment (`PortMapper`)
 
@@ -238,6 +240,9 @@ GET  /scoreboard1-pull-stream             → pull the next queued stream set on
 GET  /get-sets[?getFinished=1]            → list open (or finished) sets from the bracket provider
 GET  /scoreboard1-load-set?set=<id>       → load a specific set by id
 GET  /scoreboard1-get-set                 → id of the currently-selected set
+GET  /set-tournament?url=<event URL>      → point TSH at a tournament event (writes TOURNAMENT_URL,
+                                            signals the provider to re-pull). Returns "OK" as text
+GET  /update-bracket                      → re-pull the loaded bracket; 500s when nothing is loaded
 ```
 
 TSH ships a **complete native start.gg integration** (`src/TournamentDataProvider/StartGGDataProvider.py`) driven by `user_data/settings.json → TOURNAMENT_URL`. It fetches brackets/queue/sets and writes them into `program_state.json` (`score.<N>.set_id`, `bracket.*`, `streamQueue`, `completed_sets`, `recent_sets`, etc.). The bridge *reads* all of that through TSH; it never re-implements bracket fetching. TSH has **no** result-reporting capability — that is the only thing `startgg-client.js` adds.
@@ -249,12 +254,13 @@ The bridge serves these on its own Express app (port 5001). Browser JS is normal
 ```
 GET  /control            → the operator panel HTML (public/control-panel.html)
 GET  /api/identity       → { app: "slippi-bridge", pid } — how a starting bridge recognises a stale one (see Port Reclaim)
-GET  /api/status         → { tsh, slippi, slippiDetail, portMapping, tshSwapped, currentSet, startggEnabled, clipper }
+GET  /api/status         → { tsh, slippi, slippiDetail, portMapping, tshSwapped, currentSet, tournament, shortLink, startggEnabled, clipper }
 POST /api/swap           → same as Ctrl+Shift+S (calls swapTeams()) — flips the internal port→team map only
 POST /api/swap-sides     → tsh.swapSides() — presses TSH's own Swap Teams, moving names+scores across sides
 POST /api/pull-stream    → tsh.pullStreamSet()
 GET  /api/sets[?finished=1] → tsh.getOpenSets(includeFinished)
 POST /api/load-set       → tsh.loadSet(body.setId), then refreshControlStatus()
+POST /api/bracket        → { kind: "singles" | "doubles" } — point TSH at this week's event for that format
 POST /api/report         → reportCurrentSet() (start.gg reportBracketSet)
 GET  /api/clipper        → { settings, obs, recentClips, clipsThisGame, supported }
 POST /api/clipper/settings → validate + persist + apply (clipper-settings.json)
@@ -279,6 +285,28 @@ The ≥760px layout is **CSS multicolumn**, not a grid. It used to be `grid-temp
 **Reporting flow (`reportCurrentSet` in index.js):** reads `score.<N>.set_id` + live scores from TSH → refuses if crew / no set_id / `preview` set / tied score → derives the winner *column* from the higher live score → `entrantSlot(column, swapped)` converts that to a start.gg slot → `startgg.getSetEntrants(setId)` maps slot → entrant id (start.gg slot 0 = slot 1) → `startgg.reportSet(setId, winnerEntrantId, gameData)`.
 
 **Swap state is load-bearing for reporting.** TSH's Swap Teams moves each team to the other column *and keeps that orientation for every set loaded afterwards* — `TSHScoreboardWidget.ChangeSetData` does `scoreContainers.reverse()` / `losersContainers.reverse()` / `teamInstances.reverse()` when `teamsSwapped`, so while swapped, TSH column 1 holds start.gg's slot-2 entrant. `entrantSlot()` applies that inversion; without it the report publishes the loser as the winner. `reportCurrentSet` re-reads `getSwapState()` at report time rather than trusting the 2s poll, falls back to the last polled `tshSwapState`, and **refuses** if neither is available — guessing is worse than not reporting. `handleTshSwap()` also flips the recorded `winnerTeam` of every entry in `currentSetGames`, since those are column numbers and the columns just changed hands (mirrors TSH's own `individualGameTracker.SwapStageResults()`). Per-game `gameData` is accumulated in `currentSetGames` (one `{ gameNum, winnerTeam }` per singles/doubles game end; reset in `syncSetTracking()` when `set_id` changes) and is optional — a mismatch falls back to reporting set winner + score only. Manual trigger only; the panel two-step-confirms before POSTing. Singles + doubles; crew battles are excluded.
+
+### Bracket switcher
+
+The panel's **Singles Bracket** / **Doubles Bracket** buttons (`lib/server/bracket-switch.js`). A stream alternates formats, and pointing TSH at the other event otherwise means leaving the dock, opening start.gg, and pasting a link. One press does the chain:
+
+```
+config.BRACKETS.shortLink  "100-acres"
+  → startgg.resolveShortLink()   web redirect → this week's tournament slug
+  → startgg.listEvents()         that tournament's real events
+  → pickEvent()                  keyword match → one event
+  → tsh.setTournament(url)       TSH re-pulls the bracket
+```
+
+- **The short link is why nothing changes week to week.** The TO re-points `start.gg/100-acres` at each new tournament; the bridge follows it. `resolveShortLink()` follows the redirects **by hand** (`maxRedirects: 0`) because the final *URL* is the answer, not the body — axios would otherwise fetch the heavy details page and expose it only via the undocumented `res.request.res.responseUrl`.
+- **The event is looked up, not appended.** TSH validates nothing about the URL it accepts, so appending a remembered slug that has since been renamed toasts green and leaves an empty bracket with no error anywhere. `fallbackSlug` is used only when the lookup itself can't run (no token, start.gg unreachable), and that path sets a `warning` the panel latches into the hint.
+- **Ambiguity is refused, never guessed.** `pickEvent()` requires exactly one event whose name+slug contains all of the kind's `match` keywords. A tournament with both "Melee Singles" and "Melee Singles Amateur" errors and names the candidates. Picking wrong is silent and puts the wrong bracket on the broadcast.
+- **A second press re-pulls rather than no-ops.** `sameEvent(tsh.readTournamentUrl(), url)` compares against `user_data/settings.json`, and a match routes to `/update-bracket` instead — because `/set-tournament` silently does nothing when the URL already matches.
+- **No confirmation, by design.** TSH wires `tournament_changed` only to its button-state updaters, so the loaded set's names, scores and `set_id` all survive a switch and a pending report still targets the right set. A misclick costs a bracket re-pull.
+- **Concurrent presses are refused, not shared** — the panel can be open in an OBS dock and on a phone at once, and a `doubles` press must not be answered with the `singles` result. This is the opposite of `control-status.js`'s shared-promise dedupe, where every caller wants the same answer.
+- `control_status.tournament` (`{ name, eventName }`) comes from `program_state.json → tournamentInfo` and is the **real** confirmation the switch landed — `/set-tournament` returns before TSH's thread pool finishes loading. It reuses the state the tick already reads, so it costs no extra round-trip. The panel refetches the sets list when `eventName` changes.
+
+`tests/bracket-target.test.js` pins the event matching.
 
 ### Combo Clipper — OBS replay buffer
 
@@ -403,6 +431,11 @@ There used to be a second path (`CONNECTION_MODE: "tcp"`, connecting to the Wii'
 - `uiohook-napi` provides the global `Ctrl+Shift+S` hotkey; if it fails to load, the fallback is pressing `S` in the terminal.
 - The `tsh_update` DOM event fires whenever `program_state.json` changes; the layout listens to it to time its costume patch.
 - `config.js` is git-tracked — never put secrets there. The start.gg token goes in the gitignored `config.local.js`.
+- **Re-sending the loaded url to `/set-tournament` is a silent no-op** — `SetTournamentSignal` early-returns when `provider.url` matches, and the route still answers `"OK"`. Send the same **scheme-less** form TSH stores (`start.gg/tournament/<t>/event/<e>`) so that comparison stays predictable, and use `/update-bracket` when a real re-pull is what's wanted. The url must also be a full `.../tournament/<t>/event/<e>`: TSH's provider does `url.split("start.gg/")[1]` at ~11 query sites, so anything trailing the event slug corrupts every bracket request afterwards.
+- **Never *write* `user_data/settings.json` from the bridge.** TSH's `SettingsManager` owns it, rewrites the whole file on every `Set()`, and never re-reads it at runtime — a bridge-side write would be both ineffective and clobbered. *Reading* `TOURNAMENT_URL` is fine and is how the no-op above is detected (`tsh.readTournamentUrl()`).
+- **start.gg's GraphQL API cannot resolve a short link** — `tournament(slug: "100-acres")` returns `null`. Following the web redirect is the only path. The link is also **hyphenated**: `start.gg/100acres` is a hard 404 with no redirect at all.
+- **Switching the tournament does not clear the scoreboard.** TSH wires `tournament_changed` only to `UpdateUserSetButton` / `UpdateBottomButtons`, so the loaded set's names, scores and `set_id` survive — which is what makes the bracket buttons safe without a confirm, and means a pending report still targets the right set.
+- **`/update-bracket` 500s when no tournament is loaded** — `update_bracket()` dereferences its provider with no null check. Only call it once something is loaded.
 - TSH's `/get-match` does **not** expose start.gg entrant ids; `startgg-client.js` queries start.gg directly for them when reporting.
 - **TSH's default web server port changed from 5000 (5.967) to 5500 (5.972)** — `TSHWebServer.py` reads `SettingsManager.Get("general.webserver_port", 5500)`. This repo pins it back to **5000** via `user_data/settings.json → general.webserver_port`, because every OBS browser source and `config.TSH_URL` references 5000. A fresh `settings.json` omits the key and silently lands on 5500, which looks exactly like "TSH won't start" — `scripts/start-all.js` just times out waiting on 5000. Check the listening port before debugging anything else.
 - Never hardcode the TSH folder name — it carries the version (`TournamentStreamHelper-5.972`) and changes on every update. Use `resolveTshRoot()` / `resolveOrExit()` from `lib/tsh-root.js`.

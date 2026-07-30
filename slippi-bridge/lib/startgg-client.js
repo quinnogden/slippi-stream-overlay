@@ -1,19 +1,39 @@
 /**
- * StartggClient — direct client for start.gg's official GraphQL API.
+ * StartggClient — the bridge's direct client for start.gg.
  *
- * This is the ONE place the bridge talks to an external service. It exists
- * only to report set results back to the bracket (reportBracketSet) — TSH has
- * no reporting capability of its own. All *reading* of bracket/queue/set data
- * still goes through TSH's native start.gg integration (see tsh-client.js).
+ * This is the ONE place the bridge talks to an external service, and that is the
+ * invariant worth keeping: two modules would mean two places handling token
+ * expiry, rate limits and timeouts. Bracket/queue/set *reading* during a set
+ * still goes through TSH's native integration (see tsh-client.js) — what lives
+ * here is what TSH cannot do:
+ *
+ *   - reportSet()        — reportBracketSet; TSH has no reporting capability.
+ *   - getSetEntrants()   — TSH's /get-match doesn't expose entrant ids.
+ *   - listEvents()       — the bracket switcher needs a tournament's real event
+ *                          list before TSH has been pointed at anything.
+ *   - resolveShortLink() — deliberately NOT GraphQL and deliberately NOT gated
+ *                          on `enabled`. The API cannot resolve a short link
+ *                          (tournament(slug: "100-acres") returns null); only
+ *                          the web redirect chain can, and it needs no token.
  *
  * Auth is a start.gg "personal access token" (config.STARTGG_TOKEN, supplied
  * via the gitignored config.local.js). When no token is set, `enabled` is false
- * and reportSet() short-circuits — the rest of the bridge is unaffected.
+ * and every GraphQL method short-circuits — the rest of the bridge is
+ * unaffected, and the short-link resolve still works.
  */
 
 const axios = require("axios");
 
 const ENDPOINT = "https://api.start.gg/gql/alpha";
+const WEB_BASE = "https://www.start.gg";
+
+// start.gg's edge serves the redirect either way, but a default axios UA on a
+// browser-facing route is the kind of thing that gets rate-limited first.
+const USER_AGENT = "Mozilla/5.0 (compatible; slippi-bridge/1.0)";
+
+// Two hops in practice: start.gg/<short> → www.start.gg/<short> →
+// /tournament/<slug>/details. The cap is only a loop guard.
+const MAX_SHORT_LINK_HOPS = 6;
 
 const REPORT_MUTATION = `
 mutation reportSet($setId: ID!, $winnerId: ID!, $gameData: [BracketSetGameDataInput]) {
@@ -34,6 +54,22 @@ query setEntrants($setId: ID!) {
     slots { slotIndex entrant { id name } }
   }
 }`.trim();
+
+// event.slug already comes back as "tournament/<t>/event/<e>" — exactly the
+// shape TSH stores — so the switcher never has to assemble one from parts.
+const TOURNAMENT_EVENTS_QUERY = `
+query tournamentEvents($slug: String!) {
+  tournament(slug: $slug) { id name events { id name slug } }
+}`.trim();
+
+/**
+ * The tournament slug in a start.gg URL, or null if there isn't one.
+ * @param {string} url
+ * @returns {string|null}
+ */
+function tournamentSlugFromUrl(url) {
+  return String(url ?? "").match(/\/tournament\/([^/?#]+)/)?.[1] ?? null;
+}
 
 class StartggClient {
   /**
@@ -153,6 +189,93 @@ class StartggClient {
     });
     return { ok: true, entrants };
   }
+
+  // ── Bracket switcher ────────────────────────────────────────────────────────
+
+  /**
+   * Resolve a start.gg short link to the tournament slug it currently points at.
+   *
+   * The series' short link is re-pointed at each week's tournament, so this is
+   * what makes the control panel's bracket buttons need no weekly edit.
+   *
+   * NOT GraphQL: the API returns null for a short slug, so the server-side
+   * redirect is the only mechanism. NOT gated on `enabled`: no token is
+   * involved, and the buttons should keep working on a machine without one.
+   *
+   * Redirects are followed by hand (maxRedirects: 0) because the *URL* is the
+   * answer, not the body — letting axios follow would fetch the heavy details
+   * page and expose the final URL only through the undocumented
+   * `res.request.res.responseUrl`.
+   *
+   * @param {string} shortLink — e.g. "100-acres"; a pasted URL is tolerated
+   * @returns {Promise<{ ok: boolean, slug?: string, error?: string }>}
+   */
+  async resolveShortLink(shortLink) {
+    const clean = String(shortLink ?? "").trim()
+      .replace(/^https?:\/\//i, "")
+      .replace(/^(www\.)?start\.gg\//i, "")
+      .replace(/^\/+|\/+$/g, "");
+    if (!clean) {
+      return { ok: false, error: "No start.gg short link configured (config.BRACKETS.shortLink)." };
+    }
+
+    let at = `${WEB_BASE}/${clean}`;
+    for (let hop = 0; hop < MAX_SHORT_LINK_HOPS; hop++) {
+      // Checked before fetching, so a value that is already a tournament URL
+      // costs no network calls at all.
+      const slug = tournamentSlugFromUrl(at);
+      if (slug) return { ok: true, slug };
+
+      let res;
+      try {
+        res = await axios.get(at, {
+          maxRedirects: 0,
+          timeout: 10000,
+          validateStatus: () => true, // a 3xx is the payload; a 404 is a reportable outcome
+          headers: { Accept: "text/html", "User-Agent": USER_AGENT },
+        });
+      } catch (err) {
+        return { ok: false, error: `Couldn't reach start.gg to resolve "${clean}": ${err.message}` };
+      }
+
+      const loc = res.headers?.location;
+      if (!loc) {
+        return { ok: false, error: `start.gg has no short link "${clean}" (HTTP ${res.status}) — check config.BRACKETS.shortLink; the hyphen matters ("100-acres", not "100acres").` };
+      }
+      at = new URL(loc, at).toString(); // Location is relative on the second hop
+    }
+    return { ok: false, error: `start.gg redirected in a loop resolving "${clean}".` };
+  }
+
+  /**
+   * A tournament's events, so the switcher can match one by name rather than
+   * appending a slug it never verified. Each `slug` is already the full
+   * "tournament/<t>/event/<e>" path TSH wants.
+   *
+   * @param {string} tournamentSlug — e.g. "hundred-acres-43"
+   * @returns {Promise<{ ok: boolean, name?: string, events?: Array<{id: string, name: string, slug: string}>, error?: string }>}
+   */
+  async listEvents(tournamentSlug) {
+    if (!this.enabled) {
+      return { ok: false, error: "start.gg token not configured" };
+    }
+
+    const res = await this._gql(TOURNAMENT_EVENTS_QUERY, { slug: String(tournamentSlug) });
+    if (!res.ok) return res;
+
+    const t = res.data?.tournament;
+    if (!t) {
+      return { ok: false, error: `start.gg doesn't recognise the tournament "${tournamentSlug}"` };
+    }
+    const events = Array.isArray(t.events) ? t.events : [];
+    if (events.length === 0) {
+      return { ok: false, error: `"${t.name ?? tournamentSlug}" has no events on start.gg yet` };
+    }
+
+    return { ok: true, name: t.name ?? tournamentSlug, events };
+  }
 }
 
 module.exports = StartggClient;
+// Exported so bracket-switch.js and its test share the one parser.
+module.exports.tournamentSlugFromUrl = tournamentSlugFromUrl;

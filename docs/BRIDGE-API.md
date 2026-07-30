@@ -115,6 +115,11 @@ The full control-panel snapshot. Pushed **every 2 seconds** and on connect. Iden
     canReport: true,
     reason: "",                    // why reporting is blocked, when canReport is false
   },
+  tournament: {                    // what TSH's provider actually has loaded
+    name: "Hundred Acres #43",     // "" when nothing is loaded
+    eventName: "Melee Doubles",
+  },
+  shortLink: "100-acres",          // config.BRACKETS.shortLink, for the panel's label
   startggEnabled: true,            // a token is configured
   clipper: {
     settings: { /* full clipper settings — see clipper-settings.js */ },
@@ -151,6 +156,7 @@ A permissive CORS middleware fronts every route. It exists for exactly one case:
 | `POST` | `/api/pull-stream` | Pull the next queued stream set onto the scoreboard |
 | `GET` | `/api/sets[?finished=1]` | Open sets from TSH's bracket provider; `finished=1` adds completed ones |
 | `POST` | `/api/load-set` | `{ setId }` → load it, then refresh status |
+| `POST` | `/api/bracket` | `{ kind: "singles" \| "doubles" }` → point TSH at this week's event for that format |
 | `POST` | `/api/report` | Report the current set to start.gg. Manual trigger only |
 | `GET` | `/api/clipper` | `{ settings, obs, recentClips, clipsThisGame, supported }` |
 | `POST` | `/api/clipper/settings` | Validate, clamp, persist to `clipper-settings.json`, apply live |
@@ -165,6 +171,20 @@ This is the single easiest thing to get wrong here.
 - **`/api/swap-sides`** presses TSH's button, moving both teams' names and scores to the other column — and TSH **keeps that orientation for every set loaded afterwards**.
 
 That persistence is why swap state is load-bearing for reporting: while swapped, TSH column 1 holds start.gg's *slot 2* entrant. `entrantSlot()` applies the inversion. `/api/report` re-reads the swap flag at report time rather than trusting the 2s poll, and **refuses to report** if it can't read it — publishing the loser as the winner is far worse than not publishing.
+
+### `/api/bracket` — what "ok" does and doesn't mean
+
+`kind` indexes `config.BRACKETS.events`, so the two shipped values are `singles` and `doubles`. The bridge resolves the series' short link through start.gg's **web redirect** (the GraphQL API returns `null` for a short slug), queries that tournament's real event list, matches by keyword, and hands TSH the result.
+
+Three things a consumer has to know:
+
+- **`ok: true` is not "the bracket is loaded".** TSH's `/set-tournament` returns `"OK"` before its thread pool finishes fetching, so the response only means the request was accepted. `control_status.tournament.eventName` is the real confirmation — it changes only once TSH's provider has answered.
+- **`refreshed: true` means it was already loaded** and the bridge re-pulled it via `/update-bracket` instead. Re-sending an already-loaded URL to `/set-tournament` is a silent no-op inside TSH, so this branch is what stops a second press being a dead button.
+- **Concurrent calls are refused, not queued** (`"Still switching brackets…"`). The panel can legitimately be open in an OBS dock and on a phone at once, and answering a `doubles` press with a `singles` result would be worse than a visible refusal.
+
+`warning` may be set on a successful response — it means the event was **not** verified against start.gg (no token, or the lookup failed) and the configured `fallbackSlug` was appended instead. Surface it; TSH accepts a stale slug without complaint and leaves an empty bracket.
+
+Switching is **non-destructive**: TSH keeps the loaded set's names, scores and `set_id`, so a pending `/api/report` still targets the right set. That is why the panel asks for no confirmation.
 
 ### `/api/sets` is deliberately slow
 

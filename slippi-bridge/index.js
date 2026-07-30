@@ -35,6 +35,7 @@ const { lanControlUrls }     = require("./lib/lan-urls");
 const { createServer }        = require("./lib/server/app");
 const { createControlStatus } = require("./lib/server/control-status");
 const { createReportSet }     = require("./lib/server/report-set");
+const { createBracketSwitch } = require("./lib/server/bracket-switch");
 const { registerRoutes }      = require("./lib/server/routes");
 
 // ── TSH root path ─────────────────────────────────────────────────────────────
@@ -73,6 +74,7 @@ const ctx = {
 const controlStatus = createControlStatus(ctx);
 const clipRecorder  = createClipRecorder(ctx, controlStatus.refresh);
 const { reportCurrentSet } = createReportSet(ctx, controlStatus.refresh);
+const bracketSwitch = createBracketSwitch(ctx, controlStatus.refresh);
 const modes         = createModes(ctx);
 const swapTeams     = createSwap(ctx);
 
@@ -84,6 +86,7 @@ registerRoutes(app, {
   state: ctx.state,
   refreshControlStatus: controlStatus.refresh,
   reportCurrentSet,
+  switchBracket: bracketSwitch.switchBracket,
   swapTeams,
   recordClip: clipRecorder.recordClip,
 });
@@ -114,6 +117,9 @@ for (const url of lanControlUrls(config)) {
   console.log(`[bridge]   on phone:    ${url}`);
 }
 console.log(`[bridge] start.gg report: ${ctx.startgg.enabled ? "enabled" : "disabled (no token in config.local.js)"}`);
+console.log(`[bridge] Brackets:       ${bracketSwitch.shortLink
+  ? `start.gg/${bracketSwitch.shortLink}${ctx.startgg.enabled ? "" : " (no token — configured event slugs only)"}`
+  : "no short link configured (config.BRACKETS.shortLink)"}`);
 console.log(`[bridge] Combo clipper:  ${clipper.enabled
   ? `enabled → OBS at ${clipper.obsUrl}`
   : "disabled (turn it on in the control panel)"}`);

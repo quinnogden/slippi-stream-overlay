@@ -8,7 +8,7 @@
 const { evaluateReportability } = require("./report-set");
 
 function createControlStatus(ctx) {
-  const { tsh, portMapper, startgg, clipperSettings, obs, io, state } = ctx;
+  const { config, tsh, portMapper, startgg, clipperSettings, obs, io, state } = ctx;
 
   state.lastControlStatus = {
     tsh: false,
@@ -23,6 +23,8 @@ function createControlStatus(ctx) {
       canReport: false,
       reason: "starting up",
     },
+    tournament: { name: "", eventName: "" },
+    shortLink: config.BRACKETS?.shortLink ?? "",
     startggEnabled: startgg.enabled,
     clipper: {
       settings: clipperSettings.get(),
@@ -95,6 +97,9 @@ function createControlStatus(ctx) {
       canReport: false,
       reason: tshUp ? null : "TSH not reachable",
     };
+    // What TSH's provider actually loaded. Filled from the state read below, so
+    // surfacing it costs the tick no extra round-trip.
+    let tournament = { name: "", eventName: "" };
 
     if (tshUp) {
       try {
@@ -109,6 +114,7 @@ function createControlStatus(ctx) {
           canReport,
           reason,
         };
+        tournament = tsh.getTournamentInfo(tshState);
 
         if (swap.ok) {
           if (state.tshSwapped !== null && swap.data !== state.tshSwapped) {
@@ -135,6 +141,8 @@ function createControlStatus(ctx) {
       portMapping: portMapper.getResolutionInfo(),
       tshSwapped: state.tshSwapped,
       currentSet,
+      tournament,
+      shortLink: config.BRACKETS?.shortLink ?? "",
       startggEnabled: startgg.enabled,
       clipper: {
         settings: clipperSettings.get(),

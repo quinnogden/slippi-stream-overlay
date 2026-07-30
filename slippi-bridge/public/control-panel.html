@@ -195,6 +195,24 @@
         </div>
       </div>
 
+      <!-- This week's bracket. Before Upcoming Sets on purpose: the operator's
+           flow is switch bracket, then pick a set, and document order is all
+           that matters under the multicolumn layout. -->
+      <div class="card" data-section="bracket">
+        <div class="card-head">
+          <button class="head-toggle"><span class="caret">▾</span><span class="label">Bracket</span></button>
+        </div>
+        <div class="card-body">
+          <div class="btn-row">
+            <button class="compact" id="btn-bracket-singles" data-kind="singles"
+                    title="Point TSH at this week's singles event">Singles Bracket</button>
+            <button class="compact" id="btn-bracket-doubles" data-kind="doubles"
+                    title="Point TSH at this week's doubles event">Doubles Bracket</button>
+          </div>
+          <div class="hint" id="bracket-hint">—</div>
+        </div>
+      </div>
+
       <!-- Upcoming sets -->
       <div class="card" data-section="sets">
         <div class="card-head">
@@ -377,6 +395,7 @@
     // ── Status ──
     function render(s) {
       const prevSetId = status?.currentSet?.setId;
+      const prevEvent = status?.tournament?.eventName;
       status = s;
       // Labels are static markup; only the up/down class and tooltip change.
       $("dot-tsh").classList.toggle("up", !!s.tsh);
@@ -426,11 +445,27 @@
         ? "Set ID " + cs.setId + " — reports the live score as the result."
         : (cs.reason || "");
 
+      // What TSH says is actually loaded. /set-tournament returns "OK" before the
+      // load finishes, so this line — not the toast — is the real confirmation.
+      // bracketBusy/bracketMsg keep the 2s tick from repainting over an
+      // in-progress message or an actionable failure, same as clipDirty.
+      const tn = s.tournament || {};
+      if (!bracketBusy) {
+        $("bracket-hint").textContent = bracketMsg || (tn.eventName
+          ? "Live: " + (tn.name ? tn.name + " — " : "") + tn.eventName
+          : "No bracket loaded in TSH.");
+      }
+
       renderClipper(s.clipper);
 
       // Only repaint the list when the loaded set actually changed — status
       // arrives every 2s and a blind repaint would fight the filter box.
       if (cs.setId !== prevSetId) renderSets();
+
+      // A new event means an entirely different set list. Guarded on undefined
+      // because the first render has no previous value, and this is a real
+      // start.gg query on TSH's side — not a local repaint.
+      if (prevEvent !== undefined && tn.eventName !== prevEvent) fetchSets();
     }
 
     // ── Combo clipper ──
@@ -690,6 +725,41 @@
           new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
       renderSets();
     }
+
+    // ── Bracket switcher ──
+    // No confirm, deliberately: switching the tournament keeps the loaded set,
+    // its scores and its set_id, so a misclick costs a bracket re-pull rather
+    // than operator work. render() never touches these buttons' disabled state,
+    // so the 2s tick can't re-enable them mid-flight.
+    let bracketBusy = false;
+    let bracketMsg  = null;
+    const BRACKET_BUTTONS = ["btn-bracket-singles", "btn-bracket-doubles"];
+
+    async function switchBracket(kind) {
+      bracketMsg = null;
+      bracketBusy = true;
+      BRACKET_BUTTONS.forEach((id) => { $(id).disabled = true; });
+      $("bracket-hint").textContent = "Resolving this week's tournament on start.gg…";
+
+      const r = await api("/api/bracket", "POST", { kind });
+
+      bracketBusy = false;
+      BRACKET_BUTTONS.forEach((id) => { $(id).disabled = false; });
+
+      if (!r.ok) {
+        bracketMsg = r.error;                     // survives the toast; usually a config fix
+        $("bracket-hint").textContent = r.error;
+        toast("Bracket switch failed: " + r.error, false);
+        return;
+      }
+      if (r.warning) bracketMsg = r.warning;
+      const what = (r.tournamentName ? r.tournamentName + " — " : "") + (r.eventName || kind);
+      toast(r.refreshed ? what + " was already loaded — bracket refreshed"
+                        : "Loading " + what + " in TSH.", true);
+      fetchSets();
+    }
+
+    BRACKET_BUTTONS.forEach((id) => { $(id).onclick = () => switchBracket($(id).dataset.kind); });
 
     // ── Actions ──
     $("btn-swap").onclick = () => act("/api/swap", "Teams swapped", "Swap failed");

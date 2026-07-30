@@ -12,13 +12,13 @@ const path = require("path");
  * @param {import("express").Express} app
  * @param {object} deps — {
  *   publicDir, tsh, clipperSettings, obs, state,
- *   refreshControlStatus, reportCurrentSet, swapTeams, recordClip
+ *   refreshControlStatus, reportCurrentSet, switchBracket, swapTeams, recordClip
  * }
  */
 function registerRoutes(app, deps) {
   const {
     publicDir, tsh, clipperSettings, obs, state,
-    refreshControlStatus, reportCurrentSet, swapTeams, recordClip,
+    refreshControlStatus, reportCurrentSet, switchBracket, swapTeams, recordClip,
   } = deps;
 
   app.get("/control", (req, res) => {
@@ -65,6 +65,16 @@ function registerRoutes(app, deps) {
     // panel's Current Set card matches what the operator just loaded.
     if (result.ok) refreshControlStatus().catch(() => {});
     res.json(result);
+  });
+
+  // Two start.gg hops on the way; bracket-switch.js owns the re-entrancy guard
+  // and the follow-up refresh, because only it knows whether anything changed.
+  app.post("/api/bracket", async (req, res) => {
+    const kind = req.body?.kind;
+    if (typeof kind !== "string" || !kind) {
+      return res.status(400).json({ ok: false, error: 'kind ("singles" | "doubles") required' });
+    }
+    res.json(await switchBracket(kind));
   });
 
   app.post("/api/report", async (req, res) => {

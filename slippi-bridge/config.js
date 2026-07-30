@@ -49,6 +49,24 @@ const config = {
     notifySidePanel: true,        // show the "clip saved" toast on the overlay
   },
 
+  // ── Bracket switcher ───────────────────────────────────────────────────────
+  // The control panel's Singles/Doubles buttons. `shortLink` is the series'
+  // stable start.gg short link; the TO re-points it at each week's tournament,
+  // so nothing here changes week to week. It is HYPHENATED — start.gg/100acres
+  // is a hard 404 with no redirect.
+  //
+  // `match` keywords must ALL appear (case-insensitively) in an event's name +
+  // slug. `fallbackSlug` is a bare event slug used only when the event list
+  // can't be read — no token, start.gg down — so a button never dead-ends
+  // mid-stream. Same shallow-merge caveat as CLIPPER above.
+  BRACKETS: {
+    shortLink: "100-acres",
+    events: {
+      singles: { match: ["melee", "singles"], fallbackSlug: "melee-singles-flex-bo5" },
+      doubles: { match: ["melee", "doubles"], fallbackSlug: "melee-doubles" },
+    },
+  },
+
   // ── Secrets (do NOT put real values here — this file is committed to git) ────
   // The start.gg personal access token lives in config.local.js (gitignored),
   // which is merged over this object below. See config.local.example.js.
