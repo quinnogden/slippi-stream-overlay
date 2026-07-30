@@ -1,6 +1,30 @@
 LoadEverything().then(() => {
   gsap.config({ nullTargetWarn: false, trialWarn: false });
 
+  /**
+   * One player row in a bracket slot.
+   *
+   * Only .name, .char_icon and .score are ever populated — the avatar, sponsor,
+   * flag and character_container divs this used to emit were never filled (the
+   * code that would have filled them is commented out further down), so they
+   * were pure markup weight repeated twice per player.
+   *
+   * @param {number} p — slot position, 0 or 1
+   * @param {string|number} [playerId] — winners side only; losers rows omit it
+   */
+  function buildSlotHtml(p, playerId) {
+    const idClass = playerId === undefined ? "" : `p_${playerId} `;
+    return `
+      <div class="${idClass}slot_p_${p} player container">
+        <div class="name_twitter">
+          <div class="name"></div>
+        </div>
+        <div class="char_icon"></div>
+        <div class="score">0</div>
+      </div>
+    `;
+  }
+
   let startingAnimation = gsap.timeline({ paused: true });
 
   Start = async (event) => {
@@ -155,7 +179,6 @@ LoadEverything().then(() => {
       }
       $(":root").css("--name-size", Math.min(size - size * 0.42, 20));
       $(":root").css("--score-size", size - size * 0.25);
-      $(":root").css("--flag-height", size - size * 0.4);
 
       if (
         !oldData.bracket ||
@@ -182,23 +205,7 @@ LoadEverything().then(() => {
           Object.values(round.sets).forEach((slot, i) => {
             html += `<div class="slot slot_${i + 1}">`;
             Object.values(slot.playerId).forEach((playerId, p) => {
-              html += `
-                <div class="p_${playerId} slot_p_${p} player container">
-                  <div class="icon avatar"></div>
-                  <div class="icon online_avatar"></div>
-                  <div class="name_twitter">
-                  <div class="name"></div>
-                  </div>
-                  <div class="sponsor_icon"></div>
-                  <div class="flags">
-                    <div class="flagcountry"></div>
-                    <div class="flagstate"></div>
-                  </div>
-                  <div class="character_container"></div>
-                  <div class="char_icon"></div>
-                  <div class="score">0</div>
-                </div>
-              `;
+              html += buildSlotHtml(p, playerId);
             });
             html += "</div>";
           });
@@ -220,24 +227,8 @@ LoadEverything().then(() => {
             html += `<div class="round_name"></div>`;
             Object.values(round.sets).forEach((slot, i) => {
               html += `<div class="slot slot_${i + 1}">`;
-              Object.values(slot.playerId).forEach((playerId, p) => {
-                html += `
-                  <div class="slot_p_${p} player container">
-                    <div class="icon avatar"></div>
-                    <div class="icon online_avatar"></div>
-                    <div class="name_twitter">
-                    <div class="name"></div>
-                    </div>
-                    <div class="sponsor_icon"></div>
-                    <div class="flags">
-                      <div class="flagcountry"></div>
-                      <div class="flagstate"></div>
-                    </div>
-                    <div class="character_container"></div>
-                    <div class="char_icon"></div>
-                    <div class="score">0</div>
-                  </div>
-                `;
+              Object.values(slot.playerId).forEach((_playerId, p) => {
+                html += buildSlotHtml(p);
               });
               html += "</div>";
             });
@@ -600,12 +591,11 @@ LoadEverything().then(() => {
               );
 
               let charData = player && player.character && player.character["1"];
-              let iconHtml = "";
-              if (charData && charData.codename) {
-                let skin = String(charData.skin ?? 0).padStart(2, "0");
-                iconHtml = `<img src="../../user_data/games/ssbm/base_files/icon/chara_2_${charData.codename}_${skin}.png">`;
-              }
-              SetInnerHtml($(element).find(".char_icon"), iconHtml);
+              let iconSrc = charData
+                ? TshAssets.charIconSrc(charData.codename, charData.skin)
+                : null;
+              SetInnerHtml($(element).find(".char_icon"),
+                iconSrc ? `<img src="${iconSrc}">` : "");
 
             } else {
               // Doubles/Teams

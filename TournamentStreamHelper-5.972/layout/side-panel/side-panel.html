@@ -3,8 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <script src="../include/globals.js"></script>
+    <!-- main.css @imports theme.css — linking it here too would refetch the
+         tokens and the BabyDoll font a second time. -->
     <link rel="stylesheet" href="../main.css" />
-    <link rel="stylesheet" href="../theme.css" />
     <link rel="stylesheet" href="./side-panel.css" />
   </head>
   <body>
@@ -127,14 +128,9 @@
       </div>
     </div>
 
-    <!-- Slippi Bridge (conditional load) -->
-    <script>
-      (function () {
-        var s = document.createElement("script");
-        s.src = "http://localhost:5001/socket.io/socket.io.js";
-        document.head.appendChild(s);
-      })();
-    </script>
+    <!-- Slippi Bridge: no-ops when the bridge isn't running on port 5001 -->
+    <script src="../shared/tsh-assets.js"></script>
+    <script src="../shared/slippi-bridge-client.js"></script>
     <script src="side-panel.js"></script>
   </body>
 </html>

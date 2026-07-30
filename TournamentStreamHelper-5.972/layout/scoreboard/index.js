@@ -155,7 +155,6 @@ LoadEverything().then(() => {
 
   Update = async (event) => {
     let data = event.data;
-    let oldData = event.oldData;
 
     let playerCount = Object.keys(data.score[window.scoreboardNumber].team["1"].player).length;
     let isCrew      = playerCount >= 4;
@@ -199,14 +198,6 @@ LoadEverything().then(() => {
 
           SetInnerHtml($(`.p${t + 1}.container .score`), String(team.score));
 
-          SetInnerHtml($(`.p${t + 1} .flagcountry`), "");
-          SetInnerHtml($(`.p${t + 1} .flagstate`), "");
-          SetInnerHtml($(`.p${t + 1}.container .sponsor_icon`), "");
-          SetInnerHtml($(`.p${t + 1}.container .avatar`), "");
-          SetInnerHtml($(`.p${t + 1}.container .online_avatar`), "");
-          SetInnerHtml($(`.p${t + 1} .twitter`), "");
-          SetInnerHtml($(`.p${t + 1} .seed`), "");
-
           const _charEl = document.querySelector(`.p${t + 1}.container .character_container`);
           if (_charEl) {
             _charEl.classList.remove("team-color");
@@ -232,26 +223,6 @@ LoadEverything().then(() => {
               `
             );
 
-            SetInnerHtml(
-              $(`.p${t + 1} .flagcountry`),
-              player.country.asset
-                ? `
-                  <div class='flag' style='background-image: url(../../${player.country.asset.toLowerCase()})'></div>
-                  <div>${player.country.code}</div>
-                `
-                : ""
-            );
-
-            SetInnerHtml(
-              $(`.p${t + 1} .flagstate`),
-              player.state.asset
-                ? `
-                  <div class='flag' style='background-image: url(../../${player.state.asset})'></div>
-                  <div>${player.state.code}</div>
-                `
-                : ""
-            );
-
             await CharacterDisplay(
               $(`.p${t + 1}.container .character_container`),
               {
@@ -265,67 +236,16 @@ LoadEverything().then(() => {
             );
 
             SetInnerHtml(
-              $(`.p${t + 1}.container .sponsor_icon`),
-              player.sponsor_logo
-                ? `<div style="background-image: url('../../${player.sponsor_logo}')"></div>`
-                : ""
-            );
-
-            SetInnerHtml(
-              $(`.p${t + 1}.container .avatar`),
-              player.avatar
-                ? `<div style="background-image: url('../../${player.avatar}')"></div>`
-                : ""
-            );
-
-            SetInnerHtml(
-              $(`.p${t + 1}.container .online_avatar`),
-              player.online_avatar
-                ? `<div style="background-image: url('${player.online_avatar}')"></div>`
-                : ""
-            );
-
-            SetInnerHtml(
-              $(`.p${t + 1} .twitter`),
-              player.twitter
-                ? `<span class="twitter_logo"></span>${String(player.twitter)}`
-                : ""
-            );
-
-            SetInnerHtml(
               $(`.p${t + 1} .pronoun`),
               player.pronoun ? player.pronoun : ""
             );
 
-            SetInnerHtml(
-              $(`.p${t + 1} .seed`),
-              player.seed ? `Seed ${player.seed}` : ""
-            );
-
             SetInnerHtml($(`.p${t + 1}.container .score`), String(team.score));
-
-            SetInnerHtml(
-              $(`.p${t + 1}.container .sponsor-container`),
-              `<div class='sponsor-logo' style="background-image: url('../../${player.sponsor_logo}')"></div>`
-            );
-
-            if ($(".sf6.online").length > 0) {
-              console.log(player.twitter);
-              console.log(player.pronoun);
-              if (!player.twitter && !player.pronoun) {
-                gsap.to($(`.p${t + 1}.chips`), { autoAlpha: 0 });
-              } else {
-                gsap.to($(`.p${t + 1}.chips`), { autoAlpha: 1 });
-              }
-            }
           }
         }
         const _charEl = document.querySelector(`.p${t + 1}.container .character_container`);
         if (_charEl) {
-          // For single-player mode we do not render the color swatch; only set score vars.
-          if (team.color && !tsh_settings["forceDefaultScoreColors"]) {
-            document.querySelector(':root').style.setProperty(`--p${t + 1}-score-bg-color`, team.color);
-          }
+          // Singles never shows the team-color swatch.
           _charEl.classList.remove("team-color");
           _charEl.style.removeProperty("--team-color");
         }
@@ -357,31 +277,16 @@ LoadEverything().then(() => {
           `
         );
 
-        SetInnerHtml($(`.p${t + 1} .flagcountry`), "");
-
-        SetInnerHtml($(`.p${t + 1} .flagstate`), "");
-
+        // Doubles has no per-player character icon — the team-color swatch below
+        // replaces it.
         SetInnerHtml($(`.p${t + 1}.container .character_container`), "");
 
-        SetInnerHtml($(`.p${t + 1}.container .sponsor_icon`), "");
-
-        SetInnerHtml($(`.p${t + 1}.container .avatar`), "");
-
-        SetInnerHtml($(`.p${t + 1}.container .online_avatar`), "");
-
-        SetInnerHtml($(`.p${t + 1} .twitter`), 
-          playerNames != team.teamName ? playerNames : ""
-        );
-
         SetInnerHtml($(`.p${t + 1}.container .score`), String(team.score));
-
-        SetInnerHtml($(`.p${t + 1}.container .sponsor-container`), "");
 
         const _charEl = document.querySelector(`.p${t + 1}.container .character_container`);
         if (_charEl) {
           // In team-mode, show the team-color swatch when a team color is provided.
           if (team.color) {
-            document.querySelector(':root').style.setProperty(`--p${t + 1}-score-bg-color`, team.color);
             _charEl.classList.add("team-color");
             _charEl.style.setProperty("--team-color", team.color);
           } else {
@@ -392,8 +297,6 @@ LoadEverything().then(() => {
       }
     }
 
-    SetInnerHtml($(".tournament_name"), data.tournamentInfo.tournamentName);
-
     let matchHtml = '<div style="display: flex; flex-direction: column; width: 100%; text-align: center;">';
     if (data.score[window.scoreboardNumber].match) {
       matchHtml += `<div>${data.score[window.scoreboardNumber].match}</div>`;
@@ -403,93 +306,55 @@ LoadEverything().then(() => {
     }
     matchHtml += '</div>';
     SetInnerHtml($(".match"), matchHtml);
-
-    SetInnerHtml($(".phase"), data.score[window.scoreboardNumber].phase);
   };
 
   // ── Slippi Bridge integration ────────────────────────────────────────────────
-  // Connects to the slippi-bridge Socket.io server (port 5001).
-  // Gracefully no-ops when the bridge is not running.
-  (function initSlippiBridge() {
-    // io() is only available after the bridge's socket.io.js has loaded.
-    // We poll briefly to catch the async script load from melee.html.
-    function tryConnect(attemptsLeft) {
-      if (typeof io === "undefined") {
-        if (attemptsLeft > 0) {
-          setTimeout(() => tryConnect(attemptsLeft - 1), 300);
-        }
-        return;
-      }
+  // TSH sets the character via its own API (correct icon) but always defaults to
+  // costume 0. We keep Slippi's costume data and patch the rendered <img> src
+  // after each TSH update so the icon matches what the player actually picked.
+  //
+  // The socket plumbing lives in ../shared/slippi-bridge-client.js; this no-ops
+  // when the bridge isn't running.
+  let slippiGameData = null;
 
-      const slippiSocket = io("http://localhost:5001", {
-        reconnectionDelay: 5000,
-        reconnectionDelayMax: 30000,
+  function applySlippiCostumes() {
+    if (!slippiGameData) return;
+    // If TSH is currently in doubles/teams mode (any container has team-color),
+    // clear leftover icons and skip singles patching — even if slippiGameData
+    // still holds stale singles data from before the TSH config switch.
+    const inTeamsMode = !!document.querySelector(".character_container.team-color");
+    if (slippiGameData.isDoubles || inTeamsMode) {
+      document.querySelectorAll(".character_container img").forEach((img) => {
+        img.removeAttribute("src");
       });
-
-      slippiSocket.on("connect", () => {
-        console.log("[slippi-bridge] Connected");
-      });
-
-      // Game start: TSH sets the character via its API (correct icon),
-      // but defaults to costume 0. We store Slippi's costume data and
-      // patch the rendered img src after each TSH update to show the
-      // actual costume the player is using.
-      let slippiGameData = null;
-
-      slippiSocket.on("slippi_game_start", (data) => {
-        console.log("[slippi-bridge] Game start:", data);
-        slippiGameData = data;
-        // TSH will render the character icon shortly via tsh_update.
-        // applySlippiCostumes() will patch the src once it's in the DOM.
-      });
-
-      // After every TSH state update, correct the costume if needed.
-      // Small delay lets assetUtils.js finish rendering before we patch.
-      document.addEventListener("tsh_update", () => {
-        if (slippiGameData) setTimeout(applySlippiCostumes, 150);
-      });
-
-      function applySlippiCostumes() {
-        if (!slippiGameData) return;
-        // If TSH is currently in doubles/teams mode (any container has team-color),
-        // clear leftover icons and skip singles patching — even if slippiGameData
-        // still holds stale singles data from before the TSH config switch.
-        const inTeamsMode = !!document.querySelector(".character_container.team-color");
-        if (slippiGameData.isDoubles || inTeamsMode) {
-          document.querySelectorAll(".character_container img").forEach((img) => {
-            img.removeAttribute("src");
-          });
-          return;
-        }
-        for (const [, pData] of Object.entries(slippiGameData.players)) {
-          const costume = String(pData.costumeIndex ?? 0).padStart(2, "0");
-          const costumedSrc = `../../user_data/games/ssbm/base_files/icon/chara_2_${pData.codename}_${costume}.png`;
-          const container = document.querySelector(`.p${pData.teamNum}.container .character_container`);
-          if (!container) continue;
-          const img = container.querySelector("img");
-          if (img && !img.src.endsWith(`chara_2_${pData.codename}_${costume}.png`)) {
-            img.src = costumedSrc;
-          }
-        }
-      }
-
-      // Game end: score was already incremented by the bridge via TSH HTTP API.
-      // Optionally add a visual cue here (e.g. flash the winner's score).
-      slippiSocket.on("slippi_game_end", (data) => {
-        console.log("[slippi-bridge] Game end, winner team:", data.winner);
-        // TSH score update arrives via the normal tsh_update event shortly after.
-        // No DOM changes needed here unless you want an animation.
-      });
-
-      slippiSocket.on("disconnect", () => {
-        console.log("[slippi-bridge] Disconnected — waiting to reconnect");
-      });
-
-      slippiSocket.on("connect_error", () => {
-        // Bridge not running — fail silently. TSH still works normally.
-      });
+      return;
     }
+    for (const [, pData] of Object.entries(slippiGameData.players)) {
+      const container = document.querySelector(`.p${pData.teamNum}.container .character_container`);
+      if (!container) continue;
+      const img = container.querySelector("img");
+      const wanted = TshAssets.charIconFile(pData.codename, pData.costumeIndex);
+      if (img && wanted && !img.src.endsWith(wanted)) {
+        img.src = TshAssets.charIconSrc(pData.codename, pData.costumeIndex);
+      }
+    }
+  }
 
-    tryConnect(10); // try up to ~3 seconds for the async script to load
-  })();
+  // After every TSH state update, correct the costume if needed. The small delay
+  // lets assetUtils.js finish rendering before we patch.
+  document.addEventListener("tsh_update", () => {
+    if (slippiGameData) setTimeout(applySlippiCostumes, 150);
+  });
+
+  // meleePlayers.html shares this file but is a name-only list with no
+  // .character_container, so it doesn't load the shared bridge client at all.
+  if (typeof SlippiBridge !== "undefined") {
+    SlippiBridge.connectBridge({
+      // TSH renders the character icon shortly after, via tsh_update;
+      // applySlippiCostumes() patches the src once it's in the DOM.
+      slippi_game_start: (data) => { slippiGameData = data; },
+      // Game end needs no DOM work: the bridge already incremented the score
+      // through TSH's HTTP API, and that arrives as a normal tsh_update.
+    }, { tag: "scoreboard" });
+  }
 });

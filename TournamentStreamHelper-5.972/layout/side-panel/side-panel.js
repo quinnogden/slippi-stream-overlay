@@ -19,8 +19,7 @@ const DEBUG_PANEL = null; // "logos"|"player-1"|"player-2"|"recent-sets"|"comple
 
 const LOGO_PATH           = "../logo.png";
 const SPONSOR_PATH        = "../ThePark.png";
-const LOGO_INTERVAL       = 20000;  // ms — logo slot duration
-const PANEL_INTERVAL      = 20000;  // ms — all panel slot duration
+const PANEL_INTERVAL      = 20000;  // ms — every slot, logos included
 
 // ── Animation timing constants ────────────────────────────────────────────────
 const ANIM_TRANSITION_DURATION = 0.7;   // panel fade in/out
@@ -32,7 +31,11 @@ const SCOREBOARD_NUM      = "1";    // which TSH scoreboard to read
 const COMPLETED_SETS_URL  = "http://localhost:5000/get-sets?getFinished=1";
 const COMPLETED_SETS_POLL = 30000;  // ms between completed-sets fetches
 const TOURNAMENT_NAME_URL = "../../out/tournamentInfo/tournamentName.txt";
-const NAME_POLL_INTERVAL  = 5000;
+// Update() already sets the name from every TSH state push, so this fetch only
+// really matters at cold start, before the first push arrives. Kept as a slow
+// poll rather than a one-shot so a tournament switch can't strand a stale name
+// on stream if the push is somehow missed.
+const NAME_POLL_INTERVAL  = 30000;
 
 // ── Animation toggle ──────────────────────────────────────────────────────────
 (function applyAnimationParam() {
@@ -133,14 +136,6 @@ class Rotator {
       if (pills.length) gsap.killTweensOf(pills);
       gsap.set(el, { opacity: 0, scale: 0.97 });
     }
-  }
-
-  jumpTo(id) {
-    const idx = this._slots.indexOf(id);
-    if (idx === -1) return;
-    clearTimeout(this._timer);
-    this._index = idx;
-    this._advance();
   }
 
   _advance() {
@@ -273,7 +268,6 @@ function ordinalSuffix(n) {
   const v = n % 100;
   return s[(v - 20) % 10] || s[v] || s[0];
 }
-function ordinal(n) { return n + ordinalSuffix(n); }
 
 function makePlacementEl(placement, entrants) {
   const suffix = ordinalSuffix(placement);
@@ -314,23 +308,6 @@ function makePill(extraClass) {
   const d = document.createElement("div");
   d.className = "panel-pill" + (extraClass ? " " + extraClass : "");
   return d;
-}
-
-// Create a two-line pill with line1 and line2 content elements
-// line1El and line2El are already-built DOM elements or strings
-function makeTwoLinePill(line1El, line2Text, extraClass) {
-  const p = makePill("pill-two-line" + (extraClass ? " " + extraClass : ""));
-  const l1 = el("div", "pill-line-1");
-  if (typeof line1El === "string") {
-    l1.textContent = line1El;
-  } else if (line1El) {
-    l1.appendChild(line1El);
-  }
-  p.appendChild(l1);
-  if (line2Text) {
-    p.appendChild(el("div", "pill-line-2", line2Text));
-  }
-  return p;
 }
 
 
@@ -503,11 +480,6 @@ function renderRecentSets(data) {
       const sc  = s.score || [0, 0];
       const sub = (s.tournament || "") + (s.timestamp ? " · " + formatDate(s.timestamp) : "");
 
-      const line1 = document.createDocumentFragment();
-      line1.appendChild(el("span", "pill-score-val", String(sc[0])));
-      line1.appendChild(el("span", "pill-round", s.round || ""));
-      line1.appendChild(el("span", "pill-score-val", String(sc[1])));
-
       const p1Win = s.winner === 0;
       const pill = makePill("recent-set-pill " + (p1Win ? "win" : "loss"));
       pill.appendChild(el("span", "pill-score-val", String(sc[0])));
@@ -660,45 +632,21 @@ LoadEverything().then(() => {
 
   // ── Slippi Bridge ──────────────────────────────────────────────────────────
 
-  (function initSlippiBridge() {
-    function tryConnect(attemptsLeft) {
-      if (typeof io === "undefined") {
-        if (attemptsLeft > 0) setTimeout(() => tryConnect(attemptsLeft - 1), 300);
-        return;
-      }
+  // Socket plumbing lives in ../shared/slippi-bridge-client.js; no-ops when the
+  // bridge isn't running.
+  SlippiBridge.connectBridge({
+    slippi_crew_update: (data) => {
+      crewState = data;
+      renderCrewCards();
+      rotator.buildSlots(tshData);
+    },
 
-      const socket = io("http://localhost:5001", {
-        reconnectionDelay:    5000,
-        reconnectionDelayMax: 30000,
-      });
+    slippi_crew_end: () => renderCrewCards(),
 
-      socket.on("connect", () => {
-        console.log("[side-panel] Bridge connected");
-      });
-
-      socket.on("disconnect", () => {
-        console.log("[side-panel] Bridge disconnected — waiting to reconnect");
-      });
-
-      socket.on("slippi_crew_update", (data) => {
-        crewState = data;
-        renderCrewCards();
-        rotator.buildSlots(tshData);
-      });
-
-      socket.on("slippi_crew_end", () => {
-        renderCrewCards();
-      });
-
-      // A clip was banked mid-match. Only successful saves reach here — clip
-      // errors go to the operator's control panel, not the broadcast.
-      socket.on("slippi_clip_saved", (clip) => {
-        showClipToast(clip);
-      });
-    }
-
-    tryConnect(10);
-  })();
+    // A clip was banked mid-match. Only successful saves reach here — clip
+    // errors go to the operator's control panel, not the broadcast.
+    slippi_clip_saved: (clip) => showClipToast(clip),
+  }, { tag: "sidePanel" });
 
 
   // ── Clip-saved toast ───────────────────────────────────────────────────────

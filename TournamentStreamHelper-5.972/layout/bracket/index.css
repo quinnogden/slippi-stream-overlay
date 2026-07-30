@@ -1,18 +1,12 @@
-@font-face {
-  font-family: "BabyDoll";
-  src: url("../include/Baby-Doll.ttf") format("truetype");
-}
-
+/* Fonts and colors come from theme.css, which main.css @imports — redeclaring
+   @font-face here fetched the same TTF a second time under a different URL, and
+   redeclaring --font without the Fredoka fallback silently overrode the theme. */
 :root {
-  --font: "BabyDoll";
-  --score-font: "BabyDoll";
+  /* Sized at runtime by index.js to fit the bracket into the canvas. */
   --player-height: 24;
   --name-size: 14;
   --score-size: 14;
-  --set-gap: 2;
-  --flag-height: 8;
   --title-size: 68px;
-  --lines: rgba(249, 214, 151, 0.22);
 }
 
 body {
@@ -280,16 +274,6 @@ body {
   overflow: hidden;
 }
 
-.slot .title {
-  width: 100%;
-  font-size: 34px;
-  margin: 0px 0;
-  padding: 8px 8px;
-  height: 70px;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
 .player.container {
   position: relative;
   width: 100%;
@@ -310,13 +294,6 @@ body {
   align-items: flex-start;
 }
 
-.filler {
-  display: flex;
-  width: 120px;
-  flex-grow: 0;
-  flex-shrink: 0;
-}
-
 .name_twitter .name {
   font-size: var(--name-size);
   max-width: 100%;
@@ -324,130 +301,6 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.name_twitter .twitter {
-  font-size: 24px;
-  max-width: 100%;
-}
-
-.twitter_logo {
-  -webkit-mask-image: url(./twitter.svg);
-  -webkit-mask-size: contain;
-  -webkit-mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  background: var(--text-color);
-  width: 18px;
-  height: 18px;
-  margin-right: 6px;
-}
-
-.bracket-logo {
-  position: absolute;
-  top: var(--title-size);
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image: url("../logo.png");
-  background-size: 900px auto;
-  background-repeat: no-repeat;
-  background-position: center center;
-  opacity: 0.75;
-  pointer-events: none;
-  z-index: -2;
-}
-
-.icon {
-  flex-shrink: 0;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: contain;
-  overflow: hidden;
-  background-color: var(--icon-bg-color);
-  height: var(--player-height);
-}
-
-.icon div:not(.text) {
-  width: var(--player-height);
-  height: var(--player-height);
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-color: var(--icon-bg-color);
-}
-
-.icon.stockicon div {
-  width: 100%;
-  height: 100%;
-}
-
-.flags {
-  display: flex;
-  flex-direction: row;
-  gap: 2px;
-  height: 100%;
-  justify-content: center;
-  flex-shrink: 0;
-  margin-left: 4px;
-  margin-right: 4px;
-}
-
-.flag {
-  display: inline-block;
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center;
-  width: var(--flag-height);
-  height: calc(var(--flag-height) * 0.7px);
-  border-radius: 3px;
-}
-
-.sponsor_icon > div > div {
-  display: inline-block;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  width: var(--flag-height);
-  height: var(--flag-height);
-  border-radius: var(--border-radius);
-}
-
-.character_container {
-  display: flex;
-  overflow: hidden;
-  height: 100%;
-  width: 60%;
-  flex-shrink: 0;
-  margin-top: 0;
-  position: absolute;
-  right: 0;
-  z-index: -999;
-  opacity: 0.5;
-  -webkit-mask-image: -webkit-linear-gradient(
-    right,
-    #ffffff 0%,
-    #ffffff 70%,
-    #ffffff00 100%
-  );
-}
-
-.character_container > div {
-  overflow: hidden;
-  gap: 2px;
-  display: flex;
-  width: 100%;
-  height: 100%;
-  max-height: 100%;
-  overflow: hidden;
-}
-
-.character_container > div > div {
-  overflow: hidden;
-  height: 100%;
-  flex-grow: 1;
-  display: flex;
-  align-items: center;
-  border-radius: 0;
 }
 
 .score {
@@ -485,10 +338,6 @@ body {
   width: calc(var(--player-height) * 1px - 8px);
   height: calc(var(--player-height) * 1px - 8px);
   object-fit: contain;
-}
-
-.sponsor {
-  color: var(--p1-sponsor-color);
 }
 
 .slot_p_0 {

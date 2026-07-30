@@ -1,18 +1,3 @@
-@font-face {
-  font-family: "NotoSans";
-  src: url("../include/NotoSans-Regular.ttf") format("truetype");
-}
-
-@font-face {
-  font-family: "RobotoCondensed";
-  src: url("../include/RobotoCondensed.ttf") format("truetype");
-}
-
-@font-face {
-  font-family: "Roboto";
-  src: url("../include/Roboto-Regular.ttf") format("truetype");
-}
-
 body {
   font-family: var(--font);
   font-weight: bold;
@@ -205,21 +190,6 @@ body {
     inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
-.twitter_logo {
-  -webkit-mask-image: url(./twitter.svg);
-  -webkit-mask-size: contain;
-  -webkit-mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  background: var(--text-color);
-  width: 18px;
-  height: 18px;
-  margin-right: 8px;
-}
-
-.chips .twitter_logo {
-  margin-left: -4px;
-}
-
 /* ── Logo ─────────────────────────────────────────────────── */
 .logo {
   position: absolute;
@@ -267,18 +237,6 @@ body {
   font-size: 20px;
 }
 
-.info.container_inner {
-  display: flex;
-  width: 100%;
-  font-size: inherit;
-  justify-content: space-around;
-}
-
-.info.container_inner > div {
-  flex-shrink: 0;
-  text-align: center;
-}
-
 .info.container.top {
   bottom: 8px;
   left: 50%;
@@ -289,12 +247,6 @@ body {
   flex-direction: column;
   height: 36px;
   padding: 8px 16px;
-}
-
-.tournament_name {
-  font-size: 22px;
-  width: 100%;
-  height: 100%;
 }
 
 .fgc .info.container.top {
@@ -310,12 +262,6 @@ body {
 .fgc.thin .info.container.top {
   top: 2px;
   height: 48px;
-}
-
-.phase {
-  font-size: 18px;
-  letter-spacing: 3px;
-  width: 100%;
 }
 
 .match {
@@ -335,16 +281,6 @@ body {
   height: 64px;
   font-size: 20px;
   padding: 4px 16px;
-}
-
-.fgc .info.container.bottom {
-  top: unset;
-  bottom: 0;
-  padding: 16px 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
 }
 
 .melee .info.container.bottom {
@@ -399,51 +335,6 @@ body {
   z-index: 10;
 }
 
-/* ── Sponsor icon ─────────────────────────────────────────── */
-.sponsor_icon > div > div {
-  display: inline-block;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  width: 48px;
-  height: 48px;
-  border-radius: var(--border-radius);
-}
-
-.fgc .sponsor_icon {
-  position: absolute;
-  right: 200px;
-  z-index: -999;
-  opacity: 0.6;
-}
-
-.fgc .p2 .sponsor_icon {
-  right: unset;
-  left: 200px;
-}
-
-.fgc .sponsor_icon > div > div {
-  width: 80px;
-  height: 80px;
-}
-
-.thin .sponsor_icon {
-  position: absolute;
-  right: 200px;
-  z-index: -999;
-  opacity: 0.6;
-}
-
-.thin .p2 .sponsor_icon {
-  right: unset;
-  left: 200px;
-}
-
-.thin .sponsor_icon > div > div {
-  width: 100px;
-  height: 100px;
-}
-
 /* ── Character container ─────────────────────────────────────
    Each icon slot gets rounded corners and a layered shadow
    to feel lifted. The icon imagery itself is untouched.
@@ -463,14 +354,6 @@ body {
 .character_container > div {
   height: 48px;
   width: 48px;
-}
-
-.fgc.thin .character_container > div {
-  height: 100%;
-}
-
-.fgc.thin .character_container > div > div {
-  height: 100%;
 }
 
 .character_container > div > div {
