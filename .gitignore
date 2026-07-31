@@ -22,3 +22,6 @@ __pycache__/
 
 # Claude local files
 .claude/
+
+# Local scratch: render comparisons and other throwaway artefacts.
+.scratch/
