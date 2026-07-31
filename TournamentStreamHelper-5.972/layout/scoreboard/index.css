@@ -457,9 +457,13 @@ body {
   width: 50px;
 }
 
+/* --score-box-bg is the score box ALONE, defaulting to the shared panel colour.
+   --score-bg-color is also the side panel's whole bottom card and the bracket's
+   title bar, so a pack that wants a loud score box (a boxing corner post, say)
+   cannot simply brighten that token without flooding those surfaces too. */
 .p1 .score {
   color: var(--score-color);
-  background: var(--score-bg-color);
+  background: var(--score-box-bg, var(--score-bg-color));
   margin-right: -6px;
   margin-left: 16px;
 }
@@ -476,7 +480,7 @@ body {
 
 .p2 .score {
   color: var(--score-color);
-  background: var(--score-bg-color);
+  background: var(--score-box-bg, var(--score-bg-color));
   margin-left: -6px;
   margin-right: 16px;
 }
