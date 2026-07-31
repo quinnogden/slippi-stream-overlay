@@ -9,26 +9,26 @@
    look depends on is in this folder.
    ============================================================ */
 
-/* Playfair Display — the poster's heavy Didone-ish serif. Self-hosted rather
-   than pulled from Google Fonts: a venue with bad wifi must not be able to
-   silently drop the broadcast to a fallback face. SIL Open Font License.
-   Normal url()s, so these resolve relative to THIS file. */
+/* Anton — a heavy condensed grotesque, the classic fight-poster face, and the
+   closest match to the weight and proportion of the logo's wordmark.
+   Self-hosted rather than pulled from Google Fonts: a venue with bad wifi must
+   not be able to silently drop the broadcast to a fallback face. SIL Open Font
+   License. A normal url(), so it resolves relative to THIS file.
+
+   Anton ships one weight. The layouts ask for bold in several places, so those
+   get Chrome's synthetic bold — declaring the face at 400..900 here means the
+   browser scales the real outlines instead, which is the cleaner of the two. */
 @font-face {
-  font-family: "SaltySerif";
-  font-weight: 700;
-  src: url("./fonts/PlayfairDisplay-Bold.ttf") format("truetype");
-}
-@font-face {
-  font-family: "SaltySerif";
-  font-weight: 900;
-  src: url("./fonts/PlayfairDisplay-Black.ttf") format("truetype");
+  font-family: "SaltySans";
+  font-weight: 400 900;
+  src: url("./fonts/Anton-Regular.ttf") format("truetype");
 }
 
 :root {
-  /* Typography — the poster sets everything in the same serif and leans on
-     weight for hierarchy, so scores take the heavier cut. */
-  --font:           'SaltySerif', 'Playfair Display', Georgia, serif;
-  --score-font:     'SaltySerif', 'Playfair Display', Georgia, serif;
+  /* Typography — one face throughout, as the poster does; hierarchy comes from
+     size and colour rather than from mixing families. */
+  --font:           'SaltySans', 'Anton', 'Oswald', sans-serif;
+  --score-font:     'SaltySans', 'Anton', 'Oswald', sans-serif;
 
   /* Shape — squarer than Hundred Acres. A boxing poster is hard-edged;
      16px rounded cards read too soft against this palette. */
