@@ -9,26 +9,27 @@
    look depends on is in this folder.
    ============================================================ */
 
-/* Anton — a heavy condensed grotesque, the classic fight-poster face, and the
-   closest match to the weight and proportion of the logo's wordmark.
-   Self-hosted rather than pulled from Google Fonts: a venue with bad wifi must
-   not be able to silently drop the broadcast to a fallback face. SIL Open Font
-   License. A normal url(), so it resolves relative to THIS file.
+/* Chivo — a grotesque with normal (not condensed) proportions. Self-hosted
+   rather than pulled from Google Fonts: a venue with bad wifi must not be able
+   to silently drop the broadcast to a fallback face. SIL Open Font License.
+   A normal url(), so it resolves relative to THIS file.
 
-   Anton ships one weight. The layouts ask for bold in several places, so those
-   get Chrome's synthetic bold — declaring the face at 400..900 here means the
-   browser scales the real outlines instead, which is the cleaner of the two. */
+   This is the VARIABLE cut, wght axis 100..900, declared across its full range.
+   The layouts ask for several different weights across the 16 overlays, and a
+   variable face serves each from real outlines — no synthetic bold anywhere,
+   and one 157KB file instead of a static cut per weight. Bump the 700 below to
+   800 or 900 if the broadcast wants more punch; nothing else has to change. */
 @font-face {
   font-family: "SaltySans";
-  font-weight: 400 900;
-  src: url("./fonts/Anton-Regular.ttf") format("truetype");
+  font-weight: 100 900;
+  src: url("./fonts/Chivo-Variable.ttf") format("truetype");
 }
 
 :root {
   /* Typography — one face throughout, as the poster does; hierarchy comes from
      size and colour rather than from mixing families. */
-  --font:           'SaltySans', 'Anton', 'Oswald', sans-serif;
-  --score-font:     'SaltySans', 'Anton', 'Oswald', sans-serif;
+  --font:           'SaltySans', 'Chivo', 'Roboto', sans-serif;
+  --score-font:     'SaltySans', 'Chivo', 'Roboto', sans-serif;
 
   /* Shape — squarer than Hundred Acres. A boxing poster is hard-edged;
      16px rounded cards read too soft against this palette. */
