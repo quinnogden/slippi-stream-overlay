@@ -71,6 +71,24 @@
   --p2-team-color:   #a8342f;               /* the poster's red corner, opposite gold */
   --set-score-color: var(--darkened-text);  /* neutral set score chip */
 
+  /* Side-panel spotlights — opt-in flair, off in every other pack.
+     Two beams rise from the bottom edge of the bottom card and sway
+     out↔in, for the fight-night look the poster sells. The structure and
+     animation live in side-panel/side-panel.css and are display:none
+     until --spotlight-display is set, so switching packs turns them off
+     with no other edit.
+
+     --spotlight-rgb defaults to --text-color-rgb (the rope gold); it is
+     stated explicitly here because the beams want a slightly hotter,
+     whiter gold than body text does — gold at 30% alpha through a screen
+     blend reads muddy against the oxblood card.
+     --spotlight-strength scales all three gradient stops at once, so the
+     beams can be dialled back for a camera-heavy scene without touching
+     the gradient itself. */
+  --spotlight-display:  block;
+  --spotlight-rgb:      248, 214, 112;
+  --spotlight-strength: 1.35;
+
   /* RGB triplets for use inside rgba() — keep in sync with the hexes above */
   --bg-color-rgb:       22, 22, 22;    /* #161616 */
   --bg-color-light-rgb: 48, 42, 38;    /* warm lift for gradient highlights */
