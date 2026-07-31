@@ -377,12 +377,30 @@ takes them with it, and their absence silently kills character icons and the bri
 path (`character["1"].assets["base_files/icon"].asset`), which is a different mechanism, not a third
 copy of the same construction.
 
-### Theme / design tokens
+### Theme / design tokens — theme packs
 
-`layout/theme.css` is the single source of truth for colors and fonts. `main.css` `@import`s it, so all 16 TSH layouts inherit the tokens automatically.
+The repo runs more than one tournament, so a theme is a **self-contained folder**, not a set of edits scattered across the layout tree:
 
+```
+layout/theme.css                  ← a SWITCH: one @import naming the active pack
+layout/themes/hundred-acres/
+  theme.css                       ← every token, the @font-face, the two logo urls
+  logo.png                        ← tournament logo
+  sponsor.png                     ← sponsor/venue logo
+  fonts/Baby-Doll.ttf             ← the brand font, self-hosted
+```
+
+`main.css:1` `@import`s `theme.css`, which `@import`s the pack, and every layout links `main.css` — so all 16 TSH layouts inherit the active pack automatically.
+
+- **Two different url-resolution rules apply inside a pack, and getting them confused is the trap.** A *normal* `url()` — the `@font-face src` — resolves against the file that declares it, so `./fonts/Baby-Doll.ttf` is correct. A `url()` inside a **custom property** does not: Chrome resolves it at substitution time, against the stylesheet that *uses* the `var()`. So `--logo-url` must be written relative to the consuming layout, hence `url("../themes/<pack>/logo.png")`. Writing `./logo.png` there silently 404s against `layout/side-panel/logo.png`. Every consumer sits exactly one level under `layout/`, so the one `../themes/<pack>/` prefix works from all of them.
+- **Copying a pack means editing the pack name inside its own `theme.css`** (those two urls). `preflight.js` resolves both and fails if they don't point at real files, because a missing logo is otherwise invisible until it's on stream.
+- **Per-event branching.** A new event = a new pack folder plus a one-line change to `layout/theme.css`, on its own branch (`event/<slug>`). Master never touches either, so `git merge master` into an event branch stays conflict-free, and the binary `logo.png` never enters the merge path. Checking out a branch re-skins the broadcast — OBS reads the working tree, so just refresh the browser sources.
+- **`layout/logo.png` and `layout/ThePark.png` still exist and are deliberately not deleted.** TSH's own `user_data/settings.json → main_icon_path` points at the former (gitignored, so a branch can't carry it), and five vendored overlays we don't broadcast reference it. Nothing in our three layouts reads them any more.
+- **Brand imagery is CSS-only**, via `--logo-url` / `--sponsor-url`. `scoreboard/index.css` `.logo` uses `background-image: var(--logo-url)`; the side panel's `.logo-primary` / `.logo-sponsor` are **`<div>`s with a background-image**, not `<img>`s. That is deliberate: `getComputedStyle` returns a custom property's url *verbatim* (`url("../themes/…")`), so JS would have to redo the resolution CSS already does correctly. `side-panel.js` no longer has `LOGO_PATH` / `SPONSOR_PATH` — do not reintroduce them.
 - **Link `main.css` only.** It `@import`s `theme.css`; adding a second `<link>` to `theme.css` just refetches the tokens and the BabyDoll TTF. Same for redeclaring `@font-face` or `--font` in a layout stylesheet — `bracket/index.css` used to, and its bare `--font: "BabyDoll"` silently dropped the Fredoka fallback.
-- **Font:** BabyDoll primary, Fredoka fallback (loaded from Google Fonts). The BabyDoll `@font-face` lives in `theme.css` so no layout repeats it. `--font` / `--score-font`.
+- **`@import` must precede every other rule in a file.** The pre-pack `theme.css` put its `@font-face` above the Google Fonts `@import`, which made that `@import` invalid and silently dropped — Fredoka never actually loaded. The pack has the order right.
+- **Font:** BabyDoll primary, Fredoka fallback (Google Fonts — a network request, so it fails on venue wifi; prefer self-hosting a TTF in the pack's `fonts/`). The BabyDoll `@font-face` lives in the pack so no layout repeats it. `--font` / `--score-font`. `layout/include/Baby-Doll.ttf` is still there for four vendored overlays that declare their own `@font-face` against it.
+- **`preflight.js` verifies the pack** (`checkThemePack`): it parses the `@import` out of `theme.css` and requires `themes/<pack>/{theme.css,logo.png,sponsor.png}`. CSS fails silently, so without this an unstyled broadcast has no other alarm.
 - **Colors:** `--bg-color` `#2a3d23` (deep forest green), `--score-bg-color` `#071820` (dark teal), `--text-color` `#f9d697` (warm gold), `--darkened-text` `#aa8e5b` (muted gold). Semantic: `--icon-bg-color`, `--win-color` `#29b548`, `--loss-color` `#ff3837`, `--p2-team-color` `#308aff`, `--set-score-color`, `--score-color`. RGB triplets for `rgba()`: `--bg-color-rgb`, `--bg-color-light-rgb`, `--text-color-rgb`, `--score-bg-color-rgb`.
 
 ### Layout — scoreboard (`melee.html` / `meleePlayers.html`)

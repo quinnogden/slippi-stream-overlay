@@ -39,7 +39,7 @@ Run it after Phase 3, again after Phase 4, and once more at Phase 8 with everyth
 | `slippi-bridge/public/control-panel.html` | `slippi-bridge/config.local.js` → copy from `config.local.example.js` |
 | `slippi-bridge/config.local.example.js` | `slippi-bridge/clipper-settings.json` → written by the control panel on first save (optional) |
 | `obs-scripts/auto_replays.py` | The entire TSH app: `TSH.exe`, `src/`, `assets/`, `dependencies/`, `out/` |
-| `TournamentStreamHelper-*/layout/` — **all 285 files**, including `logo.png`, `ThePark.png`, `theme.css`, `main.css` | `TournamentStreamHelper-*/user_data/` — icons, settings, player DB, pronouns |
+| `TournamentStreamHelper-*/layout/` — the whole tracked layout tree, including `main.css`, `theme.css` and `themes/<pack>/` (the active theme pack: tokens, both logos, the brand font) | `TournamentStreamHelper-*/user_data/` — icons, settings, player DB, pronouns |
 
 Claude verifies this with `git ls-files` and `git status`, and lists exactly which of the right-hand column are absent on this machine.
 
@@ -109,6 +109,7 @@ Four keys in `user_data/settings.json` under `general`. Claude reads and reports
 | `hide_track_player` | `true` | Cosmetic — hides start.gg player tracking UI. |
 
 - [ ] **[you]** `TOURNAMENT_URL` set to the event you're running, if you want bracket/queue/side-panel data
+- [ ] **[you]** *(cosmetic, per-machine)* `main_icon_path` — TSH's own window/widget icon. It defaults to `./layout/logo.png`, which is the Hundred Acres logo regardless of which theme pack or event branch is checked out, because `settings.json` is gitignored. Point it at `./layout/themes/<active-pack>/logo.png` if you care. Nothing on the broadcast reads this — the overlays get their logos from the pack's `--logo-url` / `--sponsor-url`.
 - [ ] **[claude]** After TSH's first launch, confirm it generated `out/program_state.json` and `out/tournamentInfo/tournamentName.txt` (the side panel's header reads the latter)
 
 ---

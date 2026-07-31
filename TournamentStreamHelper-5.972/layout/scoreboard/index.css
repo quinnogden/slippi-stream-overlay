@@ -198,7 +198,7 @@ body {
   transform: translateX(-50%);
   width: 100px;
   height: 100px;
-  background-image: url("../logo.png");
+  background-image: var(--logo-url); /* from the active theme pack */
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;

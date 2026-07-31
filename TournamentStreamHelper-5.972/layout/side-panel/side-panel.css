@@ -346,8 +346,12 @@ body {
   inset:      0;
   width:      100%;
   height:     100%;
-  object-fit: contain;
   opacity:    0;
+
+  /* Was object-fit on an <img>; the equivalent for a background-image. */
+  background-size:     contain;
+  background-position: center;
+  background-repeat:   no-repeat;
 
   /* Lift shadow + very subtle warm glow */
   filter:
@@ -356,6 +360,12 @@ body {
     brightness(1.06)
     saturate(1.08);
 }
+
+/* Brand imagery from the active theme pack. The pack declares these as url()
+   values, and CSS resolves them against the pack's own theme.css — which is
+   why these stay in CSS rather than being assigned as an <img src> from JS. */
+.logo-primary { background-image: var(--logo-url); }
+.logo-sponsor { background-image: var(--sponsor-url); }
 
 
 /* ── Rotating info panels ─────────────────────────────────── */

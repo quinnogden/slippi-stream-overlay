@@ -203,7 +203,7 @@ function checkTshInstall(config) {
   // extracting a release over the repo replaces these with TSH's stock ones and
   // OBS shows the wrong overlay with no error anywhere.
   const required = [
-    "theme.css", "main.css", "logo.png", "ThePark.png",
+    "theme.css", "main.css",
     // shared/ is loaded by the scoreboard, side panel and bracket alike; without
     // it the character icons and the bridge connection both silently vanish.
     "shared/tsh-assets.js", "shared/slippi-bridge-client.js",
@@ -216,9 +216,81 @@ function checkTshInstall(config) {
   else fail("Custom layouts", `missing: ${missingLayout.join(", ")}`,
             'git checkout -- "TournamentStreamHelper-*/layout/"');
 
+  checkThemePack(tshRoot);
   checkLayoutNotClobbered(tshRoot);
   checkUserData(tshRoot);
   return tshRoot;
+}
+
+/**
+ * layout/theme.css is a switch: one @import naming the active theme pack under
+ * layout/themes/. Every colour, the brand font and both logos live in that
+ * folder, so a missing or misnamed pack means an unstyled broadcast — and
+ * because CSS fails silently, nothing else would report it.
+ */
+function checkThemePack(tshRoot) {
+  const layout = path.join(tshRoot, "layout");
+  let css;
+  try {
+    css = fs.readFileSync(path.join(layout, "theme.css"), "utf8");
+  } catch {
+    fail("Theme pack", "layout/theme.css is unreadable",
+         'git checkout -- "TournamentStreamHelper-*/layout/"');
+    return;
+  }
+
+  const m = css.match(/@import\s+url\(\s*["']?\.\/themes\/([^/"')]+)\/theme\.css["']?\s*\)/);
+  if (!m) {
+    fail("Theme pack", "layout/theme.css has no ./themes/<pack>/theme.css @import — the active pack can't be determined",
+         'git checkout -- "TournamentStreamHelper-*/layout/theme.css"');
+    return;
+  }
+
+  const pack = m[1];
+  const packDir = path.join(layout, "themes", pack);
+  const missing = ["theme.css", "logo.png", "sponsor.png"]
+    .filter((f) => !exists(path.join(packDir, f)));
+
+  if (missing.length) {
+    fail("Theme pack", `themes/${pack} is missing: ${missing.join(", ")}`,
+         "Restore it, or point layout/theme.css at a pack that exists");
+    return;
+  }
+  pass("Theme pack", `${pack} (theme.css, logo.png, sponsor.png)`);
+
+  checkThemeImagePaths(packDir, pack, layout);
+}
+
+/**
+ * The pack's --logo-url / --sponsor-url must be written relative to the
+ * CONSUMING layout, not to the pack — Chrome resolves a url() inside a custom
+ * property against the stylesheet that uses the var(), not the one that
+ * declares it. Copying a pack and leaving the old pack name in these two paths
+ * is therefore an easy mistake that shows up only as a missing logo on stream.
+ * Consumers all sit one level under layout/, so resolve from there.
+ */
+function checkThemeImagePaths(packDir, pack, layout) {
+  let css;
+  try {
+    css = fs.readFileSync(path.join(packDir, "theme.css"), "utf8");
+  } catch {
+    fail("Theme logos", `themes/${pack}/theme.css is unreadable`);
+    return;
+  }
+
+  const broken = [];
+  for (const token of ["--logo-url", "--sponsor-url"]) {
+    const hit = css.match(new RegExp(`${token}\\s*:\\s*url\\(\\s*["']?([^"')]+)["']?\\s*\\)`));
+    if (!hit) { broken.push(`${token} not declared`); continue; }
+    // "scoreboard" stands in for any consumer — they are all one level deep.
+    if (!exists(path.resolve(layout, "scoreboard", hit[1]))) {
+      broken.push(`${token} → ${hit[1]} (no such file)`);
+    }
+  }
+
+  if (broken.length === 0) pass("Theme logos", "--logo-url and --sponsor-url both resolve");
+  else fail("Theme logos", broken.join("; "),
+            `Paths are relative to a consuming layout, so they read "../themes/${pack}/<file>.png"`);
 }
 
 /**

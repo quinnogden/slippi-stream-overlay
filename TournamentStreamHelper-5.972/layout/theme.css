@@ -1,44 +1,18 @@
 /* ============================================================
-   Hundred Acres — Shared Design Tokens
-   Import this before any layout-specific CSS.
-   Overrides TSH's injected defaults so the theme is consistent
-   regardless of TSH settings panel changes.
+   Active theme pack.
+
+   This file is a SWITCH, not a theme. All tokens, fonts and brand
+   imagery live in layout/themes/<pack>/theme.css, and every url()
+   in a pack resolves relative to that file — so a pack is a
+   self-contained folder you can copy to start a new event.
+
+   To re-skin the broadcast: change the one @import below (or check
+   out the event's branch, which differs from master by this line),
+   then refresh the OBS browser sources.
+
+   Loaded by main.css:1, which every layout links.
+   slippi-bridge/scripts/preflight.js parses the @import to verify
+   the named pack is actually present.
    ============================================================ */
 
-@font-face {
-  font-family: "BabyDoll";
-  src: url("./include/Baby-Doll.ttf") format("truetype");
-}
-
-@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
-
-:root {
-  /* Typography — BabyDoll primary, Fredoka available as fallback */
-  --font:           'BabyDoll', 'Fredoka', sans-serif;
-  --score-font:     'BabyDoll', 'Fredoka', sans-serif;
-
-  /* Shape */
-  --border-radius:  16px;
-
-  /* Colors */
-  --bg-color:       #2a3d23;   /* deep forest green, darker */
-  --text-color:     #f9d697;   /* warm gold */
-  --darkened-text:  #aa8e5b;   /* muted gold */
-  --score-bg-color: #071820;   /* dark teal, deeper */
-  --score-color:    #f9d697;
-  --sponsor-color:  #aa8e5b;
-  --accent-color:   #f9d697;   /* used by side panel, player card, etc. */
-
-  /* Semantic UI colors */
-  --icon-bg-color:   var(--score-bg-color); /* character icon slot backgrounds */
-  --win-color:       #29b548;               /* winner result indicator */
-  --loss-color:      #ff3837;               /* loser result indicator */
-  --p2-team-color:   #308aff;               /* p2 accent in queues/bracket */
-  --set-score-color: var(--darkened-text);  /* neutral set score chip */
-
-  /* RGB triplets for use inside rgba() */
-  --bg-color-rgb:       42, 61, 35;    /* #2a3d23 */
-  --bg-color-light-rgb: 58, 84, 48;    /* lighter green for gradient highlights */
-  --text-color-rgb:     249, 214, 151; /* #f9d697 */
-  --score-bg-color-rgb: 7, 24, 32;     /* #071820 */
-}
+@import url("./themes/hundred-acres/theme.css");

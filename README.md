@@ -80,7 +80,7 @@ TournamentStreamHelper-5.972/layout/side-panel/
   side-panel.css
 ```
 
-Also copy `TournamentStreamHelper-5.972/layout/theme.css` and `TournamentStreamHelper-5.972/layout/main.css` — shared design tokens used by both layouts.
+Also copy `TournamentStreamHelper-5.972/layout/main.css`, `layout/theme.css` and the whole `layout/themes/` folder — `main.css` imports `theme.css`, which is a one-line switch naming the active **theme pack** under `themes/`. The pack holds every colour token, the brand font and both logos. Missing it means an unstyled overlay; `scripts/preflight.js` checks for it explicitly.
 
 ### 4. Run TSH and the bridge
 
@@ -241,11 +241,11 @@ The side panel is a 611 × 1080 browser source designed to sit beside the webcam
 
 | Panel | Shows |
 |-------|-------|
-| Tournament logo | Logo image from `layout/logo.png` |
+| Tournament logo | `logo.png` from the active theme pack (`layout/themes/<pack>/`) |
 | Player 1 | Recent tournament placements + current run results |
 | Player 2 | Same for player 2 |
 | Recent Sets | Head-to-head set record between the two players |
-| Sponsor logo | Sponsor image from `layout/ThePark.png` |
+| Sponsor logo | `sponsor.png` from the active theme pack |
 | Just Finished | Most recently completed sets at the tournament |
 | Up Next | Stream queue |
 

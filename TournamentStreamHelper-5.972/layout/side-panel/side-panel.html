@@ -44,8 +44,11 @@
       <!-- Logo cycle: tournament logo ↔ sponsor logo -->
       <div class="slot-logo">
         <div class="logo-stage">
-          <img class="logo-img logo-primary" src="" alt="" />
-          <img class="logo-img logo-sponsor" src="" alt="" />
+          <!-- Images come from the active theme pack via --logo-url /
+               --sponsor-url; divs, not <img>, so CSS resolves the pack-relative
+               paths (see side-panel.css). -->
+          <div class="logo-img logo-primary"></div>
+          <div class="logo-img logo-sponsor"></div>
         </div>
       </div>
 

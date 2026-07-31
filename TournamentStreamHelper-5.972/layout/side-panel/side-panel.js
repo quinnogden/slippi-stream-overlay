@@ -17,9 +17,12 @@
 const DEBUG_PANEL = null; // "logos"|"player-1"|"player-2"|"recent-sets"|"completed-sets"|"queue"|null
 
 
-const LOGO_PATH           = "../logo.png";
-const SPONSOR_PATH        = "../ThePark.png";
 const PANEL_INTERVAL      = 20000;  // ms — every slot, logos included
+
+// The tournament and sponsor logos are NOT configured here. They come from the
+// active theme pack (layout/themes/<pack>/theme.css) via the --logo-url /
+// --sponsor-url tokens, applied in side-panel.css. Keeping them in CSS is what
+// lets the pack use paths relative to itself.
 
 // ── Animation timing constants ────────────────────────────────────────────────
 const ANIM_TRANSITION_DURATION = 0.7;   // panel fade in/out
@@ -605,13 +608,7 @@ async function fetchCompletedSets() {
 LoadEverything().then(() => {
   gsap.config({ nullTargetWarn: false });
 
-  // ── Logo setup ────────────────────────────────────────────────────────────
-  (function initLogos() {
-    const primary = document.querySelector(".logo-primary");
-    const sponsor = document.querySelector(".logo-sponsor");
-    if (primary) primary.src = LOGO_PATH;
-    if (sponsor) sponsor.src = SPONSOR_PATH;
-  })();
+  // Logos need no setup — side-panel.css paints them from the theme pack.
 
   // ── Tournament name polling ───────────────────────────────────────────────
   fetchTournamentName();

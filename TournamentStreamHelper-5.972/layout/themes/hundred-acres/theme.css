@@ -1,0 +1,66 @@
+/* ============================================================
+   Theme pack — Hundred Acres
+
+   Everything the broadcast's look depends on lives in this folder:
+   the tokens below, fonts/, logo.png and sponsor.png. To start a
+   new event, copy the folder, edit this file, and point the single
+   @import in layout/theme.css at it.
+
+   Activated by that @import. Overrides TSH's injected defaults so
+   the theme is consistent regardless of TSH settings panel changes.
+   ============================================================ */
+
+/* @import must precede every other rule or it is silently dropped —
+   the pre-pack theme.css had this below the @font-face, so Fredoka
+   never actually loaded. */
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
+
+/* Self-hosted so a TSH release zip overwriting layout/include/ can't take the
+   brand font with it. include/Baby-Doll.ttf still exists for the vendored
+   overlays that declare their own @font-face against it.
+   This is a normal url(), so it resolves relative to THIS file. */
+@font-face {
+  font-family: "BabyDoll";
+  src: url("./fonts/Baby-Doll.ttf") format("truetype");
+}
+
+:root {
+  /* Typography — BabyDoll primary, Fredoka available as fallback */
+  --font:           'BabyDoll', 'Fredoka', sans-serif;
+  --score-font:     'BabyDoll', 'Fredoka', sans-serif;
+
+  /* Shape */
+  --border-radius:  16px;
+
+  /* Brand imagery. NOTE the "../themes/<pack>/" prefix, and do not "simplify"
+     it to "./" — unlike the @font-face above, a url() inside a custom property
+     is resolved by Chrome against the stylesheet that USES the var(), not the
+     one that declares it. Every consumer (scoreboard/, side-panel/, bracket/)
+     is exactly one level under layout/, so this one prefix works from all of
+     them. Copying this pack therefore means editing the pack name here too;
+     preflight.js checks that these two paths resolve to real files. */
+  --logo-url:       url("../themes/hundred-acres/logo.png");
+  --sponsor-url:    url("../themes/hundred-acres/sponsor.png");
+
+  /* Colors */
+  --bg-color:       #2a3d23;   /* deep forest green, darker */
+  --text-color:     #f9d697;   /* warm gold */
+  --darkened-text:  #aa8e5b;   /* muted gold */
+  --score-bg-color: #071820;   /* dark teal, deeper */
+  --score-color:    #f9d697;
+  --sponsor-color:  #aa8e5b;
+  --accent-color:   #f9d697;   /* used by side panel, player card, etc. */
+
+  /* Semantic UI colors */
+  --icon-bg-color:   var(--score-bg-color); /* character icon slot backgrounds */
+  --win-color:       #29b548;               /* winner result indicator */
+  --loss-color:      #ff3837;               /* loser result indicator */
+  --p2-team-color:   #308aff;               /* p2 accent in queues/bracket */
+  --set-score-color: var(--darkened-text);  /* neutral set score chip */
+
+  /* RGB triplets for use inside rgba() — keep in sync with the hexes above */
+  --bg-color-rgb:       42, 61, 35;    /* #2a3d23 */
+  --bg-color-light-rgb: 58, 84, 48;    /* lighter green for gradient highlights */
+  --text-color-rgb:     249, 214, 151; /* #f9d697 */
+  --score-bg-color-rgb: 7, 24, 32;     /* #071820 */
+}
