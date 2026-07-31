@@ -54,6 +54,10 @@
   --darkened-text:  #aa8e5b;   /* muted gold */
   --score-bg-color: #071820;   /* dark teal, deeper */
   --score-color:    #f9d697;
+
+  /* Optional: --score-box-bg overrides the scoreboard's two score boxes only,
+     leaving the side panel's bottom card and the bracket title on
+     --score-bg-color. Unset here, so both stay teal. */
   --sponsor-color:  #aa8e5b;
   --accent-color:   #f9d697;   /* used by side panel, player card, etc. */
 
