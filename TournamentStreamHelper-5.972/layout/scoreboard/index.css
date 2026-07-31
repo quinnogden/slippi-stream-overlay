@@ -443,8 +443,17 @@ body {
   color: var(--bg-color);
   flex-grow: 1;
   flex-shrink: 0;
-  padding-bottom: 6px;
   overflow: hidden;
+
+  /* Centre the digit in the box. This used to be a bare block with no
+     text-align and a padding-bottom: 6px nudge, which left the number high
+     and hard against the leading edge. Flex centring is also the only version
+     that survives a theme change: the optical offset a padding would need
+     depends on the face's vertical metrics, so a hand-tuned nudge is only ever
+     right for one font. Matches how bracket/index.css already does it. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
   box-shadow:
     0 8px 32px rgba(0,0,0,0.60),
     0 3px 8px  rgba(0,0,0,0.45),
