@@ -1,0 +1,71 @@
+/* ============================================================
+   Theme pack — RVA Salty Suite
+
+   Fight-night showmatch. Palette sampled directly from the event
+   promo poster: charcoal canvas, gold ring ropes, oxblood corner
+   posts, white fighter names.
+
+   Activated by the @import in layout/theme.css. Everything the
+   look depends on is in this folder.
+   ============================================================ */
+
+/* Playfair Display — the poster's heavy Didone-ish serif. Self-hosted rather
+   than pulled from Google Fonts: a venue with bad wifi must not be able to
+   silently drop the broadcast to a fallback face. SIL Open Font License.
+   Normal url()s, so these resolve relative to THIS file. */
+@font-face {
+  font-family: "SaltySerif";
+  font-weight: 700;
+  src: url("./fonts/PlayfairDisplay-Bold.ttf") format("truetype");
+}
+@font-face {
+  font-family: "SaltySerif";
+  font-weight: 900;
+  src: url("./fonts/PlayfairDisplay-Black.ttf") format("truetype");
+}
+
+:root {
+  /* Typography — the poster sets everything in the same serif and leans on
+     weight for hierarchy, so scores take the heavier cut. */
+  --font:           'SaltySerif', 'Playfair Display', Georgia, serif;
+  --score-font:     'SaltySerif', 'Playfair Display', Georgia, serif;
+
+  /* Shape — squarer than Hundred Acres. A boxing poster is hard-edged;
+     16px rounded cards read too soft against this palette. */
+  --border-radius:  8px;
+
+  /* Brand imagery. The "../themes/<pack>/" prefix is required: a url() inside
+     a custom property resolves against the stylesheet that USES the var(),
+     not this one. Consumers all sit one level under layout/. */
+  --logo-url:       url("../themes/salty-suite/logo.png");
+  --sponsor-url:    url("../themes/salty-suite/sponsor.png");
+
+  /* The Salty Suite logo is black ink on transparent — invisible on charcoal.
+     invert(1) turns the wordmark white and the salt shaker into a dark vessel
+     with a light outline, which is how it reads on the poster. The sponsor
+     doge is already full-colour, so it is left alone. */
+  --logo-filter:    invert(1);
+  --sponsor-filter: none;
+
+  /* Colors — sampled from promo.png (charcoal 62%, gold 14%, oxblood 4%) */
+  --bg-color:       #161616;   /* charcoal canvas */
+  --text-color:     #edba05;   /* ring-rope gold */
+  --darkened-text:  #9d7c1c;   /* muted gold, for secondary text */
+  --score-bg-color: #211313;   /* oxblood-black — panel base under the gold */
+  --score-color:    #edba05;
+  --sponsor-color:  #9d7c1c;
+  --accent-color:   #edba05;
+
+  /* Semantic UI colors */
+  --icon-bg-color:   var(--score-bg-color); /* character icon slot backgrounds */
+  --win-color:       #3fa34d;               /* winner — stays green to read as a signal */
+  --loss-color:      #d4372c;               /* loser — warmer red than the maroon accent */
+  --p2-team-color:   #a8342f;               /* the poster's red corner, opposite gold */
+  --set-score-color: var(--darkened-text);  /* neutral set score chip */
+
+  /* RGB triplets for use inside rgba() — keep in sync with the hexes above */
+  --bg-color-rgb:       22, 22, 22;    /* #161616 */
+  --bg-color-light-rgb: 48, 42, 38;    /* warm lift for gradient highlights */
+  --text-color-rgb:     237, 186, 5;   /* #edba05 */
+  --score-bg-color-rgb: 33, 19, 19;    /* #211313 */
+}
