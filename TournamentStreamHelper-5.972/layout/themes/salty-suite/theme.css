@@ -53,6 +53,13 @@
   --darkened-text:  #9d7c1c;   /* muted gold, for secondary text */
   --score-bg-color: #211313;   /* oxblood-black — panel base under the gold */
   --score-color:    #edba05;
+
+  /* The score box alone goes to a real corner-post red. It cannot ride on
+     --score-bg-color: that token is also the side panel's whole bottom card
+     and the bracket title bar, and this value across 611x650px would drown
+     the panel. At #211313 the box barely separated from the #161616 card,
+     where Hundred Acres gets a teal-vs-green hue break for free. */
+  --score-box-bg:   #6b1a14;
   --sponsor-color:  #9d7c1c;
   --accent-color:   #edba05;
 
