@@ -198,7 +198,8 @@ body {
   transform: translateX(-50%);
   width: 100px;
   height: 100px;
-  background-image: var(--logo-url); /* from the active theme pack */
+  background-image: var(--logo-url);          /* from the active theme pack */
+  filter:           var(--logo-filter, none); /* packs recolour their own artwork */
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;

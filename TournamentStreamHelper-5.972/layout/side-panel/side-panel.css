@@ -353,8 +353,11 @@ body {
   background-position: center;
   background-repeat:   no-repeat;
 
-  /* Lift shadow + very subtle warm glow */
+  /* Lift shadow + very subtle warm glow. --brand-filter is set per-logo below
+     so a pack can recolour its artwork (see --logo-filter in the theme pack)
+     without either logo losing the shared shadow treatment. */
   filter:
+    var(--brand-filter, none)
     drop-shadow(0 0 12px rgba(var(--text-color-rgb),0.12))
     drop-shadow(0 6px 18px rgba(0,0,0,0.70))
     brightness(1.06)
@@ -364,8 +367,14 @@ body {
 /* Brand imagery from the active theme pack. The pack declares these as url()
    values, and CSS resolves them against the pack's own theme.css — which is
    why these stay in CSS rather than being assigned as an <img src> from JS. */
-.logo-primary { background-image: var(--logo-url); }
-.logo-sponsor { background-image: var(--sponsor-url); }
+.logo-primary {
+  background-image: var(--logo-url);
+  --brand-filter:   var(--logo-filter, none);
+}
+.logo-sponsor {
+  background-image: var(--sponsor-url);
+  --brand-filter:   var(--sponsor-filter, none);
+}
 
 
 /* ── Rotating info panels ─────────────────────────────────── */

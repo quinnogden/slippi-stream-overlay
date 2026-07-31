@@ -42,6 +42,12 @@
   --logo-url:       url("../themes/hundred-acres/logo.png");
   --sponsor-url:    url("../themes/hundred-acres/sponsor.png");
 
+  /* Prepended to each logo's filter chain, for packs whose artwork isn't
+     already the right colour for a dark overlay (a black-ink transparent PNG
+     needs invert(1), for instance). These logos are full-colour, so: none. */
+  --logo-filter:    none;
+  --sponsor-filter: none;
+
   /* Colors */
   --bg-color:       #2a3d23;   /* deep forest green, darker */
   --text-color:     #f9d697;   /* warm gold */
