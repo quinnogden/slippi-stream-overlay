@@ -60,16 +60,18 @@
   --frame-pad: 14px;
   --cam-pad:   10px;
 
-  /* The gap each cam plate has to cross to reach the clip plate.
-     Derived, not typed: it has to stay exact through any retune, and
-     a number that only LOOKS right leaves a hairline of background
-     showing at the join. max(0px, …) so cams pushed in past the clip
-     collapse the join instead of inverting the border. */
+  /* The span each link bar has to cross to reach the clip plate.
+     Measured from the cam window's inner edge, not from a plate edge:
+     the cams have no border on that side — the clip plate closes them.
+     Derived, not typed, because it has to stay exact through any
+     retune, and a number that only LOOKS right leaves a sliver of
+     background at the join. max(0px, …) so cams pushed in past the
+     clip collapse the link instead of inverting it. */
   --join-l: max(0px, calc(
-    var(--clip-x) - var(--frame-pad) - var(--cam-l-x) - var(--cam-w) - var(--cam-pad)
+    var(--clip-x) - var(--frame-pad) - var(--cam-l-x) - var(--cam-w)
   ));
   --join-r: max(0px, calc(
-    var(--cam-r-x) - var(--cam-pad) - var(--clip-x) - var(--clip-w) - var(--frame-pad)
+    var(--cam-r-x) - var(--clip-x) - var(--clip-w) - var(--frame-pad)
   ));
 
   /* Title plate. --title-y derives from the clip, so the plate tracks the
@@ -196,13 +198,19 @@ body {
   border:        var(--pad) solid var(--score-bg-color);
   border-radius: calc(var(--pad) + var(--border-radius));
 
+  /* Both hairlines are variables so a frame with an open side can
+     redeclare them per side. A plain four-sided shadow would keep
+     drawing the edge that isn't there. */
+  --edge-inner: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+  --edge-outer: 0 0 0 1px rgba(var(--text-color-rgb), 0.14);
+
   box-shadow:
     /* Crisp separation between footage and plate, following the
        inner radius. Keep at 1px — this paints over the video. */
-    inset 0  0 0 1px rgba(0, 0, 0, 0.45),
-    inset 0  1px 0   rgba(255, 255, 255, 0.06),
+    var(--edge-inner),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
     /* Gold hairline hugging the outer edge */
-    0 0 0 1px rgba(var(--text-color-rgb), 0.14),
+    var(--edge-outer),
     /* Raised-card depth, same recipe as the header card in side-panel.css */
     0 8px 32px rgba(0, 0, 0, 0.60),
     0 3px 8px  rgba(0, 0, 0, 0.45);
@@ -245,19 +253,53 @@ body {
   height: calc(var(--cam-h) + 2 * var(--pad));
 }
 
-/* The inner corners square off so the links below meet a straight
-   edge. Against the original radius they would butt into a curve and
-   leave a crescent of background at each junction. */
+/* Each cam plate is open on the side facing the clip: no border there,
+   so the CLIP frame's outer edge closes the cam window and the two
+   read as one bay rather than two windows separated by a rail.
+
+   The width drops by exactly one --pad to match, which is what keeps
+   the padding box — the hole the OBS source shows through — on the
+   source rect. Zeroing the border alone would stretch the hole a pad
+   wider and misreport it in ?guides=1.
+
+   The corners on that side square off with it: nothing is drawn to
+   round, and the link bars below need a straight edge to meet.
+
+   Both hairlines drop to three sides with it. Left whole they keep
+   tracing the open edge — a gold line exactly where the rail used to
+   be, which is the thing this removes. */
 .cam-l {
-  left: calc(var(--cam-l-x) - var(--pad));
+  left:  calc(var(--cam-l-x) - var(--pad));
+  width: calc(var(--cam-w) + var(--pad));
+  border-right-width:         0;
   border-top-right-radius:    0;
   border-bottom-right-radius: 0;
+
+  --edge-inner:
+    inset  1px 0 0 rgba(0, 0, 0, 0.45),
+    inset  0  1px 0 rgba(0, 0, 0, 0.45),
+    inset  0 -1px 0 rgba(0, 0, 0, 0.45);
+  --edge-outer:
+    -1px 0 0 rgba(var(--text-color-rgb), 0.14),
+     0 -1px 0 rgba(var(--text-color-rgb), 0.14),
+     0  1px 0 rgba(var(--text-color-rgb), 0.14);
 }
 
 .cam-r {
-  left: calc(var(--cam-r-x) - var(--pad));
+  left:  var(--cam-r-x);
+  width: calc(var(--cam-w) + var(--pad));
+  border-left-width:         0;
   border-top-left-radius:    0;
   border-bottom-left-radius: 0;
+
+  --edge-inner:
+    inset -1px 0 0 rgba(0, 0, 0, 0.45),
+    inset  0  1px 0 rgba(0, 0, 0, 0.45),
+    inset  0 -1px 0 rgba(0, 0, 0, 0.45);
+  --edge-outer:
+    1px 0 0 rgba(var(--text-color-rgb), 0.14),
+    0 -1px 0 rgba(var(--text-color-rgb), 0.14),
+    0  1px 0 rgba(var(--text-color-rgb), 0.14);
 }
 
 
@@ -285,16 +327,30 @@ body {
   background:     var(--score-bg-color);
   pointer-events: none;
 
+  /* Both edge vars come from .link-t / .link-b — every bar carries one
+     of them. The ends are left bare: they butt into a plate. */
   box-shadow:
-    0 0 0 1px rgba(var(--text-color-rgb), 0.14),
+    var(--edge-outer),
+    var(--edge-inner),
     0 3px 8px rgba(0, 0, 0, 0.45);
 }
 
-.link-l { left: calc(var(--cam-l-x) + var(--cam-w) + var(--cam-pad)); width: var(--join-l); }
+.link-l { left: calc(var(--cam-l-x) + var(--cam-w)); width: var(--join-l); }
 .link-r { left: calc(var(--clip-x) + var(--clip-w) + var(--frame-pad)); width: var(--join-r); }
 
-.link-t { top: calc(var(--cam-y) - var(--cam-pad)); }
-.link-b { top: calc(var(--cam-y) + var(--cam-h)); }
+/* Gold outward, continuing the silhouette; dark on the face turned
+   into the bay, continuing the frames' inner edge line. */
+.link-t {
+  top: calc(var(--cam-y) - var(--cam-pad));
+  --edge-outer: 0 -1px 0 rgba(var(--text-color-rgb), 0.14);
+  --edge-inner: inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+}
+
+.link-b {
+  top: calc(var(--cam-y) + var(--cam-h));
+  --edge-outer: 0 1px 0 rgba(var(--text-color-rgb), 0.14);
+  --edge-inner: inset 0 1px 0 rgba(0, 0, 0, 0.45);
+}
 
 /* ── Edge bleed ──
    A source that runs to the canvas edge has no room for a plate on
