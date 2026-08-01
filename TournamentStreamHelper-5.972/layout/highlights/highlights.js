@@ -69,9 +69,17 @@
      guides label, or as a bleed class that does or doesn't
      appear — instead of silently on stream. */
   var canvas = getComputedStyle(root);
-  var canvasW = parseFloat(canvas.getPropertyValue("--canvas-w")) || 1920;
-  var canvasH = parseFloat(canvas.getPropertyValue("--canvas-h")) || 1080;
+  var num = function (name) { return parseFloat(canvas.getPropertyValue(name)) || 0; };
+  var canvasW = num("--canvas-w") || 1920;
+  var canvasH = num("--canvas-h") || 1080;
   var EPS = 0.5; // sub-pixel slack, so 1919.7 still counts as the edge
+
+  // Each cam plate overhangs its own window to meet the clip plate, so
+  // its padding box is that much wider than the OBS source rect. Recomputed
+  // here rather than read back from --join-l/--join-r: those hold a max()
+  // expression, which parseFloat cannot read.
+  var joinL = Math.max(0, num("--clip-x") - num("--frame-pad") - num("--cam-l-x") - num("--cam-w"));
+  var joinR = Math.max(0, num("--cam-r-x") - num("--clip-x") - num("--clip-w") - num("--frame-pad"));
 
   Array.prototype.forEach.call(document.querySelectorAll(".frame"), function (frame) {
     var box = frame.getBoundingClientRect();
@@ -87,6 +95,10 @@
     var top = box.top + edge("Top");
     var right = box.right - edge("Right");
     var bottom = box.bottom - edge("Bottom");
+
+    // Back out the overhang so guides mode reports the window, not the plate.
+    if (frame.classList.contains("cam-l")) right -= joinL;
+    if (frame.classList.contains("cam-r")) left += joinR;
 
     // A window running off the canvas gets its corners squared on that
     // side — see the .bleed-* block in highlights.css. Class names are
