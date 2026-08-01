@@ -198,11 +198,16 @@ body {
   border:        var(--pad) solid var(--score-bg-color);
   border-radius: calc(var(--pad) + var(--border-radius));
 
-  /* Both hairlines are variables so a frame with an open side can
-     redeclare them per side. A plain four-sided shadow would keep
-     drawing the edge that isn't there. */
+  /* All three shadow layers are variables so a frame with an open side
+     can redeclare them. Every one of them traces the whole border box
+     by default, so each would keep drawing the edge that isn't there —
+     the hairlines as a line, the depth as a soft vertical smudge. */
   --edge-inner: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
   --edge-outer: 0 0 0 1px rgba(var(--text-color-rgb), 0.14);
+  /* Raised-card depth, same recipe as the header card in side-panel.css */
+  --depth:
+    0 8px 32px rgba(0, 0, 0, 0.60),
+    0 3px 8px  rgba(0, 0, 0, 0.45);
 
   box-shadow:
     /* Crisp separation between footage and plate, following the
@@ -211,9 +216,7 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
     /* Gold hairline hugging the outer edge */
     var(--edge-outer),
-    /* Raised-card depth, same recipe as the header card in side-panel.css */
-    0 8px 32px rgba(0, 0, 0, 0.60),
-    0 3px 8px  rgba(0, 0, 0, 0.45);
+    var(--depth);
 }
 
 /* Graduated gold accent along the plate's top edge. A pseudo-element
@@ -265,9 +268,15 @@ body {
    The corners on that side square off with it: nothing is drawn to
    round, and the link bars below need a straight edge to meet.
 
-   Both hairlines drop to three sides with it. Left whole they keep
-   tracing the open edge — a gold line exactly where the rail used to
-   be, which is the thing this removes. */
+   All three shadow layers drop to three sides with it. Left whole,
+   the hairlines put a gold line exactly where the rail used to be and
+   the depth puts a soft vertical smudge beside it — both of them the
+   thing this removes.
+
+   The depth is three directional casts rather than one. In each,
+   blur/2 equals the spread, which is what makes the reach on the two
+   perpendicular sides exactly zero: the shadow travels only the way
+   it is offset, and nothing leaks into the open bay. */
 .cam-l {
   left:  calc(var(--cam-l-x) - var(--pad));
   width: calc(var(--cam-w) + var(--pad));
@@ -283,6 +292,10 @@ body {
     -1px 0 0 rgba(var(--text-color-rgb), 0.14),
      0 -1px 0 rgba(var(--text-color-rgb), 0.14),
      0  1px 0 rgba(var(--text-color-rgb), 0.14);
+  --depth:
+      0 -10px 24px -12px rgba(0, 0, 0, 0.45),
+      0  10px 24px -12px rgba(0, 0, 0, 0.55),
+    -10px 0    24px -12px rgba(0, 0, 0, 0.55);
 }
 
 .cam-r {
@@ -300,6 +313,10 @@ body {
     1px 0 0 rgba(var(--text-color-rgb), 0.14),
     0 -1px 0 rgba(var(--text-color-rgb), 0.14),
     0  1px 0 rgba(var(--text-color-rgb), 0.14);
+  --depth:
+     0 -10px 24px -12px rgba(0, 0, 0, 0.45),
+     0  10px 24px -12px rgba(0, 0, 0, 0.55),
+    10px 0    24px -12px rgba(0, 0, 0, 0.55);
 }
 
 
@@ -327,29 +344,30 @@ body {
   background:     var(--score-bg-color);
   pointer-events: none;
 
-  /* Both edge vars come from .link-t / .link-b — every bar carries one
-     of them. The ends are left bare: they butt into a plate. */
+  /* Both vars come from .link-t / .link-b — every bar carries one of
+     each. The ends are left bare: they butt into a plate. Nothing is
+     drawn on the face turned into the bay, and the depth is offset and
+     spread so it cannot reach in there either — the bay stays empty
+     background between the cam and the clip. */
   box-shadow:
     var(--edge-outer),
-    var(--edge-inner),
-    0 3px 8px rgba(0, 0, 0, 0.45);
+    var(--depth);
 }
 
 .link-l { left: calc(var(--cam-l-x) + var(--cam-w)); width: var(--join-l); }
 .link-r { left: calc(var(--clip-x) + var(--clip-w) + var(--frame-pad)); width: var(--join-r); }
 
-/* Gold outward, continuing the silhouette; dark on the face turned
-   into the bay, continuing the frames' inner edge line. */
+/* Gold outward only, continuing the silhouette. */
 .link-t {
   top: calc(var(--cam-y) - var(--cam-pad));
   --edge-outer: 0 -1px 0 rgba(var(--text-color-rgb), 0.14);
-  --edge-inner: inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+  --depth:      0 -3px 10px -5px rgba(0, 0, 0, 0.45);
 }
 
 .link-b {
   top: calc(var(--cam-y) + var(--cam-h));
   --edge-outer: 0 1px 0 rgba(var(--text-color-rgb), 0.14);
-  --edge-inner: inset 0 1px 0 rgba(0, 0, 0, 0.45);
+  --depth:      0 3px 10px -5px rgba(0, 0, 0, 0.45);
 }
 
 /* ── Edge bleed ──
