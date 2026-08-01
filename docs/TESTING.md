@@ -20,10 +20,11 @@ Preflight covers config, dependencies, the TSH install, the four `general` setti
 ```bash
 node tests/run.js                              # everything, no deps, ~2s
 node tests/side-panel-rotation.test.js         # one file, with detail
+node tests/combo-detector.test.js              # run after touching the clipper's thresholds
 node tests/layout-static.test.js -v            # every individual check
 ```
 
-[`tests/`](../tests/README.md) holds the few failures worth automating: the ones that are **invisible until they are on stream**, where the manual reproduction step is "run a tournament". Today that's static layout integrity (parse errors, dead `<script src>`, unwired `shared/` helpers) and the side panel's rotation behaviour under a burst of TSH state pushes.
+[`tests/`](../tests/README.md) holds the few failures worth automating: the ones that are **invisible until they are on stream**, where the manual reproduction step is "run a tournament". Today that's static layout integrity (parse errors, dead `<script src>`, unwired `shared/` helpers), the side panel's rotation behaviour under a burst of TSH state pushes, and the combo clipper's qualifying thresholds — a wrong `comboWindowSec` saves nothing for a whole night while OBS, the bridge and the dock all look healthy.
 
 It is not a general test suite and shouldn't grow into one — everything else on this page is still the way to check a change. But if you fix a layout bug that only showed up live, that is exactly the kind of thing that belongs in `tests/`; `tests/helpers/layout-sandbox.js` will load any layout script headlessly, and [tests/README.md](../tests/README.md) documents the four sandbox gotchas.
 

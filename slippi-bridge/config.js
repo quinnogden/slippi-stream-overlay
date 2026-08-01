@@ -38,9 +38,10 @@ const config = {
     obsUrl: "ws://127.0.0.1:4455", // obs-websocket v5 address
     obsPassword: "",              // obs-websocket password ("" when auth is off)
     autoStartBuffer: true,        // start OBS's replay buffer if it isn't running
-    minMoves: 4,                  // moves in the conversion
-    minDamage: 30,                // percent dealt across the conversion
+    minMoves: 4,                  // moves that must land (within comboWindowSec, if set)
+    minDamage: 30,                // percent they must deal (within comboWindowSec, if set)
     requireKill: true,            // only clip conversions that took a stock
+    comboWindowSec: 0,            // 0 = judge the whole conversion; else the last N seconds only
     maxComboDurationSec: 0,       // 0 = no cap
     cooldownSec: 8,               // minimum gap between saves
     saveDelayMs: 2500,            // wait after detection so the kill lands in the buffer

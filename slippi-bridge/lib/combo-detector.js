@@ -54,7 +54,8 @@ class ComboDetector {
    * @param {import("@slippi/slippi-js").SlippiGame} game
    * @returns {Array<{playerIndex: number|null, victimIndex: number, startFrame: number,
    *                  endFrame: number, moveCount: number, damage: number,
-   *                  didKill: boolean, durationSec: number}>}
+   *                  didKill: boolean, durationSec: number,
+   *                  window?: {moveCount: number, damage: number, durationSec: number}}>}
    */
   scan(game) {
     const s = this._getSettings();
@@ -78,6 +79,45 @@ class ComboDetector {
     return hits;
   }
 
+  /**
+   * The closing window: the last `comboWindowSec` seconds of the conversion.
+   *
+   * A conversion does not end when the pressure stops — slippi-js keeps it open
+   * until the victim regains neutral or dies — so an offstage chase is ONE
+   * conversion whose total duration is mostly dead air. Judging the whole span
+   * therefore clips 30s sequences on the strength of a burst that, by the time
+   * the buffer is saved, has already fallen out of it: OBS holds the last N
+   * seconds, so what qualified the combo isn't in the clip.
+   *
+   * Anchoring at `endFrame` is the point — it makes the qualifying action and
+   * the captured footage the same thing.
+   *
+   * @returns {{moveCount: number, damage: number, durationSec: number}|null}
+   *   null when windowing can't apply (off, or no move data to window over), in
+   *   which case the caller judges the whole conversion as before.
+   */
+  _window(c, s) {
+    const windowSec = s.comboWindowSec ?? 0;
+    if (windowSec <= 0) return null;
+    // No move array means no way to place hits in time. Falling back to the
+    // whole conversion is the safe direction: silently clipping nothing for a
+    // whole night is a far worse failure than one loose clip.
+    if (!Array.isArray(c.moves) || c.moves.length === 0) return null;
+
+    const from = c.endFrame - windowSec * FRAMES_PER_SECOND;
+    const moves = c.moves.filter((m) => (m?.frame ?? -Infinity) >= from);
+
+    return {
+      moveCount: moves.length,
+      // The move sum is the only per-move damage figure slippi-js exposes, so
+      // this counts move damage only and slightly undercounts non-move damage
+      // (Blast Zone chip, self-damage). That makes the threshold conservative,
+      // which is the right direction for a filter.
+      damage: moves.reduce((sum, m) => sum + (m?.damage ?? 0), 0),
+      durationSec: windowSec,
+    };
+  }
+
   /** Apply the operator's thresholds to one finished conversion. */
   _evaluate(c, s) {
     const moveCount = Array.isArray(c.moves) ? c.moves.length : 0;
@@ -86,8 +126,16 @@ class ComboDetector {
     const damage = (c.currentPercent ?? 0) - (c.startPercent ?? 0);
     const durationSec = (c.endFrame - c.startFrame) / FRAMES_PER_SECOND;
 
-    if (moveCount < s.minMoves) return null;
-    if (damage < s.minDamage) return null;
+    // With a window active, minMoves/minDamage are measured against it rather
+    // than the whole conversion. The window is a subset, so this is strictly
+    // stricter than the unwindowed check — never a way to let more through.
+    const win = this._window(c, s);
+    const judged = win ?? { moveCount, damage };
+
+    if (judged.moveCount < s.minMoves) return null;
+    if (judged.damage < s.minDamage) return null;
+    // The kill is by definition at the end of the conversion, so it is always
+    // inside a closing window — no windowed variant of this check is needed.
     if (s.requireKill && c.didKill !== true) return null;
     if (s.maxComboDurationSec > 0 && durationSec > s.maxComboDurationSec) return null;
 
@@ -99,9 +147,14 @@ class ComboDetector {
       startFrame: c.startFrame,
       endFrame: c.endFrame,
       moveCount,
+      // Whole-conversion figures: the panel and the overlay toast describe the
+      // combo, not the filter that let it through.
       damage: Math.round(damage * 10) / 10,
       didKill: c.didKill === true,
       durationSec: Math.round(durationSec * 10) / 10,
+      // Present only when a window actually decided this — the operator's only
+      // feedback while tuning the number.
+      ...(win ? { window: { ...win, damage: Math.round(win.damage * 10) / 10 } } : {}),
     };
   }
 }

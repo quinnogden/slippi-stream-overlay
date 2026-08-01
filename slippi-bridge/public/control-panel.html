@@ -496,6 +496,7 @@
     const CLIP_FIELDS = [
       { key: "minMoves",            label: "Min moves",             type: "number", min: 1, max: 50 },
       { key: "minDamage",           label: "Min damage %",          type: "number", min: 0, max: 999 },
+      { key: "comboWindowSec",      label: "…within last (s, 0 = off)", type: "number", min: 0, max: 120 },
       { key: "cooldownSec",         label: "Cooldown (s)",          type: "number", min: 0, max: 600 },
       { key: "saveDelayMs",         label: "Save delay (ms)",       type: "number", min: 0, max: 60000, step: 100 },
       { key: "maxComboDurationSec", label: "Max combo (s, 0 = off)", type: "number", min: 0, max: 480 },

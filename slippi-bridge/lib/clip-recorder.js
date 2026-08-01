@@ -39,8 +39,14 @@ function createClipRecorder(ctx, refreshControlStatus) {
 
     const { name, teamNum } = describeAttacker(h.playerIndex);
     const who = name || (h.playerIndex == null ? "?" : `port ${h.playerIndex + 1}`);
+    // The window figures are what actually cleared the bar, and this line is the
+    // operator's only feedback while tuning that number — without it a too-tight
+    // window looks exactly like a broken OBS chain.
+    const win = h.window
+      ? ` (${h.window.moveCount} moves, ${h.window.damage}% in the last ${h.window.durationSec}s)`
+      : "";
     console.log(`[clipper] Combo by ${who}: ${h.moveCount} moves, ${h.damage}%, ` +
-                `${h.durationSec}s${h.didKill ? ", kill" : ""}`);
+                `${h.durationSec}s${h.didKill ? ", kill" : ""}${win}`);
 
     if (s.maxClipsPerGame > 0 && state.clipsThisGame >= s.maxClipsPerGame) {
       console.log(`[clipper] Skipped — already saved ${state.clipsThisGame} clip(s) this game (max ${s.maxClipsPerGame})`);
