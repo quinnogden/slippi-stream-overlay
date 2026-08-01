@@ -60,13 +60,13 @@
   --frame-pad: 14px;
   --cam-pad:   10px;
 
-  /* The span each link bar has to cross to reach the clip plate.
-     Measured from the cam window's inner edge, not from a plate edge:
-     the cams have no border on that side — the clip plate closes them.
-     Derived, not typed, because it has to stay exact through any
+  /* How far each cam plate overhangs its window to reach the clip
+     plate. Measured from the cam window's inner edge, not from a plate
+     edge: the cams have no border on that side — the clip plate closes
+     them. Derived, not typed, because it has to stay exact through any
      retune, and a number that only LOOKS right leaves a sliver of
      background at the join. max(0px, …) so cams pushed in past the
-     clip collapse the link instead of inverting it. */
+     clip collapse the overhang instead of inverting it. */
   --join-l: max(0px, calc(
     var(--clip-x) - var(--frame-pad) - var(--cam-l-x) - var(--cam-w)
   ));
@@ -266,12 +266,21 @@ body {
    wider and misreport it in ?guides=1.
 
    The corners on that side square off with it: nothing is drawn to
-   round, and the link bars below need a straight edge to meet.
+   round.
 
-   All three shadow layers drop to three sides with it. Left whole,
-   the hairlines put a gold line exactly where the rail used to be and
-   the depth puts a soft vertical smudge beside it — both of them the
-   thing this removes.
+   The plate then runs on past its window by --join-* to meet the clip
+   plate. That is the whole connection: a border draws down the element's
+   full width, so the top and bottom bands simply continue across the
+   gap, while the padding box they enclose stays transparent and leaves
+   the middle of the gap open. Nothing extra is drawn to join them.
+
+   Cost: the padding box no longer equals the cam's OBS rect, so
+   highlights.js subtracts the overhang before reporting it in ?guides=1.
+
+   All three shadow layers drop to three sides. Left whole, the
+   hairlines put a gold line exactly where the rail used to be and the
+   depth puts a soft vertical smudge beside it — both of them the thing
+   this removes.
 
    The depth is three directional casts rather than one. In each,
    blur/2 equals the spread, which is what makes the reach on the two
@@ -279,7 +288,7 @@ body {
    it is offset, and nothing leaks into the open bay. */
 .cam-l {
   left:  calc(var(--cam-l-x) - var(--pad));
-  width: calc(var(--cam-w) + var(--pad));
+  width: calc(var(--cam-w) + var(--pad) + var(--join-l));
   border-right-width:         0;
   border-top-right-radius:    0;
   border-bottom-right-radius: 0;
@@ -299,8 +308,8 @@ body {
 }
 
 .cam-r {
-  left:  var(--cam-r-x);
-  width: calc(var(--cam-w) + var(--pad));
+  left:  calc(var(--clip-x) + var(--clip-w) + var(--frame-pad));
+  width: calc(var(--cam-w) + var(--pad) + var(--join-r));
   border-left-width:         0;
   border-top-left-radius:    0;
   border-bottom-left-radius: 0;
@@ -319,56 +328,6 @@ body {
     10px 0    24px -12px rgba(0, 0, 0, 0.55);
 }
 
-
-/* ══════════════════════════════════════════════════════════════
-   LINKS
-
-   Carry each cam plate's top and bottom border across to the clip
-   plate, so the frames read as joined without closing the gap: the
-   middle stays open and the background shows through it.
-
-   One bar per corner rather than a single tall element with a
-   transparent middle — a box-shadow traces the border box, not the
-   painted bands, so the hairline and the drop shadow would run down
-   the open middle instead of hugging the bars.
-
-   The bars are --cam-pad thick, matching the border they continue,
-   and butt into the clip plate's side face; --join-l/--join-r size
-   them from the geometry so a retune carries them along.
-   ══════════════════════════════════════════════════════════════ */
-
-.link {
-  position:       absolute;
-  z-index:        2;
-  height:         var(--cam-pad);
-  background:     var(--score-bg-color);
-  pointer-events: none;
-
-  /* Both vars come from .link-t / .link-b — every bar carries one of
-     each. The ends are left bare: they butt into a plate. Nothing is
-     drawn on the face turned into the bay, and the depth is offset and
-     spread so it cannot reach in there either — the bay stays empty
-     background between the cam and the clip. */
-  box-shadow:
-    var(--edge-outer),
-    var(--depth);
-}
-
-.link-l { left: calc(var(--cam-l-x) + var(--cam-w)); width: var(--join-l); }
-.link-r { left: calc(var(--clip-x) + var(--clip-w) + var(--frame-pad)); width: var(--join-r); }
-
-/* Gold outward only, continuing the silhouette. */
-.link-t {
-  top: calc(var(--cam-y) - var(--cam-pad));
-  --edge-outer: 0 -1px 0 rgba(var(--text-color-rgb), 0.14);
-  --depth:      0 -3px 10px -5px rgba(0, 0, 0, 0.45);
-}
-
-.link-b {
-  top: calc(var(--cam-y) + var(--cam-h));
-  --edge-outer: 0 1px 0 rgba(var(--text-color-rgb), 0.14);
-  --depth:      0 3px 10px -5px rgba(0, 0, 0, 0.45);
-}
 
 /* ── Edge bleed ──
    A source that runs to the canvas edge has no room for a plate on
@@ -546,9 +505,13 @@ body {
   text-transform: uppercase;
   white-space:    nowrap;
   color:          var(--text-color);
+  /* Light on purpose. The word sits on the plate, not on footage, so the
+     shadow only has to seat it — the heavier stack this layout's siblings
+     use against video reads as a dark bevel inside each stroke at 44px
+     and costs legibility instead of buying it. */
   text-shadow:
-    0 2px 4px  rgba(0, 0, 0, 0.85),
-    0 4px 12px rgba(0, 0, 0, 0.50);
+    0 1px 2px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.26);
 }
 
 /* Sheen: a hot highlight sweeping across the word every 9s, like a
@@ -603,6 +566,11 @@ body.no-animate .title-word::after {
    Outlines the transparent hole of each frame and labels it with
    its measured rect, so the OBS source transforms underneath can
    be checked at a glance. Never shown without the flag.
+
+   On the cams the two disagree by --join-*, and that is correct: the
+   outline traces the hole, which now runs on into the bay, while the
+   label reports the window. There is no source edge in the bay to
+   check the outline against; the other three sides are the alignment.
    ══════════════════════════════════════════════════════════════ */
 body.guides .frame {
   outline: 1px solid #ff00d0;
