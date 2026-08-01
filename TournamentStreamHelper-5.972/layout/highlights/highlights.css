@@ -23,11 +23,20 @@
    scene's OBS transforms:
 
      Gameplay clip   480, 140    960 × 800
-     Left cam         40, 288    400 × 504
-     Right cam      1480, 288    400 × 504
+     Left cam          0, 288    400 × 504
+     Right cam      1520, 288    400 × 504
 
-   Load the layout with ?guides=1 to draw these rects labelled
-   with their measured pixel values and check them against OBS.
+   These MUST equal the OBS source transforms or the plate misses
+   the footage and leaves a gap — the one failure this layout can
+   actually have. Load with ?guides=1 to see the measured rects, and
+   override any of them from the browser source URL without touching
+   this file (?clip= / ?cam= / ?camx= / ?pad=, see highlights.js).
+
+   The cams sit flush against the canvas edges, so their plates run
+   off it — handled by the .bleed-* rules at the bottom rather than
+   by faking an inset the sources don't have. Moving the two OBS
+   sources inboard — say to x=40 and x=1480, then ?camx=40,1480 —
+   turns them back into fully floating cards.
 
    Both cam centres and the clip centre land on y = 540, so the
    row reads optically level. Keep it that way when retuning.
@@ -44,8 +53,8 @@
   --cam-w:    400px;
   --cam-h:    504px;
   --cam-y:    288px;
-  --cam-l-x:   40px;
-  --cam-r-x: 1480px;
+  --cam-l-x:    0px;
+  --cam-r-x: 1520px;
 
   /* Plate thickness — the visible ring around each window. */
   --frame-pad: 14px;
@@ -120,9 +129,12 @@ body {
   );
 }
 
+/* max(0px, …): a cam flush against the canvas edge leaves no band at
+   all, and a negative width is an invalid declaration — dropped, so
+   the band would silently fall back to auto sizing. */
 .scrim-left {
   top: 0; bottom: 0; left: 0;
-  width: calc(var(--cam-l-x) - var(--cam-pad));
+  width: max(0px, calc(var(--cam-l-x) - var(--cam-pad)));
   background: linear-gradient(
     to right,
     rgba(0, 0, 0, calc(0.55 * var(--scrim-strength))) 0%,
@@ -132,7 +144,7 @@ body {
 
 .scrim-right {
   top: 0; bottom: 0; right: 0;
-  width: calc(var(--canvas-w) - var(--cam-r-x) - var(--cam-w) - var(--cam-pad));
+  width: max(0px, calc(var(--canvas-w) - var(--cam-r-x) - var(--cam-w) - var(--cam-pad)));
   background: linear-gradient(
     to left,
     rgba(0, 0, 0, calc(0.55 * var(--scrim-strength))) 0%,
@@ -223,6 +235,25 @@ body {
 
 .cam-l { left: calc(var(--cam-l-x) - var(--pad)); }
 .cam-r { left: calc(var(--cam-r-x) - var(--pad)); }
+
+/* ── Edge bleed ──
+   A source that runs to the canvas edge has no room for a plate on
+   that side: the border falls outside the browser source entirely,
+   and the rounded corner is left curving across the footage's own
+   corner — which reads as a rendering fault, not a design.
+
+   Squaring the corners on that side is the whole fix. The border
+   itself needs no adjustment: it is still declared, so the padding
+   box stays exactly on the source rect (removing the border width
+   instead would slide the hole over by --pad, which is the bug this
+   is meant to prevent). The offscreen half simply never paints.
+
+   highlights.js adds these by MEASURING each frame, so they follow
+   the geometry — including a rect passed in via ?camx=. */
+.frame.bleed-l { border-top-left-radius:  0; border-bottom-left-radius:  0; }
+.frame.bleed-r { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.frame.bleed-t { border-top-left-radius:  0; border-top-right-radius:    0; }
+.frame.bleed-b { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 
 
 /* ══════════════════════════════════════════════════════════════
