@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Highlights</title>
+
+    <!-- main.css @imports theme.css — linking theme.css here as well would
+         refetch every token and the brand TTF a second time. -->
+    <link rel="stylesheet" href="../main.css" />
+    <link rel="stylesheet" href="./highlights.css" />
+  </head>
+
+  <!--
+    ../include/globals.js is DELIBERATELY not loaded.
+
+    This overlay reads no TSH state and no bridge events — it is pure
+    decoration for the replay/break scene — so it needs neither Start() nor
+    Update(), and LoadEverything() would pull jQuery, GSAP, lodash, kuroshiro
+    and socket.io for nothing.
+
+    Consequence, and the trap to avoid: do NOT copy `opacity: 0` from
+    scoreboard/index.css onto this body. That rule depends on globals.js's
+    UpdateWrapper calling $("body").fadeTo(...) once TSH pushes its first
+    state. With no globals.js nothing ever fades it back in, and the layout
+    stays permanently invisible — a failure that only shows up on stream.
+
+    ../shared/tsh-assets.js and ../shared/slippi-bridge-client.js are absent
+    for the same reason: there is nothing here for them to do.
+  -->
+  <body>
+
+    <!-- ── Edge scrim ────────────────────────────────────────────────
+         The replay scene puts a blurred camera feed behind this overlay.
+         These four gradients darken it where it is most distracting —
+         the empty bands at the canvas edges — and stop exactly at the
+         nearest window, so no footage is ever tinted. -->
+    <div class="scrim scrim-top"></div>
+    <div class="scrim scrim-bottom"></div>
+    <div class="scrim scrim-left"></div>
+    <div class="scrim scrim-right"></div>
+
+    <!-- ── Title plate ─────────────────────────────────────────────── -->
+    <div class="title-plate">
+      <!-- Atmospheric depth (behind everything in the plate) -->
+      <div class="title-atm title-light"></div>
+      <div class="title-atm title-grain"></div>
+      <div class="title-atm title-vignette"></div>
+
+      <!-- Ambient orbs -->
+      <div class="title-orb title-orb-1"></div>
+      <div class="title-orb title-orb-2"></div>
+      <div class="title-orb title-orb-3"></div>
+
+      <span class="title-rule title-rule-l"></span>
+      <!-- data-word feeds the ::after sheen sweep; keep it in sync with the
+           text or the highlight pass will read the wrong string. -->
+      <h1 class="title-word" data-word="Highlights">Highlights</h1>
+      <span class="title-rule title-rule-r"></span>
+    </div>
+
+    <!-- ── Window frames ───────────────────────────────────────────────
+         Each frame is ONE div whose `border` is the plate: it draws the
+         solid ring, leaves a transparent centre for the OBS source below
+         to show through, and derives the inner corner radius that rounds
+         the footage. See highlights.css for why not a mask.
+         data-label is what ?guides=1 prints. -->
+    <div class="frame frame-clip"      data-label="CLIP"></div>
+    <div class="frame frame-cam cam-l" data-label="CAM L"></div>
+    <div class="frame frame-cam cam-r" data-label="CAM R"></div>
+
+    <script src="highlights.js"></script>
+  </body>
+</html>

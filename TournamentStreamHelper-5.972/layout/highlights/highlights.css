@@ -1,0 +1,458 @@
+/* ============================================================
+   highlights.css — Replay / break-scene overlay (1920 × 1080)
+
+   Frames the combo-clip playback window and the two player cams,
+   and titles the scene. body { background: transparent } — every
+   OBS source sits BELOW this browser source and shows through the
+   holes the frames leave.
+
+   Purely decorative: no TSH state, no bridge events, no JS beyond
+   two URL flags. See highlights.html for why globals.js is absent.
+
+   Design tokens all come from the active theme pack via
+   main.css → theme.css → themes/<pack>/theme.css:
+     --bg-color, --score-bg-color, --text-color, --darkened-text,
+     --border-radius, --font, and the *-rgb triplets.
+   Nothing here hardcodes a pack colour, so switching packs
+   re-skins the scene with no edit.
+   ============================================================ */
+
+/* ── Geometry ───────────────────────────────────────────────────
+   Every position lives here so alignment is four numbers per
+   window, not a hunt through rules. Defaults match the replay
+   scene's OBS transforms:
+
+     Gameplay clip   480, 140    960 × 800
+     Left cam         40, 288    400 × 504
+     Right cam      1480, 288    400 × 504
+
+   Load the layout with ?guides=1 to draw these rects labelled
+   with their measured pixel values and check them against OBS.
+
+   Both cam centres and the clip centre land on y = 540, so the
+   row reads optically level. Keep it that way when retuning.
+   ─────────────────────────────────────────────────────────────── */
+:root {
+  --canvas-w: 1920px;
+  --canvas-h: 1080px;
+
+  --clip-x:   480px;
+  --clip-y:   140px;
+  --clip-w:   960px;
+  --clip-h:   800px;
+
+  --cam-w:    400px;
+  --cam-h:    504px;
+  --cam-y:    288px;
+  --cam-l-x:   40px;
+  --cam-r-x: 1480px;
+
+  /* Plate thickness — the visible ring around each window. */
+  --frame-pad: 14px;
+  --cam-pad:   10px;
+
+  /* Title plate. --title-y derives from the clip, so the plate tracks the
+     clip frame automatically when the geometry is retuned.
+     --title-gap must stay non-zero: the plate and the frames share
+     --score-bg-color, so at zero they fuse into one shape and the plate
+     stops reading as a separate floating card.
+     Raise --title-overlap to let the plate hang over the footage instead. */
+  --title-h:       78px;
+  --title-gap:     10px;
+  --title-overlap:  0px;
+  --title-y: calc(
+    var(--clip-y) - var(--frame-pad) - var(--title-gap) - var(--title-h)
+    + var(--title-overlap)
+  );
+
+  /* Scales every scrim gradient at once. 0 turns the scrim off. */
+  --scrim-strength: 1;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background:   transparent;
+  width:        var(--canvas-w);
+  height:       var(--canvas-h);
+  overflow:     hidden;
+  position:     relative;
+  font-family:  var(--font);
+  /* Nothing here is interactive; keep OBS's browser source inert. */
+  pointer-events: none;
+  /* NOTE: no `opacity: 0`. Without globals.js nothing would ever fade
+     the body back in. See the comment in highlights.html. */
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   EDGE SCRIM
+
+   The blurred cam feed behind this overlay is background texture,
+   not content, so it gets pushed down at the canvas edges. Each
+   band stops at the nearest window edge and fades to transparent
+   inward — a full-canvas scrim would tint the footage, since a
+   browser source paints over every OBS source beneath it
+   regardless of z-index.
+   ══════════════════════════════════════════════════════════════ */
+
+.scrim { position: absolute; pointer-events: none; z-index: 0; }
+
+.scrim-top {
+  top: 0; left: 0; right: 0;
+  height: var(--clip-y);
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, calc(0.62 * var(--scrim-strength))) 0%,
+    rgba(0, 0, 0, calc(0.34 * var(--scrim-strength))) 55%,
+    transparent 100%
+  );
+}
+
+.scrim-bottom {
+  bottom: 0; left: 0; right: 0;
+  height: calc(var(--canvas-h) - var(--clip-y) - var(--clip-h));
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, calc(0.62 * var(--scrim-strength))) 0%,
+    rgba(0, 0, 0, calc(0.34 * var(--scrim-strength))) 55%,
+    transparent 100%
+  );
+}
+
+.scrim-left {
+  top: 0; bottom: 0; left: 0;
+  width: calc(var(--cam-l-x) - var(--cam-pad));
+  background: linear-gradient(
+    to right,
+    rgba(0, 0, 0, calc(0.55 * var(--scrim-strength))) 0%,
+    transparent 100%
+  );
+}
+
+.scrim-right {
+  top: 0; bottom: 0; right: 0;
+  width: calc(var(--canvas-w) - var(--cam-r-x) - var(--cam-w) - var(--cam-pad));
+  background: linear-gradient(
+    to left,
+    rgba(0, 0, 0, calc(0.55 * var(--scrim-strength))) 0%,
+    transparent 100%
+  );
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   WINDOW FRAMES
+
+   `border` IS the plate. One div per window, sized to the plate
+   rect with border-box sizing, so the padding box lands exactly on
+   the window rect and the OBS source below shows through it.
+
+   Why not a mask: a child div cannot punch a hole in its parent's
+   background, and mask-composite is not safe to rely on in OBS's
+   embedded CEF. `border` gives the solid ring, the transparent
+   centre, the outer radius AND a correctly derived inner radius
+   (which rounds the footage corners) in one property — with no
+   feature-detection risk.
+
+   The side panel's four-band + spread-shadow approach solves a
+   different problem: it also has to fill the rest of its canvas
+   with opaque colour. Here the canvas stays transparent.
+
+   Radius: outer = pad + theme radius, so the ring is uniform
+   width and the inner corners land on exactly --border-radius.
+   ══════════════════════════════════════════════════════════════ */
+
+.frame {
+  position:       absolute;
+  background:     transparent;
+  pointer-events: none;
+  z-index:        2;
+
+  border:        var(--pad) solid var(--score-bg-color);
+  border-radius: calc(var(--pad) + var(--border-radius));
+
+  box-shadow:
+    /* Crisp separation between footage and plate, following the
+       inner radius. Keep at 1px — this paints over the video. */
+    inset 0  0 0 1px rgba(0, 0, 0, 0.45),
+    inset 0  1px 0   rgba(255, 255, 255, 0.06),
+    /* Gold hairline hugging the outer edge */
+    0 0 0 1px rgba(var(--text-color-rgb), 0.14),
+    /* Raised-card depth, same recipe as the header card in side-panel.css */
+    0 8px 32px rgba(0, 0, 0, 0.60),
+    0 3px 8px  rgba(0, 0, 0, 0.45);
+}
+
+/* Graduated gold accent along the plate's top edge. A pseudo-element
+   paints after the border, so it sits on top of the plate; it is
+   offset from the padding box, hence the negative --pad. */
+.frame::before {
+  content: "";
+  position: absolute;
+  top:   calc(-1 * var(--pad) + 1px);
+  left:  15%;
+  right: 15%;
+  height: 1.5px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--darkened-text) 25%,
+    var(--text-color)    50%,
+    var(--darkened-text) 75%,
+    transparent
+  );
+  opacity: 0.30;
+  pointer-events: none;
+}
+
+.frame-clip {
+  --pad: var(--frame-pad);
+  left:   calc(var(--clip-x) - var(--pad));
+  top:    calc(var(--clip-y) - var(--pad));
+  width:  calc(var(--clip-w) + 2 * var(--pad));
+  height: calc(var(--clip-h) + 2 * var(--pad));
+}
+
+.frame-cam {
+  --pad: var(--cam-pad);
+  top:    calc(var(--cam-y) - var(--pad));
+  width:  calc(var(--cam-w) + 2 * var(--pad));
+  height: calc(var(--cam-h) + 2 * var(--pad));
+}
+
+.cam-l { left: calc(var(--cam-l-x) - var(--pad)); }
+.cam-r { left: calc(var(--cam-r-x) - var(--pad)); }
+
+
+/* ══════════════════════════════════════════════════════════════
+   TITLE PLATE
+
+   Same raised card as the side panel's header, with the bracket
+   title bar's atmosphere stack layered inside it, so the replay
+   scene reads as part of the same broadcast.
+   ══════════════════════════════════════════════════════════════ */
+
+.title-plate {
+  position:  absolute;
+  top:       var(--title-y);
+  left:      50%;
+  transform: translateX(-50%);
+  height:    var(--title-h);
+  width:     fit-content;
+  min-width: 470px;
+  padding:   0 50px;
+  z-index:   3;
+
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  gap:             26px;
+
+  background:    var(--score-bg-color);
+  border:        1px solid rgba(var(--text-color-rgb), 0.14);
+  border-radius: var(--border-radius);
+  overflow:      hidden;
+  pointer-events: none;
+
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.60),
+    0 3px 8px  rgba(0, 0, 0, 0.45),
+    inset 0  1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+}
+
+/* Graduated gold accent along the top inner edge */
+.title-plate::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 1.5px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--darkened-text) 18%,
+    var(--text-color)    50%,
+    var(--darkened-text) 82%,
+    transparent
+  );
+  opacity: 0.55;
+  z-index: 4;
+  pointer-events: none;
+}
+
+/* Marquee lamp: a warm bloom bleeding down from the top edge.
+   overflow:hidden clips its upper half, which is the point. */
+.title-plate::after {
+  content: "";
+  position: absolute;
+  top: -32px; left: 50%;
+  transform: translateX(-50%);
+  width: 340px; height: 96px;
+  background: radial-gradient(ellipse, rgba(var(--text-color-rgb), 0.075) 0%, transparent 70%);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ── Atmospheric layers (from bracket/index.css) ── */
+.title-atm { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+
+.title-light {
+  background: radial-gradient(
+    ellipse 65% 200% at 50% -30%,
+    rgba(var(--bg-color-rgb), 0.50) 0%,
+    transparent 65%
+  );
+}
+
+.title-grain {
+  background: repeating-linear-gradient(
+    180deg,
+    transparent                      0px,
+    transparent                      9px,
+    rgba(var(--bg-color-rgb), 0.045) 9px,
+    rgba(var(--bg-color-rgb), 0.045) 10px
+  );
+}
+
+.title-vignette {
+  background: radial-gradient(
+    ellipse 130% 250% at 50% 170%,
+    rgba(0, 0, 0, 0.45) 0%,
+    transparent 58%
+  );
+}
+
+/* ── Ambient orbs ── */
+.title-orb {
+  position:       absolute;
+  border-radius:  50%;
+  background:     rgb(var(--bg-color-light-rgb));
+  opacity:        0;
+  filter:         blur(26px);
+  pointer-events: none;
+  z-index:        1;
+}
+
+.title-orb-1 { width: 200px; height: 200px; top: -84px; left:  10%; animation: torb1 14s ease-in-out infinite 0s;  }
+.title-orb-2 { width: 160px; height: 160px; top: -70px; right: 14%; animation: torb2 18s ease-in-out infinite -6s; }
+.title-orb-3 { width: 230px; height: 176px; top: -78px; left:  42%; animation: torb3 11s ease-in-out infinite -3s; }
+
+@keyframes torb1 {
+  0%,100% { opacity: 0;    transform: translate(0,0)       scale(1);    }
+  35%     { opacity: 0.78; transform: translate(28px,6px)  scale(1.06); }
+  68%     { opacity: 0.40; transform: translate(8px,18px)  scale(0.95); }
+}
+@keyframes torb2 {
+  0%,100% { opacity: 0;    transform: translate(0,0)        scale(1);    }
+  40%     { opacity: 0.62; transform: translate(-22px,10px) scale(1.04); }
+  75%     { opacity: 0.32; transform: translate(-6px,14px)  scale(0.97); }
+}
+@keyframes torb3 {
+  0%,100% { opacity: 0;    transform: translate(0,0)       scale(1);    }
+  45%     { opacity: 0.50; transform: translate(14px,-4px) scale(1.08); }
+  80%     { opacity: 0.26; transform: translate(-8px,7px)  scale(0.93); }
+}
+
+/* ── Flanking rules ── */
+.title-rule {
+  flex: 0 0 56px;
+  height: 1.5px;
+  position: relative;
+  z-index: 2;
+}
+.title-rule-l { background: linear-gradient(90deg, transparent, rgba(var(--text-color-rgb), 0.55)); }
+.title-rule-r { background: linear-gradient(90deg, rgba(var(--text-color-rgb), 0.55), transparent); }
+
+/* ── The word ──
+   Weight 800 on the pack's variable face — a fight-night marquee wants
+   real heft, and the variable axis serves it from actual outlines, so
+   there is no synthetic bold. text-indent cancels the trailing letter
+   space that would otherwise push the word off-centre. */
+.title-word {
+  position:       relative;
+  z-index:        2;
+  font-family:    var(--font);
+  font-weight:    800;
+  font-size:      44px;
+  line-height:    1;
+  letter-spacing: 0.30em;
+  text-indent:    0.30em;
+  text-transform: uppercase;
+  white-space:    nowrap;
+  color:          var(--text-color);
+  text-shadow:
+    0 2px 4px  rgba(0, 0, 0, 0.85),
+    0 4px 12px rgba(0, 0, 0, 0.50);
+}
+
+/* Sheen: a hot highlight sweeping across the word every 9s, like a
+   lamp travelling over a marquee. Gated behind @supports because the
+   fallback for a failed background-clip is `color: transparent` over a
+   painted rect — the word would vanish behind a bar. The solid
+   gold text above is what actually reads; this only ever adds. */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .title-word::after {
+    content:  attr(data-word);
+    position: absolute;
+    inset:    0;
+    color:    transparent;
+    -webkit-background-clip: text;
+            background-clip: text;
+    background-image: linear-gradient(
+      105deg,
+      transparent 38%,
+      rgba(255, 244, 205, 0.92) 50%,
+      transparent 62%
+    );
+    background-size:     260% 100%;
+    background-repeat:   no-repeat;
+    background-position: -80% 0;
+    animation: titleSheen 9s ease-in-out infinite 2.5s;
+    pointer-events: none;
+  }
+}
+
+@keyframes titleSheen {
+  0%, 70%, 100% { background-position: -80% 0; }
+  86%           { background-position: 180% 0; }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   ?animate=false — freeze motion, keep the look.
+   Same convention as side-panel.css.
+   ══════════════════════════════════════════════════════════════ */
+body.no-animate .title-orb {
+  animation: none !important;
+  opacity: 0.34 !important;
+}
+body.no-animate .title-word::after {
+  animation: none !important;
+  opacity: 0 !important;
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   ?guides=1 — alignment mode.
+   Outlines the transparent hole of each frame and labels it with
+   its measured rect, so the OBS source transforms underneath can
+   be checked at a glance. Never shown without the flag.
+   ══════════════════════════════════════════════════════════════ */
+body.guides .frame {
+  outline: 1px solid #ff00d0;
+  outline-offset: calc(-1 * var(--pad));
+}
+
+body.guides .frame::after {
+  content: attr(data-guide);
+  position: absolute;
+  top: 6px; left: 8px;
+  padding: 3px 7px;
+  border-radius: 3px;
+  font: 13px/1.35 ui-monospace, Consolas, monospace;
+  letter-spacing: 0.04em;
+  color: #ff00d0;
+  background: rgba(0, 0, 0, 0.78);
+  white-space: pre;
+}
