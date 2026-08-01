@@ -32,7 +32,7 @@ const VERBOSE = process.argv.includes("-v") || process.argv.includes("--verbose"
 const { resolveTshRoot } = require("../slippi-bridge/lib/tsh-root");
 const LAYOUT = path.join(resolveTshRoot(REPO_ROOT, null), "layout");
 
-const CUSTOM = ["scoreboard", "side-panel", "bracket", "shared"];
+const CUSTOM = ["scoreboard", "side-panel", "bracket", "highlights", "shared"];
 
 let fails = 0;
 const fail = (m) => { fails++; console.log("  FAIL  " + m); };
@@ -76,6 +76,7 @@ const PAIRS = [
   { name: "scoreboard", css: "scoreboard/index.css", consumers: ["scoreboard/index.js", "scoreboard/melee.html", "scoreboard/meleePlayers.html"] },
   { name: "side-panel", css: "side-panel/side-panel.css", consumers: ["side-panel/side-panel.js", "side-panel/side-panel.html"] },
   { name: "bracket", css: "bracket/index.css", consumers: ["bracket/index.js", "bracket/index.html", "bracket/index_expanded.html", "bracket/losers_only.html", "bracket/winners_only.html"] },
+  { name: "highlights", css: "highlights/highlights.css", consumers: ["highlights/highlights.js", "highlights/highlights.html"] },
 ];
 
 // Classes TSH's own vendored include/ JS creates, so a layout CSS may target
@@ -89,7 +90,7 @@ const TSH_PROVIDED = new Set([
 
 // Known-unused leftovers. Not failures — the regex matches things like a `.g`
 // inside a longer selector — but a growing list means dead CSS is accumulating.
-const UNUSED_BUDGET = { scoreboard: 1, "side-panel": 1, bracket: 2 };
+const UNUSED_BUDGET = { scoreboard: 1, "side-panel": 1, bracket: 2, highlights: 0 };
 
 for (const pair of PAIRS) {
   const cssPath = path.join(LAYOUT, pair.css);
@@ -145,6 +146,30 @@ for (const dir of CUSTOM) {
   }
 }
 if (!leftover) console.log("  ok    no layout builds chara_2_ paths directly");
+
+// ── 6. a layout that hides its body must have something to unhide it ────────
+// `opacity: 0` on body is TSH's convention: globals.js's UpdateWrapper fades it
+// back in on the first state push. Copied into a layout that doesn't load
+// globals.js it produces a permanently invisible overlay — which looks like a
+// correct file listing and only shows up on stream. highlights/ is the layout
+// this actually threatens, since it deliberately has no globals.js.
+for (const dir of CUSTOM) {
+  if (dir === "shared") continue;
+  const files = fs.readdirSync(path.join(LAYOUT, dir));
+
+  const hidesBody = files.some((f) =>
+    f.endsWith(".css") &&
+    /body\s*\{[^}]*opacity\s*:\s*0\s*[;}]/.test(fs.readFileSync(path.join(LAYOUT, dir, f), "utf8")));
+  if (!hidesBody) { ok(`${dir}/ does not hide its body`); continue; }
+
+  const loadsGlobals = files.some((f) =>
+    f.endsWith(".html") &&
+    fs.readFileSync(path.join(LAYOUT, dir, f), "utf8").includes("globals.js"));
+
+  if (loadsGlobals) ok(`${dir}/ hides its body but loads globals.js to fade it back in`);
+  else fail(`${dir}/ sets body { opacity: 0 } but loads no globals.js — the overlay would never become visible`);
+}
+console.log("  ok    no layout can render permanently invisible");
 
 console.log(fails === 0 ? "\nLayout checks passed." : `\n${fails} failure(s).`);
 process.exit(fails ? 1 : 0);
