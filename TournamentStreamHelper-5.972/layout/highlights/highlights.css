@@ -245,32 +245,56 @@ body {
   height: calc(var(--cam-h) + 2 * var(--pad));
 }
 
-/* ── Joining the cams to the clip ──
-   The three windows read as one continuous bezel rather than three
-   floating cards. The cams keep their own height — only the plate
-   between them and the clip is filled.
-
-   This is the SAME element, with its inner border grown to span the
-   gap: no bridge div, so no second silhouette to line up, no second
-   drop shadow, and no seam of background left in the middle. Both
-   inner corners square off, since a radius there would notch the
-   join. The padding box is untouched — grow the border and the width
-   by the same amount and the hole stays exactly on the source. */
+/* The inner corners square off so the links below meet a straight
+   edge. Against the original radius they would butt into a curve and
+   leave a crescent of background at each junction. */
 .cam-l {
-  left:  calc(var(--cam-l-x) - var(--pad));
-  width: calc(var(--cam-w) + 2 * var(--pad) + var(--join-l));
-  border-right-width: calc(var(--pad) + var(--join-l));
+  left: calc(var(--cam-l-x) - var(--pad));
   border-top-right-radius:    0;
   border-bottom-right-radius: 0;
 }
 
 .cam-r {
-  left:  calc(var(--cam-r-x) - var(--pad) - var(--join-r));
-  width: calc(var(--cam-w) + 2 * var(--pad) + var(--join-r));
-  border-left-width: calc(var(--pad) + var(--join-r));
+  left: calc(var(--cam-r-x) - var(--pad));
   border-top-left-radius:    0;
   border-bottom-left-radius: 0;
 }
+
+
+/* ══════════════════════════════════════════════════════════════
+   LINKS
+
+   Carry each cam plate's top and bottom border across to the clip
+   plate, so the frames read as joined without closing the gap: the
+   middle stays open and the background shows through it.
+
+   One bar per corner rather than a single tall element with a
+   transparent middle — a box-shadow traces the border box, not the
+   painted bands, so the hairline and the drop shadow would run down
+   the open middle instead of hugging the bars.
+
+   The bars are --cam-pad thick, matching the border they continue,
+   and butt into the clip plate's side face; --join-l/--join-r size
+   them from the geometry so a retune carries them along.
+   ══════════════════════════════════════════════════════════════ */
+
+.link {
+  position:       absolute;
+  z-index:        2;
+  height:         var(--cam-pad);
+  background:     var(--score-bg-color);
+  pointer-events: none;
+
+  box-shadow:
+    0 0 0 1px rgba(var(--text-color-rgb), 0.14),
+    0 3px 8px rgba(0, 0, 0, 0.45);
+}
+
+.link-l { left: calc(var(--cam-l-x) + var(--cam-w) + var(--cam-pad)); width: var(--join-l); }
+.link-r { left: calc(var(--clip-x) + var(--clip-w) + var(--frame-pad)); width: var(--join-r); }
+
+.link-t { top: calc(var(--cam-y) - var(--cam-pad)); }
+.link-b { top: calc(var(--cam-y) + var(--cam-h)); }
 
 /* ── Edge bleed ──
    A source that runs to the canvas edge has no room for a plate on

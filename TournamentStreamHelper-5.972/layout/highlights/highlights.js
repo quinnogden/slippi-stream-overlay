@@ -77,9 +77,10 @@
     var box = frame.getBoundingClientRect();
     var style = getComputedStyle(frame);
 
-    // Per side, not one --pad: a cam plate's inner border is grown to
-    // span the gap to the clip, so its four borders differ. Assuming the
-    // top width here would put the cams' reported rect ~56px off.
+    // Per side, not one --pad: nothing guarantees a frame's four borders
+    // match, and guessing wrong here misreports the hole quietly rather
+    // than failing loudly — which is the exact failure guides mode exists
+    // to catch.
     var edge = function (side) { return parseFloat(style["border" + side + "Width"]) || 0; };
 
     var left = box.left + edge("Left");
