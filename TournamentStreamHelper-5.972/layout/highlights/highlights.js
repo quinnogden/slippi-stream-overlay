@@ -75,12 +75,17 @@
 
   Array.prototype.forEach.call(document.querySelectorAll(".frame"), function (frame) {
     var box = frame.getBoundingClientRect();
-    var pad = parseFloat(getComputedStyle(frame).borderTopWidth) || 0;
+    var style = getComputedStyle(frame);
 
-    var left = box.left + pad;
-    var top = box.top + pad;
-    var right = box.right - pad;
-    var bottom = box.bottom - pad;
+    // Per side, not one --pad: a cam plate's inner border is grown to
+    // span the gap to the clip, so its four borders differ. Assuming the
+    // top width here would put the cams' reported rect ~56px off.
+    var edge = function (side) { return parseFloat(style["border" + side + "Width"]) || 0; };
+
+    var left = box.left + edge("Left");
+    var top = box.top + edge("Top");
+    var right = box.right - edge("Right");
+    var bottom = box.bottom - edge("Bottom");
 
     // A window running off the canvas gets its corners squared on that
     // side — see the .bleed-* block in highlights.css. Class names are

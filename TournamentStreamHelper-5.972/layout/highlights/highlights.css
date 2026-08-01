@@ -60,6 +60,18 @@
   --frame-pad: 14px;
   --cam-pad:   10px;
 
+  /* The gap each cam plate has to cross to reach the clip plate.
+     Derived, not typed: it has to stay exact through any retune, and
+     a number that only LOOKS right leaves a hairline of background
+     showing at the join. max(0px, …) so cams pushed in past the clip
+     collapse the join instead of inverting the border. */
+  --join-l: max(0px, calc(
+    var(--clip-x) - var(--frame-pad) - var(--cam-l-x) - var(--cam-w) - var(--cam-pad)
+  ));
+  --join-r: max(0px, calc(
+    var(--cam-r-x) - var(--cam-pad) - var(--clip-x) - var(--clip-w) - var(--frame-pad)
+  ));
+
   /* Title plate. --title-y derives from the clip, so the plate tracks the
      clip frame automatically when the geometry is retuned.
      --title-gap must stay non-zero: the plate and the frames share
@@ -233,8 +245,32 @@ body {
   height: calc(var(--cam-h) + 2 * var(--pad));
 }
 
-.cam-l { left: calc(var(--cam-l-x) - var(--pad)); }
-.cam-r { left: calc(var(--cam-r-x) - var(--pad)); }
+/* ── Joining the cams to the clip ──
+   The three windows read as one continuous bezel rather than three
+   floating cards. The cams keep their own height — only the plate
+   between them and the clip is filled.
+
+   This is the SAME element, with its inner border grown to span the
+   gap: no bridge div, so no second silhouette to line up, no second
+   drop shadow, and no seam of background left in the middle. Both
+   inner corners square off, since a radius there would notch the
+   join. The padding box is untouched — grow the border and the width
+   by the same amount and the hole stays exactly on the source. */
+.cam-l {
+  left:  calc(var(--cam-l-x) - var(--pad));
+  width: calc(var(--cam-w) + 2 * var(--pad) + var(--join-l));
+  border-right-width: calc(var(--pad) + var(--join-l));
+  border-top-right-radius:    0;
+  border-bottom-right-radius: 0;
+}
+
+.cam-r {
+  left:  calc(var(--cam-r-x) - var(--pad) - var(--join-r));
+  width: calc(var(--cam-w) + 2 * var(--pad) + var(--join-r));
+  border-left-width: calc(var(--pad) + var(--join-r));
+  border-top-left-radius:    0;
+  border-bottom-left-radius: 0;
+}
 
 /* ── Edge bleed ──
    A source that runs to the canvas edge has no room for a plate on
