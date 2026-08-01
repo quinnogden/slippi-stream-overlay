@@ -334,6 +334,9 @@ Detection is deliberately live rather than the post-game scan issue #7 originall
 - **Rate limiting is in `lib/clip-recorder.js`, not the detector,** so `combo-detector.js` has no notion of wall-clock time and stays testable against a saved `.slp`. `cooldownSec` stops one exchange banking near-identical clips; `maxClipsPerGame` caps a blowout; `saveDelayMs` waits *after* detection so the kill animation and reaction land in the buffer (the combo itself is already in it).
 - **`slippi_clip_saved` carries the attacker's name.** `conversion.playerIndex` in slippi-js is the player who *got hit* — `lastHitBy` is the attacker. Getting this backwards names the victim on the broadcast.
 - **Buffer length matters.** Conversions routinely run 6–9s, and `saveDelayMs` adds ~2.5s on top, so OBS's replay buffer wants to be ≥20s or the start of the combo falls out of it.
+- **`comboWindowSec` is anchored at the END of the conversion, and that is the whole point.** A conversion does not close when the pressure stops — slippi-js keeps it open until the victim regains neutral or dies — so an offstage chase is *one* conversion running 30s+, mostly dead air. Judged whole, it clips on the strength of an opening burst that, by the time `saveDelayMs` elapses, has already fallen out of the replay buffer: the clip does not contain the thing that qualified it. With a window set, `minMoves`/`minDamage` are measured over the last N seconds instead, so what qualifies and what is captured are the same footage. The window is a subset, so this is strictly stricter than the unwindowed check — it can never let *more* through. Keep it comfortably under the buffer length. **This is not `maxComboDurationSec`**, which caps the total span and so throws away a great punish that happened to begin with a stray poke fifteen seconds earlier; once a window is set, leave that at `0`.
+- **Window damage is the sum of in-window `moves[].damage`**, the only per-move figure slippi-js exposes — it undercounts non-move damage, which keeps the filter conservative. No move array (rare, but possible) falls back to whole-conversion judging rather than rejecting: clipping one loose combo is recoverable, clipping nothing for a whole night is not.
+- The highlight reports whole-conversion `moveCount`/`damage`/`durationSec` (the panel and toast describe the *combo*) plus a `window: { moveCount, damage, durationSec }` when one applied. `clip-recorder.js` appends it to the `[clipper] Combo by …` line — that log is the operator's only feedback while tuning, and without it a too-tight window looks exactly like a broken OBS chain.
 
 **Hard limit, upstream in slippi-js and not fixable here — singles only.** `ConversionComputer.setup` calls `getSinglesPlayerPermutationsFromSettings`, which returns `[]` unless `players.length === 2`, so `stats.conversions` is *permanently empty in doubles*. Crew battles are 1v1 per game and work fine. The control panel says so rather than leaving the operator waiting for clips that structurally cannot arrive.
 
@@ -344,9 +347,10 @@ Detection is deliberately live rather than the post-game scan issue #7 originall
 | `enabled` | `false` | Master toggle; off means no extra work per tick and no OBS socket |
 | `obsUrl` / `obsPassword` | `ws://127.0.0.1:4455` / `""` | obs-websocket v5 |
 | `autoStartBuffer` | `true` | Start OBS's replay buffer if it's idle |
-| `minMoves` / `minDamage` | `4` / `30` | Conversion thresholds |
+| `minMoves` / `minDamage` | `4` / `30` | Hit-count and damage thresholds — over the whole conversion, or over `comboWindowSec` when it's set |
 | `requireKill` | `true` | Only clip conversions that took a stock |
-| `maxComboDurationSec` | `0` | `0` = no cap |
+| `comboWindowSec` | `0` | `0` = judge the whole conversion; else the closing N seconds only |
+| `maxComboDurationSec` | `0` | `0` = no cap on the conversion's total span |
 | `cooldownSec` / `saveDelayMs` | `8` / `2500` | See rate limiting above |
 | `maxClipsPerGame` | `0` | `0` = unlimited |
 | `clipFolder` | `""` | OBS replay output folder (display + the OBS script) |
