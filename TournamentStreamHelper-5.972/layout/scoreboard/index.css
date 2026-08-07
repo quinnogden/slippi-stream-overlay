@@ -461,6 +461,28 @@ body {
     inset 0 -1px 0 rgba(0,0,0,0.35);
 }
 
+/* Optical centring correction, per digit. Flex centres the line box, which the
+   font's ascent/descent need not centre on the digits' ink — see
+   CalibrateScoreDigits() in index.js, which measures the gap and publishes
+   --score-nudge-0..9 on :root. Unmeasured falls back to 0, i.e. today's plain
+   flex centring. inline-block because transforms don't apply to a non-replaced
+   inline; the advance width is untouched, so nothing moves horizontally. */
+.score .digit {
+  display: inline-block;
+  transform: translateY(var(--score-nudge, 0));
+}
+
+.score .digit[data-d="0"] { --score-nudge: var(--score-nudge-0, 0); }
+.score .digit[data-d="1"] { --score-nudge: var(--score-nudge-1, 0); }
+.score .digit[data-d="2"] { --score-nudge: var(--score-nudge-2, 0); }
+.score .digit[data-d="3"] { --score-nudge: var(--score-nudge-3, 0); }
+.score .digit[data-d="4"] { --score-nudge: var(--score-nudge-4, 0); }
+.score .digit[data-d="5"] { --score-nudge: var(--score-nudge-5, 0); }
+.score .digit[data-d="6"] { --score-nudge: var(--score-nudge-6, 0); }
+.score .digit[data-d="7"] { --score-nudge: var(--score-nudge-7, 0); }
+.score .digit[data-d="8"] { --score-nudge: var(--score-nudge-8, 0); }
+.score .digit[data-d="9"] { --score-nudge: var(--score-nudge-9, 0); }
+
 .fgc.thin .score {
   font-size: 40px;
   width: 50px;
