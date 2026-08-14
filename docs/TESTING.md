@@ -192,6 +192,8 @@ Run these after touching `game-source.js`, `index.js`'s handlers, or `port-mappe
 - [ ] Rage quit (real damage, then LRAS) → point to the *other* player
 - [ ] Game starting at 0-0 with blank TSH names, names filled in during game 1 → score still lands correctly (0-0 late-bind)
 - [ ] Press TSH's Swap Teams mid-set → dock reflects it within ~2s and the mapping re-derives
+- [ ] Game running with the **previous** set's names still on the scoreboard → enter the real names in TSH, press **↻ Re-detect Players**: toast reports `character` and names both ports, the ports card and badge update, the scoreboard's character icons land on the correct sides, and the game's point goes to the right player at game end
+- [ ] Press **↻ Re-detect Players** between games → "No game in progress" toast, ports card unchanged
 - [ ] Doubles game → no false handwarmer (the `filter(Boolean)` trap: null dead-player entries must count as 0 stocks, or every doubles game reads as "everyone still has multiple stocks")
 
 ---

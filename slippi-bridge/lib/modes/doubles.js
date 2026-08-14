@@ -26,13 +26,24 @@ const MELEE_TEAM_COLORS = {
 function createDoubles(ctx) {
   const { tsh, portMapper, io, state } = ctx;
 
-  function onGameStart(sorted, tshState) {
+  /**
+   * @param {Array} sorted — raw slippi-js players, ascending by port
+   * @param {object|null} tshState
+   * @param {object} [opts]
+   * @param {boolean} [opts.fromScratch=false] — skip the name/score step. This
+   *   guard is load-bearing, not cosmetic: after a reset at a non-0-0 score
+   *   resolveDoubles finds no names and no matching score sums, falls through to
+   *   applyDoublesPositional() and thereby SETS _portToTeam — which makes the
+   *   !hasMapping() guard below skip tryCharacterBasedDoubles entirely, i.e. skip
+   *   the one heuristic a re-resolve exists to run.
+   */
+  function onGameStart(sorted, tshState, { fromScratch = false } = {}) {
     const groups     = groupByTeamId(sorted);
     const { t1, t2 } = tsh.getTeamInfos(tshState);
     const t1Names    = tshState ? tsh.getTeamPlayerNames(tshState, 1) : [];
     const t2Names    = tshState ? tsh.getTeamPlayerNames(tshState, 2) : [];
 
-    portMapper.resolveDoubles(groups, t1, t2, t1Names, t2Names);
+    if (!fromScratch) portMapper.resolveDoubles(groups, t1, t2, t1Names, t2Names);
 
     if (!portMapper.hasMapping() && tshState) {
       portMapper.tryCharacterBasedDoubles(

@@ -145,6 +145,15 @@ Assignment priority on each game start (singles):
 
 **0-0 late-bind (game end):** when a singles game started at 0-0, `onGameEnd` re-reads TSH state *after* the game finishes, looks up the winner's name (via `getPortName()`) in the current TSH team assignments, and uses that as the authoritative team for `incrementScore`. This lets the TO finish entering names / correcting sides during game 1 without the score going to the wrong player. Falls back silently to the game-start assignment if names are blank or TSH is unreachable. Game 2+ is unaffected (`resolve()` at 1-0 already name-matches live TSH state).
 
+**Manual re-resolve (`reresolvePorts()` in `lib/modes/index.js`, the panel's ↻ Re-detect Players):** the late-bind above only helps a game that *started* at 0-0 with the winner's name findable in TSH. When a new set is loaded and game 1 is already running with the previous set's names still on the scoreboard, every port fact the bridge holds — `_portToName`, and a `_portToTeam` guessed against the *previous* set's characters — belongs to the old set, and the late-bind's name lookup finds nothing. This button clears the mapper and re-runs the game-start path with the name/score step skipped, so the chain reduces to character history → positional: exactly the 0-0 route, and the right one, because TSH now holds the correct registered characters for the names the TO just entered. Names cannot match across a set change, which is why character history is the signal.
+
+- **It reuses the mode handlers** rather than reimplementing resolution, so the TSH character push, `syncNames`, the doubles team colours and the `slippi_game_start` re-emit come along and cannot drift. `dispatchGameStart()` exists so the singles/doubles decision is made in exactly one place.
+- **It requires a live game** (`state.currentRawPlayers` + `currentGameState`). With no live game there is nothing to re-push or re-emit, and fabricating one would resurrect a dead game for the layouts; between games the next game start re-derives on its own anyway.
+- **`fromScratch` skips `resolve`/`resolveDoubles` outright rather than relying on their 0-0 reset.** In doubles this is load-bearing: off 0-0, `resolveDoubles` finds no names and no matching win sums, falls through to `applyDoublesPositional()` and thereby *sets* `_portToTeam` — which makes the `!hasMapping()` guard in `doubles.js` skip `tryCharacterBasedDoubles`, i.e. skip the one heuristic the button exists to run.
+- **`seedScores()` reseeds the tallies from TSH's live score.** `reset()` drops them and `syncNames()` only re-seeds zeros, which would leave the score fallback comparing 0-0 against a mid-set scoreboard on the *next* game start. Each team's whole score goes on its lowest port, matching how `recordWin()` accumulates.
+- **It does not flip `state.currentSetGames`**, unlike `handleTshSwap()`. Those entries are TSH column numbers and the columns have not moved — only the bridge's read of which port sits in them.
+- **Button only, no auto-trigger.** The 2s tick cannot tell a corrected name from a half-typed one. `tests/port-reresolve.test.js` pins both guards.
+
 ### Doubles
 
 Auto-detected when a game has 4 active players with `teamId` assigned in the `.slp` **and** TSH team 1 has more than one player slot. Same scoreboard, same bridge port — no extra config. `onGameStart` routes to `onGameStartDoubles`.
@@ -245,6 +254,7 @@ GET  /api/identity       → { app: "slippi-bridge", pid } — how a starting br
 GET  /api/status         → { tsh, slippi, slippiDetail, portMapping, tshSwapped, currentSet, tournament, shortLink, startggEnabled, clipper }
 POST /api/swap           → same as Ctrl+Shift+S (calls swapTeams()) — flips the internal port→team map only
 POST /api/swap-sides     → tsh.swapSides() — presses TSH's own Swap Teams, moving names+scores across sides
+POST /api/reresolve      → reresolvePorts() — clear the port→team map and re-derive it from TSH's current names + characters
 POST /api/pull-stream    → tsh.pullStreamSet()
 GET  /api/sets[?finished=1] → tsh.getOpenSets(includeFinished)
 POST /api/load-set       → tsh.loadSet(body.setId), then refreshControlStatus()
@@ -256,7 +266,7 @@ POST /api/clipper/settings → validate + persist + apply (clipper-settings.json
 POST /api/clipper/toggle → { enabled } — the master switch, applied immediately
 POST /api/clipper/test   → save the replay buffer now (proves the OBS chain)
 ```
-`control_status` is also pushed over Socket.io every 2s and on connect. The panel shows TSH/Slippi/OBS health, the current set + its start/report buttons, the upcoming-sets picker, the combo clipper, and the port→team guess with the heuristic that decided it (a positional guess is flagged as low-confidence) plus TSH's own swap state (`tshSwapped`) and a swap button.
+`control_status` is also pushed over Socket.io every 2s and on connect. The panel shows TSH/Slippi/OBS health, the current set + its start/report buttons, the upcoming-sets picker, the combo clipper, and the port→team guess with the heuristic that decided it (a positional guess is flagged as low-confidence) plus TSH's own swap state (`tshSwapped`), a swap button and **↻ Re-detect Players** (see *Manual re-resolve* under [Port→Team Assignment](#portteam-assignment-portmapper)).
 
 **Every section collapses**, so the dock survives being squeezed next to the OBS preview. Each `.card` carries a `data-section` key, splits into `.card-head` + `.card-body`, and toggles `.collapsed` (`display: none` on the body — *not* an animated `max-height`, which would fight `.sets-list`'s own `overflow-y` scroller). The toggle is its own `<button class="head-toggle">` rather than the whole header row, because two headers already carry a control (the method badge, the sets refresh) and a button can't nest a button. Collapsed keys persist in `localStorage` under `streamControl.collapsed` — an OBS dock reloads every time it's reopened, so the layout choice has to survive that.
 

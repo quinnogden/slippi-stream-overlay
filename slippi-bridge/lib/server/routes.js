@@ -13,13 +13,14 @@ const path = require("path");
  * @param {object} deps — {
  *   publicDir, tsh, clipperSettings, obs, state,
  *   refreshControlStatus, reportCurrentSet, startCurrentSet, switchBracket,
- *   swapTeams, recordClip
+ *   swapTeams, reresolvePorts, recordClip
  * }
  */
 function registerRoutes(app, deps) {
   const {
     publicDir, tsh, clipperSettings, obs, state,
-    refreshControlStatus, reportCurrentSet, startCurrentSet, switchBracket, swapTeams, recordClip,
+    refreshControlStatus, reportCurrentSet, startCurrentSet, switchBracket, swapTeams,
+    reresolvePorts, recordClip,
   } = deps;
 
   app.get("/control", (req, res) => {
@@ -40,6 +41,14 @@ function registerRoutes(app, deps) {
     swapTeams();
     refreshControlStatus().catch(() => {});
     res.json({ ok: true });
+  });
+
+  // Throw away the port→team mapping and re-derive it from TSH's current names
+  // and characters — for when the set changed before the TO updated the names.
+  app.post("/api/reresolve", (req, res) => {
+    const result = reresolvePorts();
+    refreshControlStatus().catch(() => {});
+    res.json(result);
   });
 
   // Moves the teams to the other side of the scoreboard. The follow-up refresh

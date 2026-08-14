@@ -82,6 +82,33 @@ class PortMapper {
   // ── State updates ───────────────────────────────────────────────────────────
 
   /**
+   * Clear the mapping on operator demand.
+   *
+   * The case this exists for: a new set is loaded and game 1 is already running
+   * before the TO finishes entering the players in TSH. Everything recorded here
+   * still belongs to the *previous* set, and name matching against stale names
+   * either matches nothing or matches confidently and wrongly. Clearing is the
+   * only honest starting point — see modes/index.js#reresolvePorts.
+   * @param {string} reason — logged, so the operator can see why sides moved
+   */
+  reset(reason) {
+    this._reset(reason);
+  }
+
+  /**
+   * Overwrite the per-port win tallies.
+   *
+   * reset() drops them and syncNames() only re-seeds zeros, which would leave
+   * the score fallback comparing 0-0 against a mid-set scoreboard. A re-resolve
+   * reseeds from TSH's live scores instead so the fallback stays meaningful.
+   * @param {{ [port: number]: number }} scores
+   */
+  seedScores(scores) {
+    this._portScore = { ...scores };
+    console.log("[bridge] Port-score map (seeded):", JSON.stringify(this._portScore));
+  }
+
+  /**
    * Forget everything and fall back to positional assignment on the next game.
    * @param {string} reason — logged, so the operator can see why sides moved
    */
