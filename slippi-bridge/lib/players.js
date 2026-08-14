@@ -1,7 +1,6 @@
 /**
  * Turning raw Slippi player entries into the bridge's per-player records, plus
- * the port-resolution and TSH-push steps that the singles and crew handlers both
- * run verbatim.
+ * the port-resolution and TSH-push steps the mode handlers run verbatim.
  *
  * The build* functions are pure apart from the PortMapper they consult; the
  * push/sync helpers exist because the same three-to-five-line block appeared
@@ -81,7 +80,6 @@ function buildPlayersDoubles(portMapper, sorted) {
 
 /**
  * Name-based port resolution, falling back to TSH's preloaded character history.
- * Shared by the singles and crew handlers, which resolve ports identically.
  *
  * @param {object} ctx — { portMapper, tsh }
  * @param {Array} sorted

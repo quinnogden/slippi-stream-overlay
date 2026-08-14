@@ -152,7 +152,7 @@ Four keys in `user_data/settings.json` under `general`. Claude reads and reports
 - [ ] In the dock's **Combo Clipper** card: paste the URL (`ws://127.0.0.1:4455`), the password, and the replay folder → **Save settings**
 - [ ] Flip the clipper **on**, then press **Test clip now** — a clip should hit the folder and appear in the panel's recent list. Do this *before* a bracket starts; it proves the whole chain.
 
-> Clips are **singles only**. slippi-js computes conversions only for 2-player games, so doubles produces no clips at all — that's upstream and unfixable here. Crew battles are 1v1 per game and work fine.
+> Clips are **singles only**. slippi-js computes conversions only for 2-player games, so doubles produces no clips at all — that's upstream and unfixable here.
 
 ---
 

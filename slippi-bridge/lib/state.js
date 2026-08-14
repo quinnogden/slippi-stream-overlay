@@ -15,36 +15,20 @@
 function createState() {
   return {
     // ── Live game ──────────────────────────────────────────────────────────────
-    // Written by modes/{singles,doubles,crew}, swap.js and control-status.js
+    // Written by modes/{singles,doubles}, swap.js and control-status.js
     // (on a TSH-side swap). Read by the io connection handler and clip-recorder.
     currentGameState: null,
 
-    // ── Set tracking for start.gg reporting (singles/doubles only) ─────────────
+    // ── Set tracking for start.gg reporting ────────────────────────────────────
     // currentSetGames accumulates one { gameNum, winnerTeam } per completed game
     // so the report can include per-game detail. It resets whenever the loaded
-    // set_id changes (new set on the scoreboard). Never populated in crew mode.
+    // set_id changes (new set on the scoreboard).
     //
     // winnerTeam is a TSH column number, so it only means anything alongside the
     // scoreboard's *current* orientation — handleTshSwap() flips these entries
     // when the sides move, exactly as TSH flips its own scores and game tracker.
     currentSetId: null,
     currentSetGames: [],
-
-    // ── Crew battle ────────────────────────────────────────────────────────────
-    // null when not in a crew battle. Owned entirely by modes/crew.js. Shape:
-    // {
-    //   teamSize: number,
-    //   totalStocks:     { 1: number, 2: number },
-    //   carryOverStocks: { 1: number, 2: number },
-    //   playerStats: {
-    //     [playerName]: {
-    //       teamNum: 1|2, stocksTaken: number, hasPlayed: boolean,
-    //       eliminated: boolean, isActive: boolean,
-    //       character: { codename, display, skin, iconAsset } | null
-    //     }
-    //   }
-    // }
-    crewBattleState: null,
 
     // ── Combo clipper rate limiting ────────────────────────────────────────────
     // Owned by clip-recorder.js; clipsThisGame is also reset by modes/index.js

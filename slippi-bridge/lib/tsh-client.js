@@ -121,39 +121,6 @@ class TshClient {
   }
 
   /**
-   * Returns true if the TSH scoreboard is configured for a crew battle
-   * (team 1 has 4 or more player slots).
-   * @param {object} state
-   * @returns {boolean}
-   */
-  isCrewBattle(state) {
-    return Object.keys(this._team(state, 1)?.player ?? {}).length >= 4;
-  }
-
-  /**
-   * Returns the name of the active player in TSH slot 1 for a team.
-   * The TO manually updates slot 1 before each crew battle game.
-   * @param {object} state
-   * @param {number} teamNum — 1 or 2
-   * @returns {string}
-   */
-  getActivePlayerName(state, teamNum) {
-    return (this._team(state, teamNum)?.player?.["1"]?.name ?? "").trim();
-  }
-
-  /**
-   * The preloaded character entry for a team's slot-1 player, as TSH stores it
-   * (`{ name, codename, skin, assets }`). Used by crew mode to show a character
-   * for a player who hasn't played a game yet.
-   * @param {object} state
-   * @param {number} teamNum — 1 or 2
-   * @returns {object|undefined}
-   */
-  getActivePlayerCharacter(state, teamNum) {
-    return this._team(state, teamNum)?.player?.["1"]?.character?.["1"];
-  }
-
-  /**
    * Extract preloaded character history for both teams.
    * Returns up to 2 preloaded chars per team (index 0 = player 1, 1 = player 2).
    * @param {object} state — from readState()
@@ -277,26 +244,6 @@ class TshClient {
     return this._call(this._sbRoute(`-team${teamNumber}-scoreup`), {
       success: `Score incremented for team ${teamNumber}`,
       failure: `Failed to increment score for team ${teamNumber}`,
-    });
-  }
-
-  /**
-   * Set both team scores directly via TSH HTTP API.
-   * Used in crew battle mode to update stock counts after each game.
-   * @param {number} team1Score
-   * @param {number} team2Score
-   * @returns {Promise<{ ok: boolean, error?: string }>}
-   */
-  setScore(team1Score, team2Score) {
-    return this._call("/score", {
-      method: "post",
-      body: {
-        team1score: team1Score,
-        team2score: team2Score,
-        scoreboard: this._config.SCOREBOARD_NUM,
-      },
-      success: `Scores set: team1=${team1Score} team2=${team2Score}`,
-      failure: "setScore failed",
     });
   }
 

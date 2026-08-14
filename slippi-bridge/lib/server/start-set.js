@@ -60,14 +60,12 @@ function ensureState(startgg, setId) {
  * The first call for a new set schedules the lookup and reports "checking";
  * the answer lands on a later tick.
  *
- * @param {object} deps — { startgg, tsh }
- * @param {object} state — TSH program state
+ * @param {object} deps — { startgg }
  * @param {string|number|null} setId
  * @returns {{ canStart: boolean, reason: string|null }}
  */
-function evaluateStartability({ startgg, tsh }, state, setId) {
+function evaluateStartability({ startgg }, setId) {
   if (!startgg.enabled)        return { canStart: false, reason: "start.gg token not configured" };
-  if (tsh.isCrewBattle(state)) return { canStart: false, reason: "Crew battles aren't start.gg sets" };
   if (setId == null)           return { canStart: false, reason: "No start.gg set loaded (manual/exhibition)" };
   // A "preview" id belongs to a set start.gg hasn't created yet (the phase isn't
   // seeded), so there is nothing to mark in progress.
@@ -103,7 +101,7 @@ function createStartSet(ctx, refreshControlStatus) {
     catch { return { ok: false, error: "Cannot read TSH state" }; }
 
     const setId = tsh.getSetId(tshState);
-    const { canStart, reason } = evaluateStartability(ctx, tshState, setId);
+    const { canStart, reason } = evaluateStartability(ctx, setId);
     if (!canStart) return { ok: false, error: reason };
 
     const result = await startgg.startSet(setId);

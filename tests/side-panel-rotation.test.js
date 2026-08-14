@@ -31,7 +31,7 @@ const { loadLayout, fixture, clone, sleep } = require("./helpers/layout-sandbox"
 const SB = "1"; // SCOREBOARD_NUM in side-panel.js
 const PUSH_GAP_MS = 30; // TSH writes state far faster than the 20s rotation
 
-const PANEL_IDS = ["logo-primary", "crew-team-1", "crew-team-2", "player-1", "player-2",
+const PANEL_IDS = ["logo-primary", "player-1", "player-2",
                    "recent-sets", "logo-sponsor", "completed-sets", "queue"];
 
 const BASE = fixture("program-state");

@@ -157,55 +157,9 @@ LoadEverything().then(() => {
     let data = event.data;
 
     let playerCount = Object.keys(data.score[window.scoreboardNumber].team["1"].player).length;
-    let isCrew      = playerCount >= 4;
-    let isTeams     = !isCrew && playerCount > 1;
+    let isTeams     = playerCount > 1;
 
-    if (isCrew) {
-      for (const [t, team] of [
-        data.score[window.scoreboardNumber].team["1"],
-        data.score[window.scoreboardNumber].team["2"],
-      ].entries()) {
-        const player   = team.player["1"];
-        const teamName = team.teamName || "";
-        if (player) {
-          SetInnerHtml(
-            $(`.p${t + 1}.container .name`),
-            `
-              <span class="sponsor">
-                ${player.team ? player.team : ""}
-              </span>
-              ${await Transcript(player.name)}
-              ${team.losers ? "<span class='losers'>L</span>" : ""}
-            `
-          );
-
-          SetInnerHtml(
-            $(`.p${t + 1} .pronoun`),
-            teamName ? teamName.toUpperCase() : ""
-          );
-
-          await CharacterDisplay(
-            $(`.p${t + 1}.container .character_container`),
-            {
-              asset_key:    "base_files/icon",
-              source:       `score.${window.scoreboardNumber}.team.${t + 1}.player.1`,
-              scale_fill_x: true,
-              scale_fill_y: true,
-              custom_zoom:  1.0
-            },
-            event
-          );
-
-          SetInnerHtml($(`.p${t + 1}.container .score`), String(team.score));
-
-          const _charEl = document.querySelector(`.p${t + 1}.container .character_container`);
-          if (_charEl) {
-            _charEl.classList.remove("team-color");
-            _charEl.style.removeProperty("--team-color");
-          }
-        }
-      }
-    } else if (!isTeams) {
+    if (!isTeams) {
       for (const [t, team] of [
         data.score[window.scoreboardNumber].team["1"],
         data.score[window.scoreboardNumber].team["2"],
