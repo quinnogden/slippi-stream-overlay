@@ -53,14 +53,12 @@ const NAME_POLL_INTERVAL  = 30000;
 
 const PANEL_ORDER = [
   "logo-primary",
-  "crew-team-1", "crew-team-2",
   "player-1", "player-2", "recent-sets",
   "logo-sponsor", "completed-sets", "queue"
 ];
 
 let completedSets = [];  // cached from last poll
 let tshData       = null; // last TSH program state
-let crewState     = null; // last slippi_crew_update payload
 
 class Rotator {
   constructor() {
@@ -76,17 +74,14 @@ class Rotator {
     const d = tshData;
 
     const doubles = isDoubles(d);
-    const crew    = isCrewBattle(d);
     const active = PANEL_ORDER.filter(id => {
       switch (id) {
         case "logo-primary":   return true;
         case "logo-sponsor":   return true;
-        case "crew-team-1":    return crew;
-        case "crew-team-2":    return crew;
-        case "player-1":       return !doubles && !crew && hasPlayerCardContent(d, 1);
-        case "player-2":       return !doubles && !crew && hasPlayerCardContent(d, 2);
-        case "recent-sets":    return !doubles && !crew && hasRecentSets(d);
-        case "completed-sets": return !crew && completedSets.length > 0;
+        case "player-1":       return !doubles && hasPlayerCardContent(d, 1);
+        case "player-2":       return !doubles && hasPlayerCardContent(d, 2);
+        case "recent-sets":    return !doubles && hasRecentSets(d);
+        case "completed-sets": return completedSets.length > 0;
         case "queue":          return hasQueue(d);
         default:               return false;
       }
@@ -233,12 +228,6 @@ const rotator = new Rotator();
 function isDoubles(data) {
   try {
     return Object.keys(data.score[SCOREBOARD_NUM].team["1"].player).length > 1;
-  } catch (_) { return false; }
-}
-
-function isCrewBattle(data) {
-  try {
-    return Object.keys(data.score[SCOREBOARD_NUM].team["1"].player).length >= 4;
   } catch (_) { return false; }
 }
 
@@ -403,62 +392,6 @@ function renderPlayerCard(teamNum, data) {
       fitText(opp);
     });
 
-  } catch (_) {}
-}
-
-
-// ── renderCrewTeamCard(teamNum, data) ─────────────────────────────────────────
-
-function renderCrewCards() {
-  if (!tshData) return;
-  renderCrewTeamCard(1, tshData);
-  renderCrewTeamCard(2, tshData);
-}
-
-function renderCrewTeamCard(teamNum, data) {
-  const panel = document.getElementById("panel-crew-team-" + teamNum);
-  if (!panel) return;
-
-  try {
-    const team       = data.score[SCOREBOARD_NUM].team[String(teamNum)];
-    const teamName   = team.teamName || ("Team " + teamNum);
-    const allPlayers = Object.values(team.player || {});
-
-    const header = panel.querySelector(".panel-header");
-    if (header) header.textContent = teamName.toUpperCase();
-
-    const list = panel.querySelector(".crew-player-list");
-    list.innerHTML = "";
-
-    allPlayers.forEach((player) => {
-      if (!player || !player.name) return;
-
-      const name      = player.name;
-      const stats     = crewState?.playerStats?.[name];
-      const charEntry = player.character?.["1"];
-
-      let stateClass = "waiting";
-      if (stats?.isActive)   stateClass = "active";
-      if (stats?.eliminated) stateClass = "eliminated";
-
-      const pill = el("div", "panel-pill crew-player-pill " + stateClass);
-
-      // Character icon from TSH preloaded asset
-      if (charEntry?.assets?.["base_files/icon"]?.asset) {
-        const icon = el("img", "crew-char-icon");
-        icon.src = "../../" + charEntry.assets["base_files/icon"].asset.replace(/^\.\//, "");
-        pill.appendChild(icon);
-      }
-
-      const nameEl = el("span", "crew-player-name", name);
-      pill.appendChild(nameEl);
-
-      if (stats?.hasPlayed) {
-        pill.appendChild(el("span", "crew-stocks-taken", String(stats.stocksTaken)));
-      }
-
-      list.appendChild(pill);
-    });
   } catch (_) {}
 }
 
@@ -630,12 +563,10 @@ LoadEverything().then(() => {
     if (!data) return;
 
     // Render before rebuilding: buildSlots can restart the rotation, and the
-    // panel it fades in should already hold the new content. renderCrewCards
-    // reads the global, so publish it here rather than leaving it to buildSlots.
+    // panel it fades in should already hold the new content.
     tshData = data;
     renderPlayerCard(1, data);
     renderPlayerCard(2, data);
-    renderCrewCards();
     renderRecentSets(data);
     renderQueue(data);
     rotator.buildSlots(data);
@@ -650,14 +581,6 @@ LoadEverything().then(() => {
   // Socket plumbing lives in ../shared/slippi-bridge-client.js; no-ops when the
   // bridge isn't running.
   SlippiBridge.connectBridge({
-    slippi_crew_update: (data) => {
-      crewState = data;
-      renderCrewCards();
-      rotator.buildSlots(tshData);
-    },
-
-    slippi_crew_end: () => renderCrewCards(),
-
     // A clip was banked mid-match. Only successful saves reach here — clip
     // errors go to the operator's control panel, not the broadcast.
     slippi_clip_saved: (clip) => showClipToast(clip),

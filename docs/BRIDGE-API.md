@@ -29,7 +29,6 @@ The whole `currentGameState`. Emitted on game start, on a manual or TSH-side swa
     // …
   },
   isDoubles: false,
-  isCrew: undefined,            // true only in crew battles
   startedAtZeroZero: true,      // singles only — drives the 0-0 late-bind at game end
   teamColorMap: undefined,      // doubles only: { "1": "#D32F2F", "2": "#1565C0" }
 }
@@ -46,30 +45,7 @@ The whole `currentGameState`. Emitted on game start, on a manual or TSH-side swa
 { winner: 1 }      // TSH team number, or null when no winner could be determined
 ```
 
-`winner: null` is normal — a handwarmer, an undetermined end, or a crew battle already over.
-
-### `slippi_crew_update`
-
-Crew battles only. Fires at both game start and game end.
-
-```js
-{
-  totalStocks:     { "1": 14, "2": 16 },   // TSH team → stocks left, pushed to TSH as the score
-  carryOverStocks: { "1": 2,  "2": 4  },   // stocks the active player entered the game with
-  playerStats: {
-    "PlayerTag": { isActive: true, eliminated: false, hasPlayed: true, stocksTaken: 3, character: "Fox" },
-    // …
-  },
-}
-```
-
-`playerStats` is keyed by **player name as TSH reports it**, so a name edited mid-battle appears as a new key.
-
-### `slippi_crew_end`
-
-```js
-{ winner: 1 }      // the team that still has stocks
-```
+`winner: null` is normal — a handwarmer or an undetermined end.
 
 ### `slippi_clip_saved` / `slippi_clip_error`
 

@@ -80,7 +80,7 @@ slippi-bridge/
   clipper-settings.json     gitignored, written by the control panel — must stay at this path
   public/control-panel.html the operator dock
   lib/                      every module below
-    modes/                  singles.js  doubles.js  crew.js  index.js (dispatcher)
+    modes/                  singles.js  doubles.js  index.js (dispatcher)
     server/                 app.js  routes.js  control-status.js  report-set.js  start-set.js
   scripts/                  preflight.js  start-all.js
 ```
@@ -93,29 +93,28 @@ so nothing needs a late binding.
 
 **`lib/state.js`** — `createState()`. The shared mutable state that used to be a dozen
 module-level `let`s in `index.js`: `currentGameState`, `currentSetId`/`currentSetGames`,
-`crewBattleState`, the clipper's rate-limit counters, `lastControlStatus`, `tshSwapped`, `source`.
+the clipper's rate-limit counters, `lastControlStatus`, `tshSwapped`, `source`.
 Reached as `ctx.state`. **The file documents which module writes which field — keep that current.**
 
 #### Game modes (`lib/modes/`)
 
-- **`index.js`** — `createModes(ctx)`. Reads TSH once per game start, decides singles / doubles /
-  crew, hands off. Also owns `syncSetTracking()` and `reportStage()`.
+- **`index.js`** — `createModes(ctx)`. Reads TSH once per game start, decides singles / doubles,
+  hands off. Also owns `syncSetTracking()` and `reportStage()`.
 - **`singles.js`** — game start, plus `onGameEndStandard()`, which doubles shares (the two modes
   differ only at game start). Contains the 0-0 late-bind.
 - **`doubles.js`** — game start and `MELEE_TEAM_COLORS`.
-- **`crew.js`** — start, end and the `slippi_crew_update` payload.
 
 #### Services (`lib/`)
 
 - **`port-mapper.js`** — `PortMapper` class. Owns all port→team tracking state (`_portToTeam`, `_portToName`, `_portScore`). Never reads files or makes HTTP calls — all data is passed in. `getResolutionInfo()` reports the current mapping plus which heuristic set it (`_resolutionMethod`: name / score / character / positional / manual).
-- **`tsh-client.js`** — `TshClient` class; all I/O with TSH. Reads `program_state.json` (`readState()` + pure accessors), calls the TSH HTTP API, and returns typed `{ ok, error?, data? }` results. Every HTTP method goes through one private `_call()`; every state accessor through `_team()`, so the `score.<sb>.team.<n>` dig exists once. Includes bracket-action fronts (`pullStreamSet`, `getOpenSets`, `loadSet`), state accessors (`getSetId`, `getLiveScores`, `getTeamInfos`), crew helpers (`isCrewBattle`, `getActivePlayerName`, `getActivePlayerCharacter`), and a `ping()` health probe.
+- **`tsh-client.js`** — `TshClient` class; all I/O with TSH. Reads `program_state.json` (`readState()` + pure accessors), calls the TSH HTTP API, and returns typed `{ ok, error?, data? }` results. Every HTTP method goes through one private `_call()`; every state accessor through `_team()`, so the `score.<sb>.team.<n>` dig exists once. Includes bracket-action fronts (`pullStreamSet`, `getOpenSets`, `loadSet`), state accessors (`getSetId`, `getLiveScores`, `getTeamInfos`), and a `ping()` health probe.
 - **`startgg-client.js`** — `StartggClient` class. The **only** module that talks to an external service, which is the invariant worth keeping: two would mean two places handling token expiry, rate limits and timeouts. Five GraphQL methods (`https://api.start.gg/gql/alpha`, all through one private `_gql()`): `reportSet()` runs the `reportBracketSet` mutation, `getSetEntrants()` fetches per-team entrant ids (TSH's `/get-match` does *not* expose them), `listEvents()` fetches a tournament's event list for the bracket switcher, and `getSetState()` / `startSet()` back the Start Set button (`markSetInProgress`). `resolveShortLink()` is the odd one out — deliberately **not** GraphQL (the API returns `null` for a short slug; only start.gg's web redirect resolves one) and deliberately **not** gated on `enabled`, since it needs no token. `enabled` is false when no token is configured. Bracket *reading during a set* still goes through TSH's native integration.
-- **`game-source.js`** — `createFolderSource(config, detector?)`. Polls `SLP_FOLDER` and returns a Node `EventEmitter` firing `game-start` (`rawPlayers, stageId`), `game-end` (`{ winnerPlayerIndex, isHandwarmer, winnerEndStocks }`) and `highlight` (one detected combo). Also exposes `getStatus()` (`{ connected, detail }`) for the control-panel health dot. The mode handlers bind to these events rather than reading `.slp` files, which keeps them testable against a mock emitter.
+- **`game-source.js`** — `createFolderSource(config, detector?)`. Polls `SLP_FOLDER` and returns a Node `EventEmitter` firing `game-start` (`rawPlayers, stageId`), `game-end` (`{ winnerPlayerIndex, isHandwarmer }`) and `highlight` (one detected combo). Also exposes `getStatus()` (`{ connected, detail }`) for the control-panel health dot. The mode handlers bind to these events rather than reading `.slp` files, which keeps them testable against a mock emitter.
 - **`combo-detector.js`** — `ComboDetector`. Pure: given a live `SlippiGame`, returns the conversions that just finished and clear the operator's thresholds. No I/O, no timers — all rate limiting lives in `lib/clip-recorder.js`. See [Combo Clipper](#combo-clipper--obs-replay-buffer).
 - **`clip-recorder.js`** — `createClipRecorder(ctx, refresh)`. The clipper's time-based half: cooldown, per-game cap, save delay, and the `recentClips` ring.
 - **`obs-client.js`** — `ObsClient`. The only module that talks to OBS (obs-websocket v5, via `obs-websocket-js`). Lazily connects with backoff, saves the replay buffer, and reports `getStatus()` synchronously for the control panel. Never throws upward — OBS being closed is a normal state.
 - **`clipper-settings.js`** — `ClipperSettings`. Three layers merged per-key: module `DEFAULTS` → `config.CLIPPER` → the gitignored `clipper-settings.json`. Validates and clamps every field (values arrive from a browser form) and writes atomically. Reaches **up one level** for the JSON, which stays at the `slippi-bridge/` root because `.gitignore` pins that exact path.
-- **`players.js`** — pure per-player record building (`buildPlayersSingles`, `buildPlayersDoubles`, `isDoubles`, `groupByTeamId`) plus the resolve/push/sync steps singles and crew run identically.
+- **`players.js`** — pure per-player record building (`buildPlayersSingles`, `buildPlayersDoubles`, `isDoubles`, `groupByTeamId`) plus the resolve/push/sync steps the mode handlers run identically.
 - **`char_map.js`** — `resolveCharacter(charId, costume)` and `resolveStage(stageId)`. Pure mapping, no I/O. Deliberately returns **no icon path** — the layouts build that themselves; see `layout/shared/tsh-assets.js`. `STAGE_MAP` covers all 30 Slippi stage ids TSH ships an icon for; unmapped ids (target-test stages 33+) return `null`.
 - **`swap.js`**, **`hotkey.js`**, **`lan-urls.js`**, **`log.js`** — the manual swap, the `Ctrl+Shift+S` listener (native module, required lazily), the startup LAN URL list, and `warnIfFailed()`.
 - **`port-guard.js`** — `reclaimPort(port, log)`. Called from the `httpServer` `EADDRINUSE` handler so a stale bridge holding `BRIDGE_PORT` is stopped automatically instead of sending the operator to `netstat`/`taskkill` mid-event. See [Port Reclaim](#port-reclaim).
@@ -155,17 +154,6 @@ Auto-detected when a game has 4 active players with `teamId` assigned in the `.s
 - **Score tracking:** `onGameEnd` reads the winner team from `currentGameState.players[winnerPlayerIndex].teamNum` before falling back to `portMapper.getTeam()` — fixes a null winner when `_portToTeam` is unset at 0-0.
 - **Game end:** RESOLVED end method (the normal doubles win in Slippi) plus a last-frame stock-count fallback when placements are missing.
 
-### Crew Battle Mode
-
-Stock-tracking crew battles for 4- or 5-person teams. The TO configures 4+ players per team in TSH and sets the initial score to the total starting stocks (**16** for 4-person, **20** for 5-person) before game 1. `onGameStart` routes to `onGameStartCrew`.
-
-- **Detection:** `tsh.isCrewBattle(state)` — `Object.keys(team["1"].player).length >= 4`.
-- **Stock tracking:** `crewBattleState.carryOverStocks[team]` tracks stocks the active player entered with (init 4). After each game: `totalStocks[loserTeam] -= carryOverStocks[loserTeam]`; the winner's carry-over is updated from `winnerEndStocks` (last-frame `stocksRemaining`, added to the `game-end` payload in `game-source.js`). No handwarmer check in crew mode — every completed game counts.
-- **Per-player stats** (`crewBattleState.playerStats[name]`): `isActive`, `eliminated`, `hasPlayed`, `stocksTaken`, `character`. The active player is read from TSH `team[N].player["1"].name` at each game start (the TO updates this slot before each game).
-- **Bridge events:** `slippi_crew_update` (fires at game start + end with `totalStocks`, `carryOverStocks`, `playerStats`) and `slippi_crew_end` (fires when a team reaches 0 stocks). Stock counts are pushed to TSH via `setScore`.
-- **Scoreboard:** the crew branch in the layout `Update()` renders the active player's character icon via the single-player path `team.N.player.1` (prevents `assetUtils` from iterating all 5 slots). Team name shows in the `.pronoun` chip below the player name.
-- **Side panel:** two rotation slots, `crew-team-1` / `crew-team-2`, each with a Name / Stocks-Taken column layout. Pill states: `active` (green left border + tint), `eliminated` (0.35 opacity), `waiting` (default).
-
 ### Per-Game Stage Reporting (TSH 5.972+)
 
 TSH 5.972 added the **Individual Game Tracker**, which records stage / characters / winner per game under `score.<N>.stages.<i>`. The bridge already parses the stage from every `.slp` and now pushes it.
@@ -173,7 +161,6 @@ TSH 5.972 added the **Individual Game Tracker**, which records stage / character
 - `game-source.js` emits `game-start` as `(rawPlayers, stageId)`, taken from `settings.stageId` (`null` when unavailable).
 - `onGameStart` calls `reportStage(stageId)` → `resolveStage()` → `tsh.setCurrentStage(codename)`.
 - **Best-effort by design:** unmapped stage ids log a warning and skip; the HTTP call is fire-and-forget with `.catch(() => {})`. Stage reporting is cosmetic and must never block scoring.
-- **Skipped in crew battles** — they don't use the game tracker, so there is no game slot to stamp.
 - Per-game *characters* need no bridge work: TSH's `_CopySetLevelCharactersToGame` copies the set-level selection (already pushed via `update-team`) into the game slot automatically.
 
 Codenames are the basenames of `user_data/games/ssbm/stage_icon/*.png`. Watch the spellings that don't match the Slippi enum: `HYRULE_TEMPLE`→`temple`, `POKE_FLOATS`→`pokefloats`, `DREAMLAND`→`dream_land`, `KONGO_JUNGLE_N64`→`kong_jungle_64` (**"kong"**, not "kongo"). `ICETOP` (26) maps to `icicle_mountain` — TSH ships no separate asset.
@@ -284,9 +271,9 @@ The ≥760px layout is **CSS multicolumn**, not a grid. It used to be `grid-temp
 - **Refresh is deliberately slow.** TSH's `get_sets` calls `provider.GetMatches()`, an uncached paginated GraphQL query against start.gg on every call. The panel refreshes on open, on the manual `↻`, after a successful load/pull/report, and on a 90s timer that pauses while `document.visibilityState !== "visible"`. Do not turn this into a fast poll.
 - An **empty list is normal** — `get_sets` returns start.gg states 1/6/2 (not started, called, in progress), so a finished bracket legitimately returns 0. The empty state says so and points at the `show finished` toggle (`?finished=1`, which adds state 3); that is distinct from the fetch-failed state.
 
-**Reporting flow (`reportCurrentSet` in index.js):** reads `score.<N>.set_id` + live scores from TSH → refuses if crew / no set_id / `preview` set / tied score → derives the winner *column* from the higher live score → `entrantSlot(column, swapped)` converts that to a start.gg slot → `startgg.getSetEntrants(setId)` maps slot → entrant id (start.gg slot 0 = slot 1) → `startgg.reportSet(setId, winnerEntrantId, gameData)`.
+**Reporting flow (`reportCurrentSet` in index.js):** reads `score.<N>.set_id` + live scores from TSH → refuses if no set_id / `preview` set / tied score → derives the winner *column* from the higher live score → `entrantSlot(column, swapped)` converts that to a start.gg slot → `startgg.getSetEntrants(setId)` maps slot → entrant id (start.gg slot 0 = slot 1) → `startgg.reportSet(setId, winnerEntrantId, gameData)`.
 
-**Swap state is load-bearing for reporting.** TSH's Swap Teams moves each team to the other column *and keeps that orientation for every set loaded afterwards* — `TSHScoreboardWidget.ChangeSetData` does `scoreContainers.reverse()` / `losersContainers.reverse()` / `teamInstances.reverse()` when `teamsSwapped`, so while swapped, TSH column 1 holds start.gg's slot-2 entrant. `entrantSlot()` applies that inversion; without it the report publishes the loser as the winner. `reportCurrentSet` re-reads `getSwapState()` at report time rather than trusting the 2s poll, falls back to the last polled `tshSwapState`, and **refuses** if neither is available — guessing is worse than not reporting. `handleTshSwap()` also flips the recorded `winnerTeam` of every entry in `currentSetGames`, since those are column numbers and the columns just changed hands (mirrors TSH's own `individualGameTracker.SwapStageResults()`). Per-game `gameData` is accumulated in `currentSetGames` (one `{ gameNum, winnerTeam }` per singles/doubles game end; reset in `syncSetTracking()` when `set_id` changes) and is optional — a mismatch falls back to reporting set winner + score only. Manual trigger only; the panel two-step-confirms before POSTing. Singles + doubles; crew battles are excluded.
+**Swap state is load-bearing for reporting.** TSH's Swap Teams moves each team to the other column *and keeps that orientation for every set loaded afterwards* — `TSHScoreboardWidget.ChangeSetData` does `scoreContainers.reverse()` / `losersContainers.reverse()` / `teamInstances.reverse()` when `teamsSwapped`, so while swapped, TSH column 1 holds start.gg's slot-2 entrant. `entrantSlot()` applies that inversion; without it the report publishes the loser as the winner. `reportCurrentSet` re-reads `getSwapState()` at report time rather than trusting the 2s poll, falls back to the last polled `tshSwapState`, and **refuses** if neither is available — guessing is worse than not reporting. `handleTshSwap()` also flips the recorded `winnerTeam` of every entry in `currentSetGames`, since those are column numbers and the columns just changed hands (mirrors TSH's own `individualGameTracker.SwapStageResults()`). Per-game `gameData` is accumulated in `currentSetGames` (one `{ gameNum, winnerTeam }` per singles/doubles game end; reset in `syncSetTracking()` when `set_id` changes) and is optional — a mismatch falls back to reporting set winner + score only. Manual trigger only; the panel two-step-confirms before POSTing.
 
 ### Start Set
 
@@ -338,7 +325,7 @@ Detection is deliberately live rather than the post-game scan issue #7 originall
 - **Window damage is the sum of in-window `moves[].damage`**, the only per-move figure slippi-js exposes — it undercounts non-move damage, which keeps the filter conservative. No move array (rare, but possible) falls back to whole-conversion judging rather than rejecting: clipping one loose combo is recoverable, clipping nothing for a whole night is not.
 - The highlight reports whole-conversion `moveCount`/`damage`/`durationSec` (the panel and toast describe the *combo*) plus a `window: { moveCount, damage, durationSec }` when one applied. `clip-recorder.js` appends it to the `[clipper] Combo by …` line — that log is the operator's only feedback while tuning, and without it a too-tight window looks exactly like a broken OBS chain.
 
-**Hard limit, upstream in slippi-js and not fixable here — singles only.** `ConversionComputer.setup` calls `getSinglesPlayerPermutationsFromSettings`, which returns `[]` unless `players.length === 2`, so `stats.conversions` is *permanently empty in doubles*. Crew battles are 1v1 per game and work fine. The control panel says so rather than leaving the operator waiting for clips that structurally cannot arrive.
+**Hard limit, upstream in slippi-js and not fixable here — singles only.** `ConversionComputer.setup` calls `getSinglesPlayerPermutationsFromSettings`, which returns `[]` unless `players.length === 2`, so `stats.conversions` is *permanently empty in doubles*. The control panel says so rather than leaving the operator waiting for clips that structurally cannot arrive.
 
 **Settings** (`config.CLIPPER` defaults → `clipper-settings.json` overrides, all live-editable from the dock with no restart):
 
@@ -376,10 +363,6 @@ is one level under `layout/`, so `../shared/x.js` resolves from all of them.
 
 Both are in `preflight.js`'s required-layout list — a TSH release zip that overwrites `layout/`
 takes them with it, and their absence silently kills character icons and the bridge connection.
-
-**The side panel does not use `charIconSrc` for crew portraits.** It reads TSH's own declared asset
-path (`character["1"].assets["base_files/icon"].asset`), which is a different mechanism, not a third
-copy of the same construction.
 
 ### Theme / design tokens — theme packs
 
@@ -426,8 +409,8 @@ layout/themes/hundred-acres/
 - **Structure:** four positioned divs (`.bg-top/.bg-bottom/.bg-left/.bg-right`) fill the canvas with forest green; two floating rounded cards (`.header-card`, `.bottom-card`) sit on top with drop shadows + inner edge lighting. The cam cutout (587×330, true 16:9) is a transparent gap between them — the OBS cam source shows through. `.cam-overlay` rounds the cam corners via an outward green spread shadow (`box-shadow: 0 0 0 14px var(--bg-color)`).
 - **Header card:** tournament name fetched from `../../out/tournamentInfo/tournamentName.txt` (polled every 5s) + the `Update()` hook. 32px BabyDoll, uppercase, wide letter-spacing.
 - **Bottom card:** dark teal with a 5-orb CSS ambient animation (`@keyframes drift1-5`) plus grain/light/vignette layers. Hosts the rotating info-panel system. `?animate=false` disables the ambient animation.
-- **Rotating info panels** (each slot `PANEL_INTERVAL`, default 20s; GSAP stagger on entrance): `logo-primary`, `player-1`, `player-2`, `recent-sets`, `logo-sponsor`, `completed-sets`, `queue`, plus `crew-team-1` / `crew-team-2` in crew battles. Every content item is a `.panel-pill`. Player cards show placement history + current-run results; Recent Sets shows a head-to-head record; Completed Sets shows recently-finished sets; Queue shows the stream queue.
-- **Skip logic:** `hasPlayerCardContent()` requires actual history/run data (not just a name); logos always show; `completedSets` excludes null-score sets, capped at 8. **Doubles** suppresses `player-1`, `player-2`, `recent-sets`. **Crew** suppresses `player-1`, `player-2`, `recent-sets`, `completed-sets`.
+- **Rotating info panels** (each slot `PANEL_INTERVAL`, default 20s; GSAP stagger on entrance): `logo-primary`, `player-1`, `player-2`, `recent-sets`, `logo-sponsor`, `completed-sets`, `queue`. Every content item is a `.panel-pill`. Player cards show placement history + current-run results; Recent Sets shows a head-to-head record; Completed Sets shows recently-finished sets; Queue shows the stream queue.
+- **Skip logic:** `hasPlayerCardContent()` requires actual history/run data (not just a name); logos always show; `completedSets` excludes null-score sets, capped at 8. **Doubles** suppresses `player-1`, `player-2`, `recent-sets`.
 - **Rotation safety:** `Rotator._tl` stores the active GSAP timeline and `_transitionTo()` kills it before starting a new one (prevents stale `onComplete` callbacks spawning duplicate timer chains). `_advance()` calls `clearTimeout` defensively.
 - **`buildSlots()` restarts only when the *visible* panel leaves the slot list** — never on a slot-list change alone. Loading a set is not one TSH state push but six or more: `ChangeSetData` clears the names, then `last_sets.1`, `history_sets.1`, `last_sets.2`, `history_sets.2` and `recent_sets` each land as a separate async provider reply, and each is its own `StateManager` write, so each dispatches its own `tsh_update`. Every push that flips a slot predicate changes the list. `restart()` rotates from the top and slot 0 is *always* `logo-primary` (first in `PANEL_ORDER`, predicate `return true`), so restarting per change flashed the logo 3–5× on every set load and 2× on every Swap Teams. When the visible panel survives the rebuild, `_index` is re-aimed at whatever now follows it and the running timer is left alone; only a panel that has genuinely dropped out triggers the restart (which is what stops it being stranded on screen — panels are absolutely stacked and only opacity separates them). Both halves are pinned by `tests/side-panel-rotation.test.js` — run it after touching `Rotator`.
 - **Clip-saved toast** (`.clip-toast`): a pill that slides in over the **bottom edge** of `.bottom-card` when the bridge emits `slippi_clip_saved`, holds ~3.2s, and slides back out. At rest it sits at `translateY(160%)` and is hidden by the card's `overflow: hidden`. Absolutely positioned so it never disturbs the rotating panels. Toasts are **queued, not concurrent** — restarting the tween on a visible pill reads as a flicker on stream — and the queue keeps only the newest clip, since a backlog of stale pills is worse than a gap. Only *successful* saves reach the overlay; clip errors go to the operator's control panel (`slippi_clip_error`), never the broadcast.
@@ -498,7 +481,7 @@ There used to be a second path (`CONNECTION_MODE: "tcp"`, connecting to the Wii'
 - Never hardcode the TSH folder name — it carries the version (`TournamentStreamHelper-5.972`) and changes on every update. Use `resolveTshRoot()` / `resolveOrExit()` from `lib/tsh-root.js`.
 - `.gitignore` uses the version-independent glob `TournamentStreamHelper-*/*` with a `!TournamentStreamHelper-*/layout/` negation. Pinning an exact version there means the next TSH update silently untracks nothing and starts tracking ~4000 vendored files.
 - A fresh TSH extract ships **empty stub** config, not missing files — `local_players.json` is `{}` and `settings.json` has no `TOURNAMENT_URL`. After updating, copy `user_data/games/`, `local_players.json`, `settings.json`, and `pronouns_list.txt` from the previous install.
-- `stats.conversions` is **empty in doubles** — slippi-js only computes conversions for 2-player games. Nothing in this repo can work around it; the combo clipper is singles + crew only.
+- `stats.conversions` is **empty in doubles** — slippi-js only computes conversions for 2-player games. Nothing in this repo can work around it; the combo clipper is singles only.
 - A slippi-js conversion's `playerIndex` is the player who **got hit**. The attacker is `lastHitBy`.
 - The folder-mode parser is now **persistent per file**. Anything added to that poll loop must tolerate a live file, and must not assume a fresh parse each tick — see the poisoned-parser guard in [Combo Clipper](#combo-clipper--obs-replay-buffer).
 - `clipper-settings.json` is gitignored and written by the control panel. Don't add clipper tunables to `config.js` expecting them to be authoritative — `config.CLIPPER` is only the default layer.

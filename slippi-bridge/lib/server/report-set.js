@@ -2,20 +2,17 @@
  * start.gg result reporting.
  *
  * Manual-trigger only — the control panel two-step-confirms before POSTing.
- * Singles and doubles; crew battles are excluded (no set to report against).
  */
 
 /**
  * Determine whether the current set can be reported, and why not if it can't.
  * Shared with the control-status loop, which surfaces `reason` in the panel.
  *
- * @param {object} deps — { startgg, tsh }
- * @param {object} state — TSH program state
+ * @param {object} deps — { startgg }
  * @param {string|number|null} setId
  */
-function evaluateReportability({ startgg, tsh }, state, setId) {
+function evaluateReportability({ startgg }, setId) {
   if (!startgg.enabled)                  return { canReport: false, reason: "start.gg token not configured" };
-  if (tsh.isCrewBattle(state))           return { canReport: false, reason: "Crew battles can't be reported" };
   if (setId == null)                     return { canReport: false, reason: "No start.gg set loaded (manual/exhibition)" };
   if (String(setId).includes("preview")) return { canReport: false, reason: "Set hasn't started on start.gg yet" };
   return { canReport: true, reason: null };
@@ -68,7 +65,7 @@ function createReportSet(ctx, refreshControlStatus) {
     catch { return { ok: false, error: "Cannot read TSH state" }; }
 
     const setId = tsh.getSetId(tshState);
-    const { canReport, reason } = evaluateReportability(ctx, tshState, setId);
+    const { canReport, reason } = evaluateReportability(ctx, setId);
     if (!canReport) return { ok: false, error: reason };
 
     const scores = tsh.getLiveScores(tshState);

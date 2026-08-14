@@ -18,8 +18,8 @@
  *     the victim in the clip toast.
  *   - Conversions are computed for SINGLES ONLY
  *     (getSinglesPlayerPermutationsFromSettings bails unless players.length === 2),
- *     so stats.conversions is permanently empty in doubles. Crew battles are
- *     1v1 per game and work fine. Nothing here can change that — it's upstream.
+ *     so stats.conversions is permanently empty in doubles, which has 4.
+ *     Nothing here can change that — it's upstream.
  */
 
 const FRAMES_PER_SECOND = 60;

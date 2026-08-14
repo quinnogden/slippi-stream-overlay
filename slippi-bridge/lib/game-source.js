@@ -5,7 +5,7 @@
  *   'game-start'  → (rawPlayers, stageId)
  *                   rawPlayers: array (same shape as slippi-js getSettings())
  *                   stageId:    Slippi stage ID (number | null when unavailable)
- *   'game-end'    → { winnerPlayerIndex, isHandwarmer, winnerEndStocks }
+ *   'game-end'    → { winnerPlayerIndex, isHandwarmer }
  *   'highlight'   → one detected combo (when a detector is supplied and the
  *                   clipper is enabled)
  *
@@ -183,13 +183,7 @@ function createFolderSource(config, detector) {
             winnerPlayerIndex = winner?.playerIndex ?? winnerByStocks(game);
           }
 
-          // Read winner's remaining stocks for crew battle carry-over tracking
-          const latestFrame = game.getLatestFrame();
-          const winnerEndStocks = (winnerPlayerIndex != null && winnerPlayerIndex >= 0)
-            ? (latestFrame?.players?.[winnerPlayerIndex]?.post?.stocksRemaining ?? null)
-            : null;
-
-          emitter.emit("game-end", { winnerPlayerIndex, isHandwarmer, winnerEndStocks });
+          emitter.emit("game-end", { winnerPlayerIndex, isHandwarmer });
           knownFiles.add(currentFile);
           currentFile = null;
           game        = null;

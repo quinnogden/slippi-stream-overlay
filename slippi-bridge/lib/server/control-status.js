@@ -111,10 +111,10 @@ function createControlStatus(ctx) {
         const tshState = tsh.readState();
         const setId    = tsh.getSetId(tshState);
         const { t1, t2 } = tsh.getTeamInfos(tshState);
-        const { canReport, reason } = evaluateReportability(ctx, tshState, setId);
+        const { canReport, reason } = evaluateReportability(ctx, setId);
         // Synchronous by contract — it reads a cache and schedules its own
         // lookup in the background, so the tick never waits on start.gg.
-        const startable = evaluateStartability(ctx, tshState, setId);
+        const startable = evaluateStartability(ctx, setId);
         currentSet = {
           setId,
           scores: tsh.getLiveScores(tshState),

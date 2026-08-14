@@ -61,7 +61,7 @@ console.log(s.save({minMoves:"999", minDamage:"abc", enabled:"true"}));'
 
 ## Layer 2 — Replaying a `.slp`
 
-`createFolderSource` polls a folder, so any `.slp` you drop in gets processed as if it were live. This is how you test scoring, handwarmer detection, crew stock tracking and combo detection.
+`createFolderSource` polls a folder, so any `.slp` you drop in gets processed as if it were live. This is how you test scoring, handwarmer detection and combo detection.
 
 ### The trick that makes it faithful
 
@@ -108,7 +108,7 @@ Expected: `[bridge] New game file:`, then a `slippi_game_start`, `[clipper]` lin
 
 ### Testing the handlers without any file at all
 
-`index.js` binds to an `EventEmitter`, so the singles/doubles/crew handlers can be driven directly with a mock — no `.slp`, no Slippi, no timing. Import `game-source`'s contract by hand:
+`index.js` binds to an `EventEmitter`, so the singles/doubles handlers can be driven directly with a mock — no `.slp`, no Slippi, no timing. Import `game-source`'s contract by hand:
 
 ```js
 const EventEmitter = require("events");
@@ -139,7 +139,7 @@ Payload shapes and the traps in each route are in [BRIDGE-API.md](BRIDGE-API.md)
 
 ### Driving them with a stub bridge
 
-Both layouts hardcode `io("http://localhost:5001")`, so with the real bridge **stopped** you can serve that port yourself and emit whatever event you want. This is the only practical way to test the clip toast, crew panels, or doubles rendering without a console and OBS:
+Both layouts hardcode `io("http://localhost:5001")`, so with the real bridge **stopped** you can serve that port yourself and emit whatever event you want. This is the only practical way to test the clip toast or doubles rendering without a console and OBS:
 
 ```js
 // stub-bridge.js — run with the real bridge stopped
@@ -193,7 +193,6 @@ Run these after touching `game-source.js`, `index.js`'s handlers, or `port-mappe
 - [ ] Game starting at 0-0 with blank TSH names, names filled in during game 1 → score still lands correctly (0-0 late-bind)
 - [ ] Press TSH's Swap Teams mid-set → dock reflects it within ~2s and the mapping re-derives
 - [ ] Doubles game → no false handwarmer (the `filter(Boolean)` trap: null dead-player entries must count as 0 stocks, or every doubles game reads as "everyone still has multiple stocks")
-- [ ] Crew battle → stock totals decrement by carry-over, not by 1
 
 ---
 
@@ -201,7 +200,7 @@ Run these after touching `game-source.js`, `index.js`'s handlers, or `port-mappe
 
 | | |
 |---|---|
-| **Combo clips in doubles** | Structurally impossible. slippi-js computes conversions only for 2-player games, so `stats.conversions` is permanently empty in doubles. Not a bug to chase — crew battles are 1v1 per game and do work. |
+| **Combo clips in doubles** | Structurally impossible. slippi-js computes conversions only for 2-player games, so `stats.conversions` is permanently empty in doubles. Not a bug to chase. |
 | **The OBS save chain** | Needs OBS with the replay buffer running. `POST /api/clipper/test` is the smoke test; do it before a bracket, not during. |
 | **Buffer length adequacy** | `preflight.js` reads it via obs-websocket, but whether 20s is *enough* only shows up in a real clip. |
 | **`uiohook-napi` hotkey** | Native module; behaves differently per machine. Fallback is pressing `S` in the terminal. |

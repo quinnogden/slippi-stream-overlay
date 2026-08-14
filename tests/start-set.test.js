@@ -38,8 +38,7 @@ function stubGg(state, { enabled = true } = {}) {
   return gg;
 }
 
-const ctxFor = (startgg, crew = false) => ({ startgg, tsh: { isCrewBattle: () => crew } });
-const STATE = {};   // the TSH program state — only isCrewBattle reads it here
+const ctxFor = (startgg) => ({ startgg });
 
 (async () => {
   console.log("start-set");
@@ -50,31 +49,31 @@ const STATE = {};   // the TSH program state — only isCrewBattle reads it here
 
     // The 2s tick, thirty times over — one minute of the panel being open.
     for (let i = 0; i < 30; i++) {
-      const r = evaluateStartability(ctx, STATE, "set-a");
+      const r = evaluateStartability(ctx, "set-a");
       assert.strictEqual(r.canStart, false, "must not claim startable before the answer lands");
     }
     assert.strictEqual(gg.calls, 1, `polled start.gg ${gg.calls} times in one minute`);
 
     await new Promise((r) => setImmediate(r));
 
-    const after = evaluateStartability(ctx, STATE, "set-a");
+    const after = evaluateStartability(ctx, "set-a");
     assert.strictEqual(after.canStart, true, after.reason);
     assert.strictEqual(gg.calls, 1, "answering from cache must not re-query");
   });
 
   await test("a called set (state 6) is startable too", async () => {
     const ctx = ctxFor(stubGg(6));
-    evaluateStartability(ctx, STATE, "set-called");
+    evaluateStartability(ctx, "set-called");
     await new Promise((r) => setImmediate(r));
-    assert.strictEqual(evaluateStartability(ctx, STATE, "set-called").canStart, true);
+    assert.strictEqual(evaluateStartability(ctx, "set-called").canStart, true);
   });
 
   await test("an already-running or finished set is refused, and says which", async () => {
     for (const [state, id, wording] of [[2, "set-live", /in progress/i], [3, "set-done", /finished/i]]) {
       const ctx = ctxFor(stubGg(state));
-      evaluateStartability(ctx, STATE, id);
+      evaluateStartability(ctx, id);
       await new Promise((r) => setImmediate(r));
-      const r = evaluateStartability(ctx, STATE, id);
+      const r = evaluateStartability(ctx, id);
       assert.strictEqual(r.canStart, false, `state ${state} must not be startable`);
       assert.ok(wording.test(r.reason), `state ${state} reason was "${r.reason}"`);
     }
@@ -82,22 +81,21 @@ const STATE = {};   // the TSH program state — only isCrewBattle reads it here
 
   await test("a lookup failure refuses rather than defaulting to startable", async () => {
     const ctx = ctxFor(stubGg(null));
-    evaluateStartability(ctx, STATE, "set-broken");
+    evaluateStartability(ctx, "set-broken");
     await new Promise((r) => setImmediate(r));
-    assert.strictEqual(evaluateStartability(ctx, STATE, "set-broken").canStart, false);
+    assert.strictEqual(evaluateStartability(ctx, "set-broken").canStart, false);
   });
 
-  // Each of these must short-circuit before the network — no token, no set, a
-  // crew battle and a preview id all mean there is nothing to start.
-  await test("no token / no set / crew / preview never touch start.gg", async () => {
+  // Each of these must short-circuit before the network — no token, no set and a
+  // preview id all mean there is nothing to start.
+  await test("no token / no set / preview never touch start.gg", async () => {
     const cases = [
       [ctxFor(stubGg(1, { enabled: false })), "set-x"],
       [ctxFor(stubGg(1)), null],
-      [ctxFor(stubGg(1), true), "set-y"],
       [ctxFor(stubGg(1)), "preview_12345_1"],
     ];
     for (const [ctx, setId] of cases) {
-      const r = evaluateStartability(ctx, STATE, setId);
+      const r = evaluateStartability(ctx, setId);
       assert.strictEqual(r.canStart, false, `${setId} should not be startable`);
       assert.ok(r.reason, "a refusal must say why — the panel shows it");
       assert.strictEqual(ctx.startgg.calls, 0, `queried start.gg for ${setId}`);

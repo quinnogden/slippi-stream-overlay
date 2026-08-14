@@ -2,22 +2,20 @@
  * Game-mode dispatch.
  *
  * The game source doesn't know what kind of set is running, so every game start
- * lands here: read TSH once, decide singles / doubles / crew, hand off. The
- * per-mode handlers receive data rather than reading TSH themselves.
+ * lands here: read TSH once, decide singles / doubles, hand off. The per-mode
+ * handlers receive data rather than reading TSH themselves.
  */
 
 const { resolveStage } = require("../char_map");
 const { isDoubles }    = require("../players");
 const { createSingles } = require("./singles");
 const { createDoubles } = require("./doubles");
-const { createCrew }    = require("./crew");
 
 function createModes(ctx) {
   const { tsh, state } = ctx;
 
   const singles = createSingles(ctx);
   const doubles = createDoubles(ctx);
-  const crew    = createCrew(ctx);
 
   /**
    * Reset the per-game accumulator when the scoreboard's loaded set changes.
@@ -58,33 +56,22 @@ function createModes(ctx) {
     }
 
     const isDoublesGame = isDoubles(rawPlayers) && (!tshState || tsh.isDoubles(tshState));
-    const isCrewGame    = !isDoublesGame && tshState && tsh.isCrewBattle(tshState);
 
     if (isDoublesGame) {
       console.log("[bridge] Doubles game detected");
       doubles.onGameStart(sorted, tshState);
-    } else if (isCrewGame) {
-      console.log("[bridge] Crew battle game detected");
-      crew.onGameStart(sorted, tshState);
     } else {
       singles.onGameStart(sorted, tshState);
     }
 
-    // Crew battles don't use TSH's Individual Game Tracker, so there is no game
-    // slot to stamp. Singles/doubles report the stage for the current game.
-    if (!isCrewGame) reportStage(stageId);
+    reportStage(stageId);
   }
 
   /**
    * Called by the game source when a game ends.
-   * @param {{ winnerPlayerIndex: number|null, isHandwarmer: boolean, winnerEndStocks: number|null }} event
+   * @param {{ winnerPlayerIndex: number|null, isHandwarmer: boolean }} event
    */
   function onGameEnd(event) {
-    // Crew battle mode: no handwarmer check, route to the dedicated handler
-    if (state.currentGameState?.isCrew) {
-      crew.onGameEnd(event);
-      return;
-    }
     singles.onGameEndStandard(event);
   }
 
@@ -107,7 +94,7 @@ function createModes(ctx) {
     tsh.setCurrentStage(codename).catch(() => {});
   }
 
-  return { onGameStart, onGameEnd, buildCrewUpdatePayload: crew.buildUpdatePayload };
+  return { onGameStart, onGameEnd };
 }
 
 module.exports = { createModes };
