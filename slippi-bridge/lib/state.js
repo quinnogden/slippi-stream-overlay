@@ -19,6 +19,14 @@ function createState() {
     // (on a TSH-side swap). Read by the io connection handler and clip-recorder.
     currentGameState: null,
 
+    // The raw slippi-js player records for the live game, sorted by port.
+    // Written by modes/index.js at each game start and read by its
+    // reresolvePorts(), which re-runs resolution from the same input the game
+    // start used — currentGameState.players drops characterId and teamId, which
+    // the character and doubles-grouping heuristics both need. Deliberately not
+    // cleared at game end: nothing reads it without a live currentGameState.
+    currentRawPlayers: null,
+
     // ── Set tracking for start.gg reporting ────────────────────────────────────
     // currentSetGames accumulates one { gameNum, winnerTeam } per completed game
     // so the report can include per-game detail. It resets whenever the loaded

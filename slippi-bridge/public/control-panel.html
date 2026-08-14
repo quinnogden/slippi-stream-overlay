@@ -195,8 +195,9 @@
           <div class="btn-row" style="margin-top:10px">
             <button class="compact" id="btn-swap" title="Flip which Slippi port scores for which team">⇄ Swap Teams</button>
             <button class="compact" id="btn-swap-sides" title="Move both teams to the other side of the scoreboard in TSH">⇆ Switch Sides</button>
+            <button class="compact" id="btn-reresolve" title="Throw away the mapping and re-detect the ports from TSH's current names and characters">↻ Re-detect Players</button>
           </div>
-          <div class="hint" id="swap-hint">Swap Teams (or Ctrl+Shift+S) fixes which port scores for which team. Switch Sides moves the names across the scoreboard. Amber = positional guess — verify before the game starts.</div>
+          <div class="hint" id="swap-hint">Names entered late? Enter them in TSH first, then <b>Re-detect Players</b> — it re-matches the ports against the new names' characters. If the sides come out reversed, press <b>Swap Teams</b> (or Ctrl+Shift+S). Switch Sides moves the names across the scoreboard instead. Amber = positional guess — verify before the game ends.</div>
         </div>
       </div>
 
@@ -784,6 +785,14 @@
     // bridge's 2s poll sees the flag change and re-derives the port mapping.
     $("btn-swap-sides").onclick = () =>
       act("/api/swap-sides", "Sides switched", "Switch sides failed");
+
+    // Re-run the game-start port resolution against TSH's corrected names. The
+    // toast names the result because a positional outcome means no character
+    // match was found — that one is a coin flip and wants checking.
+    $("btn-reresolve").onclick = () => act("/api/reresolve",
+      (r) => "Re-detected (" + r.method + "): " + r.summary +
+             (r.method === "positional" ? " — no character match, verify this" : ""),
+      "Re-detect failed");
 
     $("btn-pull").onclick = () =>
       act("/api/pull-stream", "Pulled next match", "Pull failed", { then: fetchSets });

@@ -86,9 +86,14 @@ function buildPlayersDoubles(portMapper, sorted) {
  * @param {object|null} tshState
  * @param {{ name: string, score: number }} t1Info
  * @param {{ name: string, score: number }} t2Info
+ * @param {object} [opts]
+ * @param {boolean} [opts.fromScratch=false] — skip the name/score step entirely.
+ *   Set by an operator re-resolve, which has just cleared the mapper: there are
+ *   no stored names left to match and the tallies are reseeded rather than
+ *   earned, so character history is the only signal worth consulting.
  */
-function resolvePorts(ctx, sorted, tshState, t1Info, t2Info) {
-  ctx.portMapper.resolve(t1Info, t2Info);
+function resolvePorts(ctx, sorted, tshState, t1Info, t2Info, { fromScratch = false } = {}) {
+  if (!fromScratch) ctx.portMapper.resolve(t1Info, t2Info);
 
   if (!ctx.portMapper.hasMapping() && tshState) {
     ctx.portMapper.tryCharacterBased(

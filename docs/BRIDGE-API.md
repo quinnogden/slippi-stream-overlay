@@ -131,6 +131,7 @@ A permissive CORS middleware fronts every route. It exists for exactly one case:
 | `GET` | `/api/status` | The `control_status` object above |
 | `POST` | `/api/swap` | Flip the internal port→team map. Same as `Ctrl+Shift+S`. Does **not** touch TSH |
 | `POST` | `/api/swap-sides` | Press TSH's own Swap Teams — moves names **and scores** across columns |
+| `POST` | `/api/reresolve` | Throw the port→team mapping away and re-derive it from TSH's current names and characters. No body. Needs a live game |
 | `POST` | `/api/pull-stream` | Pull the next queued stream set onto the scoreboard |
 | `GET` | `/api/sets[?finished=1]` | Open sets from TSH's bracket provider; `finished=1` adds completed ones |
 | `POST` | `/api/load-set` | `{ setId }` → load it, then refresh status |
@@ -150,6 +151,28 @@ This is the single easiest thing to get wrong here.
 - **`/api/swap-sides`** presses TSH's button, moving both teams' names and scores to the other column — and TSH **keeps that orientation for every set loaded afterwards**.
 
 That persistence is why swap state is load-bearing for reporting: while swapped, TSH column 1 holds start.gg's *slot 2* entrant. `entrantSlot()` applies the inversion. `/api/report` re-reads the swap flag at report time rather than trusting the 2s poll, and **refuses to report** if it can't read it — publishing the loser as the winner is far worse than not publishing.
+
+### `/api/reresolve` — Re-detect Players
+
+For the set that changed before the TO finished entering the names. Everything the bridge knows about the ports still belongs to the *previous* set, and nothing self-corrects until the next game start — by which time game 1's point has already been awarded, possibly to the wrong player.
+
+```js
+// success
+{ ok: true,
+  mode: "singles",              // or "doubles"
+  method: "character",          // how it landed: character | positional
+  ports: [ { port: 3, team: 1, name: "AVERY" }, { port: 1, team: 2, name: "BLAKE" } ],
+  summary: "P4→T1 AVERY, P2→T2 BLAKE" }   // the toast text
+
+// refusal
+{ ok: false, error: "No game in progress — the next game start will re-derive on its own" }
+```
+
+- It runs **the game-start path with the name/score step skipped**, so the TSH character push, `syncNames`, the doubles team colours and a `slippi_game_start` re-emit all happen as a side effect. Layouts see a normal game start.
+- `method: "positional"` means no character match was found — that result is a coin flip, and the panel says so in the toast.
+- `port` is 0-based; `summary` prints it 1-based, the way the players and Slippi's own UI count.
+- **It needs a live game.** With no `currentGameState` there is nothing to re-push or re-emit; between games the next game start re-derives on its own.
+- It deliberately does **not** flip `currentSetGames[*].winnerTeam` the way a TSH-side swap does. Those are TSH column numbers and the columns have not moved — only the bridge's read of which port sits in them.
 
 ### `/api/bracket` — what "ok" does and doesn't mean
 

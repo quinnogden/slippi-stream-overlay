@@ -91,6 +91,7 @@ registerRoutes(app, {
   startCurrentSet,
   switchBracket: bracketSwitch.switchBracket,
   swapTeams,
+  reresolvePorts: modes.reresolvePorts,
   recordClip: clipRecorder.recordClip,
 });
 
