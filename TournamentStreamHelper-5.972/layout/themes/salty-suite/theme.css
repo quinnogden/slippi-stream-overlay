@@ -1,0 +1,97 @@
+/* ============================================================
+   Theme pack — RVA Salty Suite
+
+   Fight-night showmatch. Palette sampled directly from the event
+   promo poster: charcoal canvas, gold ring ropes, oxblood corner
+   posts, white fighter names.
+
+   Activated by the @import in layout/theme.css. Everything the
+   look depends on is in this folder.
+   ============================================================ */
+
+/* Chivo — a grotesque with normal (not condensed) proportions. Self-hosted
+   rather than pulled from Google Fonts: a venue with bad wifi must not be able
+   to silently drop the broadcast to a fallback face. SIL Open Font License.
+   A normal url(), so it resolves relative to THIS file.
+
+   This is the VARIABLE cut, wght axis 100..900, declared across its full range.
+   The layouts ask for several different weights across the 16 overlays, and a
+   variable face serves each from real outlines — no synthetic bold anywhere,
+   and one 157KB file instead of a static cut per weight. Bump the 700 below to
+   800 or 900 if the broadcast wants more punch; nothing else has to change. */
+@font-face {
+  font-family: "SaltySans";
+  font-weight: 100 900;
+  src: url("./fonts/Chivo-Variable.ttf") format("truetype");
+}
+
+:root {
+  /* Typography — one face throughout, as the poster does; hierarchy comes from
+     size and colour rather than from mixing families. */
+  --font:           'SaltySans', 'Chivo', 'Roboto', sans-serif;
+  --score-font:     'SaltySans', 'Chivo', 'Roboto', sans-serif;
+
+  /* Shape — squarer than Hundred Acres. A boxing poster is hard-edged;
+     16px rounded cards read too soft against this palette. */
+  --border-radius:  8px;
+
+  /* Brand imagery. The "../themes/<pack>/" prefix is required: a url() inside
+     a custom property resolves against the stylesheet that USES the var(),
+     not this one. Consumers all sit one level under layout/. */
+  --logo-url:       url("../themes/salty-suite/logo.png");
+  --sponsor-url:    url("../themes/salty-suite/sponsor.png");
+
+  /* The Salty Suite logo is black ink on transparent — invisible on charcoal.
+     invert(1) turns the wordmark white and the salt shaker into a dark vessel
+     with a light outline, which is how it reads on the poster. The sponsor
+     doge is already full-colour, so it is left alone. */
+  --logo-filter:    invert(1);
+  --sponsor-filter: none;
+
+  /* Colors — sampled from promo.png (charcoal 62%, gold 14%, oxblood 4%) */
+  --bg-color:       #161616;   /* charcoal canvas */
+  --text-color:     #edba05;   /* ring-rope gold */
+  --darkened-text:  #9d7c1c;   /* muted gold, for secondary text */
+  --score-bg-color: #211313;   /* oxblood-black — panel base under the gold */
+  --score-color:    #edba05;
+
+  /* The score box alone goes to a real corner-post red. It cannot ride on
+     --score-bg-color: that token is also the side panel's whole bottom card
+     and the bracket title bar, and this value across 611x650px would drown
+     the panel. At #211313 the box barely separated from the #161616 card,
+     where Hundred Acres gets a teal-vs-green hue break for free. */
+  --score-box-bg:   #6b1a14;
+  --sponsor-color:  #9d7c1c;
+  --accent-color:   #edba05;
+
+  /* Semantic UI colors */
+  --icon-bg-color:   var(--score-bg-color); /* character icon slot backgrounds */
+  --win-color:       #3fa34d;               /* winner — stays green to read as a signal */
+  --loss-color:      #d4372c;               /* loser — warmer red than the maroon accent */
+  --p2-team-color:   #a8342f;               /* the poster's red corner, opposite gold */
+  --set-score-color: var(--darkened-text);  /* neutral set score chip */
+
+  /* Side-panel spotlights — opt-in flair, off in every other pack.
+     Two beams rise from the bottom edge of the bottom card and sway
+     out↔in, for the fight-night look the poster sells. The structure and
+     animation live in side-panel/side-panel.css and are display:none
+     until --spotlight-display is set, so switching packs turns them off
+     with no other edit.
+
+     --spotlight-rgb defaults to --text-color-rgb (the rope gold); it is
+     stated explicitly here because the beams want a slightly hotter,
+     whiter gold than body text does — gold at 30% alpha through a screen
+     blend reads muddy against the oxblood card.
+     --spotlight-strength scales all three gradient stops at once, so the
+     beams can be dialled back for a camera-heavy scene without touching
+     the gradient itself. */
+  --spotlight-display:  block;
+  --spotlight-rgb:      248, 214, 112;
+  --spotlight-strength: 1.35;
+
+  /* RGB triplets for use inside rgba() — keep in sync with the hexes above */
+  --bg-color-rgb:       22, 22, 22;    /* #161616 */
+  --bg-color-light-rgb: 48, 42, 38;    /* warm lift for gradient highlights */
+  --text-color-rgb:     237, 186, 5;   /* #edba05 */
+  --score-bg-color-rgb: 33, 19, 19;    /* #211313 */
+}

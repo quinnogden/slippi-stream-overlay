@@ -318,6 +318,80 @@ body {
 }
 
 
+/* ── Spotlights ───────────────────────────────────────────────
+   Two beams anchored at the bottom edge of the card, widening as
+   they rise and swaying between outward and inward. Fight-night
+   flair, so it is OPT-IN per theme pack rather than on for every
+   event: the pack sets --spotlight-display (and optionally
+   --spotlight-rgb / --spotlight-strength) to turn it on. Left
+   unset, these divs never render and their animations never run.
+
+   Geometry note: three effects stack, and all three are needed —
+   clip-path gives the cone its shape, the background gradient
+   fades it as it travels away from the lamp, and the mask fades
+   it ACROSS the beam. Without the mask the clip's straight sides
+   survive the blur and the whole thing reads as a flat wedge
+   rather than light. blur() then takes the last of the hardness
+   off, and mix-blend-mode: screen keeps the light additive over
+   the card's dark base — a plain alpha fill greys the card
+   instead of glowing on it.
+   ─────────────────────────────────────────────────────────── */
+.spotlight {
+  display:        var(--spotlight-display, none);
+  position:       absolute;
+  bottom:         -40px;
+  width:          330px;
+  height:         112%;
+  transform-origin: 50% 100%;   /* pivot at the lamp, not the beam's middle */
+  pointer-events: none;
+  mix-blend-mode: screen;
+  z-index:        1;            /* above the atmosphere layers, below content */
+
+  /* Narrow at the source, flaring to the full element width at the top.
+     The background only paints inside the border box, so the top corners
+     are simply left unclipped rather than pushed outside it. */
+  clip-path: polygon(45% 100%, 55% 100%, 100% 0%, 0% 0%);
+
+  /* Brightest just above the lamp, gone well before the card's top edge —
+     a beam that reaches the ceiling at full strength stops reading as a
+     beam and starts reading as a background colour. */
+  background: linear-gradient(
+    to top,
+    rgba(var(--spotlight-rgb, var(--text-color-rgb)), calc(0.13 * var(--spotlight-strength, 1))) 0%,
+    rgba(var(--spotlight-rgb, var(--text-color-rgb)), calc(0.16 * var(--spotlight-strength, 1))) 14%,
+    rgba(var(--spotlight-rgb, var(--text-color-rgb)), calc(0.07 * var(--spotlight-strength, 1))) 48%,
+    rgba(var(--spotlight-rgb, var(--text-color-rgb)), calc(0.02 * var(--spotlight-strength, 1))) 76%,
+    transparent 94%
+  );
+
+  /* Across-beam falloff. -webkit- prefix included: OBS's embedded CEF is
+     older than the unprefixed property in some builds, and a dropped mask
+     here would put the hard-edged wedge back on the broadcast. */
+  -webkit-mask-image: linear-gradient(to right,
+    transparent 0%, rgba(0,0,0,0.45) 24%, #000 50%, rgba(0,0,0,0.45) 76%, transparent 100%);
+          mask-image: linear-gradient(to right,
+    transparent 0%, rgba(0,0,0,0.45) 24%, #000 50%, rgba(0,0,0,0.45) 76%, transparent 100%);
+
+  filter: blur(34px);
+}
+
+/* Out-of-phase durations so the two beams cross at irregular intervals
+   instead of locking into a visible mirrored metronome. */
+.spotlight-1 { left:  6%; animation: spotSway1 17s ease-in-out infinite 0s;    }
+.spotlight-2 { right: 6%; animation: spotSway2 21s ease-in-out infinite -6s;   }
+
+@keyframes spotSway1 {
+  0%,100% { transform: rotate(-20deg) scaleX(1);    opacity: 0.75; }
+  35%     { transform: rotate(-4deg)  scaleX(1.08); opacity: 1;    }
+  70%     { transform: rotate(9deg)   scaleX(0.94); opacity: 0.62; }
+}
+@keyframes spotSway2 {
+  0%,100% { transform: rotate(20deg)  scaleX(1);    opacity: 0.68; }
+  40%     { transform: rotate(3deg)   scaleX(1.06); opacity: 0.95; }
+  75%     { transform: rotate(-10deg) scaleX(0.95); opacity: 0.55; }
+}
+
+
 /* ── Logo ─────────────────────────────────────────────────────
    Fills the bottom card with comfortable padding.
    Effects: gold drop-shadow glow + dark shadow for lift,
@@ -886,3 +960,11 @@ body.no-animate .ambient {
   animation: none !important;
   opacity:   0 !important;
 }
+
+/* Spotlights stay lit but stop moving — they are part of the card's look,
+   not just motion, so killing them entirely would change the design. */
+body.no-animate .spotlight {
+  animation: none !important;
+  transform: rotate(-11deg);
+}
+body.no-animate .spotlight-2 { transform: rotate(11deg); }
