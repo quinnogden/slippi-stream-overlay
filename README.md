@@ -294,7 +294,9 @@ layout/themes/hundred-acres/
 
 `main.css` imports `theme.css`, and every layout links `main.css`, so switching the one `@import` re-skins every overlay at once. Refresh the OBS browser sources and you're done.
 
-**To start a new event:** copy an existing pack folder, change its colours and drop in the new artwork, then point `layout/theme.css` at it. The convention is to do this on a branch named `event/<slug>` — master never touches `theme.css` or the pack folders, so merging master into an event branch stays conflict-free and checking out a branch re-skins the broadcast.
+**Every pack lives in the repo at once**, and `theme.css` just names whichever one is on air. Shipped today: `hundred-acres` (the default, and what `theme.css` points at) and `salty-suite`.
+
+**To start a new event:** copy an existing pack folder, change its colours and drop in the new artwork, then point `layout/theme.css` at it. Switching back afterwards is the same one-line edit — worth remembering, since nothing prompts you and the wrong branding is only obvious once you're live.
 
 One gotcha when copying a pack: the two logo URLs inside its `theme.css` contain the pack's own folder name, so they need editing too. `scripts/preflight.js` resolves both and fails if they don't point at real files — a missing logo is otherwise invisible until it's on stream.
 

@@ -6,13 +6,14 @@
    in a pack resolves relative to that file — so a pack is a
    self-contained folder you can copy to start a new event.
 
-   To re-skin the broadcast: change the one @import below (or check
-   out the event's branch, which differs from master by this line),
-   then refresh the OBS browser sources.
+   Every pack lives under themes/ at once; this line picks the one
+   that is on air. To re-skin the broadcast: change the one @import
+   below, then refresh the OBS browser sources. Switch it back when
+   the event is over — nothing else will remind you.
 
    Loaded by main.css:1, which every layout links.
    slippi-bridge/scripts/preflight.js parses the @import to verify
    the named pack is actually present.
    ============================================================ */
 
-@import url("./themes/salty-suite/theme.css");
+@import url("./themes/hundred-acres/theme.css");

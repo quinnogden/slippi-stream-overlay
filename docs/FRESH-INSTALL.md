@@ -109,7 +109,7 @@ Four keys in `user_data/settings.json` under `general`. Claude reads and reports
 | `hide_track_player` | `true` | Cosmetic — hides start.gg player tracking UI. |
 
 - [ ] **[you]** `TOURNAMENT_URL` set to the event you're running, if you want bracket/queue/side-panel data
-- [ ] **[you]** *(cosmetic, per-machine)* `main_icon_path` — TSH's own window/widget icon. It defaults to `./layout/logo.png`, which is the Hundred Acres logo regardless of which theme pack or event branch is checked out, because `settings.json` is gitignored. Point it at `./layout/themes/<active-pack>/logo.png` if you care. Nothing on the broadcast reads this — the overlays get their logos from the pack's `--logo-url` / `--sponsor-url`.
+- [ ] **[you]** *(cosmetic, per-machine)* `main_icon_path` — TSH's own window/widget icon. It defaults to `./layout/logo.png`, which is the Hundred Acres logo regardless of which theme pack is active, because `settings.json` is gitignored. Point it at `./layout/themes/<active-pack>/logo.png` if you care. Nothing on the broadcast reads this — the overlays get their logos from the pack's `--logo-url` / `--sponsor-url`.
 - [ ] **[claude]** After TSH's first launch, confirm it generated `out/program_state.json` and `out/tournamentInfo/tournamentName.txt` (the side panel's header reads the latter)
 
 ---
