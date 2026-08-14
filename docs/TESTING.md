@@ -24,7 +24,7 @@ node tests/combo-detector.test.js              # run after touching the clipper'
 node tests/layout-static.test.js -v            # every individual check
 ```
 
-[`tests/`](../tests/README.md) holds the few failures worth automating: the ones that are **invisible until they are on stream**, where the manual reproduction step is "run a tournament". Today that's static layout integrity (parse errors, dead `<script src>`, unwired `shared/` helpers), the side panel's rotation behaviour under a burst of TSH state pushes, and the combo clipper's qualifying thresholds — a wrong `comboWindowSec` saves nothing for a whole night while OBS, the bridge and the dock all look healthy.
+[`tests/`](../tests/README.md) holds the few failures worth automating: the ones that are **invisible until they are on stream**, where the manual reproduction step is "run a tournament". Today that's static integrity of the layouts (parse errors, dead `<script src>`, unwired `shared/` helpers) and of the control panel (a missing element id freezes the dock), the side panel's rotation under a burst of TSH state pushes, the combo clipper's qualifying thresholds, the bracket buttons' event matching, the Start Set button's per-set caching, and the Re-detect Players port re-derivation. [tests/README.md](../tests/README.md) has a line on each saying what it protects and why that failure is expensive.
 
 It is not a general test suite and shouldn't grow into one — everything else on this page is still the way to check a change. But if you fix a layout bug that only showed up live, that is exactly the kind of thing that belongs in `tests/`; `tests/helpers/layout-sandbox.js` will load any layout script headlessly, and [tests/README.md](../tests/README.md) documents the four sandbox gotchas.
 
@@ -173,6 +173,14 @@ Note the toast is deliberately unreachable from the browser console — the layo
 - Use `melee.html`. There is no `index.html` in `scoreboard/`, and `meleePlayers.html` deliberately doesn't load the bridge client.
 - The costume patch is timed off the `tsh_update` DOM event with a 150ms delay. To test it, change the character in TSH and confirm the icon ends on the **right costume** — TSH defaults to costume 0, so a broken patch looks like "always costume 0", not like an error.
 - Switch TSH from singles to doubles with the page open: icons must clear immediately. That path reads the DOM, not cached bridge state, precisely so this works.
+
+### Highlights (replay scene frame)
+
+- It reads no TSH state and no bridge events, so there is nothing to stub — open it standalone and it renders.
+- `?guides=1` outlines each frame's transparent hole and labels it with its **measured** rect, not a read-back of the CSS variables, so a broken `calc()` or a mistyped URL override shows up there instead of on stream. That is the alignment check: hold the labels against OBS's Edit Transform values.
+- Override the geometry on the URL rather than in CSS (`?clip=`, `?cam=`, `?camx=`, `?pad=`). Blank components are skipped, so `?clip=,,960` sets width alone.
+- `?animate=false` freezes the title orbs and the sheen sweep.
+- **Never copy `opacity: 0` onto this body from `scoreboard/index.css`.** This layout deliberately doesn't load `include/globals.js`, so nothing would ever fade it back in — the overlay goes permanently invisible, and only on stream.
 
 ### Control panel
 

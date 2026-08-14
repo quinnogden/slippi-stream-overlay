@@ -134,6 +134,8 @@ Four keys in `user_data/settings.json` under `general`. Claude reads and reports
       Add `?animate=false` to drop the ambient animation.
 - [ ] **Webcam source layered behind** the side panel — the panel has a transparent **587 × 330** cutout for it
 - [ ] *Optional* bracket sources → `http://localhost:5000/layout/bracket/index.html` (also `index_expanded`, `winners_only`, `losers_only`) at 1920 × 1080
+- [ ] *Optional* **replay/break scene frame** → `http://localhost:5000/layout/highlights/highlights.html` at 1920 × 1080, layered over the clip source and the two cams.
+      Its geometry must match those sources' transforms or you get a visible gap between frame and footage. Don't edit CSS — copy the numbers out of OBS's **Edit Transform** and pass them on the URL (`?clip=x,y,w,h&cam=y,w,h&camx=leftX,rightX`), then load it once with `?guides=1` to check the labelled rectangles against OBS. Defaults assume clip `480,140 960×800` and cams at `0,288` / `1520,288`, each `400×504`.
 - [ ] On each overlay browser source: **uncheck "Shutdown source when not visible"** and **uncheck "Refresh browser when scene becomes active"** — otherwise the side panel's 20s rotation and the bridge socket restart every scene change
 
 ### Operator dock
