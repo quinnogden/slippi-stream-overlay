@@ -231,12 +231,41 @@ function isDoubles(data) {
   } catch (_) { return false; }
 }
 
+// Both the player card's tournament history and the head-to-head card pull sets
+// across every event the players entered, doubles included — start.gg's recent-
+// sets query filters on player ids, and TSH only compares participants[0] of each
+// entrant, so a doubles set the two happened to be listed first in comes through
+// looking exactly like a singles one. Judged on the event name, which is the only
+// format signal in either payload. Requiring "single" is the strict reading: an
+// event named "Melee Bracket" is dropped too. That is the right trade for a
+// broadcast — a short H2H record is invisible, a doubles set on the singles card
+// is wrong on screen. Loosen it to the exclusion test alone if a venue's naming
+// starts emptying the card.
+const DOUBLES_EVENT_RE = /doubles|dubs|teams|2v2|2 v 2|crew/i;
+
+function isSinglesEvent(name) {
+  const n = String(name || "").toLowerCase();
+  if (DOUBLES_EVENT_RE.test(n)) return false;
+  return n.includes("single");
+}
+
+// The singles subset of the head-to-head sets. hasRecentSets() and
+// renderRecentSets() must agree on this list or the panel shows with nothing in
+// it — hence one helper rather than a filter at each call site.
+function recentSinglesSets(data) {
+  try {
+    const rs = data.score[SCOREBOARD_NUM].recent_sets;
+    if (rs.state !== "done" || !rs.sets) return [];
+    return rs.sets.filter(s => isSinglesEvent(s.event));
+  } catch (_) { return []; }
+}
+
 function hasPlayerCardContent(data, teamNum) {
   try {
     if (!data.score[SCOREBOARD_NUM].team[String(teamNum)].player["1"].name) return false;
     const history = data.score[SCOREBOARD_NUM].history_sets
       ? Object.values(data.score[SCOREBOARD_NUM].history_sets[String(teamNum)] || {})
-          .filter(h => (h.event_name || "").toLowerCase().includes("single"))
+          .filter(h => isSinglesEvent(h.event_name))
       : [];
     const lastSets = data.score[SCOREBOARD_NUM].last_sets
       ? Object.values(data.score[SCOREBOARD_NUM].last_sets[String(teamNum)] || {})
@@ -246,10 +275,7 @@ function hasPlayerCardContent(data, teamNum) {
 }
 
 function hasRecentSets(data) {
-  try {
-    const rs = data.score[SCOREBOARD_NUM].recent_sets;
-    return rs.state === "done" && rs.sets && rs.sets.length > 0;
-  } catch (_) { return false; }
+  return recentSinglesSets(data).length > 0;
 }
 
 function hasQueue(data) {
@@ -406,7 +432,7 @@ function renderRecentSets(data) {
     const container = panel.querySelector(".sets-list");
     container.innerHTML = "";
 
-    const sets = data.score[SCOREBOARD_NUM].recent_sets.sets || [];
+    const sets = recentSinglesSets(data);
 
     // H2H pill
     const p1Name = data.score[SCOREBOARD_NUM].team["1"].player["1"].name || "P1";
