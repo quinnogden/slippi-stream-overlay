@@ -118,10 +118,16 @@ function createModes(ctx) {
    * or re-emit, and fabricating one would resurrect a dead game for the layouts.
    * Between games the next game start re-derives correctly on its own.
    *
+   * Also the reaction to a TSH-side swap (server/control-status.js), which is
+   * the same problem from the other end: the sides just moved, so the names the
+   * mapper recorded no longer say which column a port sits in.
+   *
+   * @param {string} [reason] — logged with the reset, so the operator's console
+   *   says which of the two triggered it
    * @returns {{ ok: boolean, error?: string, mode?: string, method?: string,
    *             ports?: Array, summary?: string }}
    */
-  function reresolvePorts() {
+  function reresolvePorts(reason = "Operator pressed Re-detect Players") {
     const sorted = state.currentRawPlayers;
     if (!sorted || !state.currentGameState) {
       return { ok: false, error: "No game in progress — the next game start will re-derive on its own" };
@@ -134,7 +140,7 @@ function createModes(ctx) {
       return { ok: false, error: e.message };
     }
 
-    portMapper.reset("Operator pressed Re-detect Players");
+    portMapper.reset(reason);
 
     const mode = dispatchGameStart(sorted, sorted, tshState, { fromScratch: true });
 

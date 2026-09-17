@@ -72,12 +72,15 @@ const ctx = {
 
 // ── Features ──────────────────────────────────────────────────────────────────
 // Ordered so each only depends on what is already built.
-const controlStatus = createControlStatus(ctx);
+// modes comes first because control-status reacts to a TSH-side swap by running
+// modes.reresolvePorts(); createModes needs nothing built here, so this stays a
+// DAG rather than a late binding.
+const modes         = createModes(ctx);
+const controlStatus = createControlStatus(ctx, modes.reresolvePorts);
 const clipRecorder  = createClipRecorder(ctx, controlStatus.refresh);
 const { reportCurrentSet } = createReportSet(ctx, controlStatus.refresh);
 const { startCurrentSet }  = createStartSet(ctx, controlStatus.refresh);
 const bracketSwitch = createBracketSwitch(ctx, controlStatus.refresh);
-const modes         = createModes(ctx);
 const swapTeams     = createSwap(ctx);
 
 registerRoutes(app, {

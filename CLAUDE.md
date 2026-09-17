@@ -88,8 +88,10 @@ slippi-bridge/
 **`index.js` is a composition root, not a god object.** It resolves the TSH root, builds the
 services, and passes a single `ctx` to each feature factory. Everything else lives in `lib/`.
 `ctx` is `{ config, TSH_ROOT, io, state, portMapper, tsh, startgg, clipperSettings, comboDetector,
-obs }`; the wiring order is a DAG — control-status → clip-recorder → report-set → modes → routes —
-so nothing needs a late binding.
+obs }`; the wiring order is a DAG — modes → control-status → clip-recorder → report-set → routes —
+so nothing needs a late binding. **`modes` is built first** because control-status hands
+`modes.reresolvePorts` its swap reaction, and `createModes(ctx)` depends on nothing the other
+factories build; the alternative was a setter called after the fact.
 
 **`lib/state.js`** — `createState()`. The shared mutable state that used to be a dozen
 module-level `let`s in `index.js`: `currentGameState`, `currentSetId`/`currentSetGames`,
@@ -189,8 +191,12 @@ Codenames are the basenames of `user_data/games/ssbm/stage_icon/*.png`. Watch th
 `GET /scoreboard<N>-get-swap` returns TSH's own `teamsSwapped` flag as the Python string `"True"`/`"False"` (**not** JSON). Polled in the existing 2s `refreshControlStatus` loop.
 
 - `tshSwapState` starts `null` so the first poll only seeds a baseline — no phantom swap on startup.
-- On a change, `handleTshSwap(state)` re-runs `portMapper.resolve()` against fresh TSH names, updates `teamNum` on the live players, and re-emits `slippi_game_start`. Previously an operator-side swap was only noticed on the *next* game start via name re-derivation.
+- **On a change, `handleTshSwap(state)` runs the full re-detect** — `modes.reresolvePorts()`, the same path as the panel's ↻ Re-detect Players — rather than the name match it used to. Name matching only carries the *previous* belief across: `_portToName` records which TSH name sat in each port's column, so following those names to their new columns reproduces whatever mapping was already there, including the wrong one that is usually the reason the sides are being switched. And at 0-0 — game 1, the common case — `resolve()` takes its new-set reset branch and throws `_portToName` away entirely, leaving a bare positional guess with no names in the panel at all. Re-running the game-start path re-derives from TSH's character history, re-binds the names TSH shows now, and re-pushes the characters so the columns stop showing crossed icons.
+- **The name match survives as the fallback for between games.** `reresolvePorts()` requires a live game (nothing to re-push or re-emit otherwise) and declines; `handleTshSwap` then does the old `resolve()` + `teamNum` update + `slippi_game_start` re-emit, which keeps the mapping meaningful for the next game start.
+- **Flipping `currentSetGames` happens either way**, ahead of the branch — those are TSH column numbers and the columns moved regardless of how the mapping is re-derived.
 - The bridge's own `swapTeams()` never calls TSH's swap endpoint (it only flips the internal map), so any change in this flag means the scoreboard's sides really moved — either from TSH's UI or from the control panel's **Switch Sides** (`POST /api/swap-sides` → `tsh.swapSides()`). The reaction is identical either way, so no origin bookkeeping is needed.
+- **`/swap-teams` is fire-and-forget on TSH's side** — `swap_teams()` emits a Qt signal and returns `"OK"` before the flag flips or `program_state.json` is rewritten. So the route's immediate `refreshControlStatus()` usually reads the *pre*-swap flag; a second refresh 400ms later is what actually catches it, and without it the operator waits out the 2s tick. Don't delete it as redundant.
+- `tests/swap-reresolve.test.js` pins the re-detect, the 0-0 name-map survival, the `currentSetGames` flip and the between-games fallback.
 - Exposed as `tshSwapped` on `control_status` / `/api/status` and rendered in the control panel. `getSwapState()` deliberately does not log failures — it is polled every 2s and would flood the console while TSH restarts.
 
 `PortMapper` remains the scoring authority; this only *detects divergence* rather than delegating the mapping to a single boolean.

@@ -52,10 +52,18 @@ function registerRoutes(app, deps) {
   });
 
   // Moves the teams to the other side of the scoreboard. The follow-up refresh
-  // picks up TSH's flipped teamsSwapped flag and re-derives the port mapping.
+  // picks up TSH's flipped teamsSwapped flag and re-detects the port mapping
+  // (control-status.js#handleTshSwap).
+  //
+  // TSH's /swap-teams only emits a Qt signal and answers "OK" — the flag flip and
+  // the program_state.json rewrite happen afterwards on its GUI thread. So the
+  // immediate refresh is for the panel's health/set card, and the delayed one is
+  // what actually catches the swap. Without it the operator waits out the 2s tick
+  // for the sides to follow.
   app.post("/api/swap-sides", async (req, res) => {
     const result = await tsh.swapSides();
     refreshControlStatus().catch(() => {});
+    if (result.ok) setTimeout(() => { refreshControlStatus().catch(() => {}); }, 400);
     res.json(result);
   });
 

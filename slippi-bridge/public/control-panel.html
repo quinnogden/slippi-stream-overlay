@@ -197,7 +197,7 @@
             <button class="compact" id="btn-swap-sides" title="Move both teams to the other side of the scoreboard in TSH">⇆ Switch Sides</button>
             <button class="compact" id="btn-reresolve" title="Throw away the mapping and re-detect the ports from TSH's current names and characters">↻ Re-detect Players</button>
           </div>
-          <div class="hint" id="swap-hint">Names entered late? Enter them in TSH first, then <b>Re-detect Players</b> — it re-matches the ports against the new names' characters. If the sides come out reversed, press <b>Swap Teams</b> (or Ctrl+Shift+S). Switch Sides moves the names across the scoreboard instead. Amber = positional guess — verify before the game ends.</div>
+          <div class="hint" id="swap-hint">Names entered late? Enter them in TSH first, then <b>Re-detect Players</b> — it re-matches the ports against the new names' characters. If the sides come out reversed, press <b>Swap Teams</b> (or Ctrl+Shift+S). Switch Sides moves the names across the scoreboard and re-detects the ports for you. Amber = positional guess — verify before the game ends.</div>
         </div>
       </div>
 
@@ -784,7 +784,7 @@
     // TSH's own Swap Teams — moves names and scores across the scoreboard. The
     // bridge's 2s poll sees the flag change and re-derives the port mapping.
     $("btn-swap-sides").onclick = () =>
-      act("/api/swap-sides", "Sides switched", "Switch sides failed");
+      act("/api/swap-sides", "Sides switched — re-detecting ports", "Switch sides failed");
 
     // Re-run the game-start port resolution against TSH's corrected names. The
     // toast names the result because a positional outcome means no character

@@ -8,7 +8,13 @@
 const { evaluateReportability } = require("./report-set");
 const { evaluateStartability }  = require("./start-set");
 
-function createControlStatus(ctx) {
+/**
+ * @param {object} ctx
+ * @param {Function} reresolvePorts — modes.reresolvePorts, the ↻ Re-detect Players
+ *   path. Passed in rather than late-bound: createModes(ctx) needs nothing this
+ *   file builds, so index.js constructs it first and the wiring stays a DAG.
+ */
+function createControlStatus(ctx, reresolvePorts) {
   const { config, tsh, portMapper, startgg, clipperSettings, obs, io, state } = ctx;
 
   state.lastControlStatus = {
@@ -41,29 +47,46 @@ function createControlStatus(ctx) {
   /**
    * React to the scoreboard's sides being swapped in TSH.
    *
-   * TSH swaps names *and* scores, so re-running the name-based resolve against
-   * fresh state re-derives the correct mapping right away rather than waiting for
-   * the next game start.
-   *
    * The bridge's own swapTeams() never calls TSH's swap endpoint (it only flips
    * the internal port→team map), so a change in the flag always means the
    * scoreboard's sides actually moved — whether the operator pressed TSH's button
    * or the control panel's Switch Sides. The reaction is the same either way, so
    * no origin bookkeeping is needed.
    *
+   * **The reaction is a full re-detect, not a name match.** Name matching only
+   * carries the bridge's *previous* belief across the columns: `_portToName` says
+   * which TSH name sat in each port's column, so following those names to their
+   * new columns reproduces whatever mapping was already there — including a wrong
+   * one, which is usually why the sides were being switched. Worse, at 0-0
+   * resolve() hits its new-set reset and throws the port→name map away entirely,
+   * leaving a bare positional guess with no names in the panel at all. Re-running
+   * the game-start path instead re-derives from TSH's characters, re-binds the
+   * names TSH shows now, and re-pushes the characters so the columns stop showing
+   * crossed icons.
+   *
    * @param {object} tshState — freshly read program_state.json
    */
   function handleTshSwap(tshState) {
-    const { t1, t2 } = tsh.getTeamInfos(tshState);
-    portMapper.resolve(t1, t2);
-
     // Already-logged games are stored as TSH column numbers, and those columns
     // just changed hands. TSH moves its own scores and game tracker across; the
     // per-game log has to move with them or a mid-set swap would report game 1 to
-    // the wrong entrant.
+    // the wrong entrant. True regardless of how the mapping is re-derived below.
     for (const g of state.currentSetGames) {
       g.winnerTeam = g.winnerTeam === 1 ? 2 : 1;
     }
+
+    const redone = reresolvePorts("Scoreboard sides switched");
+    if (redone.ok) {
+      console.log(`[bridge] Re-detected ports after swap (${redone.method}): ${redone.summary}`);
+      return;
+    }
+
+    // Between games there is nothing to re-push or re-emit, so the re-detect
+    // declines. Follow the names across instead: it keeps the mapping meaningful
+    // for the next game start, which is the only thing that can use it now.
+    console.log(`[bridge] Swap re-detect declined (${redone.error}); matching names instead`);
+    const { t1, t2 } = tsh.getTeamInfos(tshState);
+    portMapper.resolve(t1, t2);
 
     if (!state.currentGameState?.players) return;
 
