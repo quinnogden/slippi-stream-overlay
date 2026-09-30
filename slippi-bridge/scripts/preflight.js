@@ -210,6 +210,7 @@ function checkTshInstall(config) {
     "scoreboard/melee.html", "scoreboard/meleePlayers.html", "scoreboard/index.js", "scoreboard/index.css",
     "side-panel/side-panel.html", "side-panel/side-panel.js", "side-panel/side-panel.css",
     "bracket/index.html", "bracket/index.js", "bracket/index.css",
+    "highlights/highlights.html", "highlights/highlights.js", "highlights/highlights.css",
   ];
   const missingLayout = required.filter((rel) => !exists(path.join(tshRoot, "layout", rel)));
   if (missingLayout.length === 0) pass("Custom layouts", `all ${required.length} present`);
