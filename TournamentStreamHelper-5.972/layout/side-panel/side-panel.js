@@ -336,15 +336,54 @@ function formatDate(timestampSeconds) {
   return mm + "/" + dd + "/" + yy;
 }
 
-// Auto-shrink text to fit its container (single line, no ellipsis)
-function fitText(el, minPx = 13) {
-  requestAnimationFrame(() => {
-    let size = parseFloat(getComputedStyle(el).fontSize);
-    while (el.scrollWidth > el.clientWidth && size > minPx) {
-      size -= 0.5;
-      el.style.fontSize = size + "px";
-    }
-  });
+// Shrink single-line text until it fits its box instead of truncating it.
+//
+// Every text element that would otherwise ellipsize goes through here. The
+// CSS text-overflow: ellipsis stays on those rules, but only as the fallback
+// once minPx is reached — below that the text stops being legible on stream.
+//
+// The element remembers its floor in data-fit-min so refitAllText() can redo
+// the lot when the brand font finishes loading: measured against the fallback
+// font, the fitted size is wrong for the real one.
+//
+// Synchronous on purpose, so call it only once the node is in the document —
+// reading scrollWidth forces the layout it needs. It used to defer to
+// requestAnimationFrame, which never fires in a source that isn't painting.
+function fitText(node, minPx = 13) {
+  node.dataset.fitMin = String(minPx);
+  fitTextNow(node);
+}
+
+function fitTextNow(node) {
+  const minPx = parseFloat(node.dataset.fitMin) || 13;
+  // Start from the stylesheet size, so a re-fit can grow back as well as shrink
+  // (and a clamp()/cqh size keeps tracking its pill).
+  node.style.fontSize = "";
+  const width = node.clientWidth;
+  if (!width || node.scrollWidth <= width) return;
+
+  // Width scales ~linearly with font-size (letter-spacing is in em), so jump
+  // straight to the ratio and only nudge for padding/rounding. The old
+  // 0.5px-per-step loop forced a reflow per step — dozens for a long name.
+  const base = parseFloat(getComputedStyle(node).fontSize);
+  let size = Math.max(minPx, Math.floor(base * width / node.scrollWidth * 2) / 2);
+  node.style.fontSize = size + "px";
+  while (node.scrollWidth > width && size > minPx) {
+    size = Math.max(minPx, size - 0.5);
+    node.style.fontSize = size + "px";
+  }
+}
+
+function refitAllText() {
+  document.querySelectorAll("[data-fit-min]").forEach(fitTextNow);
+}
+
+// Text fitted before the brand font arrived was measured against the fallback;
+// redo it once the real glyph widths are known. Registered here rather than in
+// the bootstrap, which can resolve after the font has already landed.
+if (document.fonts) {
+  document.fonts.addEventListener("loadingdone", refitAllText);
+  document.fonts.ready.then(refitAllText);
 }
 
 // Create a standard panel-pill div
@@ -376,6 +415,7 @@ function renderPlayerCard(teamNum, data) {
       tagEl.appendChild(el("span", "player-sponsor", player.team + " "));
     }
     tagEl.appendChild(document.createTextNode(player.name || ""));
+    fitText(tagEl, 24);
 
     charEl.textContent = (char && char.name) ? char.name.toUpperCase() : "";
 
@@ -395,6 +435,7 @@ function renderPlayerCard(teamNum, data) {
       const place = h.placement ? makePlacementEl(h.placement, h.entrants) : el("span", "pill-placement");
       pill.append(name, place);
       histList.appendChild(pill);
+      fitText(name);
     });
 
     // Current Run pills
@@ -422,6 +463,7 @@ function renderPlayerCard(teamNum, data) {
       pill.append(opp, round, score);
       runList.appendChild(pill);
       fitText(opp);
+      fitText(round, 11);
     });
 
   } catch (_) {}
@@ -470,11 +512,13 @@ function renderRecentSets(data) {
       const pill = makePill("recent-set-pill " + (p1Win ? "win" : "loss"));
       pill.appendChild(el("span", "pill-score-val", String(sc[0])));
       const info = el("div", "recent-set-info");
-      if (sub) info.appendChild(el("div", "pill-line-2", sub));
-      if (s.round) info.appendChild(el("div", "pill-round recent-set-round", s.round));
+      const subEl   = sub     ? info.appendChild(el("div", "pill-line-2", sub)) : null;
+      const roundEl = s.round ? info.appendChild(el("div", "pill-round recent-set-round", s.round)) : null;
       pill.appendChild(info);
       pill.appendChild(el("span", "pill-score-val recent-score-right", String(sc[1])));
       container.appendChild(pill);
+      if (subEl)   fitText(subEl, 11);
+      if (roundEl) fitText(roundEl, 11);
     });
 
   } catch (_) {}
@@ -495,13 +539,15 @@ function renderCompletedSets() {
       const p1wins = (s.team1score || 0) > (s.team2score || 0);
 
       const pill = makePill("completed-set-pill " + (p1wins ? "p1win" : "p2win"));
-      pill.appendChild(el("span", "pill-name", s.p1_name || ""));
+      const p1El = pill.appendChild(el("span", "pill-name", s.p1_name || ""));
       const info = el("div", "completed-set-info");
       if (s.round_name) info.appendChild(el("div", "pill-line-2", s.round_name));
       info.appendChild(el("span", "set-score", s.team1score + "–" + s.team2score));
       pill.appendChild(info);
-      pill.appendChild(el("span", "pill-name right", s.p2_name || ""));
+      const p2El = pill.appendChild(el("span", "pill-name right", s.p2_name || ""));
       container.appendChild(pill);
+      fitText(p1El);
+      fitText(p2El);
     } catch (_) {}
   });
 }
@@ -529,10 +575,12 @@ function renderQueue(data) {
       const p2Name = (t2.team ? t2.team + " " : "") + (t2.name || "");
 
       const pill = makePill("queue-pill");
-      pill.appendChild(el("span", "pill-name", p1Name));
+      const p1El = pill.appendChild(el("span", "pill-name", p1Name));
       if (s.match) pill.appendChild(el("span", "pill-round queue-round", s.match));
-      pill.appendChild(el("span", "pill-name right", p2Name));
+      const p2El = pill.appendChild(el("span", "pill-name right", p2Name));
       container.appendChild(pill);
+      fitText(p1El);
+      fitText(p2El);
     });
   } catch (_) {}
 }
@@ -542,7 +590,12 @@ function renderQueue(data) {
 
 function setTournamentName(name) {
   const target = document.querySelector(".tournament-name");
-  if (target && name) target.textContent = name.trim();
+  if (!target || !name) return;
+  // Called on every TSH push and every 30s poll — only re-measure on a change.
+  const text = name.trim();
+  if (target.textContent === text) return;
+  target.textContent = text;
+  fitText(target, 18);
 }
 
 async function fetchTournamentName() {
@@ -676,8 +729,9 @@ LoadEverything().then(() => {
     }
     clipToast.busy = true;
 
-    const detail = clipToastDetail(clip);
-    clipToast.el.querySelector(".clip-toast-detail").textContent = detail;
+    const detailEl = clipToast.el.querySelector(".clip-toast-detail");
+    detailEl.textContent = clipToastDetail(clip);
+    fitText(detailEl, 14);
 
     // Kill any timeline still finishing so its onComplete can't fight this one
     // (same discipline as Rotator._transitionTo).
