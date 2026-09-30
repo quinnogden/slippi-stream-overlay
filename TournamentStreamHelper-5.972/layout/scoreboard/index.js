@@ -4,6 +4,9 @@ LoadEverything().then(() => {
   
   gsap.config({ nullTargetWarn: false, trialWarn: false });
 
+  // Only the fade classes melee.html / meleePlayers.html actually use. GSAP
+  // reads nothing but each/from inside `stagger`, so opacity and offsets belong
+  // on the tween itself.
   let startingAnimation = gsap
     .timeline({ paused: true })
     .from(
@@ -22,8 +25,6 @@ LoadEverything().then(() => {
         stagger: {
           each: 0.05,
           from: 'end',
-          opacity: 0,
-          y: "-20px",
         },
         duration: durationTime,
       },
@@ -36,73 +37,6 @@ LoadEverything().then(() => {
         stagger: {
           each: 0.05,
           from: 'end',
-          opacity: 0,
-          y: "-20px",
-        },
-        duration: durationTime,
-      },
-      0
-    )
-    .from(
-      [".p1 .fade_stagger:not(.text_empty)"],
-      {
-        autoAlpha: 0,
-        stagger: {
-          each: 0.05,
-          from: 'end',
-          opacity: 0,
-        },
-        duration: durationTime,
-      },
-      0
-    )
-    .from(
-      [".p2 .fade_stagger:not(.text_empty)"],
-      {
-        autoAlpha: 0,
-        stagger: {
-          each: 0.05,
-          from: 'end',
-          opacity: 0,
-        },
-        duration: durationTime,
-      },
-      0
-    )
-    .from(
-      [".p1 .fade_stagger_reverse:not(.text_empty)"],
-      {
-        autoAlpha: 0,
-        stagger: {
-          each: 0.05,
-          from: 'start',
-          opacity: 0,
-        },
-        duration: durationTime,
-      },
-      0
-    )
-    .from(
-      [".p2 .fade_stagger_reverse:not(.text_empty)"],
-      {
-        autoAlpha: 0,
-        stagger: {
-          each: 0.05,
-          from: 'start',
-          opacity: 0,
-        },
-        duration: durationTime,
-      },
-      0
-    )
-    .from(
-      [".fade_right_stagger:not(.text_empty)"],
-      {
-        autoAlpha: 0,
-        stagger: {
-          each: 0.05,
-          from: 'end',
-          opacity: 0,
         },
         duration: durationTime,
       },
@@ -231,38 +165,37 @@ LoadEverything().then(() => {
         data.score[window.scoreboardNumber].team["1"],
         data.score[window.scoreboardNumber].team["2"],
       ].entries()) {
-        for (const [p, player] of [team.player["1"]].entries()) {
-          if (player) {
-            SetInnerHtml(
-              $(`.p${t + 1}.container .name`),
-              `
-                <span class="sponsor">
-                  ${player.team ? player.team : ""}
-                </span>
-                ${await Transcript(player.name)}
-                ${team.losers ? "<span class='losers'>L</span>" : ""}
-              `
-            );
+        const player = team.player["1"];
+        if (player) {
+          SetInnerHtml(
+            $(`.p${t + 1}.container .name`),
+            `
+              <span class="sponsor">
+                ${player.team ? player.team : ""}
+              </span>
+              ${await Transcript(player.name)}
+              ${team.losers ? "<span class='losers'>L</span>" : ""}
+            `
+          );
 
-            await CharacterDisplay(
-              $(`.p${t + 1}.container .character_container`),
-              {
-                asset_key: "base_files/icon",
-                source: `score.${window.scoreboardNumber}.team.${t + 1}`,
-                scale_fill_x: true,
-                scale_fill_y: true,
-                custom_zoom: 1.0
-              },
-              event
-            );
+          await CharacterDisplay(
+            $(`.p${t + 1}.container .character_container`),
+            {
+              asset_key: "base_files/icon",
+              source: `score.${window.scoreboardNumber}.team.${t + 1}`,
+              scale_fill_x: true,
+              scale_fill_y: true,
+              custom_zoom: 1.0
+            },
+            event
+          );
 
-            SetInnerHtml(
-              $(`.p${t + 1} .pronoun`),
-              player.pronoun ? player.pronoun : ""
-            );
+          SetInnerHtml(
+            $(`.p${t + 1} .pronoun`),
+            player.pronoun ? player.pronoun : ""
+          );
 
-            SetInnerHtml($(`.p${t + 1}.container .score`), ScoreHtml(team.score));
-          }
+          SetInnerHtml($(`.p${t + 1}.container .score`), ScoreHtml(team.score));
         }
         const _charEl = document.querySelector(`.p${t + 1}.container .character_container`);
         if (_charEl) {
@@ -279,7 +212,7 @@ LoadEverything().then(() => {
         let teamName = team.teamName;
 
         let names = [];
-        for (const [p, player] of Object.values(team.player).entries()) {
+        for (const player of Object.values(team.player)) {
           if (player && player.name) {
             names.push(await Transcript(player.name));
           }
@@ -371,9 +304,15 @@ LoadEverything().then(() => {
   // .character_container, so it doesn't load the shared bridge client at all.
   if (typeof SlippiBridge !== "undefined") {
     SlippiBridge.connectBridge({
-      // TSH renders the character icon shortly after, via tsh_update;
-      // applySlippiCostumes() patches the src once it's in the DOM.
-      slippi_game_start: (data) => { slippiGameData = data; },
+      // Usually TSH renders the character icon shortly after, via tsh_update,
+      // and that listener patches it. But the bridge also replays this event
+      // to a layout that (re)connects mid-game — after TSH's first push has
+      // already rendered costume 0 — so patch here as well rather than wait
+      // for the next push.
+      slippi_game_start: (data) => {
+        slippiGameData = data;
+        setTimeout(applySlippiCostumes, 150);
+      },
       // Game end needs no DOM work: the bridge already incremented the score
       // through TSH's HTTP API, and that arrives as a normal tsh_update.
     }, { tag: "scoreboard" });

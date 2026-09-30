@@ -5,9 +5,8 @@ LoadEverything().then(() => {
    * One player row in a bracket slot.
    *
    * Only .name, .char_icon and .score are ever populated — the avatar, sponsor,
-   * flag and character_container divs this used to emit were never filled (the
-   * code that would have filled them is commented out further down), so they
-   * were pure markup weight repeated twice per player.
+   * flag and character_container divs this used to emit were never filled, so
+   * they were pure markup weight repeated twice per player.
    *
    * @param {number} p — slot position, 0 or 1
    * @param {string|number} [playerId] — winners side only; losers rows omit it
@@ -25,11 +24,9 @@ LoadEverything().then(() => {
     `;
   }
 
-  let startingAnimation = gsap.timeline({ paused: true });
-
-  Start = async (event) => {
-    startingAnimation.restart();
-  };
+  // TSH calls Start() on load. The bracket has no intro animation — entryAnim
+  // below plays as the rounds are built — so there is nothing to restart.
+  Start = async () => {};
 
   var entryAnim = gsap.timeline();
   var animations = {};
@@ -140,7 +137,7 @@ LoadEverything().then(() => {
     let oldData = event.oldData;
 
     if (
-      !oldData.bracket || !oldData ||
+      !oldData || !oldData.bracket ||
       JSON.stringify(data.bracket.bracket) !=
         JSON.stringify(oldData.bracket.bracket)
     ) {
@@ -164,19 +161,18 @@ LoadEverything().then(() => {
         })
       );
 
-      let size = 32;
-      $(":root").css("--player-height", size);
-
       let containerSize = $(".winners_container").height();
       if (window.LOSERS_ONLY) containerSize = $(".losers_container").height();
 
-      while (
-        biggestRound * (2 * parseInt($(":root").css("--player-height")) + 4) >
-        containerSize - 20
-      ) {
-        size -= 1;
-        $(":root").css("--player-height", size);
+      // The largest row height (capped at 32) for which the busiest round's
+      // rows — two per set plus 4px — still fit the container with 20px spare.
+      // This used to step down a pixel at a time, writing and re-reading the
+      // CSS variable on each step; the closed form lands on the same integer.
+      let size = 32;
+      if (biggestRound > 0) {
+        size = Math.min(32, Math.floor(((containerSize - 20) / biggestRound - 4) / 2));
       }
+      $(":root").css("--player-height", size);
       $(":root").css("--name-size", Math.min(size - size * 0.42, 20));
       $(":root").css("--score-size", size - size * 0.25);
 
@@ -479,68 +475,44 @@ LoadEverything().then(() => {
       }
 
       // UPDATE SCORES
-      Object.entries(bracket).forEach(function ([roundKey, round], r) {
-        if (parseInt(roundKey) < 0) {
-          baseClass = "losers_container";
-        } else {
-          baseClass = "winners_container";
-        }
+      // Dims the loser of a finished set. The inline filter is what renders;
+      // .winner / .loser are left on the rows as hooks for a theme pack.
+      // winner: 0 or 1 for a decided set, null to clear both rows.
+      const markResult = (slotSel, winner) => {
+        [0, 1].forEach((p) => {
+          const row = $(`${slotSel} .slot_p_${p}.container`);
+          if (winner === null) {
+            row.css("filter", "brightness(1)").removeClass("winner loser");
+          } else if (p === winner) {
+            row.css("filter", "brightness(1)").addClass("winner").removeClass("loser");
+          } else {
+            row.css("filter", "brightness(0.6)").addClass("loser").removeClass("winner");
+          }
+        });
+      };
 
-        SetInnerHtml(
-          $(`.${baseClass} .round_${parseInt(roundKey)} .round_name`),
-          round.name
-        );
+      Object.entries(bracket).forEach(([roundKey, round]) => {
+        const side = parseInt(roundKey) < 0 ? "losers_container" : "winners_container";
+        const roundSel = `.${side} .round_${parseInt(roundKey)}`;
 
-        Object.values(round.sets).forEach(function (slot, i) {
-          Object.values(slot.score).forEach(
-            function (score, p) {
-              SetInnerHtml(
-                $(
-                  `.${this.baseClass} .round_${parseInt(roundKey)} .slot_${
-                    i + 1
-                  } .slot_p_${p}.container .score`
-                ),
-                `
+        SetInnerHtml($(`${roundSel} .round_name`), round.name);
+
+        Object.values(round.sets).forEach((slot, i) => {
+          const slotSel = `${roundSel} .slot_${i + 1}`;
+
+          Object.values(slot.score).forEach((score, p) => {
+            SetInnerHtml(
+              $(`${slotSel} .slot_p_${p}.container .score`),
+              `
                   ${slot.completed ? (score == -1 ? "DQ" : score) : ""}
                 `
-              );
-            },
-            { baseClass: baseClass }
-          );
-          if (slot.score[0] > slot.score[1] && slot.completed) {
-            $(
-              `.${this.baseClass} .round_${parseInt(roundKey)} .slot_${
-                i + 1
-              } .slot_p_${0}.container`
-            ).css("filter", "brightness(1)").addClass("winner").removeClass("loser");
-            $(
-              `.${this.baseClass} .round_${parseInt(roundKey)} .slot_${
-                i + 1
-              } .slot_p_${1}.container`
-            ).css("filter", "brightness(0.6)").addClass("loser").removeClass("winner");
-          } else if (slot.score[1] > slot.score[0] && slot.completed) {
-            $(
-              `.${this.baseClass} .round_${parseInt(roundKey)} .slot_${
-                i + 1
-              } .slot_p_${0}.container`
-            ).css("filter", "brightness(0.6)").addClass("loser").removeClass("winner");
-            $(
-              `.${this.baseClass} .round_${parseInt(roundKey)} .slot_${
-                i + 1
-              } .slot_p_${1}.container`
-            ).css("filter", "brightness(1)").addClass("winner").removeClass("loser");
-          } else {
-            $(
-              `.${this.baseClass} .round_${parseInt(roundKey)} .slot_${
-                i + 1
-              } .slot_p_${0}.container`
-            ).css("filter", "brightness(1)").removeClass("winner loser");
-            $(
-              `.${this.baseClass} .round_${parseInt(roundKey)} .slot_${
-                i + 1
-              } .slot_p_${1}.container`
-            ).css("filter", "brightness(1)").removeClass("winner loser");
-          }
+            );
+          });
+
+          // score is indexed, not necessarily an array — hence no destructuring.
+          const s0 = slot.score[0], s1 = slot.score[1];
+          const winner = !slot.completed ? null : s0 > s1 ? 0 : s1 > s0 ? 1 : null;
+          markResult(slotSel, winner);
         });
       });
 
@@ -560,15 +532,6 @@ LoadEverything().then(() => {
 
             if (!team) {
               SetInnerHtml($(element).find(`.name`), "");
-              // SetInnerHtml($(element).find(`.flagcountry`), "");
-              // SetInnerHtml($(element).find(`.flagstate`), "");
-              // SetInnerHtml($(element).find(`.character_container`), "");
-              // SetInnerHtml($(element).find(`.sponsor_icon`), "");
-              // SetInnerHtml($(element).find(`.avatar`), "");
-              // SetInnerHtml($(element).find(`.online_avatar`), "");
-              // SetInnerHtml($(element).find(`.twitter`), "");
-              // SetInnerHtml($(element).find(`.sponsor-container`), "");
-
               continue;
             }
 
@@ -603,10 +566,9 @@ LoadEverything().then(() => {
 
               if (!teamName || teamName == "") {
                 let names = [];
-                for (const [p, player] of Object.values(
-                  team.player
-                ).entries()) {
-                  if (player) {
+                // Blank slots are skipped, or a half-entered team reads "A / ".
+                for (const player of Object.values(team.player)) {
+                  if (player && player.name) {
                     names.push(await Transcript(player.name));
                   }
                 }
@@ -623,24 +585,6 @@ LoadEverything().then(() => {
               );
 
               SetInnerHtml($(element).find(".char_icon"), "");
-
-              // SetInnerHtml($(element).find(`.flagcountry`), "");
-              // SetInnerHtml($(element).find(`.flagstate`), "");
-
-              // await CharacterDisplay(
-              //   $(element).find(`.character_container`),
-              //   {
-              //     slice_character: [0, 1],
-              //     source: `bracket.players.slot.${pid}`,
-              //   },
-              //   event
-              // );
-
-              // SetInnerHtml($(element).find(`.sponsor_icon`), "");
-              // SetInnerHtml($(element).find(`.avatar`), "");
-              // SetInnerHtml($(element).find(`.online_avatar`), "");
-              // SetInnerHtml($(element).find(`.twitter`), "");
-              // SetInnerHtml($(element).find(`.sponsor-container`), "");
             }
           }
         }
@@ -648,8 +592,6 @@ LoadEverything().then(() => {
 
       SetInnerHtml($(`.tournament_name`), data.tournamentInfo.tournamentName);
       SetInnerHtml($(`.event_name`), data.tournamentInfo.eventName);
-      SetInnerHtml($(`.bracket_name`), data.bracket.phase);
-      SetInnerHtml($(`.pool_name`), data.bracket.phaseGroup);
     }
   };
 });

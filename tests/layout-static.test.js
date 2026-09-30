@@ -121,7 +121,8 @@ console.log(`  ok    CSS classes cross-checked for ${PAIRS.length} layouts`);
 // ── 4. shared helpers actually wired in ─────────────────────────────────────
 const WIRING = [
   { file: "scoreboard/melee.html", needs: ["shared/tsh-assets.js", "shared/slippi-bridge-client.js"] },
-  { file: "side-panel/side-panel.html", needs: ["shared/tsh-assets.js", "shared/slippi-bridge-client.js"] },
+  { file: "side-panel/side-panel.html", needs: ["shared/slippi-bridge-client.js"] },
+  { file: "bracket/index.html", needs: ["shared/tsh-assets.js"] },
 ];
 for (const c of WIRING) {
   const src = fs.readFileSync(path.join(LAYOUT, c.file), "utf8");

@@ -10,6 +10,11 @@
  * like a singles one. Unfiltered, it renders as a pill *and* counts toward the
  * H2H record, which is the part that is wrong rather than merely noisy.
  *
+ * The player card's tournament history has the same problem and the same rule,
+ * and the same trap: the slot predicate and the renderer must read one list, or
+ * the card rotates in with an empty history (or shows what the predicate
+ * rejected).
+ *
  * Invisible until it is on stream, and reproducing it by hand needs a
  * tournament where these two also played doubles — hence a test.
  *
@@ -50,10 +55,10 @@ async function main() {
     file: "TournamentStreamHelper-5.972/layout/side-panel/side-panel.js",
     ids: ["panel-player-1", "panel-player-2", "panel-recent-sets", "panel-queue"],
     selectors: [".logo-primary", ".logo-sponsor", ".tournament-name", ".clip-toast"],
-    expose: ["isSinglesEvent", "recentSinglesSets", "hasRecentSets"],
+    expose: ["isSinglesEvent", "recentSinglesSets", "hasRecentSets", "hasPlayerCardContent"],
   }).ready();
 
-  const { isSinglesEvent, recentSinglesSets, hasRecentSets } = env.exposed;
+  const { isSinglesEvent, recentSinglesSets, hasRecentSets, hasPlayerCardContent } = env.exposed;
   const failures = [];
   const check = (ok, msg) => { if (!ok) failures.push(msg); };
 
@@ -113,13 +118,37 @@ async function main() {
     `the head-to-head record never read "${wanted}" — the doubles set is being counted. ` +
     `saw: ${texts(list).filter((t) => /\d\s–\s\d/.test(t)).join(" | ") || "no score text at all"}`);
 
+  // ── Player card history ────────────────────────────────────────────────────
+  // Ten doubles placements ahead of the one singles result. The renderer used
+  // to slice to 10 *before* filtering, so the predicate showed the card and the
+  // renderer drew an empty history. A name with both words is doubles, and the
+  // renderer used to let it through on "single" alone.
+  const hist = clone(BASE);
+  const entry = (event_name, placement) =>
+    ({ placement, event_name, tournament_name: "HA #" + placement, entrants: 20 });
+  const history = {};
+  for (let i = 0; i < 10; i++) history[i + 1] = entry("Melee Doubles", i + 1);
+  history[11] = entry("Melee Singles Doubles Bracket", 11);
+  history[12] = entry("Melee Singles", 12);
+  hist.score[SB].history_sets["1"] = history;
+  hist.score[SB].last_sets["1"] = {};
+
+  check(hasPlayerCardContent(hist, 1) === true,
+    "hasPlayerCardContent() is false with a singles placement past index 10");
+
+  await env.sandbox.Update({ data: hist });
+  const histList = env.getEl("panel-player-1").querySelector(".history-list");
+  const drawn = texts(histList).filter((t) => t.startsWith("HA #"));
+  check(drawn.length === 1 && drawn[0] === "HA #12",
+    `player card drew [${drawn.join(", ")}], want only the singles placement [HA #12]`);
+
   console.log("side-panel head-to-head — doubles sets stay off the singles card");
   if (failures.length) {
     failures.forEach((f) => console.log("  FAIL  " + f));
     console.log(`\n${failures.length} check(s) failed.`);
     process.exit(1);
   }
-  console.log(`  ok    ${NAMES.length} event names, filter, slot predicate, rendered card`);
+  console.log(`  ok    ${NAMES.length} event names, filter, slot predicate, rendered card, player history`);
   console.log("\nSingles filter holds.");
 }
 

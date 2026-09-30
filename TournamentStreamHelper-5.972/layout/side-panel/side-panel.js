@@ -7,10 +7,8 @@
  *   Start()  — called on initial load
  *   Update() — called when program_state.json changes
  *
- * Rotation order (slots skipped when no data):
- *   logos → player-1 → player-2 → recent-sets → completed-sets → queue
- *
- * Config constants (edit here):
+ * Rotation order is PANEL_ORDER below; a slot is skipped while it has no data.
+ * Timing and data-source constants follow.
  */
 
 // ── Debug: lock to a single panel (set null to re-enable rotation) ────────────
@@ -30,9 +28,14 @@ const ANIM_PILL_DURATION       = 0.55;  // pill stagger enter duration
 const ANIM_PILL_DELAY          = 0.15;  // delay before pills start entering
 const ANIM_PILL_STAGGER        = 0.10;  // per-pill stagger gap
 const ANIM_PILL_Y_OFFSET       = 40;    // px drop on pill enter
-const SCOREBOARD_NUM      = "1";    // which TSH scoreboard to read
+// Which TSH scoreboard to read — ?scoreboardNumber= on the source URL, same as
+// the scoreboard layout (globals.js sets it before this file runs).
+const SCOREBOARD_NUM      = String(window.scoreboardNumber ?? 1);
 const COMPLETED_SETS_URL  = "http://localhost:5000/get-sets?getFinished=1";
-const COMPLETED_SETS_POLL = 30000;  // ms between completed-sets fetches
+// Each fetch is an uncached, paginated start.gg query on TSH's side, so this
+// stays slow — the same 90s the control panel uses. A full rotation takes
+// longer than that anyway.
+const COMPLETED_SETS_POLL = 90000;
 const TOURNAMENT_NAME_URL = "../../out/tournamentInfo/tournamentName.txt";
 // Update() already sets the name from every TSH state push, so this fetch only
 // really matters at cold start, before the first push arrives. Kept as a slow
@@ -207,14 +210,13 @@ class Rotator {
 
     // James Bond stagger: pills fall in top-to-bottom on panel entrance
     if (id !== "logo-primary" && id !== "logo-sponsor") {
-      const normalPills    = incoming.querySelectorAll(".panel-pill:not(.eliminated)");
-      const eliminatedPills = incoming.querySelectorAll(".panel-pill.eliminated");
-      const animOpts = { duration: ANIM_PILL_DURATION, ease: "power2.out", stagger: ANIM_PILL_STAGGER, delay: ANIM_PILL_DELAY };
-      if (normalPills.length > 0) {
-        gsap.fromTo(normalPills,    { y: -ANIM_PILL_Y_OFFSET, opacity: 0 }, { y: 0, opacity: 1,    ...animOpts });
-      }
-      if (eliminatedPills.length > 0) {
-        gsap.fromTo(eliminatedPills, { y: -ANIM_PILL_Y_OFFSET, opacity: 0 }, { y: 0, opacity: 0.35, ...animOpts });
+      const pills = incoming.querySelectorAll(".panel-pill");
+      if (pills.length > 0) {
+        gsap.fromTo(pills, { y: -ANIM_PILL_Y_OFFSET, opacity: 0 }, {
+          y: 0, opacity: 1,
+          duration: ANIM_PILL_DURATION, ease: "power2.out",
+          stagger: ANIM_PILL_STAGGER, delay: ANIM_PILL_DELAY,
+        });
       }
     }
   }
@@ -260,13 +262,21 @@ function recentSinglesSets(data) {
   } catch (_) { return []; }
 }
 
+// A player's past singles placements, for the player card. Same contract as
+// recentSinglesSets(): hasPlayerCardContent() and renderPlayerCard() both read
+// this, so the slot can't rotate in with an empty history list.
+function playerSinglesHistory(data, teamNum) {
+  try {
+    const hs = data.score[SCOREBOARD_NUM].history_sets;
+    return Object.values((hs && hs[String(teamNum)]) || {})
+      .filter(h => isSinglesEvent(h.event_name));
+  } catch (_) { return []; }
+}
+
 function hasPlayerCardContent(data, teamNum) {
   try {
     if (!data.score[SCOREBOARD_NUM].team[String(teamNum)].player["1"].name) return false;
-    const history = data.score[SCOREBOARD_NUM].history_sets
-      ? Object.values(data.score[SCOREBOARD_NUM].history_sets[String(teamNum)] || {})
-          .filter(h => isSinglesEvent(h.event_name))
-      : [];
+    const history = playerSinglesHistory(data, teamNum);
     const lastSets = data.score[SCOREBOARD_NUM].last_sets
       ? Object.values(data.score[SCOREBOARD_NUM].last_sets[String(teamNum)] || {})
       : [];
@@ -319,13 +329,11 @@ function makePlacementEl(placement, entrants) {
 }
 
 function formatDate(timestampSeconds) {
-  try {
-    const d = new Date(timestampSeconds * 1000);
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    const yy = String(d.getFullYear()).slice(-2);
-    return mm + "/" + dd + "/" + yy;
-  } catch (_) { return ""; }
+  const d = new Date(timestampSeconds * 1000);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(-2);
+  return mm + "/" + dd + "/" + yy;
 }
 
 // Auto-shrink text to fit its container (single line, no ellipsis)
@@ -375,9 +383,7 @@ function renderPlayerCard(teamNum, data) {
     const histList   = panel.querySelector(".history-list");
     const histHeader = histList.previousElementSibling;
     histList.innerHTML = "";
-    const filteredHistory = (data.score[SCOREBOARD_NUM].history_sets
-      ? Object.values(data.score[SCOREBOARD_NUM].history_sets[String(teamNum)] || {}).slice(0, 10)
-      : []).filter(h => (h.event_name || "").toLowerCase().includes("single")).slice(0, 5);
+    const filteredHistory = playerSinglesHistory(data, teamNum).slice(0, 5);
 
     const showHist = filteredHistory.length > 0;
     histHeader.style.display = showHist ? "" : "none";
@@ -535,8 +541,8 @@ function renderQueue(data) {
 // ── Tournament name helpers ───────────────────────────────────────────────────
 
 function setTournamentName(name) {
-  const el = document.querySelector(".tournament-name");
-  if (el && name) el.textContent = name.trim();
+  const target = document.querySelector(".tournament-name");
+  if (target && name) target.textContent = name.trim();
 }
 
 async function fetchTournamentName() {
@@ -559,6 +565,39 @@ async function fetchCompletedSets() {
       rotator.buildSlots(null);
     }
   } catch (_) {}
+}
+
+
+// ── Render only what changed ──────────────────────────────────────────────────
+
+// Loading a set arrives as six-plus separate TSH pushes (see Rotator.buildSlots),
+// and a score change is one more. Rebuilding every panel on each of them re-runs
+// fitText's layout loop and swaps the pills of the panel on screen with no
+// entrance animation. Each panel instead remembers the slice of state it last
+// drew and skips the rebuild when that slice is unchanged.
+const lastRendered = {};
+
+function renderIfChanged(key, slice, render) {
+  const json = JSON.stringify(slice === undefined ? null : slice);
+  if (lastRendered[key] === json) return;
+  lastRendered[key] = json;
+  render();
+}
+
+function renderPanels(data) {
+  const sb = (data.score && data.score[SCOREBOARD_NUM]) || {};
+  const team = (n) => sb.team && sb.team[n];
+  const player1 = (n) => team(n) && team(n).player && team(n).player["1"];
+  const side = (tree, n) => tree && tree[n];
+
+  renderIfChanged("player-1", [player1("1"), side(sb.history_sets, "1"), side(sb.last_sets, "1")],
+                  () => renderPlayerCard(1, data));
+  renderIfChanged("player-2", [player1("2"), side(sb.history_sets, "2"), side(sb.last_sets, "2")],
+                  () => renderPlayerCard(2, data));
+  renderIfChanged("recent-sets",
+                  [sb.recent_sets, player1("1") && player1("1").name, player1("2") && player1("2").name],
+                  () => renderRecentSets(data));
+  renderIfChanged("queue", data.streamQueue, () => renderQueue(data));
 }
 
 
@@ -590,11 +629,7 @@ LoadEverything().then(() => {
 
     // Render before rebuilding: buildSlots can restart the rotation, and the
     // panel it fades in should already hold the new content.
-    tshData = data;
-    renderPlayerCard(1, data);
-    renderPlayerCard(2, data);
-    renderRecentSets(data);
-    renderQueue(data);
+    renderPanels(data);
     rotator.buildSlots(data);
 
     const name = data.tournamentInfo && data.tournamentInfo.tournamentName;
