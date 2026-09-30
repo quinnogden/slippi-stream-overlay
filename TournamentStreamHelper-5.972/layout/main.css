@@ -46,4 +46,16 @@
     0 4px 12px rgba(0,0,0,0.50);
 }
 
-/* Theme tokens are defined in theme.css — loaded before this file in all layouts. */
+/* Theme tokens come from theme.css (the @import at the top of this file). The
+   one below is not pack-specific — black and white only — so it lives here. */
+
+:root {
+  /* Raised-card depth: an outer drop shadow plus inner edge lighting. The
+     scoreboard boxes, the side panel's cards and the highlights title plate
+     all use exactly this stack. */
+  --shadow-raised:
+    0 8px 32px rgba(0,0,0,0.60),
+    0 3px 8px  rgba(0,0,0,0.45),
+    inset 0  1px 0 rgba(255,255,255,0.07),
+    inset 0 -1px 0 rgba(0,0,0,0.35);
+}

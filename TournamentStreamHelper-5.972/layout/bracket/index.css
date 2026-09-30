@@ -21,7 +21,6 @@ body {
     drop-shadow(0 3px 1px rgba(0, 0, 0, 0.14))
     drop-shadow(0 1px 5px rgba(0, 0, 0, 0.12))
     drop-shadow(0 -1px 2px rgba(0, 0, 0, 0.1));
-  letter-spacing: 1;
 }
 
 .container {
@@ -90,76 +89,12 @@ body {
   z-index: 3;
 }
 
-/* ── Title bar atmospheric layers ── */
-.title-atm {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.title-light {
-  background: radial-gradient(
-    ellipse 65% 200% at 50% -30%,
-    rgba(var(--bg-color-rgb), 0.50) 0%,
-    transparent 65%
-  );
-}
-
-.title-grain {
-  background: repeating-linear-gradient(
-    180deg,
-    transparent                       0px,
-    transparent                       9px,
-    rgba(var(--bg-color-rgb), 0.045) 9px,
-    rgba(var(--bg-color-rgb), 0.045) 10px
-  );
-}
-
-.title-vignette {
-  background: radial-gradient(
-    ellipse 130% 250% at 50% 170%,
-    rgba(0, 0, 0, 0.45) 0%,
-    transparent 58%
-  );
-}
-
-/* ── Ambient orbs ── */
-.title-orb {
-  position: absolute;
-  border-radius: 50%;
-  background: rgb(var(--bg-color-light-rgb));
-  opacity: 0;
-  filter: blur(26px);
-  pointer-events: none;
-  z-index: 1;
-}
-
+/* ── Title bar atmosphere ──
+   The layers, the orb base style and the torb keyframes are in
+   ../shared/atmosphere.css (shared with highlights/). Orb geometry is ours. */
 .title-orb-1 { width: 240px; height: 240px; top: -100px; left:  8%; animation: torb1 14s ease-in-out infinite 0s;   }
 .title-orb-2 { width: 190px; height: 190px; top:  -80px; right: 12%; animation: torb2 18s ease-in-out infinite -6s;  }
 .title-orb-3 { width: 270px; height: 210px; top:  -90px; left:  40%; animation: torb3 11s ease-in-out infinite -3s;  }
-
-@keyframes torb1 {
-  0%,100% { opacity: 0;    transform: translate(0,0)       scale(1);    }
-  35%     { opacity: 0.78; transform: translate(28px,6px)  scale(1.06); }
-  68%     { opacity: 0.40; transform: translate(8px,18px)  scale(0.95); }
-}
-@keyframes torb2 {
-  0%,100% { opacity: 0;    transform: translate(0,0)         scale(1);    }
-  40%     { opacity: 0.62; transform: translate(-22px,10px)  scale(1.04); }
-  75%     { opacity: 0.32; transform: translate(-6px,14px)   scale(0.97); }
-}
-@keyframes torb3 {
-  0%,100% { opacity: 0;    transform: translate(0,0)        scale(1);    }
-  45%     { opacity: 0.50; transform: translate(14px,-4px)  scale(1.08); }
-  80%     { opacity: 0.26; transform: translate(-8px,7px)   scale(0.93); }
-}
-
-/* Lift content above atmospheric layers */
-.title .col {
-  position: relative;
-  z-index: 2;
-}
 
 .tournament_name .text,
 .event_name .text {
@@ -167,7 +102,10 @@ body {
 }
 
 
+/* position/z-index lift the text above the atmospheric layers */
 .title .col {
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -200,7 +138,6 @@ body {
   box-sizing: border-box;
   padding-top: 30px;
   padding-bottom: 20px;
-  justify-content: center;
 }
 
 .losers_only .winners_container {
@@ -228,7 +165,6 @@ body {
   box-sizing: border-box;
   padding-top: 30px;
   padding-bottom: 30px;
-  justify-content: center;
 }
 
 .losers_only .losers_container {

@@ -379,11 +379,7 @@ body {
   overflow:      hidden;
   pointer-events: none;
 
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.60),
-    0 3px 8px  rgba(0, 0, 0, 0.45),
-    inset 0  1px 0 rgba(255, 255, 255, 0.07),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: var(--shadow-raised);
 }
 
 /* Graduated gold accent along the top inner edge */
@@ -418,65 +414,13 @@ body {
   pointer-events: none;
 }
 
-/* ── Atmospheric layers (from bracket/index.css) ── */
-.title-atm { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
-
-.title-light {
-  background: radial-gradient(
-    ellipse 65% 200% at 50% -30%,
-    rgba(var(--bg-color-rgb), 0.50) 0%,
-    transparent 65%
-  );
-}
-
-.title-grain {
-  background: repeating-linear-gradient(
-    180deg,
-    transparent                      0px,
-    transparent                      9px,
-    rgba(var(--bg-color-rgb), 0.045) 9px,
-    rgba(var(--bg-color-rgb), 0.045) 10px
-  );
-}
-
-.title-vignette {
-  background: radial-gradient(
-    ellipse 130% 250% at 50% 170%,
-    rgba(0, 0, 0, 0.45) 0%,
-    transparent 58%
-  );
-}
-
-/* ── Ambient orbs ── */
-.title-orb {
-  position:       absolute;
-  border-radius:  50%;
-  background:     rgb(var(--bg-color-light-rgb));
-  opacity:        0;
-  filter:         blur(26px);
-  pointer-events: none;
-  z-index:        1;
-}
-
+/* ── Atmosphere ──
+   The light / grain / vignette layers, the orb base style and the torb
+   keyframes are in ../shared/atmosphere.css, shared with the bracket's title
+   bar. Only the orb geometry is this plate's own. */
 .title-orb-1 { width: 200px; height: 200px; top: -84px; left:  10%; animation: torb1 14s ease-in-out infinite 0s;  }
 .title-orb-2 { width: 160px; height: 160px; top: -70px; right: 14%; animation: torb2 18s ease-in-out infinite -6s; }
 .title-orb-3 { width: 230px; height: 176px; top: -78px; left:  42%; animation: torb3 11s ease-in-out infinite -3s; }
-
-@keyframes torb1 {
-  0%,100% { opacity: 0;    transform: translate(0,0)       scale(1);    }
-  35%     { opacity: 0.78; transform: translate(28px,6px)  scale(1.06); }
-  68%     { opacity: 0.40; transform: translate(8px,18px)  scale(0.95); }
-}
-@keyframes torb2 {
-  0%,100% { opacity: 0;    transform: translate(0,0)        scale(1);    }
-  40%     { opacity: 0.62; transform: translate(-22px,10px) scale(1.04); }
-  75%     { opacity: 0.32; transform: translate(-6px,14px)  scale(0.97); }
-}
-@keyframes torb3 {
-  0%,100% { opacity: 0;    transform: translate(0,0)       scale(1);    }
-  45%     { opacity: 0.50; transform: translate(14px,-4px) scale(1.08); }
-  80%     { opacity: 0.26; transform: translate(-8px,7px)  scale(0.93); }
-}
 
 /* ── Flanking rules ── */
 .title-rule {

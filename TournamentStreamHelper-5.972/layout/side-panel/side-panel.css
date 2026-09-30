@@ -148,12 +148,8 @@ body {
   justify-content: center;
   padding:     0 20px;
 
-  /* Raised card depth: outer drop shadow + inner edge lighting */
-  box-shadow:
-    0 8px 32px rgba(0,0,0,0.60),
-    0 3px 8px  rgba(0,0,0,0.45),
-    inset 0  1px 0 rgba(255,255,255,0.07),
-    inset 0 -1px 0 rgba(0,0,0,0.35);
+  /* Raised card depth: outer drop shadow + inner edge lighting (main.css) */
+  box-shadow: var(--shadow-raised);
 
   border: 1px solid rgba(var(--text-color-rgb),0.12);
 }
@@ -221,11 +217,7 @@ body {
   overflow:    hidden;
   z-index:     2;
 
-  box-shadow:
-    0 8px 32px rgba(0,0,0,0.60),
-    0 3px 8px  rgba(0,0,0,0.45),
-    inset 0  1px 0 rgba(255,255,255,0.07),
-    inset 0 -1px 0 rgba(0,0,0,0.35);
+  box-shadow: var(--shadow-raised);
 
   border: 1px solid rgba(var(--text-color-rgb),0.12);
 }
@@ -877,9 +869,8 @@ body {
 #panel-queue .queue-round {
   flex-shrink: 0;
   text-align:  center;
+  font-size:   clamp(13px, 18cqh, 22px);
 }
-
-#panel-queue .queue-round { font-size: clamp(13px, 18cqh, 22px); }
 
 /* ── List containers (hold dynamically generated pills) ──── */
 /* Each list is a flex column that stretches to fill remaining

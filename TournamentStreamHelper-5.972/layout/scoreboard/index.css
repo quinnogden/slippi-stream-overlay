@@ -10,19 +10,9 @@ body {
     drop-shadow(0 4px 8px  rgba(0,0,0,0.35))
     drop-shadow(0 2px 3px  rgba(0,0,0,0.25))
     drop-shadow(0 1px 1px  rgba(0,0,0,0.20));
-  letter-spacing: 1;
-  background-size: cover;
 }
 
-.anim_container_outer {
-  position: absolute;
-  overflow: hidden;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 1920px;
-  height: 1080px;
-}
-
+.anim_container_outer,
 .anim_container_inner {
   position: absolute;
   overflow: hidden;
@@ -56,11 +46,7 @@ body {
   background: var(--bg-color);
   align-items: center;
 
-  box-shadow:
-    0 8px 32px rgba(0,0,0,0.60),
-    0 3px 8px  rgba(0,0,0,0.45),
-    inset 0  1px 0 rgba(255,255,255,0.07),
-    inset 0 -1px 0 rgba(0,0,0,0.35);
+  box-shadow: var(--shadow-raised);
 }
 
 .player.container {
@@ -175,8 +161,6 @@ body {
   margin-right: 4px;
   height: 24px;
   font-size: 18px;
-  padding-left: 12px;
-  padding-right: 12px;
   background: var(--bg-color);
   color: var(--darkened-text);
   border-radius: calc(var(--border-radius) / 4);
@@ -276,7 +260,6 @@ body {
   left: 42px;
   display: flex;
   justify-content: center;
-  height: unset;
   flex-direction: column;
   width: 280px;
   height: 64px;
@@ -299,25 +282,8 @@ body {
   background: var(--score-bg-color);
 }
 
-.meleePlayer .info.container.top::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 15%; right: 15%;
-  height: 1.5px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--darkened-text) 25%,
-    var(--text-color)    50%,
-    var(--darkened-text) 75%,
-    transparent
-  );
-  opacity: 0.22;
-  pointer-events: none;
-  z-index: 10;
-}
-
-/* Gold accent line on bottom info container only */
+/* Gold accent line on the info cards only — not the player containers */
+.meleePlayer .info.container.top::before,
 .info.container.bottom::before {
   content: "";
   position: absolute;
@@ -454,11 +420,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow:
-    0 8px 32px rgba(0,0,0,0.60),
-    0 3px 8px  rgba(0,0,0,0.45),
-    inset 0  1px 0 rgba(255,255,255,0.07),
-    inset 0 -1px 0 rgba(0,0,0,0.35);
+  box-shadow: var(--shadow-raised);
 }
 
 /* Optical centring correction, per digit. Flex centres the line box, which the
