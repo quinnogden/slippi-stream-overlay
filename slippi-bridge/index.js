@@ -38,6 +38,7 @@ const { createReportSet }     = require("./lib/server/report-set");
 const { createStartSet }      = require("./lib/server/start-set");
 const { createBracketSwitch } = require("./lib/server/bracket-switch");
 const { registerRoutes }      = require("./lib/server/routes");
+const { createPlayerStats }   = require("./lib/stats");
 
 // ── TSH root path ─────────────────────────────────────────────────────────────
 // Auto-detected from the repo root unless config.TSH_ROOT pins it, so a TSH
@@ -78,8 +79,17 @@ const ctx = {
 const modes         = createModes(ctx);
 const controlStatus = createControlStatus(ctx, modes.reresolvePorts);
 const clipRecorder  = createClipRecorder(ctx, controlStatus.refresh);
-const { reportCurrentSet } = createReportSet(ctx, controlStatus.refresh);
+const playerStats   = createPlayerStats(ctx);
+const reportSet     = createReportSet(ctx, controlStatus.refresh);
 const { startCurrentSet }  = createStartSet(ctx, controlStatus.refresh);
+
+// A reported set changes the side panel's stats (both players' runs, their
+// head-to-head, the event's finished sets), so the stats reload after it.
+async function reportCurrentSet() {
+  const result = await reportSet.reportCurrentSet();
+  if (result.ok) playerStats.onSetReported();
+  return result;
+}
 const bracketSwitch = createBracketSwitch(ctx, controlStatus.refresh);
 const swapTeams     = createSwap(ctx);
 
@@ -96,6 +106,7 @@ registerRoutes(app, {
   swapTeams,
   reresolvePorts: modes.reresolvePorts,
   recordClip: clipRecorder.recordClip,
+  playerStatsSnapshot: playerStats.snapshot,
 });
 
 io.on("connection", (socket) => {
@@ -105,6 +116,9 @@ io.on("connection", (socket) => {
   }
   // Give a freshly-connected control panel the latest status immediately.
   socket.emit("control_status", ctx.state.lastControlStatus);
+  // And a freshly-connected side panel its stats, so it never falls back to
+  // TSH's while waiting for the next change.
+  socket.emit("player_stats", playerStats.snapshot());
 });
 
 // Push status to any connected control panel every 2s.
@@ -124,6 +138,9 @@ for (const url of lanControlUrls(config)) {
   console.log(`[bridge]   on phone:    ${url}`);
 }
 console.log(`[bridge] start.gg report: ${ctx.startgg.enabled ? "enabled" : "disabled (no token in config.local.js)"}`);
+console.log(`[bridge] Player stats:   ${ctx.startgg.enabled
+  ? "from start.gg (histories saved in stats-cache/)"
+  : "TSH's own (no start.gg token)"}`);
 console.log(`[bridge] Brackets:       ${bracketSwitch.shortLink
   ? `start.gg/${bracketSwitch.shortLink}${ctx.startgg.enabled ? "" : " (no token — configured event slugs only)"}`
   : "no short link configured (config.BRACKETS.shortLink)"}`);
@@ -146,3 +163,5 @@ ctx.state.source.on("highlight",  clipRecorder.onHighlight);
 // Connect to OBS up front when the clipper is already on, so the control panel
 // shows a real OBS status before the first combo rather than after it.
 ctx.obs.applySettings();
+
+playerStats.start();

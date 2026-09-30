@@ -235,7 +235,7 @@ async function runScenario(name, verbose) {
 
   for (const name of names) {
     // Each scenario needs its own rotator, and side-panel.js keeps module-level
-    // state (tshData, completedSets), so every run gets a fresh sandbox.
+    // state (tshData, tshCompletedSets, bridgeStats), so every run gets a fresh sandbox.
     const r = await runScenario(name, Boolean(only));
     if (r.failures.length) {
       failed++;

@@ -135,6 +135,27 @@ class TshClient {
   }
 
   /**
+   * The start.gg ids of a team's first player, or null when there are none
+   * (a name typed by hand, or a player from TSH's local database).
+   *
+   * TSH's start.gg provider stores `id` as `[playerId, userId]`, with a userId
+   * of 0 for a player who never claimed an account. A bare scalar is tolerated
+   * as a playerId alone.
+   * @param {object|null} state
+   * @param {number} teamNum — 1 or 2
+   * @returns {{ playerId: string, userId: string|null, name: string } | null}
+   */
+  getPlayerIds(state, teamNum) {
+    const player = this._team(state, teamNum)?.player?.["1"];
+    const raw = player?.id;
+    const [pid, uid] = Array.isArray(raw) ? raw : [raw, null];
+    const clean = (v) => (v != null && /^[1-9]\d*$/.test(String(v)) ? String(v) : null);
+    const playerId = clean(pid);
+    if (!playerId) return null;
+    return { playerId, userId: clean(uid), name: (player?.name ?? "").trim() };
+  }
+
+  /**
    * Returns true if the TSH scoreboard is configured for doubles
    * (team 1 has more than one player slot).
    * @param {object} state

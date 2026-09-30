@@ -4,74 +4,153 @@
   },
   "streamQueue": {
     "main-stage": {
-      "sets": [
-        {
-          "id": 1,
-          "match": "Winners Semis",
-          "teams": [
-            {
-              "players": [
-                {
-                  "name": "CASEY",
-                  "team": ""
-                }
-              ]
-            },
-            {
-              "players": [
-                {
-                  "name": "DREW",
-                  "team": "TSM"
-                }
-              ]
+      "1": {
+        "id": 1,
+        "match": "Winners Semis",
+        "phase": "Bracket",
+        "best_of": 0,
+        "best_of_text": "",
+        "state": 1,
+        "team": {
+          "1": {
+            "teamName": "CASEY",
+            "losers": false,
+            "seed": 0,
+            "player": {
+              "1": {
+                "name": "CASEY",
+                "team": "",
+                "mergedName": "CASEY",
+                "country": {},
+                "state": {},
+                "pronoun": "",
+                "real_name": "",
+                "online_avatar": "",
+                "twitter": ""
+              }
             }
-          ]
+          },
+          "2": {
+            "teamName": "TSM | DREW",
+            "losers": false,
+            "seed": 0,
+            "player": {
+              "1": {
+                "name": "DREW",
+                "team": "TSM",
+                "mergedName": "TSM|DREW",
+                "country": {},
+                "state": {},
+                "pronoun": "",
+                "real_name": "",
+                "online_avatar": "",
+                "twitter": ""
+              }
+            }
+          }
         },
-        {
-          "id": 2,
-          "match": "Losers Quarters",
-          "teams": [
-            {
-              "players": [
-                {
-                  "name": "ELLIS",
-                  "team": ""
-                }
-              ]
-            },
-            {
-              "players": [
-                {
-                  "name": "FINCH",
-                  "team": ""
-                }
-              ]
+        "station": -1,
+        "event": "tournament/hundred-acres-42/event/melee-singles-flex-bo5",
+        "isCurrentEvent": true
+      },
+      "2": {
+        "id": 2,
+        "match": "Losers Quarters",
+        "phase": "Bracket",
+        "best_of": 0,
+        "best_of_text": "",
+        "state": 1,
+        "team": {
+          "1": {
+            "teamName": "ELLIS",
+            "losers": false,
+            "seed": 0,
+            "player": {
+              "1": {
+                "name": "ELLIS",
+                "team": "",
+                "mergedName": "ELLIS",
+                "country": {},
+                "state": {},
+                "pronoun": "",
+                "real_name": "",
+                "online_avatar": "",
+                "twitter": ""
+              }
             }
-          ]
+          },
+          "2": {
+            "teamName": "FINCH",
+            "losers": false,
+            "seed": 0,
+            "player": {
+              "1": {
+                "name": "FINCH",
+                "team": "",
+                "mergedName": "FINCH",
+                "country": {},
+                "state": {},
+                "pronoun": "",
+                "real_name": "",
+                "online_avatar": "",
+                "twitter": ""
+              }
+            }
+          }
         },
-        {
-          "id": 3,
-          "match": "Winners Finals",
-          "teams": [
-            {
-              "players": [
-                {
-                  "name": "GRAY",
-                  "team": ""
-                }
-              ]
-            },
-            {
-              "players": [
-                {
-                  "name": "HOLLIS",
-                  "team": ""
-                }
-              ]
+        "station": -1,
+        "event": "tournament/hundred-acres-42/event/melee-singles-flex-bo5",
+        "isCurrentEvent": true
+      },
+      "3": {
+        "id": 3,
+        "match": "Winners Finals",
+        "phase": "Bracket",
+        "best_of": 0,
+        "best_of_text": "",
+        "state": 1,
+        "team": {
+          "1": {
+            "teamName": "GRAY",
+            "losers": false,
+            "seed": 0,
+            "player": {
+              "1": {
+                "name": "GRAY",
+                "team": "",
+                "mergedName": "GRAY",
+                "country": {},
+                "state": {},
+                "pronoun": "",
+                "real_name": "",
+                "online_avatar": "",
+                "twitter": ""
+              }
             }
-          ]
-        }
-      ]
+          },
+          "2": {
+            "teamName": "HOLLIS",
+            "losers": false,
+            "seed": 0,
+            "player": {
+              "1": {
+                "name": "HOLLIS",
+                "team": "",
+                "mergedName": "HOLLIS",
+                "country": {},
+                "state": {},
+                "pronoun": "",
+                "real_name": "",
+                "online_avatar": "",
+                "twitter": ""
+              }
+            }
+          }
+        },
+        "station": -1,
+        "event": "tournament/hundred-acres-42/event/melee-singles-flex-bo5",
+        "isCurrentEvent": true
+      }
     }
   },
   "score": {

@@ -13,14 +13,14 @@ const path = require("path");
  * @param {object} deps — {
  *   publicDir, tsh, clipperSettings, obs,
  *   refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet, switchBracket,
- *   swapTeams, reresolvePorts, recordClip
+ *   swapTeams, reresolvePorts, recordClip, playerStatsSnapshot
  * }
  */
 function registerRoutes(app, deps) {
   const {
     publicDir, tsh, clipperSettings, obs,
     refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet, switchBracket, swapTeams,
-    reresolvePorts, recordClip,
+    reresolvePorts, recordClip, playerStatsSnapshot,
   } = deps;
 
   app.get("/control", (req, res) => {
@@ -103,6 +103,12 @@ function registerRoutes(app, deps) {
 
   app.post("/api/report", async (req, res) => {
     res.json(await reportCurrentSet());
+  });
+
+  // The side panel's stats snapshot — the same object `player_stats` pushes.
+  // For checking what the overlay is being fed, from a browser.
+  app.get("/api/player-stats", (req, res) => {
+    res.json(playerStatsSnapshot());
   });
 
   // ── Combo clipper ───────────────────────────────────────────────────────────

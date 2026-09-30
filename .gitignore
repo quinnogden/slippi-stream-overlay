@@ -10,6 +10,10 @@ slippi-bridge/config.local.js
 slippi-bridge/clipper-settings.json
 slippi-bridge/clipper-settings.json.tmp
 
+# Players' start.gg set histories, saved by the side panel's stats so a regular
+# is crawled once rather than every time they're on stream. Rebuilt on demand.
+slippi-bridge/stats-cache/
+
 # Exclude all of the third-party TSH app, but keep our custom layout.
 # Version-independent so a TSH update (new TournamentStreamHelper-X.YYY folder)
 # doesn't silently start tracking the whole vendored Python app.

@@ -10,7 +10,7 @@ For what TSH exposes *to* the bridge, see the TSH HTTP API section of [CLAUDE.md
 
 ## Socket.io events (bridge → browser)
 
-Clients connect to `http://localhost:5001`. On connect, the bridge immediately replays `slippi_game_start` (if a game is live) and `control_status`, so a browser source that loads mid-set is never blank waiting for the next event.
+Clients connect to `http://localhost:5001`. On connect, the bridge immediately replays `slippi_game_start` (if a game is live), `control_status` and `player_stats`, so a browser source that loads mid-set is never blank waiting for the next event.
 
 ### `slippi_game_start`
 
@@ -69,6 +69,49 @@ Same payload, split by outcome. **Only `slippi_clip_saved` reaches the broadcast
 > `playerName` is the attacker. slippi-js's `conversion.playerIndex` is the player who got **hit** — the attacker is `lastHitBy`. Getting this backwards credits the victim on the broadcast.
 
 `ok: true` with `path: null` is a real case: OBS accepted the save but never emitted `ReplayBufferSaved` within the timeout. The clip is almost certainly on disk; only the path is unknown.
+
+### `player_stats`
+
+The side panel's player cards, head-to-head and Just Finished, from start.gg (`lib/stats/`). Emitted on every change and on connect; always the whole snapshot. Same object as `GET /api/player-stats`.
+
+```js
+{
+  enabled: true,                   // false = no start.gg token: nothing else is filled in,
+                                   // and the layout must use TSH's own stats instead
+  event: { id: "1700988", slug: "tournament/…/event/…", name: "Melee Singles", singles: true },  // or null
+  players: {                       // keyed by start.gg PLAYER id (string) — never by column
+    "1097": {
+      playerId: "1097", name: "ZODD-01",
+      state: "done",               // "loading" | "done" | "error" (+ error)
+      history: [ { tournament, event, placement, entrants, startAt, online } ],  // singles, final, newest first
+      run:     [ { id, opponent, round, myScore, oppScore, won, completedAt } ], // this event, newest first
+    },
+  },
+  h2h: {                           // null unless two singles players with start.gg ids are loaded
+    players: ["1097", "1069"],     // which pair this is FOR — check it (see below)
+    state: "done",                 // "loading" | "done" | "error" (+ error)
+    wins: { "1097": 22, "1069": 8 },   // the whole record
+    total: 30,
+    recent: [                      // newest five only
+      { id, tournament, event, round, online, completedAt,
+        winner: "1097",            // player id
+        scores: { "1097": 3, "1069": 1 } },  // null/null for a set reported as a bare winner
+    ],
+  },
+  completedSets: {
+    state: "done",                 // "none" (no event loaded) | "done" | "error"
+    sets: [ { id, round, names: ["ZODD-01", "Redd"], scores: [3, 1], winner: 0, completedAt } ],
+  },
+  updatedAt: 1789701909000,
+}
+```
+
+Consumer rules — each is a way to put a healthy-looking wrong number on stream:
+
+- **Orient by id, every render.** Match `players` / `h2h.players` against the start.gg ids TSH shows in each column *now* (`score.<N>.team.<n>.player.1.id`, which is `[playerId, userId]`). Never cache a left/right orientation: Swap Teams moves the players, not the snapshot.
+- **An `h2h` for any other pair is not this pair's.** Loading a set is several TSH writes and the bridge answers seconds later, so a snapshot for the *previous* pair is routinely current while the new names are already up. Show nothing until `h2h.players` contains both column ids.
+- **`enabled: true` means the bridge is the only source.** Don't fill a `loading` gap with TSH's `recent_sets` — that head-to-head is the one that was wrong.
+- **`scores` can be null** for a winner-only report. Derive W/L from `winner`.
 
 ### `control_status`
 
@@ -137,7 +180,8 @@ A permissive CORS middleware fronts every route. It exists for exactly one case:
 | `POST` | `/api/load-set` | `{ setId }` → load it, then refresh status |
 | `POST` | `/api/bracket` | `{ kind: "singles" \| "doubles" }` → point TSH at this week's event for that format |
 | `POST` | `/api/start-set` | Mark the loaded set in progress on start.gg (`markSetInProgress`). No body |
-| `POST` | `/api/report` | Report the current set to start.gg. Manual trigger only |
+| `POST` | `/api/report` | Report the current set to start.gg. Manual trigger only. A success also reloads the side panel's stats ~4s later |
+| `GET` | `/api/player-stats` | The `player_stats` snapshot above — for checking what the side panel is being fed |
 | `GET` | `/api/clipper` | `{ settings, obs, recentClips, clipsThisGame, supported }` |
 | `POST` | `/api/clipper/settings` | Validate, clamp, persist to `clipper-settings.json`, apply live |
 | `POST` | `/api/clipper/toggle` | `{ enabled }` — master switch, applied immediately |

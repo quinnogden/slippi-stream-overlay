@@ -19,6 +19,17 @@
  *                          on `enabled`. The API cannot resolve a short link
  *                          (tournament(slug: "100-acres") returns null); only
  *                          the web redirect chain can, and it needs no token.
+ *   - backgroundQuery()  — the side panel's player stats (lib/stats/). Those own
+ *                          their queries; what they share with everything here is
+ *                          the token, the timeout and — the reason this method
+ *                          exists — the rate limit.
+ *
+ * **Background requests are budgeted; the operator's are not.** start.gg allows
+ * 80 requests per 60s per token, and a head-to-head between two regulars costs
+ * several. Stats go through backgroundQuery(), which waits whenever the last 60s
+ * already hold BACKGROUND_BUDGET requests of any kind. Everything else — report,
+ * start, the bracket switch — is never delayed. So a burst of set loads slows the
+ * side panel's stats down; it can never make a report fail.
  *
  * Auth is a start.gg "personal access token" (config.STARTGG_TOKEN, supplied
  * via the gitignored config.local.js). When no token is set, `enabled` is false
@@ -38,6 +49,15 @@ const USER_AGENT = "Mozilla/5.0 (compatible; slippi-bridge/1.0)";
 // Two hops in practice: start.gg/<short> → www.start.gg/<short> →
 // /tournament/<slug>/details. The cap is only a loop guard.
 const MAX_SHORT_LINK_HOPS = 6;
+
+// start.gg's limit is 80 per 60s. Background work may fill the window up to
+// this; the remaining 30 are headroom the operator's actions can always use.
+const RATE_WINDOW_MS    = 60000;
+const BACKGROUND_BUDGET = 50;
+
+// A 429 means the window is already spent — possibly by another tool on the same
+// token — so background work stands down for a while rather than retrying into it.
+const RATE_LIMIT_COOLDOWN_MS = 30000;
 
 const REPORT_MUTATION = `
 mutation reportSet($setId: ID!, $winnerId: ID!, $gameData: [BracketSetGameDataInput]) {
@@ -89,12 +109,20 @@ function tournamentSlugFromUrl(url) {
   return String(url ?? "").match(/\/tournament\/([^/?#]+)/)?.[1] ?? null;
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, Math.max(0, ms)));
+
 class StartggClient {
   /**
    * @param {{ STARTGG_TOKEN?: string }} config
    */
   constructor(config) {
     this._token = (config.STARTGG_TOKEN ?? "").trim();
+    // Send times (ms) of every GraphQL request in the last RATE_WINDOW_MS.
+    this._sent = [];
+    // Background requests wait until this time after a 429.
+    this._coolUntil = 0;
+    // Serialises background requests so two waiters can't both see one free slot.
+    this._bgQueue = Promise.resolve();
   }
 
   /** True when a token is configured; the report feature keys off this. */
@@ -148,6 +176,7 @@ class StartggClient {
   async _gql(query, variables, errorPrefix) {
     if (!this.enabled) return { ok: false, error: "start.gg token not configured" };
 
+    this._sent.push(Date.now());
     let res;
     try {
       res = await axios.post(
@@ -168,7 +197,8 @@ class StartggClient {
         return { ok: false, error: "start.gg rejected the token (invalid or expired — they expire yearly). Regenerate it and update config.local.js." };
       }
       if (status === 429) {
-        return { ok: false, error: "start.gg rate limit hit (80 requests/60s). Wait a moment and try again." };
+        this._coolUntil = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+        return { ok: false, rateLimited: true, error: "start.gg rate limit hit (80 requests/60s). Wait a moment and try again." };
       }
       return { ok: false, error: `Network error contacting start.gg: ${err.message}` };
     }
@@ -176,10 +206,52 @@ class StartggClient {
     const gqlErrors = res.data?.errors;
     if (Array.isArray(gqlErrors) && gqlErrors.length > 0) {
       const msg = gqlErrors.map((e) => e.message).join("; ");
-      return { ok: false, error: errorPrefix ? `${errorPrefix}: ${msg}` : msg };
+      // start.gg refuses any response over 1000 objects — the whole response, not
+      // just the part over the line. Flagged so a batching caller can split and
+      // retry instead of treating the batch as empty (TSH's head-to-head does the
+      // latter, and silently loses those sets).
+      const complexity = /complexity is too high/i.test(msg);
+      return { ok: false, complexity, error: errorPrefix ? `${errorPrefix}: ${msg}` : msg };
     }
 
     return { ok: true, data: res.data?.data };
+  }
+
+  /**
+   * A GraphQL query the caller can afford to wait on — the side panel's stats.
+   *
+   * Waits for room in the background budget (see the header), then goes through
+   * _gql() like everything else. Queued one at a time, so the wait is honest
+   * under concurrency. Never throws.
+   *
+   * @param {string} query
+   * @param {object} [variables]
+   * @returns {Promise<{ ok: boolean, data?: object, error?: string, complexity?: boolean, rateLimited?: boolean }>}
+   */
+  backgroundQuery(query, variables = {}) {
+    if (!this.enabled) return Promise.resolve({ ok: false, error: "start.gg token not configured" });
+    const run = this._bgQueue.then(async () => {
+      await this._waitForBackgroundRoom();
+      return this._gql(query, variables);
+    });
+    // The queue must survive a failure, or one rejected request stalls stats forever.
+    this._bgQueue = run.catch(() => {});
+    return run;
+  }
+
+  /** Resolve once a background request fits in the budget. */
+  async _waitForBackgroundRoom() {
+    for (;;) {
+      const now = Date.now();
+      this._sent = this._sent.filter((t) => now - t < RATE_WINDOW_MS);
+      if (now < this._coolUntil) {
+        await sleep(this._coolUntil - now);
+        continue;
+      }
+      if (this._sent.length < BACKGROUND_BUDGET) return;
+      // The oldest request leaves the window first; wake just after it does.
+      await sleep(this._sent[0] + RATE_WINDOW_MS - now + 50);
+    }
   }
 
   /**

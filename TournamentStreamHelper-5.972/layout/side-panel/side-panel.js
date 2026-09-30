@@ -60,8 +60,9 @@ const PANEL_ORDER = [
   "logo-sponsor", "completed-sets", "queue"
 ];
 
-let completedSets = [];  // cached from last poll
-let tshData       = null; // last TSH program state
+let tshCompletedSets = []; // TSH's /get-sets?getFinished=1, only polled without the bridge
+let tshData          = null; // last TSH program state
+let bridgeStats      = null; // last `player_stats` from the bridge; null = not connected
 
 class Rotator {
   constructor() {
@@ -84,7 +85,7 @@ class Rotator {
         case "player-1":       return !doubles && hasPlayerCardContent(d, 1);
         case "player-2":       return !doubles && hasPlayerCardContent(d, 2);
         case "recent-sets":    return !doubles && hasRecentSets(d);
-        case "completed-sets": return completedSets.length > 0;
+        case "completed-sets": return completedView().length > 0;
         case "queue":          return hasQueue(d);
         default:               return false;
       }
@@ -273,30 +274,192 @@ function playerSinglesHistory(data, teamNum) {
   } catch (_) { return []; }
 }
 
+// ── Stats source: the bridge, or TSH ──────────────────────────────────────────
+//
+// The player cards, head-to-head and "Just Finished" panels have two possible
+// sources:
+//
+//   - The bridge's `player_stats` (slippi-bridge/lib/stats/), whenever the
+//     bridge is running with a start.gg token. This is the accurate one.
+//   - TSH's own history_sets / last_sets / recent_sets and /get-sets otherwise,
+//     so the panel still works with the bridge down.
+//
+// TSH's head-to-head in particular is not merely thinner — it is wrong in ways
+// that change from set to set (start.gg refuses most of its requests and TSH
+// reads each refusal as "no sets"). So while the bridge is live, it is the only
+// source: a pair it hasn't finished loading shows *nothing*, never TSH's
+// numbers in the meantime.
+//
+// Each panel reads a view — display-ready rows built from whichever source is
+// live — so the renderers, slot predicates and change detection neither know
+// nor care which it was.
+
+function bridgeStatsLive() {
+  return Boolean(bridgeStats && bridgeStats.enabled);
+}
+
+// The bridge keys everything by start.gg player id, never by column. TSH stores
+// the id as [playerId, userId]; a bare value is tolerated.
+function teamPlayerId(data, teamNum) {
+  try {
+    const raw = data.score[SCOREBOARD_NUM].team[String(teamNum)].player["1"].id;
+    const pid = Array.isArray(raw) ? raw[0] : raw;
+    return pid ? String(pid) : null;
+  } catch (_) { return null; }
+}
+
+function bridgePlayer(data, teamNum) {
+  const pid = teamPlayerId(data, teamNum);
+  const p = pid && bridgeStats.players ? bridgeStats.players[pid] : null;
+  return p && p.state === "done" ? p : null;
+}
+
+/** Past placements: [{ tournament, event, placement, entrants }], newest first. */
+function historyView(data, teamNum) {
+  if (bridgeStatsLive()) {
+    const p = bridgePlayer(data, teamNum);
+    return p ? p.history || [] : [];
+  }
+  return playerSinglesHistory(data, teamNum).map(h => ({
+    tournament: h.tournament_name, event: h.event_name, placement: h.placement, entrants: h.entrants,
+  }));
+}
+
+/** This event's finished sets: [{ opponent, round, myScore, oppScore, won }], newest first. */
+function runView(data, teamNum) {
+  if (bridgeStatsLive()) {
+    const p = bridgePlayer(data, teamNum);
+    return p ? p.run || [] : [];
+  }
+  try {
+    const raw = data.score[SCOREBOARD_NUM].last_sets;
+    return Object.values((raw && raw[String(teamNum)]) || {}).map(s => ({
+      opponent: s.oponent_name || "",
+      round: s.round_name || s.phase_name || "",
+      myScore: s.player_score,
+      oppScore: s.oponent_score,
+      won: (s.player_score || 0) > (s.oponent_score || 0),
+    }));
+  } catch (_) { return []; }
+}
+
+/**
+ * The head-to-head, oriented to the columns as they are now:
+ * { wins: [left, right], sets: [{ tournament, round, timestamp, score: [l, r], winner: 0|1 }] },
+ * or null when there is none to show.
+ */
+function h2hView(data) {
+  if (bridgeStatsLive()) {
+    const h = bridgeStats.h2h;
+    const p1 = teamPlayerId(data, 1);
+    const p2 = teamPlayerId(data, 2);
+    if (!h || h.state !== "done" || !h.total || !p1 || !p2 || p1 === p2) return null;
+    // A snapshot for any other pair — the previous set, arriving late — is not
+    // this pair's record, whatever the names say.
+    const ids = (h.players || []).map(String);
+    if (!ids.includes(p1) || !ids.includes(p2)) return null;
+    return {
+      wins: [h.wins[p1] || 0, h.wins[p2] || 0],
+      sets: (h.recent || []).map(s => ({
+        tournament: s.tournament,
+        round: s.round,
+        timestamp: s.completedAt,
+        score: [s.scores[p1], s.scores[p2]],
+        winner: String(s.winner) === p1 ? 0 : 1,
+      })),
+    };
+  }
+  const sets = recentSinglesSets(data);
+  if (sets.length === 0) return null;
+  return {
+    wins: [sets.filter(s => s.winner === 0).length, sets.filter(s => s.winner === 1).length],
+    sets: sets.map(s => ({
+      tournament: s.tournament, round: s.round, timestamp: s.timestamp, score: s.score, winner: s.winner,
+    })),
+  };
+}
+
+/** Just finished in this event: [{ names: [a, b], scores: [a, b], winner: 0|1, round }]. */
+function completedView() {
+  if (bridgeStatsLive()) {
+    const c = bridgeStats.completedSets;
+    return c && Array.isArray(c.sets) ? c.sets.slice(0, 8) : [];
+  }
+  return tshCompletedSets.map(s => ({
+    names: [s.p1_name || "", s.p2_name || ""],
+    scores: [s.team1score, s.team2score],
+    winner: (s.team1score || 0) > (s.team2score || 0) ? 0 : 1,
+    round: s.round_name || "",
+  }));
+}
+
+/**
+ * The two score labels for a set. A set reported as a bare winner has no game
+ * counts — TSH hands over "W"/"L" (and sometimes on the wrong sides), start.gg
+ * a null — so those are always derived from the winner, never trusted.
+ */
+function scoreLabels(score, winner) {
+  const num = v => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
+  if (score && num(score[0]) && num(score[1])) return [String(score[0]), String(score[1])];
+  return winner === 0 ? ["W", "L"] : ["L", "W"];
+}
+
 function hasPlayerCardContent(data, teamNum) {
   try {
     if (!data.score[SCOREBOARD_NUM].team[String(teamNum)].player["1"].name) return false;
-    const history = playerSinglesHistory(data, teamNum);
-    const lastSets = data.score[SCOREBOARD_NUM].last_sets
-      ? Object.values(data.score[SCOREBOARD_NUM].last_sets[String(teamNum)] || {})
-      : [];
-    return history.length > 0 || lastSets.length > 0;
+    return historyView(data, teamNum).length > 0 || runView(data, teamNum).length > 0;
   } catch (_) { return false; }
 }
 
 function hasRecentSets(data) {
-  return recentSinglesSets(data).length > 0;
+  return h2hView(data) !== null;
+}
+
+// ── Stream queue ──────────────────────────────────────────────────────────────
+//
+// TSH's real queue shape (StartGGDataProvider.GetStreamQueue / ProcessFutureSet):
+//   streamQueue[<stream name>]["1"|"2"|…] = { id, match, team: { "1"|"2": {
+//     teamName, player: { "1"|"2": { name, team } } } } }
+// Objects keyed by position, not arrays. The panel used to read `.sets` /
+// `.teams[]` / `.players[]`, which only the hand-written test fixture had — so
+// on a real bracket the queue never rotated in at all.
+
+function queueView(data) {
+  try {
+    const sq = data.streamQueue || {};
+    const names = Object.keys(sq);
+    // TSH's "current stream" is the twitch username; start.gg names streams the
+    // same way, but not always with the same case.
+    const current = String(data.currentStream || "").toLowerCase();
+    const name = names.find(n => n.toLowerCase() === current) || names[0];
+    const queue = name ? sq[name] : null;
+    if (!queue) return [];
+
+    // The set on air is usually still first in start.gg's queue; it isn't "up next".
+    const onAir = String((data.score && data.score[SCOREBOARD_NUM] && data.score[SCOREBOARD_NUM].set_id) || "");
+
+    return Object.keys(queue)
+      .sort((a, b) => Number(a) - Number(b))
+      .map(k => queue[k])
+      .filter(s => s && (!onAir || String(s.id) !== onAir))
+      .map(s => ({ match: s.match || "", names: [queueSide(s.team, "1"), queueSide(s.team, "2")] }))
+      .filter(s => s.names[0] || s.names[1]);
+  } catch (_) { return []; }
+}
+
+function queueSide(teams, n) {
+  const team = teams && teams[n];
+  if (!team) return "";
+  const players = Object.values(team.player || {});
+  if (players.length === 1) {
+    const p = players[0] || {};
+    return (p.team ? p.team + " " : "") + (p.name || "");
+  }
+  return team.teamName || players.map(p => p && p.name).filter(Boolean).join(" / ");
 }
 
 function hasQueue(data) {
-  try {
-    const sq = data.streamQueue;
-    if (!sq) return false;
-    const keys = Object.keys(sq);
-    if (keys.length === 0) return false;
-    const first = sq[keys[0]];
-    return first && first.sets && first.sets.length > 0;
-  } catch (_) { return false; }
+  return queueView(data).length > 0;
 }
 
 
@@ -423,15 +586,15 @@ function renderPlayerCard(teamNum, data) {
     const histList   = panel.querySelector(".history-list");
     const histHeader = histList.previousElementSibling;
     histList.innerHTML = "";
-    const filteredHistory = playerSinglesHistory(data, teamNum).slice(0, 5);
+    const history = historyView(data, teamNum).slice(0, 5);
 
-    const showHist = filteredHistory.length > 0;
+    const showHist = history.length > 0;
     histHeader.style.display = showHist ? "" : "none";
     histList.style.display   = showHist ? "" : "none";
 
-    filteredHistory.forEach(h => {
+    history.forEach(h => {
       const pill  = makePill();
-      const name  = el("span", "pill-name", h.tournament_name || h.event_name || "");
+      const name  = el("span", "pill-name", h.tournament || h.event || "");
       const place = h.placement ? makePlacementEl(h.placement, h.entrants) : el("span", "pill-placement");
       pill.append(name, place);
       histList.appendChild(pill);
@@ -442,24 +605,18 @@ function renderPlayerCard(teamNum, data) {
     const runList   = panel.querySelector(".run-list");
     const runHeader = runList.previousElementSibling;
     runList.innerHTML = "";
-    const lastSetsRaw = data.score[SCOREBOARD_NUM].last_sets
-      ? data.score[SCOREBOARD_NUM].last_sets[String(teamNum)]
-      : null;
-    const lastSets = lastSetsRaw
-      ? Object.values(lastSetsRaw).slice(0, 5)
-      : [];
+    const run = runView(data, teamNum).slice(0, 5);
 
-    const showRun = lastSets.length > 0;
+    const showRun = run.length > 0;
     runHeader.style.display = showRun ? "" : "none";
     runList.style.display   = showRun ? "" : "none";
 
-    lastSets.forEach(s => {
-      const win   = (s.player_score || 0) > (s.oponent_score || 0);
-      const pill  = makePill(win ? "win" : "loss");
-      const round = el("span", "pill-round", s.round_name || s.phase_name || "");
-      const opp   = el("span", "pill-name", s.oponent_name || "");
-      const score = el("span", "pill-run-score",
-        (s.player_score || 0) + "–" + (s.oponent_score || 0));
+    run.forEach(s => {
+      const pill  = makePill(s.won ? "win" : "loss");
+      const round = el("span", "pill-round", s.round || "");
+      const opp   = el("span", "pill-name", s.opponent || "");
+      const [mine, theirs] = scoreLabels([s.myScore, s.oppScore], s.won ? 0 : 1);
+      const score = el("span", "pill-run-score", mine + "–" + theirs);
       pill.append(opp, round, score);
       runList.appendChild(pill);
       fitText(opp);
@@ -480,13 +637,14 @@ function renderRecentSets(data) {
     const container = panel.querySelector(".sets-list");
     container.innerHTML = "";
 
-    const sets = recentSinglesSets(data);
+    const h2h = h2hView(data);
+    if (!h2h) return;
 
-    // H2H pill
+    // H2H pill. The tally is the whole record; the pills below are only the
+    // most recent five of it.
     const p1Name = data.score[SCOREBOARD_NUM].team["1"].player["1"].name || "P1";
     const p2Name = data.score[SCOREBOARD_NUM].team["2"].player["1"].name || "P2";
-    const p1Wins = sets.filter(s => s.winner === 0).length;
-    const p2Wins = sets.filter(s => s.winner === 1).length;
+    const [p1Wins, p2Wins] = h2h.wins;
 
     const h2hHeader = el("div", "h2h-header");
     const h2hRow    = el("div", "h2h-row");
@@ -504,18 +662,18 @@ function renderRecentSets(data) {
     fitText(p2El, 18);
 
     // Result pills (up to 5)
-    sets.slice(0, 5).forEach(s => {
-      const sc  = s.score || [0, 0];
+    h2h.sets.slice(0, 5).forEach(s => {
+      const sc  = scoreLabels(s.score, s.winner);
       const sub = (s.tournament || "") + (s.timestamp ? " · " + formatDate(s.timestamp) : "");
 
       const p1Win = s.winner === 0;
       const pill = makePill("recent-set-pill " + (p1Win ? "win" : "loss"));
-      pill.appendChild(el("span", "pill-score-val", String(sc[0])));
+      pill.appendChild(el("span", "pill-score-val", sc[0]));
       const info = el("div", "recent-set-info");
       const subEl   = sub     ? info.appendChild(el("div", "pill-line-2", sub)) : null;
       const roundEl = s.round ? info.appendChild(el("div", "pill-round recent-set-round", s.round)) : null;
       pill.appendChild(info);
-      pill.appendChild(el("span", "pill-score-val recent-score-right", String(sc[1])));
+      pill.appendChild(el("span", "pill-score-val recent-score-right", sc[1]));
       container.appendChild(pill);
       if (subEl)   fitText(subEl, 11);
       if (roundEl) fitText(roundEl, 11);
@@ -534,17 +692,17 @@ function renderCompletedSets() {
   const container = panel.querySelector(".completed-list");
   container.innerHTML = "";
 
-  completedSets.forEach(s => {
+  completedView().forEach(s => {
     try {
-      const p1wins = (s.team1score || 0) > (s.team2score || 0);
+      const sc = scoreLabels(s.scores, s.winner);
 
-      const pill = makePill("completed-set-pill " + (p1wins ? "p1win" : "p2win"));
-      const p1El = pill.appendChild(el("span", "pill-name", s.p1_name || ""));
+      const pill = makePill("completed-set-pill " + (s.winner === 0 ? "p1win" : "p2win"));
+      const p1El = pill.appendChild(el("span", "pill-name", s.names[0] || ""));
       const info = el("div", "completed-set-info");
-      if (s.round_name) info.appendChild(el("div", "pill-line-2", s.round_name));
-      info.appendChild(el("span", "set-score", s.team1score + "–" + s.team2score));
+      if (s.round) info.appendChild(el("div", "pill-line-2", s.round));
+      info.appendChild(el("span", "set-score", sc[0] + "–" + sc[1]));
       pill.appendChild(info);
-      const p2El = pill.appendChild(el("span", "pill-name right", s.p2_name || ""));
+      const p2El = pill.appendChild(el("span", "pill-name right", s.names[1] || ""));
       container.appendChild(pill);
       fitText(p1El);
       fitText(p2El);
@@ -560,24 +718,14 @@ function renderQueue(data) {
   if (!panel) return;
 
   try {
-    const sq   = data.streamQueue;
-    const key  = Object.keys(sq)[0];
-    const sets = sq[key].sets || [];
     const container = panel.querySelector(".queue-list");
     container.innerHTML = "";
 
-    sets.slice(0, 5).forEach(s => {
-      const teams = s.teams || [];
-      const t1    = (teams[0] && teams[0].players && teams[0].players[0]) || {};
-      const t2    = (teams[1] && teams[1].players && teams[1].players[0]) || {};
-
-      const p1Name = (t1.team ? t1.team + " " : "") + (t1.name || "");
-      const p2Name = (t2.team ? t2.team + " " : "") + (t2.name || "");
-
+    queueView(data).slice(0, 5).forEach(s => {
       const pill = makePill("queue-pill");
-      const p1El = pill.appendChild(el("span", "pill-name", p1Name));
+      const p1El = pill.appendChild(el("span", "pill-name", s.names[0]));
       if (s.match) pill.appendChild(el("span", "pill-round queue-round", s.match));
-      const p2El = pill.appendChild(el("span", "pill-name right", p2Name));
+      const p2El = pill.appendChild(el("span", "pill-name right", s.names[1]));
       container.appendChild(pill);
       fitText(p1El);
       fitText(p2El);
@@ -608,14 +756,17 @@ async function fetchTournamentName() {
 
 // ── Completed sets polling ────────────────────────────────────────────────────
 
+// Only without the bridge — with it, `player_stats` carries the finished sets
+// (filtered to state 3, which TSH's endpoint can't do) and this would be a
+// second uncached start.gg query every 90s for nothing.
 async function fetchCompletedSets() {
+  if (bridgeStatsLive()) return;
   try {
     const res = await fetch(COMPLETED_SETS_URL, { cache: "no-store" });
     if (res.ok) {
       const raw = await res.json();
-      completedSets = Array.isArray(raw) ? raw.filter(s => s.team1score != null && s.team2score != null).slice(0, 8) : [];
-      renderCompletedSets();
-      rotator.buildSlots(null);
+      tshCompletedSets = Array.isArray(raw) ? raw.filter(s => s.team1score != null && s.team2score != null).slice(0, 8) : [];
+      renderStats();
     }
   } catch (_) {}
 }
@@ -637,20 +788,32 @@ function renderIfChanged(key, slice, render) {
   render();
 }
 
+// Keyed on the views, not the raw state, so a change in either source — a TSH
+// push or a bridge snapshot — re-renders exactly the panels it affects.
 function renderPanels(data) {
   const sb = (data.score && data.score[SCOREBOARD_NUM]) || {};
   const team = (n) => sb.team && sb.team[n];
   const player1 = (n) => team(n) && team(n).player && team(n).player["1"];
-  const side = (tree, n) => tree && tree[n];
 
-  renderIfChanged("player-1", [player1("1"), side(sb.history_sets, "1"), side(sb.last_sets, "1")],
+  renderIfChanged("player-1", [player1("1"), historyView(data, 1), runView(data, 1)],
                   () => renderPlayerCard(1, data));
-  renderIfChanged("player-2", [player1("2"), side(sb.history_sets, "2"), side(sb.last_sets, "2")],
+  renderIfChanged("player-2", [player1("2"), historyView(data, 2), runView(data, 2)],
                   () => renderPlayerCard(2, data));
   renderIfChanged("recent-sets",
-                  [sb.recent_sets, player1("1") && player1("1").name, player1("2") && player1("2").name],
+                  [h2hView(data), player1("1") && player1("1").name, player1("2") && player1("2").name],
                   () => renderRecentSets(data));
-  renderIfChanged("queue", data.streamQueue, () => renderQueue(data));
+  renderIfChanged("completed-sets", completedView(), renderCompletedSets);
+  renderIfChanged("queue", queueView(data), () => renderQueue(data));
+}
+
+/**
+ * Re-render and re-slot after stats changed outside a TSH push — a bridge
+ * snapshot, the bridge going away, or the TSH completed-sets poll.
+ */
+function renderStats() {
+  if (tshData) renderPanels(tshData);
+  else renderIfChanged("completed-sets", completedView(), renderCompletedSets);
+  rotator.buildSlots(null);
 }
 
 
@@ -698,6 +861,21 @@ LoadEverything().then(() => {
     // A clip was banked mid-match. Only successful saves reach here — clip
     // errors go to the operator's control panel, not the broadcast.
     slippi_clip_saved: (clip) => showClipToast(clip),
+
+    // The side panel's stats, straight from start.gg (see "Stats source").
+    // Sent on connect and on every change.
+    player_stats: (snap) => {
+      bridgeStats = snap;
+      renderStats();
+    },
+
+    // Bridge gone: fall back to TSH's stats rather than freezing on the last
+    // snapshot, and restart the completed-sets poll that the bridge replaced.
+    disconnect: () => {
+      bridgeStats = null;
+      fetchCompletedSets();
+      renderStats();
+    },
   }, { tag: "sidePanel" });
 
 
