@@ -92,7 +92,7 @@ TournamentStreamHelper-5.972/layout/
   main.css        imports theme.css — link this one, never theme.css directly
   theme.css       the one-line switch naming the active theme pack
   themes/         the packs themselves: colour tokens, brand font, both logos
-  shared/         helpers every custom layout needs
+  shared/         helpers + shared CSS more than one custom layout needs
   scoreboard/     melee.html, meleePlayers.html, index.js, index.css, settings.json
   side-panel/     side-panel.html, side-panel.js, side-panel.css
   bracket/        index.html + three variants, index.js, index.css

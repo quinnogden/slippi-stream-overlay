@@ -218,5 +218,5 @@ An empty list is **normal**, not an error: `get_sets` returns start.gg states 1/
 
 - **A new Socket.io event** — emit it in `index.js`, document the payload here, and remember every consumer may already be connected: send enough state to be useful standalone rather than a delta.
 - **A new route** — keep handlers thin and let the client module own the I/O and the `{ ok, error }` shaping, matching the existing block at the end of `index.js`.
-- **A new `control_status` field** — add it to **both** the `lastControlStatus` default literal *and* the 2s rebuild. Only adding it to the rebuild leaves a window at startup where consumers see `undefined`; only adding it to the default means it never updates.
+- **A new `control_status` field** — add it to `compose()` in `lib/server/control-status.js`. That one function builds both the startup seed and every 2s rebuild, so the two can't drift; `tests/control-status-shape.test.js` pins that their key sets match.
 - **Anything reached from `obs.getStatus()`** must stay synchronous — it runs every 2 seconds.
