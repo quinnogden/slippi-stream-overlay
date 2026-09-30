@@ -3,14 +3,14 @@
  *
  * Auto-detected when a game has 4 active players with teamId assigned in the
  * .slp and TSH team 1 has more than one player slot. Games end through the
- * shared singles path — see modes/singles.js#onGameEndStandard.
+ * shared handler in game-end.js.
  */
 
-const { warnIfFailed } = require("../log");
 const { resolveCharacter } = require("../char_map");
 const {
   groupByTeamId,
   buildPlayersDoubles,
+  pushTeamColors,
   syncNames,
 } = require("../players");
 
@@ -40,8 +40,8 @@ function createDoubles(ctx) {
   function onGameStart(sorted, tshState, { fromScratch = false } = {}) {
     const groups     = groupByTeamId(sorted);
     const { t1, t2 } = tsh.getTeamInfos(tshState);
-    const t1Names    = tshState ? tsh.getTeamPlayerNames(tshState, 1) : [];
-    const t2Names    = tshState ? tsh.getTeamPlayerNames(tshState, 2) : [];
+    const t1Names    = tsh.getTeamPlayerNames(tshState, 1);
+    const t2Names    = tsh.getTeamPlayerNames(tshState, 2);
 
     if (!fromScratch) portMapper.resolveDoubles(groups, t1, t2, t1Names, t2Names);
 
@@ -70,9 +70,7 @@ function createDoubles(ctx) {
       teamColorMap: buildTeamColorMap(groups, players),
     };
 
-    for (const [tshTeamStr, color] of Object.entries(state.currentGameState.teamColorMap)) {
-      tsh.setTeamColor(Number(tshTeamStr), color).then(warnIfFailed("setTeamColor"));
-    }
+    pushTeamColors(tsh, state.currentGameState.teamColorMap);
 
     syncNames(ctx, players, tshState, { 1: t1Names, 2: t2Names });
 
@@ -83,37 +81,18 @@ function createDoubles(ctx) {
   /**
    * Build { [tshTeamNum]: hexColor } — used now and again by swapTeams.
    *
-   * When a resolved mapping exists (_portToTeam is set), resolveDoubles() assigned all
-   * ports in a Slippi group atomically, so the min-port player's teamNum is the group's.
-   *
-   * When no mapping exists (0-0 start + inconclusive character history), buildPlayersDoubles
-   * used index-based positional default (first 2 sorted ports → team 1). This does NOT align
-   * with Slippi groups when teamIds are interleaved (e.g. tid 0,1,0,1 across ports 0-3) —
-   * both groups' min ports land on team 1. In that case, replicate resolveDoubles' positional
-   * rule directly: the Slippi group with the lower minimum port → TSH team 1.
+   * By the time this runs a group mapping always exists (onGameStart falls back
+   * to applyDoublesPositional), and every mapper path assigns a Slippi group's
+   * ports atomically — so any one player's teamNum is the whole group's. Empty
+   * only when Slippi didn't report exactly two teams, which isn't a 2v2.
    */
   function buildTeamColorMap(groups, players) {
     const teamColorMap = {};
-    const colorGroupEntries = Object.entries(groups)
-      .filter(([tidStr]) => MELEE_TEAM_COLORS[Number(tidStr)]);
-
-    if (portMapper.hasMapping()) {
-      // Resolved mapping: all ports in a group share the same TSH team — use min-port player.
-      for (const [tidStr, groupPlayers] of colorGroupEntries) {
-        const tid = Number(tidStr);
-        const minPortPlayer = groupPlayers.reduce((a, b) => a.playerIndex < b.playerIndex ? a : b);
-        const tshTeam = players[minPortPlayer.playerIndex]?.teamNum;
-        if (tshTeam) teamColorMap[tshTeam] = MELEE_TEAM_COLORS[tid];
-      }
-    } else if (colorGroupEntries.length >= 2) {
-      // No resolved mapping: positional default — lower min-port Slippi group → TSH team 1.
-      const ranked = colorGroupEntries
-        .map(([tidStr, gp]) => ({ tid: Number(tidStr), minPort: Math.min(...gp.map((r) => r.playerIndex)) }))
-        .sort((a, b) => a.minPort - b.minPort);
-      teamColorMap[1] = MELEE_TEAM_COLORS[ranked[0].tid];
-      teamColorMap[2] = MELEE_TEAM_COLORS[ranked[1].tid];
+    for (const [tidStr, groupPlayers] of Object.entries(groups)) {
+      const color   = MELEE_TEAM_COLORS[Number(tidStr)];
+      const tshTeam = players[groupPlayers[0].playerIndex]?.teamNum;
+      if (color && tshTeam && portMapper.hasMapping()) teamColorMap[tshTeam] = color;
     }
-
     return teamColorMap;
   }
 

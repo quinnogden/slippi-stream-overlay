@@ -88,8 +88,8 @@ registerRoutes(app, {
   tsh: ctx.tsh,
   clipperSettings,
   obs: ctx.obs,
-  state: ctx.state,
   refreshControlStatus: controlStatus.refresh,
+  clipperSnapshot: controlStatus.clipperSnapshot,
   reportCurrentSet,
   startCurrentSet,
   switchBracket: bracketSwitch.switchBracket,
@@ -108,7 +108,7 @@ io.on("connection", (socket) => {
 });
 
 // Push status to any connected control panel every 2s.
-setInterval(() => { controlStatus.refresh().catch(() => {}); }, 2000);
+setInterval(controlStatus.refresh, 2000);
 
 const hotkeyMode = installHotkey(swapTeams);
 

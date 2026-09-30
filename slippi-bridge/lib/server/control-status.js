@@ -9,6 +9,22 @@ const { evaluateReportability } = require("./report-set");
 const { evaluateStartability }  = require("./start-set");
 
 /**
+ * The Current Set card before anything is known about the loaded set.
+ * @param {string|null} reason — shown in place of both buttons' hints
+ */
+function emptyCurrentSet(reason) {
+  return {
+    setId: null,
+    scores: { team1: 0, team2: 0 },
+    teamNames: { team1: "", team2: "" },
+    canReport: false,
+    reason,
+    canStart: false,
+    startReason: reason,
+  };
+}
+
+/**
  * @param {object} ctx
  * @param {Function} reresolvePorts — modes.reresolvePorts, the ↻ Re-detect Players
  *   path. Passed in rather than late-bound: createModes(ctx) needs nothing this
@@ -17,32 +33,43 @@ const { evaluateStartability }  = require("./start-set");
 function createControlStatus(ctx, reresolvePorts) {
   const { config, tsh, portMapper, startgg, clipperSettings, obs, io, state } = ctx;
 
-  state.lastControlStatus = {
-    tsh: false,
-    slippi: false,
-    slippiDetail: { connected: false },
-    portMapping: { method: "positional", ports: [] },
-    tshSwapped: null,
-    currentSet: {
-      setId: null,
-      scores: { team1: 0, team2: 0 },
-      teamNames: { team1: "", team2: "" },
-      canReport: false,
-      reason: "starting up",
-      canStart: false,
-      startReason: "starting up",
-    },
-    tournament: { name: "", eventName: "" },
-    shortLink: config.BRACKETS?.shortLink ?? "",
-    startggEnabled: startgg.enabled,
-    clipper: {
+  /** The clipper block — also served on its own by GET /api/clipper. */
+  function clipperSnapshot() {
+    return {
       settings: clipperSettings.get(),
       obs: obs.getStatus(),
-      recentClips: [],
-      clipsThisGame: 0,
-    },
-    ts: 0,
-  };
+      recentClips: state.recentClips,
+      clipsThisGame: state.clipsThisGame,
+    };
+  }
+
+  /**
+   * The whole control_status object. The one place its shape is written, so the
+   * startup seed and the 2s rebuild can't disagree about which fields exist.
+   */
+  function compose({ tshUp, currentSet, tournament }) {
+    const src = state.source?.getStatus?.() ?? { connected: false };
+    return {
+      tsh: tshUp,
+      slippi: Boolean(src.connected),
+      slippiDetail: src,
+      portMapping: portMapper.getResolutionInfo(),
+      tshSwapped: state.tshSwapped,
+      currentSet,
+      tournament,
+      shortLink: config.BRACKETS?.shortLink ?? "",
+      startggEnabled: startgg.enabled,
+      clipper: clipperSnapshot(),
+      ts: Date.now(),
+    };
+  }
+
+  // Seeded so a panel that connects before the first tick still gets every field.
+  state.lastControlStatus = compose({
+    tshUp: false,
+    currentSet: emptyCurrentSet("starting up"),
+    tournament: { name: "", eventName: "" },
+  });
 
   /**
    * React to the scoreboard's sides being swapped in TSH.
@@ -75,26 +102,19 @@ function createControlStatus(ctx, reresolvePorts) {
       g.winnerTeam = g.winnerTeam === 1 ? 2 : 1;
     }
 
-    const redone = reresolvePorts("Scoreboard sides switched");
+    const redone = reresolvePorts("Scoreboard sides switched", tshState);
     if (redone.ok) {
       console.log(`[bridge] Re-detected ports after swap (${redone.method}): ${redone.summary}`);
       return;
     }
 
-    // Between games there is nothing to re-push or re-emit, so the re-detect
-    // declines. Follow the names across instead: it keeps the mapping meaningful
+    // The re-detect only declines between games (it is handed the state, so it
+    // can't fail to read it), and then there is nothing live to re-push or
+    // re-emit. Follow the names across instead: it keeps the mapping meaningful
     // for the next game start, which is the only thing that can use it now.
     console.log(`[bridge] Swap re-detect declined (${redone.error}); matching names instead`);
     const { t1, t2 } = tsh.getTeamInfos(tshState);
     portMapper.resolve(t1, t2);
-
-    if (!state.currentGameState?.players) return;
-
-    for (const p of Object.values(state.currentGameState.players)) {
-      p.teamNum = portMapper.getTeam(p.playerIndex, p.teamNum);
-    }
-    io.emit("slippi_game_start", state.currentGameState);
-    console.log("[bridge] Re-derived port mapping after TSH-side swap");
   }
 
   /**
@@ -116,22 +136,17 @@ function createControlStatus(ctx, reresolvePorts) {
   async function build() {
     const { up: tshUp, swap } = await probeTsh();
 
-    let currentSet = {
-      setId: null,
-      scores: { team1: 0, team2: 0 },
-      teamNames: { team1: "", team2: "" },
-      canReport: false,
-      reason: tshUp ? null : "TSH not reachable",
-      canStart: false,
-      startReason: tshUp ? null : "TSH not reachable",
-    };
+    let currentSet = emptyCurrentSet(tshUp ? null : "TSH not reachable");
     // What TSH's provider actually loaded. Filled from the state read below, so
     // surfacing it costs the tick no extra round-trip.
     let tournament = { name: "", eventName: "" };
 
     if (tshUp) {
-      try {
-        const tshState = tsh.readState();
+      const read = tsh.tryReadState();
+      if (!read.ok) {
+        currentSet = emptyCurrentSet("TSH state unreadable");
+      } else {
+        const tshState = read.state;
         const setId    = tsh.getSetId(tshState);
         const { t1, t2 } = tsh.getTeamInfos(tshState);
         const { canReport, reason } = evaluateReportability(ctx, setId);
@@ -140,7 +155,7 @@ function createControlStatus(ctx, reresolvePorts) {
         const startable = evaluateStartability(ctx, setId);
         currentSet = {
           setId,
-          scores: tsh.getLiveScores(tshState),
+          scores: { team1: t1.score, team2: t2.score },
           teamNames: { team1: t1.name, team2: t2.name },
           canReport,
           reason,
@@ -152,7 +167,7 @@ function createControlStatus(ctx, reresolvePorts) {
         if (swap.ok) {
           if (state.tshSwapped !== null && swap.data !== state.tshSwapped) {
             console.log(`[bridge] TSH Swap Teams detected (swapped=${swap.data})`);
-            // Isolated so a re-derive failure can't be reported as unreadable state.
+            // Isolated so a re-derive failure can't take the whole tick down.
             try {
               handleTshSwap(tshState);
             } catch (e) {
@@ -161,47 +176,36 @@ function createControlStatus(ctx, reresolvePorts) {
           }
           state.tshSwapped = swap.data;
         }
-      } catch {
-        currentSet.reason = "TSH state unreadable";
-        currentSet.startReason = "TSH state unreadable";
       }
     }
 
-    const src = state.source?.getStatus?.() ?? { connected: false };
-    state.lastControlStatus = {
-      tsh: tshUp,
-      slippi: Boolean(src.connected),
-      slippiDetail: src,
-      portMapping: portMapper.getResolutionInfo(),
-      tshSwapped: state.tshSwapped,
-      currentSet,
-      tournament,
-      shortLink: config.BRACKETS?.shortLink ?? "",
-      startggEnabled: startgg.enabled,
-      clipper: {
-        settings: clipperSettings.get(),
-        obs: obs.getStatus(),
-        recentClips: state.recentClips,
-        clipsThisGame: state.clipsThisGame,
-      },
-      ts: Date.now(),
-    };
+    state.lastControlStatus = compose({ tshUp, currentSet, tournament });
     io.emit("control_status", state.lastControlStatus);
     return state.lastControlStatus;
   }
 
-  // Eight call sites ask for a refresh — several of them in a burst when the
+  // Many call sites ask for a refresh — several of them in a burst when the
   // operator clicks through the panel. Without this, each click multiplies the
   // TSH round-trips; with it, concurrent callers share one in-flight rebuild.
   let inFlight = null;
 
+  /**
+   * Rebuild and broadcast. Never rejects — every caller is fire-and-forget, so a
+   * failed rebuild resolves to the last good status instead.
+   * @returns {Promise<object>}
+   */
   function refresh() {
     if (inFlight) return inFlight;
-    inFlight = build().finally(() => { inFlight = null; });
+    inFlight = build()
+      .catch((e) => {
+        console.warn(`[bridge] Status refresh failed: ${e.message}`);
+        return state.lastControlStatus;
+      })
+      .finally(() => { inFlight = null; });
     return inFlight;
   }
 
-  return { refresh, handleTshSwap };
+  return { refresh, handleTshSwap, clipperSnapshot };
 }
 
-module.exports = { createControlStatus };
+module.exports = { createControlStatus, emptyCurrentSet };

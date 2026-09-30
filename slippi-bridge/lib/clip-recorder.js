@@ -6,6 +6,7 @@
  */
 
 const path = require("path");
+const { teamOfPort } = require("./players");
 
 /** How many recent clips the panel can show after being reopened mid-set. */
 const RECENT_CLIPS_MAX = 10;
@@ -20,10 +21,7 @@ function createClipRecorder(ctx, refreshControlStatus) {
   /** Who threw the combo, in the operator's terms rather than a port number. */
   function describeAttacker(playerIndex) {
     if (playerIndex == null) return { name: "", teamNum: null };
-    const teamNum = state.currentGameState?.players?.[playerIndex]?.teamNum
-      ?? portMapper.getTeam(playerIndex, null);
-    const name = portMapper.getPortName(playerIndex) || "";
-    return { name, teamNum };
+    return { name: portMapper.getPortName(playerIndex) || "", teamNum: teamOfPort(ctx, playerIndex) };
   }
 
   /**
@@ -101,7 +99,7 @@ function createClipRecorder(ctx, refreshControlStatus) {
       io.emit("slippi_clip_error", clip);
     }
 
-    refreshControlStatus().catch(() => {});
+    refreshControlStatus();
     return clip;
   }
 

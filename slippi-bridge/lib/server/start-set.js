@@ -10,6 +10,8 @@
  * and the operator is looking at this card when they load the set anyway.
  */
 
+const { startggSetGate, loadedSetId } = require("./set-gate");
+
 // start.gg set states. 1 = created, 6 = called to station: both mean "hasn't
 // started", which is exactly when the button applies. 2 = in progress, 3 = done.
 const NOT_STARTED = new Set([1, 6]);
@@ -65,13 +67,8 @@ function ensureState(startgg, setId) {
  * @returns {{ canStart: boolean, reason: string|null }}
  */
 function evaluateStartability({ startgg }, setId) {
-  if (!startgg.enabled)        return { canStart: false, reason: "start.gg token not configured" };
-  if (setId == null)           return { canStart: false, reason: "No start.gg set loaded (manual/exhibition)" };
-  // A "preview" id belongs to a set start.gg hasn't created yet (the phase isn't
-  // seeded), so there is nothing to mark in progress.
-  if (String(setId).includes("preview")) {
-    return { canStart: false, reason: "Set doesn't exist on start.gg yet" };
-  }
+  const gated = startggSetGate(startgg, setId);
+  if (gated) return { canStart: false, reason: gated };
 
   const key = String(setId);
   ensureState(startgg, key);
@@ -96,11 +93,9 @@ function createStartSet(ctx, refreshControlStatus) {
    * @returns {Promise<{ ok: boolean, state?: number, error?: string }>}
    */
   async function startCurrentSet() {
-    let tshState;
-    try { tshState = tsh.readState(); }
-    catch { return { ok: false, error: "Cannot read TSH state" }; }
-
-    const setId = tsh.getSetId(tshState);
+    const loaded = loadedSetId(tsh);
+    if (!loaded.ok) return loaded;
+    const { setId } = loaded;
     const { canStart, reason } = evaluateStartability(ctx, setId);
     if (!canStart) return { ok: false, error: reason };
 
@@ -114,7 +109,7 @@ function createStartSet(ctx, refreshControlStatus) {
     }
 
     cache = { setId: String(setId), state: result.state ?? 2, error: null, pending: false };
-    refreshControlStatus().catch(() => {});
+    refreshControlStatus();
     return result;
   }
 

@@ -15,8 +15,9 @@
 function createState() {
   return {
     // ── Live game ──────────────────────────────────────────────────────────────
-    // Written by modes/{singles,doubles}, swap.js and control-status.js
-    // (on a TSH-side swap). Read by the io connection handler and clip-recorder.
+    // Written by modes/{singles,doubles,game-end} (reresolvePorts reruns the
+    // first two, including on a TSH-side swap) and swap.js. Read by the io
+    // connection handler, clip-recorder and players.teamOfPort.
     currentGameState: null,
 
     // The raw slippi-js player records for the live game, sorted by port.

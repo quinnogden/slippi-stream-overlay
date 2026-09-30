@@ -11,11 +11,21 @@ const { resolveCharacter } = require("./char_map");
 const { warnIfFailed }     = require("./log");
 
 /**
+ * The ports actually in the game. slippi-js getSettings().players keeps an
+ * entry per port, with null / characterless placeholders for empty ones.
+ * @param {Array|null|undefined} rawPlayers
+ * @returns {Array}
+ */
+function activePlayers(rawPlayers) {
+  return (rawPlayers ?? []).filter((p) => p != null && p.characterId != null);
+}
+
+/**
  * Returns true when rawPlayers represents a doubles game (4 active players
  * with teamId assigned by Slippi).
  */
 function isDoubles(rawPlayers) {
-  const active = rawPlayers.filter((p) => p != null && p.characterId != null);
+  const active = activePlayers(rawPlayers);
   return active.length === 4 && active.some((p) => p.teamId != null);
 }
 
@@ -104,6 +114,44 @@ function resolvePorts(ctx, sorted, tshState, t1Info, t2Info, { fromScratch = fal
   }
 }
 
+/**
+ * The TSH column a port is playing for right now.
+ *
+ * The live game's players are the authority: they carry a team even when the
+ * mapper's _portToTeam is null (the singles positional default is applied
+ * locally, not persisted). The mapper covers the gap after the live game has
+ * been cleared.
+ * @param {object} ctx — { state, portMapper }
+ * @param {number} port
+ * @returns {number|null}
+ */
+function teamOfPort(ctx, port) {
+  return ctx.state.currentGameState?.players?.[port]?.teamNum
+    ?? ctx.portMapper.getTeam(port, null);
+}
+
+/**
+ * Re-read every live player's team from the mapper after it changed under a
+ * running game (a manual swap). Keeps the player's current team where the
+ * mapper has no opinion.
+ * @param {object} ctx — { state, portMapper }
+ */
+function reapplyMapping(ctx) {
+  for (const p of Object.values(ctx.state.currentGameState?.players ?? {})) {
+    p.teamNum = ctx.portMapper.getTeam(p.playerIndex, p.teamNum);
+  }
+}
+
+/**
+ * Push a { [tshTeam]: hexColor } map to TSH. Fire-and-forget; missing colors
+ * are skipped.
+ */
+function pushTeamColors(tsh, colorMap, label = "setTeamColor") {
+  for (const [team, color] of Object.entries(colorMap ?? {})) {
+    if (color) tsh.setTeamColor(Number(team), color).then(warnIfFailed(label));
+  }
+}
+
 /** Push every player's character + costume to TSH. Fire-and-forget. */
 function pushCharacters(tsh, players, label = "setCharacter") {
   for (const p of Object.values(players)) {
@@ -124,11 +172,15 @@ function syncNames(ctx, players, tshState, names = null) {
 }
 
 module.exports = {
+  activePlayers,
   isDoubles,
   groupByTeamId,
   buildPlayersSingles,
   buildPlayersDoubles,
   resolvePorts,
   pushCharacters,
+  pushTeamColors,
   syncNames,
+  teamOfPort,
+  reapplyMapping,
 };

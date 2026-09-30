@@ -22,7 +22,7 @@
  *
  * Auth is a start.gg "personal access token" (config.STARTGG_TOKEN, supplied
  * via the gitignored config.local.js). When no token is set, `enabled` is false
- * and every GraphQL method short-circuits — the rest of the bridge is
+ * and _gql() short-circuits every GraphQL method — the rest of the bridge is
  * unaffected, and the short-link resolve still works.
  */
 
@@ -110,9 +110,6 @@ class StartggClient {
    * @returns {Promise<{ ok: boolean, state?: number, error?: string }>}
    */
   async reportSet(setId, winnerEntrantId, gameData) {
-    if (!this.enabled) {
-      return { ok: false, error: "start.gg token not configured" };
-    }
     if (setId == null || winnerEntrantId == null) {
       return { ok: false, error: "reportSet requires both a set id and a winner entrant id" };
     }
@@ -137,10 +134,11 @@ class StartggClient {
   /**
    * One GraphQL round-trip against start.gg.
    *
-   * Both callers post to the same endpoint with the same headers and timeout,
-   * and have to handle the same three failure modes — a rejected token, the rate
-   * limit, and GraphQL's habit of returning HTTP 200 with an `errors` array on
-   * logical failures (set not in a reportable state, insufficient permission).
+   * Every GraphQL method posts to the same endpoint with the same headers and
+   * timeout, and has to handle the same failure modes — no token at all, a
+   * rejected token, the rate limit, and GraphQL's habit of returning HTTP 200
+   * with an `errors` array on logical failures (set not in a reportable state,
+   * insufficient permission). So the token gate lives here too, once.
    *
    * @param {string} query
    * @param {object} variables
@@ -148,6 +146,8 @@ class StartggClient {
    * @returns {Promise<{ ok: boolean, data?: object, error?: string }>}
    */
   async _gql(query, variables, errorPrefix) {
+    if (!this.enabled) return { ok: false, error: "start.gg token not configured" };
+
     let res;
     try {
       res = await axios.post(
@@ -188,10 +188,6 @@ class StartggClient {
    * @returns {Promise<{ ok: boolean, entrants?: { 1?: { id: string, name: string }, 2?: { id: string, name: string } }, error?: string }>}
    */
   async getSetEntrants(setId) {
-    if (!this.enabled) {
-      return { ok: false, error: "start.gg token not configured" };
-    }
-
     const res = await this._gql(SET_ENTRANTS_QUERY, { setId: String(setId) });
     if (!res.ok) return res;
 
@@ -221,8 +217,6 @@ class StartggClient {
    * @returns {Promise<{ ok: boolean, state?: number, error?: string }>}
    */
   async getSetState(setId) {
-    if (!this.enabled) return { ok: false, error: "start.gg token not configured" };
-
     const res = await this._gql(SET_STATE_QUERY, { setId: String(setId) });
     if (!res.ok) return res;
 
@@ -244,7 +238,6 @@ class StartggClient {
    * @returns {Promise<{ ok: boolean, state?: number, error?: string }>}
    */
   async startSet(setId) {
-    if (!this.enabled) return { ok: false, error: "start.gg token not configured" };
     if (setId == null) return { ok: false, error: "startSet requires a set id" };
 
     const res = await this._gql(START_SET_MUTATION, { setId: String(setId) },
@@ -326,10 +319,6 @@ class StartggClient {
    * @returns {Promise<{ ok: boolean, name?: string, events?: Array<{id: string, name: string, slug: string}>, error?: string }>}
    */
   async listEvents(tournamentSlug) {
-    if (!this.enabled) {
-      return { ok: false, error: "start.gg token not configured" };
-    }
-
     const res = await this._gql(TOURNAMENT_EVENTS_QUERY, { slug: String(tournamentSlug) });
     if (!res.ok) return res;
 

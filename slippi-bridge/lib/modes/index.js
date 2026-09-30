@@ -7,15 +7,17 @@
  */
 
 const { resolveStage } = require("../char_map");
-const { isDoubles }    = require("../players");
+const { activePlayers, isDoubles } = require("../players");
 const { createSingles } = require("./singles");
 const { createDoubles } = require("./doubles");
+const { createGameEnd } = require("./game-end");
 
 function createModes(ctx) {
   const { tsh, state, portMapper } = ctx;
 
   const singles = createSingles(ctx);
   const doubles = createDoubles(ctx);
+  const { onGameEnd } = createGameEnd(ctx);
 
   /**
    * Pick the mode for a set of players and run its game-start path.
@@ -61,19 +63,15 @@ function createModes(ctx) {
    */
   function onGameStart(rawPlayers, stageId = null) {
     // Read TSH state once; all downstream calls receive data, not file handles.
-    let tshState = null;
-    try {
-      tshState = tsh.readState();
-    } catch (e) {
-      console.warn(e.message);
-    }
+    // A failed read still starts the game — positionally, with no names.
+    const read = tsh.tryReadState();
+    if (!read.ok) console.warn(read.error);
+    const tshState = read.ok ? read.state : null;
 
     syncSetTracking(tshState);
     state.clipsThisGame = 0;
 
-    const sorted = rawPlayers
-      .filter((p) => p != null && p.characterId != null)
-      .sort((a, b) => a.playerIndex - b.playerIndex);
+    const sorted = activePlayers(rawPlayers).sort((a, b) => a.playerIndex - b.playerIndex);
 
     if (sorted.length < 2) {
       console.warn("[bridge] Fewer than 2 players found; skipping game start");
@@ -87,14 +85,6 @@ function createModes(ctx) {
     dispatchGameStart(sorted, rawPlayers, tshState);
 
     reportStage(stageId);
-  }
-
-  /**
-   * Called by the game source when a game ends.
-   * @param {{ winnerPlayerIndex: number|null, isHandwarmer: boolean }} event
-   */
-  function onGameEnd(event) {
-    singles.onGameEndStandard(event);
   }
 
   /**
@@ -124,20 +114,21 @@ function createModes(ctx) {
    *
    * @param {string} [reason] — logged with the reset, so the operator's console
    *   says which of the two triggered it
+   * @param {object} [tshState] — an already-read program_state.json; the swap
+   *   handler has one from the same tick, so there's no second read
    * @returns {{ ok: boolean, error?: string, mode?: string, method?: string,
    *             ports?: Array, summary?: string }}
    */
-  function reresolvePorts(reason = "Operator pressed Re-detect Players") {
+  function reresolvePorts(reason = "Operator pressed Re-detect Players", tshState = null) {
     const sorted = state.currentRawPlayers;
     if (!sorted || !state.currentGameState) {
       return { ok: false, error: "No game in progress — the next game start will re-derive on its own" };
     }
 
-    let tshState;
-    try {
-      tshState = tsh.readState();
-    } catch (e) {
-      return { ok: false, error: e.message };
+    if (!tshState) {
+      const read = tsh.tryReadState();
+      if (!read.ok) return { ok: false, error: read.error };
+      tshState = read.state;
     }
 
     portMapper.reset(reason);

@@ -17,7 +17,11 @@
  *     Duration < 60s                     → +1  (if startStocks > 2)
  */
 
-const LRAS_METHOD = 7; // GameEndMethod.NO_CONTEST
+const { GameEndMethod } = require("@slippi/slippi-js");
+const { activePlayers } = require("./players");
+
+// LRAS (L+R+A+Start) ends a game as NO_CONTEST — value 7.
+const LRAS_METHOD = GameEndMethod.NO_CONTEST;
 
 /**
  * @param {import("@slippi/slippi-js").SlippiGame} game
@@ -30,10 +34,8 @@ function wasHandwarmer(game) {
 
   // Detect doubles: 4 active players. Some checks (kill count) are unreliable
   // for 4-player stat computation in slippi-js, so they are guarded below.
-  const activePlayers = (settings?.players ?? []).filter(
-    (p) => p != null && p.characterId != null
-  );
-  const isDoublesGame = activePlayers.length > 2;
+  const active = activePlayers(settings?.players);
+  const isDoublesGame = active.length > 2;
 
   let score = 0;
   const logLines = [];
@@ -44,7 +46,7 @@ function wasHandwarmer(game) {
   const lastFrame   = game.getLatestFrame();
   const metadata    = game.getMetadata();
 
-  logLines.push(`mode=${isDoublesGame ? "doubles" : "singles"} players=${activePlayers.length}`);
+  logLines.push(`mode=${isDoublesGame ? "doubles" : "singles"} players=${active.length}`);
 
   // ── Guard: can't score without damage stats ───────────────────────────────
   if (!stats?.overall?.length) {

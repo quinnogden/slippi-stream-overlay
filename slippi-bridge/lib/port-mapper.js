@@ -89,10 +89,16 @@ class PortMapper {
    * still belongs to the *previous* set, and name matching against stale names
    * either matches nothing or matches confidently and wrongly. Clearing is the
    * only honest starting point — see modes/index.js#reresolvePorts.
+   *
+   * Also how a new set (0-0) or a wholesale name change forgets the old one.
    * @param {string} reason — logged, so the operator can see why sides moved
    */
   reset(reason) {
-    this._reset(reason);
+    console.log(`[bridge] ${reason}; resetting port-team mapping`);
+    this._portToTeam       = null;
+    this._portToName       = {};
+    this._portScore        = {};
+    this._resolutionMethod = null;
   }
 
   /**
@@ -109,15 +115,16 @@ class PortMapper {
   }
 
   /**
-   * Forget everything and fall back to positional assignment on the next game.
-   * @param {string} reason — logged, so the operator can see why sides moved
+   * The one writer of _portToTeam, so the mapping and the heuristic that chose
+   * it (shown in the control panel) can never disagree.
+   * @param {{ [port: number]: number }} mapping
+   * @param {'name'|'score'|'character'|'positional'|'manual'} method
    */
-  _reset(reason) {
-    console.log(`[bridge] ${reason}; resetting port-team mapping`);
-    this._portToTeam       = null;
-    this._portToName       = {};
-    this._portScore        = {};
-    this._resolutionMethod = null;
+  _setMapping(mapping, method) {
+    const changed = !sameMapping(this._portToTeam, mapping);
+    this._portToTeam       = mapping;
+    this._resolutionMethod = method;
+    if (changed) console.log(`[bridge] Resolved port→team (${method}):`, JSON.stringify(mapping));
   }
 
   /** True when any mapping state has been accumulated. */
@@ -134,7 +141,7 @@ class PortMapper {
   resolve(t1, t2) {
     // ── Reset on 0-0 (new set) ──────────────────────────────────────────────
     if (t1.score === 0 && t2.score === 0) {
-      if (this._hasState()) this._reset("Scores are 0-0");
+      if (this._hasState()) this.reset("Scores are 0-0");
       return;
     }
 
@@ -150,7 +157,7 @@ class PortMapper {
     const anyNameMatch = storedNames.some((n) => n && currentNames.includes(n));
 
     if (storedNames.some((n) => n) && currentNames.length > 0 && !anyNameMatch) {
-      this._reset("Player names completely changed");
+      this.reset("Player names completely changed");
       return;
     }
 
@@ -165,20 +172,17 @@ class PortMapper {
     }
 
     // ── Fallback: score-based matching ────────────────────────────────────────
+    // Only decisive when exactly one orientation fits (a tied score fits both).
     if (Object.keys(newMapping).length < ports.length && ports.length === 2) {
       const [portA, portB] = ports;
       const scoreA = this._portScore[portA] ?? 0;
       const scoreB = this._portScore[portB] ?? 0;
-      const assignAto1 = scoreA === t1.score && scoreB === t2.score;
-      const assignAto2 = scoreA === t2.score && scoreB === t1.score;
-      if (assignAto1 && !assignAto2) {
-        newMapping = { [portA]: 1, [portB]: 2 };
+      const aIs1 = scoreA === t1.score && scoreB === t2.score;
+      const aIs2 = scoreA === t2.score && scoreB === t1.score;
+      if (aIs1 !== aIs2) {
+        const teamA = aIs1 ? 1 : 2;
+        newMapping = { [portA]: teamA, [portB]: 3 - teamA };
         method = "score";
-        console.log("[bridge] Score-based mapping: port", portA, "→ team 1, port", portB, "→ team 2");
-      } else if (assignAto2 && !assignAto1) {
-        newMapping = { [portA]: 2, [portB]: 1 };
-        method = "score";
-        console.log("[bridge] Score-based mapping: port", portA, "→ team 2, port", portB, "→ team 1");
       }
     }
 
@@ -192,12 +196,7 @@ class PortMapper {
     // ── Validate and apply ────────────────────────────────────────────────────
     const teams = Object.values(newMapping);
     if (teams.length === 2 && new Set(teams).size === 2) {
-      const changed = !sameMapping(this._portToTeam, newMapping);
-      this._portToTeam = newMapping;
-      this._resolutionMethod = method;
-      if (changed) {
-        console.log("[bridge] Resolved port→team:", JSON.stringify(this._portToTeam));
-      }
+      this._setMapping(newMapping, method);
     }
   }
 
@@ -246,12 +245,7 @@ class PortMapper {
     if (portBTeam !== null && portATeam === null) portATeam = portBTeam === 1 ? 2 : 1;
 
     if (portATeam !== null && portBTeam !== null && portATeam !== portBTeam) {
-      this._portToTeam = { [rawA.playerIndex]: portATeam, [rawB.playerIndex]: portBTeam };
-      this._resolutionMethod = "character";
-      console.log(
-        `[bridge] Character history match → port ${rawA.playerIndex}→team ${portATeam},`,
-        `port ${rawB.playerIndex}→team ${portBTeam}`
-      );
+      this._setMapping({ [rawA.playerIndex]: portATeam, [rawB.playerIndex]: portBTeam }, "character");
     } else {
       console.log("[bridge] Character history inconclusive — using positional default");
     }
@@ -302,9 +296,8 @@ class PortMapper {
     }
 
     const groupATeam = scoreAis1 > scoreAis2 ? 1 : 2;
-    const groupBTeam = groupATeam === 1 ? 2 : 1;
-    this._applyGroupMapping(groups, tidA, groupATeam, tidB, groupBTeam);
-    this._resolutionMethod = "character";
+    const groupBTeam = 3 - groupATeam;
+    this._applyGroupMapping(groups, tidA, groupATeam, tidB, groupBTeam, "character");
     console.log(`[bridge] Doubles character history → slippi team ${tidA}→TSH team ${groupATeam},`,
       `slippi team ${tidB}→TSH team ${groupBTeam}`);
   }
@@ -321,7 +314,7 @@ class PortMapper {
   resolveDoubles(groups, t1, t2, t1Names, t2Names) {
     // ── Reset on 0-0 ────────────────────────────────────────────────────────
     if (t1.score === 0 && t2.score === 0) {
-      if (this._hasState()) this._reset("Scores are 0-0 (doubles)");
+      if (this._hasState()) this.reset("Scores are 0-0 (doubles)");
       return;
     }
 
@@ -345,9 +338,7 @@ class PortMapper {
     }
 
     if (groupATeam !== null) {
-      const groupBTeam = groupATeam === 1 ? 2 : 1;
-      this._applyGroupMapping(groups, tidA, groupATeam, tidB, groupBTeam);
-      this._resolutionMethod = "name";
+      this._applyGroupMapping(groups, tidA, groupATeam, tidB, 3 - groupATeam, "name");
       console.log(`[bridge] Doubles name match → slippi team ${tidA}→TSH team ${groupATeam}`);
       return;
     }
@@ -359,16 +350,10 @@ class PortMapper {
     const winsB = sumWins(tidB);
     const aIs1 = winsA === t1.score && winsB === t2.score;
     const aIs2 = winsA === t2.score && winsB === t1.score;
-    if (aIs1 && !aIs2) {
-      this._applyGroupMapping(groups, tidA, 1, tidB, 2);
-      this._resolutionMethod = "score";
-      console.log(`[bridge] Doubles score match → slippi team ${tidA}→TSH team 1`);
-      return;
-    }
-    if (aIs2 && !aIs1) {
-      this._applyGroupMapping(groups, tidA, 2, tidB, 1);
-      this._resolutionMethod = "score";
-      console.log(`[bridge] Doubles score match → slippi team ${tidA}→TSH team 2`);
+    if (aIs1 !== aIs2) {
+      const teamA = aIs1 ? 1 : 2;
+      this._applyGroupMapping(groups, tidA, teamA, tidB, 3 - teamA, "score");
+      console.log(`[bridge] Doubles score match → slippi team ${tidA}→TSH team ${teamA}`);
       return;
     }
 
@@ -382,7 +367,7 @@ class PortMapper {
    * neither name/score matching nor character history can determine the mapping.
    *
    * This is also called in resolveDoubles() as its final fallback. It exists as
-   * a standalone method so onGameStartDoubles can call it at 0-0 (where
+   * a standalone method so modes/doubles.js can call it at 0-0 (where
    * resolveDoubles returns early after resetting) when tryCharacterBasedDoubles
    * is inconclusive. Without this, buildPlayersDoubles falls back to an
    * index-based positional (first 2 sorted ports = team 1) which is wrong when
@@ -398,19 +383,16 @@ class PortMapper {
     const minB = Math.min(...groups[tidB].map((r) => r.playerIndex));
     const lowerTid = minA < minB ? tidA : tidB;
     const higherTid = lowerTid === tidA ? tidB : tidA;
-    this._applyGroupMapping(groups, lowerTid, 1, higherTid, 2);
-    this._resolutionMethod = "positional";
+    this._applyGroupMapping(groups, lowerTid, 1, higherTid, 2, "positional");
     console.log(`[bridge] Doubles positional default → slippi team ${lowerTid}→TSH team 1`);
   }
 
-  /** Internal: write group team assignments into _portToTeam. */
-  _applyGroupMapping(groups, tidA, teamA, tidB, teamB) {
+  /** Internal: assign every port of each Slippi group to its TSH team. */
+  _applyGroupMapping(groups, tidA, teamA, tidB, teamB, method) {
     const mapping = {};
     for (const raw of groups[tidA]) mapping[raw.playerIndex] = teamA;
     for (const raw of groups[tidB]) mapping[raw.playerIndex] = teamB;
-    const changed = !sameMapping(this._portToTeam, mapping);
-    this._portToTeam = mapping;
-    if (changed) console.log("[bridge] Resolved port→team (doubles):", JSON.stringify(this._portToTeam));
+    this._setMapping(mapping, method);
   }
 
   /**
@@ -485,7 +467,6 @@ class PortMapper {
     const newMapping = {};
     for (const port of byTeam[1] ?? []) newMapping[port] = 2;
     for (const port of byTeam[2] ?? []) newMapping[port] = 1;
-    this._portToTeam = newMapping;
 
     // Swap portToName between groups so name-based detection stays consistent
     const names1 = (byTeam[1] ?? []).map((p) => this._portToName[p] ?? "");
@@ -493,8 +474,8 @@ class PortMapper {
     (byTeam[1] ?? []).forEach((p, i) => { this._portToName[p] = names2[i] ?? ""; });
     (byTeam[2] ?? []).forEach((p, i) => { this._portToName[p] = names1[i] ?? ""; });
 
-    this._resolutionMethod = "manual";
-    console.log("[bridge] [S] Manual swap → port→team:", JSON.stringify(this._portToTeam));
+    console.log("[bridge] [S] Manual swap");
+    this._setMapping(newMapping, "manual");
     return true;
   }
 }

@@ -11,15 +11,15 @@ const path = require("path");
 /**
  * @param {import("express").Express} app
  * @param {object} deps — {
- *   publicDir, tsh, clipperSettings, obs, state,
- *   refreshControlStatus, reportCurrentSet, startCurrentSet, switchBracket,
+ *   publicDir, tsh, clipperSettings, obs,
+ *   refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet, switchBracket,
  *   swapTeams, reresolvePorts, recordClip
  * }
  */
 function registerRoutes(app, deps) {
   const {
-    publicDir, tsh, clipperSettings, obs, state,
-    refreshControlStatus, reportCurrentSet, startCurrentSet, switchBracket, swapTeams,
+    publicDir, tsh, clipperSettings, obs,
+    refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet, switchBracket, swapTeams,
     reresolvePorts, recordClip,
   } = deps;
 
@@ -39,7 +39,7 @@ function registerRoutes(app, deps) {
 
   app.post("/api/swap", (req, res) => {
     swapTeams();
-    refreshControlStatus().catch(() => {});
+    refreshControlStatus();
     res.json({ ok: true });
   });
 
@@ -47,7 +47,7 @@ function registerRoutes(app, deps) {
   // and characters — for when the set changed before the TO updated the names.
   app.post("/api/reresolve", (req, res) => {
     const result = reresolvePorts();
-    refreshControlStatus().catch(() => {});
+    refreshControlStatus();
     res.json(result);
   });
 
@@ -62,8 +62,8 @@ function registerRoutes(app, deps) {
   // for the sides to follow.
   app.post("/api/swap-sides", async (req, res) => {
     const result = await tsh.swapSides();
-    refreshControlStatus().catch(() => {});
-    if (result.ok) setTimeout(() => { refreshControlStatus().catch(() => {}); }, 400);
+    refreshControlStatus();
+    if (result.ok) setTimeout(refreshControlStatus, 400);
     res.json(result);
   });
 
@@ -81,7 +81,7 @@ function registerRoutes(app, deps) {
     const result = await tsh.loadSet(setId);
     // Push the new names/scores out now rather than on the next 2s tick, so the
     // panel's Current Set card matches what the operator just loaded.
-    if (result.ok) refreshControlStatus().catch(() => {});
+    if (result.ok) refreshControlStatus();
     res.json(result);
   });
 
@@ -107,13 +107,7 @@ function registerRoutes(app, deps) {
 
   // ── Combo clipper ───────────────────────────────────────────────────────────
   app.get("/api/clipper", (req, res) => {
-    res.json({
-      ok: true,
-      settings: clipperSettings.get(),
-      obs: obs.getStatus(),
-      recentClips: state.recentClips,
-      clipsThisGame: state.clipsThisGame,
-    });
+    res.json({ ok: true, ...clipperSnapshot() });
   });
 
   app.post("/api/clipper/settings", (req, res) => {
@@ -121,7 +115,7 @@ function registerRoutes(app, deps) {
     // Apply either way: save() returns ok:false when only the disk write failed,
     // and the operator's change should still take effect for this session.
     obs.applySettings();
-    refreshControlStatus().catch(() => {});
+    refreshControlStatus();
     res.json(result);
   });
 
@@ -132,7 +126,7 @@ function registerRoutes(app, deps) {
     }
     const result = clipperSettings.save({ enabled });
     obs.applySettings();
-    refreshControlStatus().catch(() => {});
+    refreshControlStatus();
     res.json(result);
   });
 

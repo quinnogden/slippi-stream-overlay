@@ -6,8 +6,7 @@
  * NOT press TSH's own Swap Teams button — that would move names and scores too.
  */
 
-const { warnIfFailed } = require("./log");
-const { pushCharacters } = require("./players");
+const { pushCharacters, pushTeamColors, reapplyMapping } = require("./players");
 
 function createSwap(ctx) {
   const { tsh, portMapper, io, state } = ctx;
@@ -20,29 +19,22 @@ function createSwap(ctx) {
       return;
     }
 
-    if (!state.currentGameState?.players) return;
+    const game = state.currentGameState;
+    if (!game?.players) return;
 
-    // Update teamNum in currentGameState to reflect the swap
-    for (const p of Object.values(state.currentGameState.players)) {
-      p.teamNum = portMapper.getTeam(p.playerIndex, p.teamNum);
-    }
+    reapplyMapping(ctx);
 
-    if (state.currentGameState.isDoubles) {
+    if (game.isDoubles) {
       // Doubles: swap the teamColorMap (team 1 ↔ team 2 colors) and re-push
-      const old = state.currentGameState.teamColorMap ?? {};
-      state.currentGameState.teamColorMap = { 1: old[2], 2: old[1] };
-      for (const [tshTeamStr, color] of Object.entries(state.currentGameState.teamColorMap)) {
-        if (!color) continue;
-        tsh.setTeamColor(Number(tshTeamStr), color).then(warnIfFailed("setTeamColor after swap"));
-      }
-      io.emit("slippi_game_start", state.currentGameState);
-      console.log("[bridge] Re-applied team colors after doubles swap");
+      const old = game.teamColorMap ?? {};
+      game.teamColorMap = { 1: old[2], 2: old[1] };
+      pushTeamColors(tsh, game.teamColorMap, "setTeamColor after swap");
     } else {
-      // Singles: re-push characters
-      pushCharacters(tsh, state.currentGameState.players, "setCharacter after swap");
-      io.emit("slippi_game_start", state.currentGameState);
-      console.log("[bridge] Re-applied characters after singles swap");
+      pushCharacters(tsh, game.players, "setCharacter after swap");
     }
+
+    io.emit("slippi_game_start", game);
+    console.log(`[bridge] Re-applied ${game.isDoubles ? "team colors" : "characters"} after swap`);
   };
 }
 

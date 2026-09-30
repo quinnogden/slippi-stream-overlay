@@ -3,7 +3,7 @@
  *
  * Pure logic: no I/O, no timers, no socket. It is handed a SlippiGame that is
  * still being written and answers "which conversions just finished and are worth
- * clipping". Rate limiting, delays and the OBS call all live in index.js, so
+ * clipping". Rate limiting, delays and the OBS call all live in clip-recorder.js, so
  * this module has no notion of wall-clock time and stays trivially testable
  * against a saved .slp.
  *

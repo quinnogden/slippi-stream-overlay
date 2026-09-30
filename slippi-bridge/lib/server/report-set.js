@@ -4,6 +4,8 @@
  * Manual-trigger only — the control panel two-step-confirms before POSTing.
  */
 
+const { startggSetGate, loadedSetId } = require("./set-gate");
+
 /**
  * Determine whether the current set can be reported, and why not if it can't.
  * Shared with the control-status loop, which surfaces `reason` in the panel.
@@ -12,10 +14,8 @@
  * @param {string|number|null} setId
  */
 function evaluateReportability({ startgg }, setId) {
-  if (!startgg.enabled)                  return { canReport: false, reason: "start.gg token not configured" };
-  if (setId == null)                     return { canReport: false, reason: "No start.gg set loaded (manual/exhibition)" };
-  if (String(setId).includes("preview")) return { canReport: false, reason: "Set hasn't started on start.gg yet" };
-  return { canReport: true, reason: null };
+  const reason = startggSetGate(startgg, setId);
+  return { canReport: reason === null, reason };
 }
 
 /**
@@ -60,11 +60,9 @@ function createReportSet(ctx, refreshControlStatus) {
    * @returns {Promise<{ ok: boolean, winnerName?: string, score?: string, error?: string }>}
    */
   async function reportCurrentSet() {
-    let tshState;
-    try { tshState = tsh.readState(); }
-    catch { return { ok: false, error: "Cannot read TSH state" }; }
-
-    const setId = tsh.getSetId(tshState);
+    const loaded = loadedSetId(tsh);
+    if (!loaded.ok) return loaded;
+    const { setId, state: tshState } = loaded;
     const { canReport, reason } = evaluateReportability(ctx, setId);
     if (!canReport) return { ok: false, error: reason };
 
@@ -92,7 +90,7 @@ function createReportSet(ctx, refreshControlStatus) {
     const result = await startgg.reportSet(setId, winner.id, buildGameData(ent.entrants, swapped));
     if (result.ok) {
       // Refresh so the panel reflects the reported state on its next tick.
-      refreshControlStatus().catch(() => {});
+      refreshControlStatus();
       return { ok: true, winnerName: winner.name, score: `${scores.team1}-${scores.team2}` };
     }
     return result;

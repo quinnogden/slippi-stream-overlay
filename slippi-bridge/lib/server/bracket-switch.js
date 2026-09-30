@@ -210,7 +210,7 @@ function createBracketSwitch(ctx, refreshControlStatus) {
 
       // TSH loads on its own thread pool, so this refresh will very likely still
       // show the old event — the 2s tick is what confirms the switch.
-      refreshControlStatus().catch(() => {});
+      refreshControlStatus();
       return { ok: true, refreshed: false, url, eventName, tournamentName, warning };
     } finally {
       inFlight = false;

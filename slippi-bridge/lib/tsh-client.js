@@ -54,6 +54,20 @@ class TshClient {
     }
   }
 
+  /**
+   * readState() in the { ok } shape the HTTP methods use, for callers that
+   * report a failure rather than propagate it. Goes through readState() so a
+   * test that stubs that one method stubs this too.
+   * @returns {{ ok: true, state: object } | { ok: false, error: string }}
+   */
+  tryReadState() {
+    try {
+      return { ok: true, state: this.readState() };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }
+
   // ── Pure accessors (operate on a state returned by readState()) ─────────────
 
   /**
@@ -66,12 +80,6 @@ class TshClient {
     return state?.score?.[this._sb]?.team?.[String(teamNum)];
   }
 
-  /** Trimmed, non-empty player names for a team. */
-  _names(state, teamNum) {
-    return Object.values(this._team(state, teamNum)?.player ?? {})
-      .map((p) => (p?.name ?? "").trim())
-      .filter(Boolean);
-  }
 
   /**
    * Extract team name and score for a given team number.
@@ -82,7 +90,7 @@ class TshClient {
    */
   getTeamInfo(state, teamNum) {
     return {
-      name:  this._names(state, teamNum).join(" / "),
+      name:  this.getTeamPlayerNames(state, teamNum).join(" / "),
       score: this._team(state, teamNum)?.score ?? 0,
     };
   }
@@ -101,13 +109,29 @@ class TshClient {
   }
 
   /**
-   * Returns all player names for a team as an array. Used for doubles name matching.
-   * @param {object} state
+   * Trimmed, non-empty player names for a team, in slot order. Tolerates a null
+   * state (returns []).
+   * @param {object|null} state
    * @param {number} teamNum — 1 or 2
    * @returns {string[]}
    */
   getTeamPlayerNames(state, teamNum) {
-    return this._names(state, teamNum);
+    return Object.values(this._team(state, teamNum)?.player ?? {})
+      .map((p) => (p?.name ?? "").trim())
+      .filter(Boolean);
+  }
+
+  /**
+   * Which scoreboard column currently shows this player name.
+   * @param {object} state
+   * @param {string} name
+   * @returns {1|2|null}
+   */
+  teamOfName(state, name) {
+    if (!name) return null;
+    if (this.getTeamPlayerNames(state, 1).includes(name)) return 1;
+    if (this.getTeamPlayerNames(state, 2).includes(name)) return 2;
+    return null;
   }
 
   /**
@@ -443,12 +467,14 @@ class TshClient {
   }
 
   /**
-   * Lightweight connectivity probe used by the control panel health indicator.
+   * Lightweight connectivity probe: the control panel health indicator, and
+   * start-all.js waiting for TSH to come up.
+   * @param {number} [timeout=2000]
    * @returns {Promise<boolean>}
    */
-  async ping() {
+  async ping(timeout = 2000) {
     try {
-      await axios.get(`${this._config.TSH_URL}/`, { timeout: 2000 });
+      await axios.get(`${this._config.TSH_URL}/`, { timeout });
       return true;
     } catch (err) {
       // Any HTTP response (even 404) means the server is up.

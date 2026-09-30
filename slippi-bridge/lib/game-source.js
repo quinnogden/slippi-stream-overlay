@@ -39,6 +39,52 @@ function winnerByStocks(game) {
   return surviving[0] ?? null;
 }
 
+/**
+ * Which port won, given how the game ended.
+ *
+ * Pure apart from the last-frame read in winnerByStocks, so it can be tested
+ * against a stub game. Two cases:
+ *   - A rage quit — LRAS that wasn't a handwarmer, by a known initiator — goes
+ *     to someone on the OTHER team by teamId, never the quitter's doubles
+ *     partner.
+ *   - Everything else (a normal GAME!, or RESOLVED in doubles when a team is
+ *     eliminated) takes the position-0 placement, falling back to last-frame
+ *     stock counts when placements are missing.
+ *
+ * @param {object} gameEnd — game.getGameEnd()
+ * @param {object|null} settings — game.getSettings()
+ * @param {boolean} isHandwarmer
+ * @param {() => number|null} byStocks — the last-frame fallback
+ * @returns {number|null} winning playerIndex
+ */
+function pickWinner(gameEnd, settings, isHandwarmer, byStocks) {
+  const quitter = gameEnd.lrasInitiatorIndex;
+  const rageQuit = gameEnd.gameEndMethod !== GameEndMethod.GAME
+    && !isHandwarmer && quitter != null && quitter >= 0;
+
+  if (rageQuit) {
+    const players = settings?.players ?? [];
+    const quitterTeam = players.find((p) => p?.playerIndex === quitter)?.teamId;
+    const other = players.find((p) =>
+      p != null && p.playerIndex !== quitter && (quitterTeam == null || p.teamId !== quitterTeam));
+    console.log(`[bridge] Rage quit detected — port ${quitter} quit out`);
+    return other?.playerIndex ?? null;
+  }
+
+  const winner = gameEnd.placements?.find((p) => p.position === 0);
+  return winner?.playerIndex ?? byStocks();
+}
+
+/**
+ * The .slp files in the watched folder, as full paths.
+ * @param {string} folder
+ */
+function listSlp(folder) {
+  return fs.readdirSync(folder)
+    .filter((f) => f.endsWith(".slp"))
+    .map((f) => path.join(folder, f));
+}
+
 // ── Folder watcher ────────────────────────────────────────────────────────────
 
 /**
@@ -62,11 +108,7 @@ function createFolderSource(config, detector) {
   }
 
   // Snapshot pre-existing files so we ignore them on startup
-  const knownFiles = new Set(
-    fs.readdirSync(config.SLP_FOLDER)
-      .filter((f) => f.endsWith(".slp"))
-      .map((f) => path.join(config.SLP_FOLDER, f))
-  );
+  const knownFiles = new Set(listSlp(config.SLP_FOLDER));
   console.log(`[bridge] Ignoring ${knownFiles.size} pre-existing .slp file(s)`);
 
   let currentFile = null;
@@ -85,11 +127,7 @@ function createFolderSource(config, detector) {
     try {
       // If no active game file, scan the folder for a new one
       if (!currentFile) {
-        const newFile = fs
-          .readdirSync(config.SLP_FOLDER)
-          .filter((f) => f.endsWith(".slp"))
-          .map((f) => path.join(config.SLP_FOLDER, f))
-          .find((f) => !knownFiles.has(f));
+        const newFile = listSlp(config.SLP_FOLDER).find((f) => !knownFiles.has(f));
 
         if (newFile) {
           currentFile = newFile;
@@ -155,33 +193,8 @@ function createFolderSource(config, detector) {
         if (gameEnd) {
           gameEnded = true;
           const isHandwarmer = wasHandwarmer(game);
-          let winnerPlayerIndex = null;
-
-          if (gameEnd.gameEndMethod === GameEndMethod.GAME) {
-            const winner = gameEnd.placements?.find((p) => p.position === 0);
-            winnerPlayerIndex = winner?.playerIndex ?? winnerByStocks(game);
-          } else if (!isHandwarmer && gameEnd.lrasInitiatorIndex >= 0) {
-            // Rage quit: LRAS but not a handwarmer (real damage was dealt).
-            // In doubles, avoid awarding the point to the quitter's own partner —
-            // find someone on the OTHER team by teamId.
-            const settings = game.getSettings();
-            const initiatorTeamId = settings?.players?.find(
-              (p) => p.playerIndex === gameEnd.lrasInitiatorIndex
-            )?.teamId;
-            const otherPlayer = settings?.players?.find(
-              (p) =>
-                p.playerIndex !== gameEnd.lrasInitiatorIndex &&
-                (initiatorTeamId == null || p.teamId !== initiatorTeamId)
-            );
-            console.log(`[bridge] Rage quit detected — port ${gameEnd.lrasInitiatorIndex} quit out`);
-            winnerPlayerIndex = otherPlayer?.playerIndex ?? null;
-          } else {
-            // Non-GAME, non-LRAS end (e.g. RESOLVED in doubles when a team is eliminated
-            // without a traditional per-stock GAME! sequence). Try placements first,
-            // then fall back to last-frame stock counts.
-            const winner = gameEnd.placements?.find((p) => p.position === 0);
-            winnerPlayerIndex = winner?.playerIndex ?? winnerByStocks(game);
-          }
+          const winnerPlayerIndex = pickWinner(
+            gameEnd, game.getSettings(), isHandwarmer, () => winnerByStocks(game));
 
           emitter.emit("game-end", { winnerPlayerIndex, isHandwarmer });
           knownFiles.add(currentFile);
@@ -219,4 +232,4 @@ function createFolderSource(config, detector) {
   return emitter;
 }
 
-module.exports = { createFolderSource };
+module.exports = { createFolderSource, pickWinner };
