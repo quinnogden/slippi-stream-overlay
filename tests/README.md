@@ -27,6 +27,7 @@ This is **not** a general test suite, and it is not trying to become one. Almost
 | `control-panel-static.test.js` | Every id the control panel's script looks up exists in its markup. `render()` runs on a 2s tick with no try/catch, so one missing id throws, kills the interval, and freezes the dock while it still *looks* fine. Run it after touching `public/control-panel.html`. |
 | `helpers/layout-sandbox.js` | Shared machinery: loads a real layout script into a `vm` with a fake DOM + GSAP. Not a test. |
 | `fixtures/program-state.json` | A pruned, scrubbed `program_state.json`. |
+| `fixtures/startgg/*.json` | Real start.gg tournaments, scrubbed, captured by `slippi-bridge/scripts/capture-startgg.js`. Raw material for the TSH replacement's bracket model — see below. |
 
 ## Writing another layout test
 
@@ -69,3 +70,31 @@ Hand-writing this file is a trap worth naming: the side panel's slot predicates 
 `streamQueue` is the one exception — it's populated by hand here, because the live capture had an empty queue and the `queue` slot is worth being able to exercise. It follows TSH's real shape as `StartGGDataProvider.ProcessFutureSet` builds it (objects keyed `"1"`, `"2"`…, `team` → `player`). The first hand-written version invented an array shape instead, and the side panel was written against it — so on a real bracket the queue panel never showed, and every test passed. The same trap as above, one level down.
 
 The fixture's player `id`s are bare strings; TSH really writes `[playerId, userId]`. The side panel accepts both, and `side-panel-bridge-stats.test.js` exercises the array form explicitly.
+
+## The start.gg captures
+
+`fixtures/startgg/<tournament>[.<label>].json` are real start.gg responses: the tournament, every Melee event's phases and phase groups, every set (with the `slots.prereqType/prereqId` edges a bracket is built from), and the stream queue. Captured with:
+
+```bash
+cd slippi-bridge
+node scripts/capture-startgg.js                  # whatever config.BRACKETS.shortLink points at now
+node scripts/capture-startgg.js --label live-r2  # a named snapshot of the same
+node scripts/capture-startgg.js --past 3         # plus the series' last 3 tournaments
+```
+
+Scrubbed the same way and for the same reason as the TSH fixture, with one addition: **every id goes through a single table**, so a `prereqId` still points at the set (or seed) it named and the graph still joins up. Tags become `Player<n>`, prefixes `Team<n>`; tournament, event, phase, round and stream names are kept.
+
+An existing capture is **never overwritten** — the same tournament before it starts, mid-event and after are three different test cases. A repeat run without `--label` lands as `<slug>.<HHMM>.json`.
+
+What the set covers, and what it doesn't yet:
+
+| Case | Where |
+|---|---|
+| Unstarted bracket (`preview_` set ids — they do carry prereq edges and `lPlacement`) | `hundred-acres-51.json` |
+| Grand Final reset played | `hundred-acres-49.json` |
+| Grand Final with no reset | `hundred-acres-47.json`, `-48.json` |
+| DQs | `-47`, `-49` |
+| Doubles; single-elimination (redemption) | all; `-47` |
+| **Set in progress, non-empty stream queue** | **missing** — only exists during an event; capture mid-event |
+
+Finished sets come back with `stream: null` even when they were on stream, so the stream queue can only be captured while sets are assigned to it.

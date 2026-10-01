@@ -1,0 +1,8276 @@
+{
+ "capturedAt": "2026-10-01T00:50:12.715Z",
+ "tournament": {
+  "id": 100000,
+  "name": "Hundred Acres #48",
+  "slug": "tournament/hundred-acres-48",
+  "startAt": 1788472800,
+  "state": 3,
+  "streams": [
+   {
+    "id": 100001,
+    "streamName": "rvamelee",
+    "streamSource": "TWITCH"
+   }
+  ],
+  "events": [
+   {
+    "id": 100002,
+    "name": "Melee Doubles",
+    "slug": "tournament/hundred-acres-48/event/melee-doubles",
+    "state": "COMPLETED",
+    "type": 5,
+    "numEntrants": 10,
+    "videogame": {
+     "id": 100003
+    },
+    "phases": [
+     {
+      "id": 100004,
+      "name": "Bracket",
+      "phaseOrder": 1,
+      "bracketType": "DOUBLE_ELIMINATION",
+      "numSeeds": 10,
+      "groupCount": 1,
+      "state": "COMPLETED",
+      "phaseGroups": {
+       "nodes": [
+        {
+         "id": 100005,
+         "displayIdentifier": "1",
+         "bracketType": "DOUBLE_ELIMINATION",
+         "state": 3
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": 100006,
+    "name": "Melee Singles (Flex Bo5)",
+    "slug": "tournament/hundred-acres-48/event/melee-singles-flex-bo5",
+    "state": "COMPLETED",
+    "type": 1,
+    "numEntrants": 35,
+    "videogame": {
+     "id": 100003
+    },
+    "phases": [
+     {
+      "id": 100007,
+      "name": "Bracket",
+      "phaseOrder": 1,
+      "bracketType": "DOUBLE_ELIMINATION",
+      "numSeeds": 35,
+      "groupCount": 1,
+      "state": "COMPLETED",
+      "phaseGroups": {
+       "nodes": [
+        {
+         "id": 100008,
+         "displayIdentifier": "1",
+         "bracketType": "DOUBLE_ELIMINATION",
+         "state": 3
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "phaseGroupSets": {
+  "100005": [
+   {
+    "id": 100262,
+    "identifier": "J",
+    "round": 5,
+    "fullRoundText": "Grand Final",
+    "state": 3,
+    "winnerId": 100263,
+    "displayScore": "Player9 / Player8 3 - Player2 / Player36 1",
+    "lPlacement": 2,
+    "wPlacement": 1,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": null,
+    "completedAt": 1788482472,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100264",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100265,
+       "seedNum": 1
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100263,
+       "name": "Player9 / Player8",
+       "initialSeedNum": 1,
+       "participants": [
+        {
+         "id": 100063,
+         "gamerTag": "Player9",
+         "prefix": "",
+         "player": {
+          "id": 100064,
+          "gamerTag": "Player9",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100056,
+         "gamerTag": "Player8",
+         "prefix": null,
+         "player": {
+          "id": 100057,
+          "gamerTag": "Player8",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100266",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100267,
+       "seedNum": 4
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100268,
+       "name": "Player2 / Player36",
+       "initialSeedNum": 4,
+       "participants": [
+        {
+         "id": 100018,
+         "gamerTag": "Player2",
+         "prefix": null,
+         "player": {
+          "id": 100019,
+          "gamerTag": "Player2",
+          "prefix": null
+         }
+        },
+        {
+         "id": 100269,
+         "gamerTag": "Player36",
+         "prefix": "",
+         "player": {
+          "id": 100270,
+          "gamerTag": "Player36",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100264",
+    "identifier": "I",
+    "round": 4,
+    "fullRoundText": "Winners Final",
+    "state": 3,
+    "winnerId": 100263,
+    "displayScore": "Player9 / Player8 2 - Player17 / Player37 0",
+    "lPlacement": 3,
+    "wPlacement": 2,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788476804,
+    "completedAt": 1788477365,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100271",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100265,
+       "seedNum": 1
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100263,
+       "name": "Player9 / Player8",
+       "initialSeedNum": 1,
+       "participants": [
+        {
+         "id": 100063,
+         "gamerTag": "Player9",
+         "prefix": "",
+         "player": {
+          "id": 100064,
+          "gamerTag": "Player9",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100056,
+         "gamerTag": "Player8",
+         "prefix": null,
+         "player": {
+          "id": 100057,
+          "gamerTag": "Player8",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100272",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100273,
+       "seedNum": 3
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100274,
+       "name": "Player17 / Player37",
+       "initialSeedNum": 3,
+       "participants": [
+        {
+         "id": 100115,
+         "gamerTag": "Player17",
+         "prefix": "",
+         "player": {
+          "id": 100116,
+          "gamerTag": "Player17",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100275,
+         "gamerTag": "Player37",
+         "prefix": "",
+         "player": {
+          "id": 100276,
+          "gamerTag": "Player37",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100266",
+    "identifier": "S",
+    "round": -8,
+    "fullRoundText": "Losers Final",
+    "state": 3,
+    "winnerId": 100268,
+    "displayScore": "Player17 / Player37 0 - Player2 / Player36 2",
+    "lPlacement": 3,
+    "wPlacement": 2,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788480208,
+    "completedAt": 1788480214,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100264",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100273,
+       "seedNum": 3
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100274,
+       "name": "Player17 / Player37",
+       "initialSeedNum": 3,
+       "participants": [
+        {
+         "id": 100115,
+         "gamerTag": "Player17",
+         "prefix": "",
+         "player": {
+          "id": 100116,
+          "gamerTag": "Player17",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100275,
+         "gamerTag": "Player37",
+         "prefix": "",
+         "player": {
+          "id": 100276,
+          "gamerTag": "Player37",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100277",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100267,
+       "seedNum": 4
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100268,
+       "name": "Player2 / Player36",
+       "initialSeedNum": 4,
+       "participants": [
+        {
+         "id": 100018,
+         "gamerTag": "Player2",
+         "prefix": null,
+         "player": {
+          "id": 100019,
+          "gamerTag": "Player2",
+          "prefix": null
+         }
+        },
+        {
+         "id": 100269,
+         "gamerTag": "Player36",
+         "prefix": "",
+         "player": {
+          "id": 100270,
+          "gamerTag": "Player36",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100277",
+    "identifier": "R",
+    "round": -7,
+    "fullRoundText": "Losers Semi-Final",
+    "state": 3,
+    "winnerId": 100268,
+    "displayScore": "Player11 / Player38 1 - Player2 / Player36 2",
+    "lPlacement": 4,
+    "wPlacement": 3,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788477878,
+    "completedAt": 1788478652,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100278",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100279,
+       "seedNum": 7
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100280,
+       "name": "Player11 / Player38",
+       "initialSeedNum": 7,
+       "participants": [
+        {
+         "id": 100079,
+         "gamerTag": "Player11",
+         "prefix": "",
+         "player": {
+          "id": 100080,
+          "gamerTag": "Player11",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100281,
+         "gamerTag": "Player38",
+         "prefix": "",
+         "player": {
+          "id": 100282,
+          "gamerTag": "Player38",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100283",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100267,
+       "seedNum": 4
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100268,
+       "name": "Player2 / Player36",
+       "initialSeedNum": 4,
+       "participants": [
+        {
+         "id": 100018,
+         "gamerTag": "Player2",
+         "prefix": null,
+         "player": {
+          "id": 100019,
+          "gamerTag": "Player2",
+          "prefix": null
+         }
+        },
+        {
+         "id": 100269,
+         "gamerTag": "Player36",
+         "prefix": "",
+         "player": {
+          "id": 100270,
+          "gamerTag": "Player36",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100271",
+    "identifier": "G",
+    "round": 3,
+    "fullRoundText": "Winners Semi-Final",
+    "state": 3,
+    "winnerId": 100263,
+    "displayScore": "Player9 / Player8 2 - Player39 / Player23 0",
+    "lPlacement": 5,
+    "wPlacement": 3,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788475969,
+    "completedAt": 1788476471,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100284",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100265,
+       "seedNum": 1
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100263,
+       "name": "Player9 / Player8",
+       "initialSeedNum": 1,
+       "participants": [
+        {
+         "id": 100063,
+         "gamerTag": "Player9",
+         "prefix": "",
+         "player": {
+          "id": 100064,
+          "gamerTag": "Player9",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100056,
+         "gamerTag": "Player8",
+         "prefix": null,
+         "player": {
+          "id": 100057,
+          "gamerTag": "Player8",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100285",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100286,
+       "seedNum": 5
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100287,
+       "name": "Player39 / Player23",
+       "initialSeedNum": 5,
+       "participants": [
+        {
+         "id": 100288,
+         "gamerTag": "Player39",
+         "prefix": "Team8",
+         "player": {
+          "id": 100289,
+          "gamerTag": "Player39",
+          "prefix": "Team8"
+         }
+        },
+        {
+         "id": 100160,
+         "gamerTag": "Player23",
+         "prefix": "Team7",
+         "player": {
+          "id": 100161,
+          "gamerTag": "Player23",
+          "prefix": "Team7"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100272",
+    "identifier": "H",
+    "round": 3,
+    "fullRoundText": "Winners Semi-Final",
+    "state": 3,
+    "winnerId": 100274,
+    "displayScore": "Player40 / Player41 1 - Player17 / Player37 2",
+    "lPlacement": 5,
+    "wPlacement": 3,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788475999,
+    "completedAt": 1788476793,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100290",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100291,
+       "seedNum": 2
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100292,
+       "name": "Player40 / Player41",
+       "initialSeedNum": 2,
+       "participants": [
+        {
+         "id": 100293,
+         "gamerTag": "Player40",
+         "prefix": "",
+         "player": {
+          "id": 100294,
+          "gamerTag": "Player40",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100295,
+         "gamerTag": "Player41",
+         "prefix": "",
+         "player": {
+          "id": 100296,
+          "gamerTag": "Player41",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100297",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100273,
+       "seedNum": 3
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100274,
+       "name": "Player17 / Player37",
+       "initialSeedNum": 3,
+       "participants": [
+        {
+         "id": 100115,
+         "gamerTag": "Player17",
+         "prefix": "",
+         "player": {
+          "id": 100116,
+          "gamerTag": "Player17",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100275,
+         "gamerTag": "Player37",
+         "prefix": "",
+         "player": {
+          "id": 100276,
+          "gamerTag": "Player37",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100278",
+    "identifier": "P",
+    "round": -6,
+    "fullRoundText": "Losers Quarter-Final",
+    "state": 3,
+    "winnerId": 100280,
+    "displayScore": "Player39 / Player23 0 - Player11 / Player38 2",
+    "lPlacement": 5,
+    "wPlacement": 4,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788477188,
+    "completedAt": 1788477876,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100271",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100286,
+       "seedNum": 5
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100287,
+       "name": "Player39 / Player23",
+       "initialSeedNum": 5,
+       "participants": [
+        {
+         "id": 100288,
+         "gamerTag": "Player39",
+         "prefix": "Team8",
+         "player": {
+          "id": 100289,
+          "gamerTag": "Player39",
+          "prefix": "Team8"
+         }
+        },
+        {
+         "id": 100160,
+         "gamerTag": "Player23",
+         "prefix": "Team7",
+         "player": {
+          "id": 100161,
+          "gamerTag": "Player23",
+          "prefix": "Team7"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100298",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100279,
+       "seedNum": 7
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100280,
+       "name": "Player11 / Player38",
+       "initialSeedNum": 7,
+       "participants": [
+        {
+         "id": 100079,
+         "gamerTag": "Player11",
+         "prefix": "",
+         "player": {
+          "id": 100080,
+          "gamerTag": "Player11",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100281,
+         "gamerTag": "Player38",
+         "prefix": "",
+         "player": {
+          "id": 100282,
+          "gamerTag": "Player38",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100283",
+    "identifier": "Q",
+    "round": -6,
+    "fullRoundText": "Losers Quarter-Final",
+    "state": 3,
+    "winnerId": 100268,
+    "displayScore": "Player40 / Player41 0 - Player2 / Player36 2",
+    "lPlacement": 5,
+    "wPlacement": 4,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788476829,
+    "completedAt": 1788477332,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100272",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100291,
+       "seedNum": 2
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100292,
+       "name": "Player40 / Player41",
+       "initialSeedNum": 2,
+       "participants": [
+        {
+         "id": 100293,
+         "gamerTag": "Player40",
+         "prefix": "",
+         "player": {
+          "id": 100294,
+          "gamerTag": "Player40",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100295,
+         "gamerTag": "Player41",
+         "prefix": "",
+         "player": {
+          "id": 100296,
+          "gamerTag": "Player41",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100299",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100267,
+       "seedNum": 4
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100268,
+       "name": "Player2 / Player36",
+       "initialSeedNum": 4,
+       "participants": [
+        {
+         "id": 100018,
+         "gamerTag": "Player2",
+         "prefix": null,
+         "player": {
+          "id": 100019,
+          "gamerTag": "Player2",
+          "prefix": null
+         }
+        },
+        {
+         "id": 100269,
+         "gamerTag": "Player36",
+         "prefix": "",
+         "player": {
+          "id": 100270,
+          "gamerTag": "Player36",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100298",
+    "identifier": "N",
+    "round": -5,
+    "fullRoundText": "Losers Round 2",
+    "state": 3,
+    "winnerId": 100280,
+    "displayScore": "Player14 / Player42 1 - Player11 / Player38 2",
+    "lPlacement": 7,
+    "wPlacement": 5,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788476546,
+    "completedAt": 1788477184,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100300",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100301,
+       "seedNum": 6
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100302,
+       "name": "Player14 / Player42",
+       "initialSeedNum": 6,
+       "participants": [
+        {
+         "id": 100097,
+         "gamerTag": "Player14",
+         "prefix": null,
+         "player": {
+          "id": 100098,
+          "gamerTag": "Player14",
+          "prefix": null
+         }
+        },
+        {
+         "id": 100303,
+         "gamerTag": "Player42",
+         "prefix": "",
+         "player": {
+          "id": 100304,
+          "gamerTag": "Player42",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100305",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100279,
+       "seedNum": 7
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100280,
+       "name": "Player11 / Player38",
+       "initialSeedNum": 7,
+       "participants": [
+        {
+         "id": 100079,
+         "gamerTag": "Player11",
+         "prefix": "",
+         "player": {
+          "id": 100080,
+          "gamerTag": "Player11",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100281,
+         "gamerTag": "Player38",
+         "prefix": "",
+         "player": {
+          "id": 100282,
+          "gamerTag": "Player38",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100299",
+    "identifier": "O",
+    "round": -5,
+    "fullRoundText": "Losers Round 2",
+    "state": 3,
+    "winnerId": 100268,
+    "displayScore": "Player2 / Player36 2 - Player35 / Player43 0",
+    "lPlacement": 7,
+    "wPlacement": 5,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788476130,
+    "completedAt": 1788476824,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100306",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100267,
+       "seedNum": 4
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100268,
+       "name": "Player2 / Player36",
+       "initialSeedNum": 4,
+       "participants": [
+        {
+         "id": 100018,
+         "gamerTag": "Player2",
+         "prefix": null,
+         "player": {
+          "id": 100019,
+          "gamerTag": "Player2",
+          "prefix": null
+         }
+        },
+        {
+         "id": 100269,
+         "gamerTag": "Player36",
+         "prefix": "",
+         "player": {
+          "id": 100270,
+          "gamerTag": "Player36",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100307",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100308,
+       "seedNum": 8
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100309,
+       "name": "Player35 / Player43",
+       "initialSeedNum": 8,
+       "participants": [
+        {
+         "id": 100260,
+         "gamerTag": "Player35",
+         "prefix": "",
+         "player": {
+          "id": 100261,
+          "gamerTag": "Player35",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100310,
+         "gamerTag": "Player43",
+         "prefix": "",
+         "player": {
+          "id": 100311,
+          "gamerTag": "Player43",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100284",
+    "identifier": "C",
+    "round": 2,
+    "fullRoundText": "Winners Quarter-Final",
+    "state": 3,
+    "winnerId": 100263,
+    "displayScore": "Player9 / Player8 2 - Player35 / Player43 0",
+    "lPlacement": 7,
+    "wPlacement": 5,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788475597,
+    "completedAt": 1788475951,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100312",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100265,
+       "seedNum": 1
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100263,
+       "name": "Player9 / Player8",
+       "initialSeedNum": 1,
+       "participants": [
+        {
+         "id": 100063,
+         "gamerTag": "Player9",
+         "prefix": "",
+         "player": {
+          "id": 100064,
+          "gamerTag": "Player9",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100056,
+         "gamerTag": "Player8",
+         "prefix": null,
+         "player": {
+          "id": 100057,
+          "gamerTag": "Player8",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100313",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100308,
+       "seedNum": 8
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100309,
+       "name": "Player35 / Player43",
+       "initialSeedNum": 8,
+       "participants": [
+        {
+         "id": 100260,
+         "gamerTag": "Player35",
+         "prefix": "",
+         "player": {
+          "id": 100261,
+          "gamerTag": "Player35",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100310,
+         "gamerTag": "Player43",
+         "prefix": "",
+         "player": {
+          "id": 100311,
+          "gamerTag": "Player43",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100285",
+    "identifier": "D",
+    "round": 2,
+    "fullRoundText": "Winners Quarter-Final",
+    "state": 3,
+    "winnerId": 100287,
+    "displayScore": "Player2 / Player36 1 - Player39 / Player23 2",
+    "lPlacement": 9,
+    "wPlacement": 5,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788474727,
+    "completedAt": 1788475541,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100314",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100267,
+       "seedNum": 4
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100268,
+       "name": "Player2 / Player36",
+       "initialSeedNum": 4,
+       "participants": [
+        {
+         "id": 100018,
+         "gamerTag": "Player2",
+         "prefix": null,
+         "player": {
+          "id": 100019,
+          "gamerTag": "Player2",
+          "prefix": null
+         }
+        },
+        {
+         "id": 100269,
+         "gamerTag": "Player36",
+         "prefix": "",
+         "player": {
+          "id": 100270,
+          "gamerTag": "Player36",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100315",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100286,
+       "seedNum": 5
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100287,
+       "name": "Player39 / Player23",
+       "initialSeedNum": 5,
+       "participants": [
+        {
+         "id": 100288,
+         "gamerTag": "Player39",
+         "prefix": "Team8",
+         "player": {
+          "id": 100289,
+          "gamerTag": "Player39",
+          "prefix": "Team8"
+         }
+        },
+        {
+         "id": 100160,
+         "gamerTag": "Player23",
+         "prefix": "Team7",
+         "player": {
+          "id": 100161,
+          "gamerTag": "Player23",
+          "prefix": "Team7"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100290",
+    "identifier": "E",
+    "round": 2,
+    "fullRoundText": "Winners Quarter-Final",
+    "state": 3,
+    "winnerId": 100292,
+    "displayScore": "Player40 / Player41 2 - Player11 / Player38 0",
+    "lPlacement": 7,
+    "wPlacement": 5,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788475610,
+    "completedAt": 1788475900,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100316",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100291,
+       "seedNum": 2
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100292,
+       "name": "Player40 / Player41",
+       "initialSeedNum": 2,
+       "participants": [
+        {
+         "id": 100293,
+         "gamerTag": "Player40",
+         "prefix": "",
+         "player": {
+          "id": 100294,
+          "gamerTag": "Player40",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100295,
+         "gamerTag": "Player41",
+         "prefix": "",
+         "player": {
+          "id": 100296,
+          "gamerTag": "Player41",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100317",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100279,
+       "seedNum": 7
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100280,
+       "name": "Player11 / Player38",
+       "initialSeedNum": 7,
+       "participants": [
+        {
+         "id": 100079,
+         "gamerTag": "Player11",
+         "prefix": "",
+         "player": {
+          "id": 100080,
+          "gamerTag": "Player11",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100281,
+         "gamerTag": "Player38",
+         "prefix": "",
+         "player": {
+          "id": 100282,
+          "gamerTag": "Player38",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100297",
+    "identifier": "F",
+    "round": 2,
+    "fullRoundText": "Winners Quarter-Final",
+    "state": 3,
+    "winnerId": 100274,
+    "displayScore": "Player17 / Player37 2 - Player14 / Player42 1",
+    "lPlacement": 9,
+    "wPlacement": 5,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788474698,
+    "completedAt": 1788475669,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100318",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100273,
+       "seedNum": 3
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100274,
+       "name": "Player17 / Player37",
+       "initialSeedNum": 3,
+       "participants": [
+        {
+         "id": 100115,
+         "gamerTag": "Player17",
+         "prefix": "",
+         "player": {
+          "id": 100116,
+          "gamerTag": "Player17",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100275,
+         "gamerTag": "Player37",
+         "prefix": "",
+         "player": {
+          "id": 100276,
+          "gamerTag": "Player37",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100319",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100301,
+       "seedNum": 6
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100302,
+       "name": "Player14 / Player42",
+       "initialSeedNum": 6,
+       "participants": [
+        {
+         "id": 100097,
+         "gamerTag": "Player14",
+         "prefix": null,
+         "player": {
+          "id": 100098,
+          "gamerTag": "Player14",
+          "prefix": null
+         }
+        },
+        {
+         "id": 100303,
+         "gamerTag": "Player42",
+         "prefix": "",
+         "player": {
+          "id": 100304,
+          "gamerTag": "Player42",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100300",
+    "identifier": "L",
+    "round": -4,
+    "fullRoundText": "Losers Round 1",
+    "state": 3,
+    "winnerId": 100302,
+    "displayScore": "Player14 / Player42 2 - Player29 / Player33 1",
+    "lPlacement": 9,
+    "wPlacement": 7,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788475679,
+    "completedAt": 1788476541,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100297",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100301,
+       "seedNum": 6
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100302,
+       "name": "Player14 / Player42",
+       "initialSeedNum": 6,
+       "participants": [
+        {
+         "id": 100097,
+         "gamerTag": "Player14",
+         "prefix": null,
+         "player": {
+          "id": 100098,
+          "gamerTag": "Player14",
+          "prefix": null
+         }
+        },
+        {
+         "id": 100303,
+         "gamerTag": "Player42",
+         "prefix": "",
+         "player": {
+          "id": 100304,
+          "gamerTag": "Player42",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100320",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100321,
+       "seedNum": 9
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100322,
+       "name": "Player29 / Player33",
+       "initialSeedNum": 9,
+       "participants": [
+        {
+         "id": 100195,
+         "gamerTag": "Player29",
+         "prefix": "",
+         "player": {
+          "id": 100196,
+          "gamerTag": "Player29",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100250,
+         "gamerTag": "Player33",
+         "prefix": null,
+         "player": {
+          "id": 100251,
+          "gamerTag": "Player33",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100306",
+    "identifier": "M",
+    "round": -4,
+    "fullRoundText": "Losers Round 1",
+    "state": 3,
+    "winnerId": 100268,
+    "displayScore": "Player2 / Player36 2 - Player34 / Player30 0",
+    "lPlacement": 9,
+    "wPlacement": 7,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788475571,
+    "completedAt": 1788476052,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100285",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100267,
+       "seedNum": 4
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100268,
+       "name": "Player2 / Player36",
+       "initialSeedNum": 4,
+       "participants": [
+        {
+         "id": 100018,
+         "gamerTag": "Player2",
+         "prefix": null,
+         "player": {
+          "id": 100019,
+          "gamerTag": "Player2",
+          "prefix": null
+         }
+        },
+        {
+         "id": 100269,
+         "gamerTag": "Player36",
+         "prefix": "",
+         "player": {
+          "id": 100270,
+          "gamerTag": "Player36",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100323",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100324,
+       "seedNum": 10
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100325,
+       "name": "Player34 / Player30",
+       "initialSeedNum": 10,
+       "participants": [
+        {
+         "id": 100255,
+         "gamerTag": "Player34",
+         "prefix": null,
+         "player": {
+          "id": 100256,
+          "gamerTag": "Player34",
+          "prefix": null
+         }
+        },
+        {
+         "id": 100201,
+         "gamerTag": "Player30",
+         "prefix": "",
+         "player": {
+          "id": 100202,
+          "gamerTag": "Player30",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100313",
+    "identifier": "A",
+    "round": 1,
+    "fullRoundText": "Winners Round 1",
+    "state": 3,
+    "winnerId": 100309,
+    "displayScore": "Player35 / Player43 2 - Player29 / Player33 1",
+    "lPlacement": 9,
+    "wPlacement": 7,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788474709,
+    "completedAt": 1788475592,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "seed",
+      "prereqId": 100308,
+      "prereqPlacement": null,
+      "seed": {
+       "id": 100308,
+       "seedNum": 8
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100309,
+       "name": "Player35 / Player43",
+       "initialSeedNum": 8,
+       "participants": [
+        {
+         "id": 100260,
+         "gamerTag": "Player35",
+         "prefix": "",
+         "player": {
+          "id": 100261,
+          "gamerTag": "Player35",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100310,
+         "gamerTag": "Player43",
+         "prefix": "",
+         "player": {
+          "id": 100311,
+          "gamerTag": "Player43",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "seed",
+      "prereqId": 100321,
+      "prereqPlacement": null,
+      "seed": {
+       "id": 100321,
+       "seedNum": 9
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100322,
+       "name": "Player29 / Player33",
+       "initialSeedNum": 9,
+       "participants": [
+        {
+         "id": 100195,
+         "gamerTag": "Player29",
+         "prefix": "",
+         "player": {
+          "id": 100196,
+          "gamerTag": "Player29",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100250,
+         "gamerTag": "Player33",
+         "prefix": null,
+         "player": {
+          "id": 100251,
+          "gamerTag": "Player33",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100317",
+    "identifier": "B",
+    "round": 1,
+    "fullRoundText": "Winners Round 1",
+    "state": 3,
+    "winnerId": 100280,
+    "displayScore": "Player11 / Player38 2 - Player34 / Player30 0",
+    "lPlacement": 9,
+    "wPlacement": 7,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788474706,
+    "completedAt": 1788475318,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100005
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "seed",
+      "prereqId": 100279,
+      "prereqPlacement": null,
+      "seed": {
+       "id": 100279,
+       "seedNum": 7
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100280,
+       "name": "Player11 / Player38",
+       "initialSeedNum": 7,
+       "participants": [
+        {
+         "id": 100079,
+         "gamerTag": "Player11",
+         "prefix": "",
+         "player": {
+          "id": 100080,
+          "gamerTag": "Player11",
+          "prefix": ""
+         }
+        },
+        {
+         "id": 100281,
+         "gamerTag": "Player38",
+         "prefix": "",
+         "player": {
+          "id": 100282,
+          "gamerTag": "Player38",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "seed",
+      "prereqId": 100324,
+      "prereqPlacement": null,
+      "seed": {
+       "id": 100324,
+       "seedNum": 10
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100325,
+       "name": "Player34 / Player30",
+       "initialSeedNum": 10,
+       "participants": [
+        {
+         "id": 100255,
+         "gamerTag": "Player34",
+         "prefix": null,
+         "player": {
+          "id": 100256,
+          "gamerTag": "Player34",
+          "prefix": null
+         }
+        },
+        {
+         "id": 100201,
+         "gamerTag": "Player30",
+         "prefix": "",
+         "player": {
+          "id": 100202,
+          "gamerTag": "Player30",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ],
+  "100008": [
+   {
+    "id": 100009,
+    "identifier": "AI",
+    "round": 7,
+    "fullRoundText": "Grand Final",
+    "state": 3,
+    "winnerId": 100010,
+    "displayScore": "Player1 3 - Player2 0",
+    "lPlacement": 2,
+    "wPlacement": 1,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": null,
+    "completedAt": 1788489202,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100011",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100012,
+       "seedNum": 2
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100010,
+       "name": "Player1",
+       "initialSeedNum": 2,
+       "participants": [
+        {
+         "id": 100013,
+         "gamerTag": "Player1",
+         "prefix": "Team1",
+         "player": {
+          "id": 100014,
+          "gamerTag": "Player1",
+          "prefix": "Team1"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100015",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100016,
+       "seedNum": 3
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100017,
+       "name": "Player2",
+       "initialSeedNum": 3,
+       "participants": [
+        {
+         "id": 100018,
+         "gamerTag": "Player2",
+         "prefix": null,
+         "player": {
+          "id": 100019,
+          "gamerTag": "Player2",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100011",
+    "identifier": "AH",
+    "round": 6,
+    "fullRoundText": "Winners Final",
+    "state": 3,
+    "winnerId": 100010,
+    "displayScore": "Player3 2 - Player1 3",
+    "lPlacement": 3,
+    "wPlacement": 2,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788484391,
+    "completedAt": 1788485785,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100020",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100021,
+       "seedNum": 1
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100022,
+       "name": "Player3",
+       "initialSeedNum": 1,
+       "participants": [
+        {
+         "id": 100023,
+         "gamerTag": "Player3",
+         "prefix": "",
+         "player": {
+          "id": 100024,
+          "gamerTag": "Player3",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100025",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100012,
+       "seedNum": 2
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100010,
+       "name": "Player1",
+       "initialSeedNum": 2,
+       "participants": [
+        {
+         "id": 100013,
+         "gamerTag": "Player1",
+         "prefix": "Team1",
+         "player": {
+          "id": 100014,
+          "gamerTag": "Player1",
+          "prefix": "Team1"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100015",
+    "identifier": "BQ",
+    "round": -12,
+    "fullRoundText": "Losers Final",
+    "state": 3,
+    "winnerId": 100017,
+    "displayScore": "Player3 1 - Player2 3",
+    "lPlacement": 3,
+    "wPlacement": 2,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788488465,
+    "completedAt": 1788488468,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100011",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100021,
+       "seedNum": 1
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100022,
+       "name": "Player3",
+       "initialSeedNum": 1,
+       "participants": [
+        {
+         "id": 100023,
+         "gamerTag": "Player3",
+         "prefix": "",
+         "player": {
+          "id": 100024,
+          "gamerTag": "Player3",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100026",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100016,
+       "seedNum": 3
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100017,
+       "name": "Player2",
+       "initialSeedNum": 3,
+       "participants": [
+        {
+         "id": 100018,
+         "gamerTag": "Player2",
+         "prefix": null,
+         "player": {
+          "id": 100019,
+          "gamerTag": "Player2",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100026",
+    "identifier": "BP",
+    "round": -11,
+    "fullRoundText": "Losers Semi-Final",
+    "state": 3,
+    "winnerId": 100017,
+    "displayScore": "Player4 1 - Player2 3",
+    "lPlacement": 4,
+    "wPlacement": 3,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788486712,
+    "completedAt": 1788487528,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100027",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100028,
+       "seedNum": 5
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100029,
+       "name": "Player4",
+       "initialSeedNum": 5,
+       "participants": [
+        {
+         "id": 100030,
+         "gamerTag": "Player4",
+         "prefix": "",
+         "player": {
+          "id": 100031,
+          "gamerTag": "Player4",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100032",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100016,
+       "seedNum": 3
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100017,
+       "name": "Player2",
+       "initialSeedNum": 3,
+       "participants": [
+        {
+         "id": 100018,
+         "gamerTag": "Player2",
+         "prefix": null,
+         "player": {
+          "id": 100019,
+          "gamerTag": "Player2",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100020",
+    "identifier": "AF",
+    "round": 5,
+    "fullRoundText": "Winners Semi-Final",
+    "state": 3,
+    "winnerId": 100022,
+    "displayScore": "Player3 3 - Player4 0",
+    "lPlacement": 5,
+    "wPlacement": 3,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788484149,
+    "completedAt": 1788484178,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100033",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100021,
+       "seedNum": 1
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100022,
+       "name": "Player3",
+       "initialSeedNum": 1,
+       "participants": [
+        {
+         "id": 100023,
+         "gamerTag": "Player3",
+         "prefix": "",
+         "player": {
+          "id": 100024,
+          "gamerTag": "Player3",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100034",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100028,
+       "seedNum": 5
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100029,
+       "name": "Player4",
+       "initialSeedNum": 5,
+       "participants": [
+        {
+         "id": 100030,
+         "gamerTag": "Player4",
+         "prefix": "",
+         "player": {
+          "id": 100031,
+          "gamerTag": "Player4",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100025",
+    "identifier": "AG",
+    "round": 5,
+    "fullRoundText": "Winners Semi-Final",
+    "state": 3,
+    "winnerId": 100010,
+    "displayScore": "Player1 3 - Player2 0",
+    "lPlacement": 5,
+    "wPlacement": 3,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": null,
+    "completedAt": 1788484150,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100035",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100012,
+       "seedNum": 2
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100010,
+       "name": "Player1",
+       "initialSeedNum": 2,
+       "participants": [
+        {
+         "id": 100013,
+         "gamerTag": "Player1",
+         "prefix": "Team1",
+         "player": {
+          "id": 100014,
+          "gamerTag": "Player1",
+          "prefix": "Team1"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100036",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100016,
+       "seedNum": 3
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100017,
+       "name": "Player2",
+       "initialSeedNum": 3,
+       "participants": [
+        {
+         "id": 100018,
+         "gamerTag": "Player2",
+         "prefix": null,
+         "player": {
+          "id": 100019,
+          "gamerTag": "Player2",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100027",
+    "identifier": "BN",
+    "round": -10,
+    "fullRoundText": "Losers Quarter-Final",
+    "state": 3,
+    "winnerId": 100029,
+    "displayScore": "Player4 3 - Player5 1",
+    "lPlacement": 5,
+    "wPlacement": 4,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": null,
+    "completedAt": 1788486699,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100020",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100028,
+       "seedNum": 5
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100029,
+       "name": "Player4",
+       "initialSeedNum": 5,
+       "participants": [
+        {
+         "id": 100030,
+         "gamerTag": "Player4",
+         "prefix": "",
+         "player": {
+          "id": 100031,
+          "gamerTag": "Player4",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100037",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100038,
+       "seedNum": 6
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100039,
+       "name": "Player5",
+       "initialSeedNum": 6,
+       "participants": [
+        {
+         "id": 100040,
+         "gamerTag": "Player5",
+         "prefix": null,
+         "player": {
+          "id": 100041,
+          "gamerTag": "Player5",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100032",
+    "identifier": "BO",
+    "round": -10,
+    "fullRoundText": "Losers Quarter-Final",
+    "state": 3,
+    "winnerId": 100017,
+    "displayScore": "Player2 3 - Player6 1",
+    "lPlacement": 5,
+    "wPlacement": 4,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788485257,
+    "completedAt": 1788486558,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100025",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100016,
+       "seedNum": 3
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100017,
+       "name": "Player2",
+       "initialSeedNum": 3,
+       "participants": [
+        {
+         "id": 100018,
+         "gamerTag": "Player2",
+         "prefix": null,
+         "player": {
+          "id": 100019,
+          "gamerTag": "Player2",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100042",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100043,
+       "seedNum": 4
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100044,
+       "name": "Player6",
+       "initialSeedNum": 4,
+       "participants": [
+        {
+         "id": 100045,
+         "gamerTag": "Player6",
+         "prefix": "",
+         "player": {
+          "id": 100046,
+          "gamerTag": "Player6",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100037",
+    "identifier": "BL",
+    "round": -9,
+    "fullRoundText": "Losers Round 6",
+    "state": 3,
+    "winnerId": 100039,
+    "displayScore": "Player7 0 - Player5 2",
+    "lPlacement": 7,
+    "wPlacement": 5,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788485399,
+    "completedAt": 1788485863,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100047",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100048,
+       "seedNum": 7
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100049,
+       "name": "Player7",
+       "initialSeedNum": 7,
+       "participants": [
+        {
+         "id": 100050,
+         "gamerTag": "Player7",
+         "prefix": "Team2",
+         "player": {
+          "id": 100051,
+          "gamerTag": "Player7",
+          "prefix": "Team2"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100052",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100038,
+       "seedNum": 6
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100039,
+       "name": "Player5",
+       "initialSeedNum": 6,
+       "participants": [
+        {
+         "id": 100040,
+         "gamerTag": "Player5",
+         "prefix": null,
+         "player": {
+          "id": 100041,
+          "gamerTag": "Player5",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100042",
+    "identifier": "BM",
+    "round": -9,
+    "fullRoundText": "Losers Round 6",
+    "state": 3,
+    "winnerId": 100044,
+    "displayScore": "Player8 0 - Player6 2",
+    "lPlacement": 7,
+    "wPlacement": 5,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788484845,
+    "completedAt": 1788485246,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100053",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100054,
+       "seedNum": 12
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100055,
+       "name": "Player8",
+       "initialSeedNum": 12,
+       "participants": [
+        {
+         "id": 100056,
+         "gamerTag": "Player8",
+         "prefix": null,
+         "player": {
+          "id": 100057,
+          "gamerTag": "Player8",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100058",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100043,
+       "seedNum": 4
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100044,
+       "name": "Player6",
+       "initialSeedNum": 4,
+       "participants": [
+        {
+         "id": 100045,
+         "gamerTag": "Player6",
+         "prefix": "",
+         "player": {
+          "id": 100046,
+          "gamerTag": "Player6",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100033",
+    "identifier": "AB",
+    "round": 4,
+    "fullRoundText": "Winners Quarter-Final",
+    "state": 3,
+    "winnerId": 100022,
+    "displayScore": "Player3 2 - Player9 0",
+    "lPlacement": 9,
+    "wPlacement": 5,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788482497,
+    "completedAt": 1788482933,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100059",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100021,
+       "seedNum": 1
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100022,
+       "name": "Player3",
+       "initialSeedNum": 1,
+       "participants": [
+        {
+         "id": 100023,
+         "gamerTag": "Player3",
+         "prefix": "",
+         "player": {
+          "id": 100024,
+          "gamerTag": "Player3",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100060",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100061,
+       "seedNum": 9
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100062,
+       "name": "Player9",
+       "initialSeedNum": 9,
+       "participants": [
+        {
+         "id": 100063,
+         "gamerTag": "Player9",
+         "prefix": "",
+         "player": {
+          "id": 100064,
+          "gamerTag": "Player9",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100034",
+    "identifier": "AC",
+    "round": 4,
+    "fullRoundText": "Winners Quarter-Final",
+    "state": 3,
+    "winnerId": 100029,
+    "displayScore": "Player6 1 - Player4 3",
+    "lPlacement": 9,
+    "wPlacement": 5,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788481511,
+    "completedAt": 1788482415,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100065",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100043,
+       "seedNum": 4
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100044,
+       "name": "Player6",
+       "initialSeedNum": 4,
+       "participants": [
+        {
+         "id": 100045,
+         "gamerTag": "Player6",
+         "prefix": "",
+         "player": {
+          "id": 100046,
+          "gamerTag": "Player6",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100066",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100028,
+       "seedNum": 5
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100029,
+       "name": "Player4",
+       "initialSeedNum": 5,
+       "participants": [
+        {
+         "id": 100030,
+         "gamerTag": "Player4",
+         "prefix": "",
+         "player": {
+          "id": 100031,
+          "gamerTag": "Player4",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100035",
+    "identifier": "AD",
+    "round": 4,
+    "fullRoundText": "Winners Quarter-Final",
+    "state": 3,
+    "winnerId": 100010,
+    "displayScore": "Player1 2 - Player7 0",
+    "lPlacement": 9,
+    "wPlacement": 5,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788481600,
+    "completedAt": 1788482385,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100067",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100012,
+       "seedNum": 2
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100010,
+       "name": "Player1",
+       "initialSeedNum": 2,
+       "participants": [
+        {
+         "id": 100013,
+         "gamerTag": "Player1",
+         "prefix": "Team1",
+         "player": {
+          "id": 100014,
+          "gamerTag": "Player1",
+          "prefix": "Team1"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100068",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100048,
+       "seedNum": 7
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100049,
+       "name": "Player7",
+       "initialSeedNum": 7,
+       "participants": [
+        {
+         "id": 100050,
+         "gamerTag": "Player7",
+         "prefix": "Team2",
+         "player": {
+          "id": 100051,
+          "gamerTag": "Player7",
+          "prefix": "Team2"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100036",
+    "identifier": "AE",
+    "round": 4,
+    "fullRoundText": "Winners Quarter-Final",
+    "state": 3,
+    "winnerId": 100017,
+    "displayScore": "Player2 3 - Player5 1",
+    "lPlacement": 9,
+    "wPlacement": 5,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788482488,
+    "completedAt": 1788483467,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100069",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100016,
+       "seedNum": 3
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100017,
+       "name": "Player2",
+       "initialSeedNum": 3,
+       "participants": [
+        {
+         "id": 100018,
+         "gamerTag": "Player2",
+         "prefix": null,
+         "player": {
+          "id": 100019,
+          "gamerTag": "Player2",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100070",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100038,
+       "seedNum": 6
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100039,
+       "name": "Player5",
+       "initialSeedNum": 6,
+       "participants": [
+        {
+         "id": 100040,
+         "gamerTag": "Player5",
+         "prefix": null,
+         "player": {
+          "id": 100041,
+          "gamerTag": "Player5",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100047",
+    "identifier": "BH",
+    "round": -8,
+    "fullRoundText": "Losers Round 5",
+    "state": 3,
+    "winnerId": 100049,
+    "displayScore": "Player7 3 - Player10 2",
+    "lPlacement": 9,
+    "wPlacement": 7,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788484384,
+    "completedAt": 1788485392,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100035",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100048,
+       "seedNum": 7
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100049,
+       "name": "Player7",
+       "initialSeedNum": 7,
+       "participants": [
+        {
+         "id": 100050,
+         "gamerTag": "Player7",
+         "prefix": "Team2",
+         "player": {
+          "id": 100051,
+          "gamerTag": "Player7",
+          "prefix": "Team2"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100071",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100072,
+       "seedNum": 21
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100073,
+       "name": "Player10",
+       "initialSeedNum": 21,
+       "participants": [
+        {
+         "id": 100074,
+         "gamerTag": "Player10",
+         "prefix": "",
+         "player": {
+          "id": 100075,
+          "gamerTag": "Player10",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100052",
+    "identifier": "BI",
+    "round": -8,
+    "fullRoundText": "Losers Round 5",
+    "state": 3,
+    "winnerId": 100039,
+    "displayScore": "Player5 3 - Player11 1",
+    "lPlacement": 9,
+    "wPlacement": 7,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788483610,
+    "completedAt": 1788484447,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100036",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100038,
+       "seedNum": 6
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100039,
+       "name": "Player5",
+       "initialSeedNum": 6,
+       "participants": [
+        {
+         "id": 100040,
+         "gamerTag": "Player5",
+         "prefix": null,
+         "player": {
+          "id": 100041,
+          "gamerTag": "Player5",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100076",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100077,
+       "seedNum": 8
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100078,
+       "name": "Player11",
+       "initialSeedNum": 8,
+       "participants": [
+        {
+         "id": 100079,
+         "gamerTag": "Player11",
+         "prefix": "",
+         "player": {
+          "id": 100080,
+          "gamerTag": "Player11",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100053",
+    "identifier": "BJ",
+    "round": -8,
+    "fullRoundText": "Losers Round 5",
+    "state": 3,
+    "winnerId": 100055,
+    "displayScore": "Player9 2 - Player8 3",
+    "lPlacement": 9,
+    "wPlacement": 7,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788483624,
+    "completedAt": 1788484841,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100033",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100061,
+       "seedNum": 9
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100062,
+       "name": "Player9",
+       "initialSeedNum": 9,
+       "participants": [
+        {
+         "id": 100063,
+         "gamerTag": "Player9",
+         "prefix": "",
+         "player": {
+          "id": 100064,
+          "gamerTag": "Player9",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100081",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100054,
+       "seedNum": 12
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100055,
+       "name": "Player8",
+       "initialSeedNum": 12,
+       "participants": [
+        {
+         "id": 100056,
+         "gamerTag": "Player8",
+         "prefix": null,
+         "player": {
+          "id": 100057,
+          "gamerTag": "Player8",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100058",
+    "identifier": "BK",
+    "round": -8,
+    "fullRoundText": "Losers Round 5",
+    "state": 3,
+    "winnerId": 100044,
+    "displayScore": "Player6 3 - Player12 2",
+    "lPlacement": 9,
+    "wPlacement": 7,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788482673,
+    "completedAt": 1788483739,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100034",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100043,
+       "seedNum": 4
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100044,
+       "name": "Player6",
+       "initialSeedNum": 4,
+       "participants": [
+        {
+         "id": 100045,
+         "gamerTag": "Player6",
+         "prefix": "",
+         "player": {
+          "id": 100046,
+          "gamerTag": "Player6",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100082",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100083,
+       "seedNum": 10
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100084,
+       "name": "Player12",
+       "initialSeedNum": 10,
+       "participants": [
+        {
+         "id": 100085,
+         "gamerTag": "Player12",
+         "prefix": "Team3",
+         "player": {
+          "id": 100086,
+          "gamerTag": "Player12",
+          "prefix": "Team3"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100071",
+    "identifier": "BD",
+    "round": -7,
+    "fullRoundText": "Losers Round 4",
+    "state": 3,
+    "winnerId": 100073,
+    "displayScore": "Player10 3 - Player13 2",
+    "lPlacement": 13,
+    "wPlacement": 9,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788483093,
+    "completedAt": 1788484355,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100087",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100072,
+       "seedNum": 21
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100073,
+       "name": "Player10",
+       "initialSeedNum": 21,
+       "participants": [
+        {
+         "id": 100074,
+         "gamerTag": "Player10",
+         "prefix": "",
+         "player": {
+          "id": 100075,
+          "gamerTag": "Player10",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100088",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100089,
+       "seedNum": 13
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100090,
+       "name": "Player13",
+       "initialSeedNum": 13,
+       "participants": [
+        {
+         "id": 100091,
+         "gamerTag": "Player13",
+         "prefix": "",
+         "player": {
+          "id": 100092,
+          "gamerTag": "Player13",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100076",
+    "identifier": "BE",
+    "round": -7,
+    "fullRoundText": "Losers Round 4",
+    "state": 3,
+    "winnerId": 100078,
+    "displayScore": "Player11 2 - Player14 0",
+    "lPlacement": 13,
+    "wPlacement": 9,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788482020,
+    "completedAt": 1788482316,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100093",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100077,
+       "seedNum": 8
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100078,
+       "name": "Player11",
+       "initialSeedNum": 8,
+       "participants": [
+        {
+         "id": 100079,
+         "gamerTag": "Player11",
+         "prefix": "",
+         "player": {
+          "id": 100080,
+          "gamerTag": "Player11",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100094",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100095,
+       "seedNum": 16
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100096,
+       "name": "Player14",
+       "initialSeedNum": 16,
+       "participants": [
+        {
+         "id": 100097,
+         "gamerTag": "Player14",
+         "prefix": null,
+         "player": {
+          "id": 100098,
+          "gamerTag": "Player14",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100081",
+    "identifier": "BF",
+    "round": -7,
+    "fullRoundText": "Losers Round 4",
+    "state": 3,
+    "winnerId": 100055,
+    "displayScore": "Player8 3 - Player15 1",
+    "lPlacement": 13,
+    "wPlacement": 9,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788482367,
+    "completedAt": 1788483538,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100099",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100054,
+       "seedNum": 12
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100055,
+       "name": "Player8",
+       "initialSeedNum": 12,
+       "participants": [
+        {
+         "id": 100056,
+         "gamerTag": "Player8",
+         "prefix": null,
+         "player": {
+          "id": 100057,
+          "gamerTag": "Player8",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100100",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100101,
+       "seedNum": 14
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100102,
+       "name": "Player15",
+       "initialSeedNum": 14,
+       "participants": [
+        {
+         "id": 100103,
+         "gamerTag": "Player15",
+         "prefix": "",
+         "player": {
+          "id": 100104,
+          "gamerTag": "Player15",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100082",
+    "identifier": "BG",
+    "round": -7,
+    "fullRoundText": "Losers Round 4",
+    "state": 3,
+    "winnerId": 100084,
+    "displayScore": "Player12 2 - Player16 0",
+    "lPlacement": 13,
+    "wPlacement": 9,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788482158,
+    "completedAt": 1788482666,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100105",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100083,
+       "seedNum": 10
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100084,
+       "name": "Player12",
+       "initialSeedNum": 10,
+       "participants": [
+        {
+         "id": 100085,
+         "gamerTag": "Player12",
+         "prefix": "Team3",
+         "player": {
+          "id": 100086,
+          "gamerTag": "Player12",
+          "prefix": "Team3"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100106",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100107,
+       "seedNum": 15
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100108,
+       "name": "Player16",
+       "initialSeedNum": 15,
+       "participants": [
+        {
+         "id": 100109,
+         "gamerTag": "Player16",
+         "prefix": "",
+         "player": {
+          "id": 100110,
+          "gamerTag": "Player16",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100070",
+    "identifier": "AA",
+    "round": 3,
+    "fullRoundText": "Winners Round 3",
+    "state": 3,
+    "winnerId": 100039,
+    "displayScore": "Player5 2 - Player17 0",
+    "lPlacement": 17,
+    "wPlacement": 9,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788480284,
+    "completedAt": 1788480863,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100111",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100038,
+       "seedNum": 6
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100039,
+       "name": "Player5",
+       "initialSeedNum": 6,
+       "participants": [
+        {
+         "id": 100040,
+         "gamerTag": "Player5",
+         "prefix": null,
+         "player": {
+          "id": 100041,
+          "gamerTag": "Player5",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100112",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100113,
+       "seedNum": 11
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100114,
+       "name": "Player17",
+       "initialSeedNum": 11,
+       "participants": [
+        {
+         "id": 100115,
+         "gamerTag": "Player17",
+         "prefix": "",
+         "player": {
+          "id": 100116,
+          "gamerTag": "Player17",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100059",
+    "identifier": "T",
+    "round": 3,
+    "fullRoundText": "Winners Round 3",
+    "state": 3,
+    "winnerId": 100022,
+    "displayScore": "Player3 2 - Player14 0",
+    "lPlacement": 17,
+    "wPlacement": 9,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788480511,
+    "completedAt": 1788481200,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100117",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100021,
+       "seedNum": 1
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100022,
+       "name": "Player3",
+       "initialSeedNum": 1,
+       "participants": [
+        {
+         "id": 100023,
+         "gamerTag": "Player3",
+         "prefix": "",
+         "player": {
+          "id": 100024,
+          "gamerTag": "Player3",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100118",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100095,
+       "seedNum": 16
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100096,
+       "name": "Player14",
+       "initialSeedNum": 16,
+       "participants": [
+        {
+         "id": 100097,
+         "gamerTag": "Player14",
+         "prefix": null,
+         "player": {
+          "id": 100098,
+          "gamerTag": "Player14",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100060",
+    "identifier": "U",
+    "round": 3,
+    "fullRoundText": "Winners Round 3",
+    "state": 3,
+    "winnerId": 100062,
+    "displayScore": "Player11 1 - Player9 3",
+    "lPlacement": 17,
+    "wPlacement": 9,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788479606,
+    "completedAt": 1788480652,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100119",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100077,
+       "seedNum": 8
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100078,
+       "name": "Player11",
+       "initialSeedNum": 8,
+       "participants": [
+        {
+         "id": 100079,
+         "gamerTag": "Player11",
+         "prefix": "",
+         "player": {
+          "id": 100080,
+          "gamerTag": "Player11",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100120",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100061,
+       "seedNum": 9
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100062,
+       "name": "Player9",
+       "initialSeedNum": 9,
+       "participants": [
+        {
+         "id": 100063,
+         "gamerTag": "Player9",
+         "prefix": "",
+         "player": {
+          "id": 100064,
+          "gamerTag": "Player9",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100065",
+    "identifier": "V",
+    "round": 3,
+    "fullRoundText": "Winners Round 3",
+    "state": 3,
+    "winnerId": 100044,
+    "displayScore": "Player6 2 - Player13 0",
+    "lPlacement": 17,
+    "wPlacement": 9,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788481287,
+    "completedAt": 1788481508,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100121",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100043,
+       "seedNum": 4
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100044,
+       "name": "Player6",
+       "initialSeedNum": 4,
+       "participants": [
+        {
+         "id": 100045,
+         "gamerTag": "Player6",
+         "prefix": "",
+         "player": {
+          "id": 100046,
+          "gamerTag": "Player6",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100122",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100089,
+       "seedNum": 13
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100090,
+       "name": "Player13",
+       "initialSeedNum": 13,
+       "participants": [
+        {
+         "id": 100091,
+         "gamerTag": "Player13",
+         "prefix": "",
+         "player": {
+          "id": 100092,
+          "gamerTag": "Player13",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100066",
+    "identifier": "W",
+    "round": 3,
+    "fullRoundText": "Winners Round 3",
+    "state": 3,
+    "winnerId": 100029,
+    "displayScore": "Player4 2 - Player10 0",
+    "lPlacement": 17,
+    "wPlacement": 9,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788479532,
+    "completedAt": 1788480121,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100123",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100028,
+       "seedNum": 5
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100029,
+       "name": "Player4",
+       "initialSeedNum": 5,
+       "participants": [
+        {
+         "id": 100030,
+         "gamerTag": "Player4",
+         "prefix": "",
+         "player": {
+          "id": 100031,
+          "gamerTag": "Player4",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100124",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100072,
+       "seedNum": 21
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100073,
+       "name": "Player10",
+       "initialSeedNum": 21,
+       "participants": [
+        {
+         "id": 100074,
+         "gamerTag": "Player10",
+         "prefix": "",
+         "player": {
+          "id": 100075,
+          "gamerTag": "Player10",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100067",
+    "identifier": "X",
+    "round": 3,
+    "fullRoundText": "Winners Round 3",
+    "state": 3,
+    "winnerId": 100010,
+    "displayScore": "Player1 2 - Player16 0",
+    "lPlacement": 17,
+    "wPlacement": 9,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788480595,
+    "completedAt": 1788480781,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100125",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100012,
+       "seedNum": 2
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100010,
+       "name": "Player1",
+       "initialSeedNum": 2,
+       "participants": [
+        {
+         "id": 100013,
+         "gamerTag": "Player1",
+         "prefix": "Team1",
+         "player": {
+          "id": 100014,
+          "gamerTag": "Player1",
+          "prefix": "Team1"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100126",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100107,
+       "seedNum": 15
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100108,
+       "name": "Player16",
+       "initialSeedNum": 15,
+       "participants": [
+        {
+         "id": 100109,
+         "gamerTag": "Player16",
+         "prefix": "",
+         "player": {
+          "id": 100110,
+          "gamerTag": "Player16",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100068",
+    "identifier": "Y",
+    "round": 3,
+    "fullRoundText": "Winners Round 3",
+    "state": 3,
+    "winnerId": 100049,
+    "displayScore": "Player7 3 - Player12 2",
+    "lPlacement": 17,
+    "wPlacement": 9,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788480495,
+    "completedAt": 1788481556,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100127",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100048,
+       "seedNum": 7
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100049,
+       "name": "Player7",
+       "initialSeedNum": 7,
+       "participants": [
+        {
+         "id": 100050,
+         "gamerTag": "Player7",
+         "prefix": "Team2",
+         "player": {
+          "id": 100051,
+          "gamerTag": "Player7",
+          "prefix": "Team2"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100128",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100083,
+       "seedNum": 10
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100084,
+       "name": "Player12",
+       "initialSeedNum": 10,
+       "participants": [
+        {
+         "id": 100085,
+         "gamerTag": "Player12",
+         "prefix": "Team3",
+         "player": {
+          "id": 100086,
+          "gamerTag": "Player12",
+          "prefix": "Team3"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100069",
+    "identifier": "Z",
+    "round": 3,
+    "fullRoundText": "Winners Round 3",
+    "state": 3,
+    "winnerId": 100017,
+    "displayScore": "Player2 3 - Player15 2",
+    "lPlacement": 17,
+    "wPlacement": 9,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788480589,
+    "completedAt": 1788481429,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100129",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100016,
+       "seedNum": 3
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100017,
+       "name": "Player2",
+       "initialSeedNum": 3,
+       "participants": [
+        {
+         "id": 100018,
+         "gamerTag": "Player2",
+         "prefix": null,
+         "player": {
+          "id": 100019,
+          "gamerTag": "Player2",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100130",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100101,
+       "seedNum": 14
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100102,
+       "name": "Player15",
+       "initialSeedNum": 14,
+       "participants": [
+        {
+         "id": 100103,
+         "gamerTag": "Player15",
+         "prefix": "",
+         "player": {
+          "id": 100104,
+          "gamerTag": "Player15",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100087",
+    "identifier": "AV",
+    "round": -6,
+    "fullRoundText": "Losers Round 3",
+    "state": 3,
+    "winnerId": 100073,
+    "displayScore": "Player10 2 - Player18 0",
+    "lPlacement": 17,
+    "wPlacement": 13,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788481174,
+    "completedAt": 1788482343,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100066",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100072,
+       "seedNum": 21
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100073,
+       "name": "Player10",
+       "initialSeedNum": 21,
+       "participants": [
+        {
+         "id": 100074,
+         "gamerTag": "Player10",
+         "prefix": "",
+         "player": {
+          "id": 100075,
+          "gamerTag": "Player10",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100131",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100132,
+       "seedNum": 22
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100133,
+       "name": "Player18",
+       "initialSeedNum": 22,
+       "participants": [
+        {
+         "id": 100134,
+         "gamerTag": "Player18",
+         "prefix": "",
+         "player": {
+          "id": 100135,
+          "gamerTag": "Player18",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100088",
+    "identifier": "AW",
+    "round": -6,
+    "fullRoundText": "Losers Round 3",
+    "state": 3,
+    "winnerId": 100090,
+    "displayScore": "Player13 3 - Player19 2",
+    "lPlacement": 17,
+    "wPlacement": 13,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788481531,
+    "completedAt": 1788483074,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100065",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100089,
+       "seedNum": 13
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100090,
+       "name": "Player13",
+       "initialSeedNum": 13,
+       "participants": [
+        {
+         "id": 100091,
+         "gamerTag": "Player13",
+         "prefix": "",
+         "player": {
+          "id": 100092,
+          "gamerTag": "Player13",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100136",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100137,
+       "seedNum": 19
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100138,
+       "name": "Player19",
+       "initialSeedNum": 19,
+       "participants": [
+        {
+         "id": 100139,
+         "gamerTag": "Player19",
+         "prefix": "Team4",
+         "player": {
+          "id": 100140,
+          "gamerTag": "Player19",
+          "prefix": "Team4"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100093",
+    "identifier": "AX",
+    "round": -6,
+    "fullRoundText": "Losers Round 3",
+    "state": 3,
+    "winnerId": 100078,
+    "displayScore": "Player11 2 - Player20 0",
+    "lPlacement": 17,
+    "wPlacement": 13,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788481270,
+    "completedAt": 1788481687,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100060",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100077,
+       "seedNum": 8
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100078,
+       "name": "Player11",
+       "initialSeedNum": 8,
+       "participants": [
+        {
+         "id": 100079,
+         "gamerTag": "Player11",
+         "prefix": "",
+         "player": {
+          "id": 100080,
+          "gamerTag": "Player11",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100141",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100142,
+       "seedNum": 23
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100143,
+       "name": "Player20",
+       "initialSeedNum": 23,
+       "participants": [
+        {
+         "id": 100144,
+         "gamerTag": "Player20",
+         "prefix": "Team5",
+         "player": {
+          "id": 100145,
+          "gamerTag": "Player20",
+          "prefix": "Team5"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100094",
+    "identifier": "AY",
+    "round": -6,
+    "fullRoundText": "Losers Round 3",
+    "state": 3,
+    "winnerId": 100096,
+    "displayScore": "Player14 2 - Player21 0",
+    "lPlacement": 17,
+    "wPlacement": 13,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788481256,
+    "completedAt": 1788481810,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100059",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100095,
+       "seedNum": 16
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100096,
+       "name": "Player14",
+       "initialSeedNum": 16,
+       "participants": [
+        {
+         "id": 100097,
+         "gamerTag": "Player14",
+         "prefix": null,
+         "player": {
+          "id": 100098,
+          "gamerTag": "Player14",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100146",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100147,
+       "seedNum": 18
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100148,
+       "name": "Player21",
+       "initialSeedNum": 18,
+       "participants": [
+        {
+         "id": 100149,
+         "gamerTag": "Player21",
+         "prefix": null,
+         "player": {
+          "id": 100150,
+          "gamerTag": "Player21",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100099",
+    "identifier": "AZ",
+    "round": -6,
+    "fullRoundText": "Losers Round 3",
+    "state": 3,
+    "winnerId": 100055,
+    "displayScore": "Player17 0 - Player8 2",
+    "lPlacement": 17,
+    "wPlacement": 13,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788480888,
+    "completedAt": 1788481593,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100070",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100113,
+       "seedNum": 11
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100114,
+       "name": "Player17",
+       "initialSeedNum": 11,
+       "participants": [
+        {
+         "id": 100115,
+         "gamerTag": "Player17",
+         "prefix": "",
+         "player": {
+          "id": 100116,
+          "gamerTag": "Player17",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100151",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100054,
+       "seedNum": 12
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100055,
+       "name": "Player8",
+       "initialSeedNum": 12,
+       "participants": [
+        {
+         "id": 100056,
+         "gamerTag": "Player8",
+         "prefix": null,
+         "player": {
+          "id": 100057,
+          "gamerTag": "Player8",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100100",
+    "identifier": "BA",
+    "round": -6,
+    "fullRoundText": "Losers Round 3",
+    "state": 3,
+    "winnerId": 100102,
+    "displayScore": "Player15 2 - Player22 0",
+    "lPlacement": 17,
+    "wPlacement": 13,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788481536,
+    "completedAt": 1788482364,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100069",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100101,
+       "seedNum": 14
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100102,
+       "name": "Player15",
+       "initialSeedNum": 14,
+       "participants": [
+        {
+         "id": 100103,
+         "gamerTag": "Player15",
+         "prefix": "",
+         "player": {
+          "id": 100104,
+          "gamerTag": "Player15",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100152",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100153,
+       "seedNum": 20
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100154,
+       "name": "Player22",
+       "initialSeedNum": 20,
+       "participants": [
+        {
+         "id": 100155,
+         "gamerTag": "Player22",
+         "prefix": "Team6",
+         "player": {
+          "id": 100156,
+          "gamerTag": "Player22",
+          "prefix": "Team6"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100105",
+    "identifier": "BB",
+    "round": -6,
+    "fullRoundText": "Losers Round 3",
+    "state": 3,
+    "winnerId": 100084,
+    "displayScore": "Player12 2 - Player23 0",
+    "lPlacement": 17,
+    "wPlacement": 13,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788481585,
+    "completedAt": 1788482079,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100068",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100083,
+       "seedNum": 10
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100084,
+       "name": "Player12",
+       "initialSeedNum": 10,
+       "participants": [
+        {
+         "id": 100085,
+         "gamerTag": "Player12",
+         "prefix": "Team3",
+         "player": {
+          "id": 100086,
+          "gamerTag": "Player12",
+          "prefix": "Team3"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100157",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100158,
+       "seedNum": 24
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100159,
+       "name": "Player23",
+       "initialSeedNum": 24,
+       "participants": [
+        {
+         "id": 100160,
+         "gamerTag": "Player23",
+         "prefix": "Team7",
+         "player": {
+          "id": 100161,
+          "gamerTag": "Player23",
+          "prefix": "Team7"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100106",
+    "identifier": "BC",
+    "round": -6,
+    "fullRoundText": "Losers Round 3",
+    "state": 3,
+    "winnerId": 100108,
+    "displayScore": "Player16 2 - Player24 0",
+    "lPlacement": 17,
+    "wPlacement": 13,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788481620,
+    "completedAt": 1788482153,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100067",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100107,
+       "seedNum": 15
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100108,
+       "name": "Player16",
+       "initialSeedNum": 15,
+       "participants": [
+        {
+         "id": 100109,
+         "gamerTag": "Player16",
+         "prefix": "",
+         "player": {
+          "id": 100110,
+          "gamerTag": "Player16",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100162",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100163,
+       "seedNum": 17
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100164,
+       "name": "Player24",
+       "initialSeedNum": 17,
+       "participants": [
+        {
+         "id": 100165,
+         "gamerTag": "Player24",
+         "prefix": "",
+         "player": {
+          "id": 100166,
+          "gamerTag": "Player24",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100131",
+    "identifier": "AN",
+    "round": -5,
+    "fullRoundText": "Losers Round 2",
+    "state": 3,
+    "winnerId": 100133,
+    "displayScore": "Player18 2 - Player25 0",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788480817,
+    "completedAt": 1788481154,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100167",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100132,
+       "seedNum": 22
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100133,
+       "name": "Player18",
+       "initialSeedNum": 22,
+       "participants": [
+        {
+         "id": 100134,
+         "gamerTag": "Player18",
+         "prefix": "",
+         "player": {
+          "id": 100135,
+          "gamerTag": "Player18",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100168",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100169,
+       "seedNum": 27
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100170,
+       "name": "Player25",
+       "initialSeedNum": 27,
+       "participants": [
+        {
+         "id": 100171,
+         "gamerTag": "Player25",
+         "prefix": "",
+         "player": {
+          "id": 100172,
+          "gamerTag": "Player25",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100136",
+    "identifier": "AO",
+    "round": -5,
+    "fullRoundText": "Losers Round 2",
+    "state": 3,
+    "winnerId": 100138,
+    "displayScore": "Player19 2 - Player26 0",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788480545,
+    "completedAt": 1788480987,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100173",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100137,
+       "seedNum": 19
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100138,
+       "name": "Player19",
+       "initialSeedNum": 19,
+       "participants": [
+        {
+         "id": 100139,
+         "gamerTag": "Player19",
+         "prefix": "Team4",
+         "player": {
+          "id": 100140,
+          "gamerTag": "Player19",
+          "prefix": "Team4"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100174",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100175,
+       "seedNum": 30
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100176,
+       "name": "Player26",
+       "initialSeedNum": 30,
+       "participants": [
+        {
+         "id": 100177,
+         "gamerTag": "Player26",
+         "prefix": "",
+         "player": {
+          "id": 100178,
+          "gamerTag": "Player26",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100141",
+    "identifier": "AP",
+    "round": -5,
+    "fullRoundText": "Losers Round 2",
+    "state": 3,
+    "winnerId": 100143,
+    "displayScore": "Player20 2 - Player27 0",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788480537,
+    "completedAt": 1788481263,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100179",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100142,
+       "seedNum": 23
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100143,
+       "name": "Player20",
+       "initialSeedNum": 23,
+       "participants": [
+        {
+         "id": 100144,
+         "gamerTag": "Player20",
+         "prefix": "Team5",
+         "player": {
+          "id": 100145,
+          "gamerTag": "Player20",
+          "prefix": "Team5"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100180",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100181,
+       "seedNum": 26
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100182,
+       "name": "Player27",
+       "initialSeedNum": 26,
+       "participants": [
+        {
+         "id": 100183,
+         "gamerTag": "Player27",
+         "prefix": "",
+         "player": {
+          "id": 100184,
+          "gamerTag": "Player27",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100146",
+    "identifier": "AQ",
+    "round": -5,
+    "fullRoundText": "Losers Round 2",
+    "state": 3,
+    "winnerId": 100148,
+    "displayScore": "Player21 3 - Player28 1",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788480178,
+    "completedAt": 1788481247,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100185",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100147,
+       "seedNum": 18
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100148,
+       "name": "Player21",
+       "initialSeedNum": 18,
+       "participants": [
+        {
+         "id": 100149,
+         "gamerTag": "Player21",
+         "prefix": null,
+         "player": {
+          "id": 100150,
+          "gamerTag": "Player21",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100186",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100187,
+       "seedNum": 31
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100188,
+       "name": "Player28",
+       "initialSeedNum": 31,
+       "participants": [
+        {
+         "id": 100189,
+         "gamerTag": "Player28",
+         "prefix": null,
+         "player": {
+          "id": 100190,
+          "gamerTag": "Player28",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100151",
+    "identifier": "AR",
+    "round": -5,
+    "fullRoundText": "Losers Round 2",
+    "state": 3,
+    "winnerId": 100055,
+    "displayScore": "Player8 2 - Player29 0",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788480255,
+    "completedAt": 1788480561,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100191",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100054,
+       "seedNum": 12
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100055,
+       "name": "Player8",
+       "initialSeedNum": 12,
+       "participants": [
+        {
+         "id": 100056,
+         "gamerTag": "Player8",
+         "prefix": null,
+         "player": {
+          "id": 100057,
+          "gamerTag": "Player8",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100192",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100193,
+       "seedNum": 28
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100194,
+       "name": "Player29",
+       "initialSeedNum": 28,
+       "participants": [
+        {
+         "id": 100195,
+         "gamerTag": "Player29",
+         "prefix": "",
+         "player": {
+          "id": 100196,
+          "gamerTag": "Player29",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100152",
+    "identifier": "AS",
+    "round": -5,
+    "fullRoundText": "Losers Round 2",
+    "state": 3,
+    "winnerId": 100154,
+    "displayScore": "Player22 2 - Player30 0",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788481027,
+    "completedAt": 1788481488,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100197",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100153,
+       "seedNum": 20
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100154,
+       "name": "Player22",
+       "initialSeedNum": 20,
+       "participants": [
+        {
+         "id": 100155,
+         "gamerTag": "Player22",
+         "prefix": "Team6",
+         "player": {
+          "id": 100156,
+          "gamerTag": "Player22",
+          "prefix": "Team6"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100198",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100199,
+       "seedNum": 29
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100200,
+       "name": "Player30",
+       "initialSeedNum": 29,
+       "participants": [
+        {
+         "id": 100201,
+         "gamerTag": "Player30",
+         "prefix": "",
+         "player": {
+          "id": 100202,
+          "gamerTag": "Player30",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100157",
+    "identifier": "AT",
+    "round": -5,
+    "fullRoundText": "Losers Round 2",
+    "state": 3,
+    "winnerId": 100159,
+    "displayScore": "Player23 3 - Player31 2",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788480290,
+    "completedAt": 1788481099,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100203",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100158,
+       "seedNum": 24
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100159,
+       "name": "Player23",
+       "initialSeedNum": 24,
+       "participants": [
+        {
+         "id": 100160,
+         "gamerTag": "Player23",
+         "prefix": "Team7",
+         "player": {
+          "id": 100161,
+          "gamerTag": "Player23",
+          "prefix": "Team7"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100204",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100205,
+       "seedNum": 25
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100206,
+       "name": "Player31",
+       "initialSeedNum": 25,
+       "participants": [
+        {
+         "id": 100207,
+         "gamerTag": "Player31",
+         "prefix": "",
+         "player": {
+          "id": 100208,
+          "gamerTag": "Player31",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100162",
+    "identifier": "AU",
+    "round": -5,
+    "fullRoundText": "Losers Round 2",
+    "state": 3,
+    "winnerId": 100164,
+    "displayScore": "Player24 3 - Player32 1",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788480570,
+    "completedAt": 1788481616,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100209",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100163,
+       "seedNum": 17
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100164,
+       "name": "Player24",
+       "initialSeedNum": 17,
+       "participants": [
+        {
+         "id": 100165,
+         "gamerTag": "Player24",
+         "prefix": "",
+         "player": {
+          "id": 100166,
+          "gamerTag": "Player24",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100210",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100211,
+       "seedNum": 33
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100212,
+       "name": "Player32",
+       "initialSeedNum": 33,
+       "participants": [
+        {
+         "id": 100213,
+         "gamerTag": "Player32",
+         "prefix": null,
+         "player": {
+          "id": 100214,
+          "gamerTag": "Player32",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100117",
+    "identifier": "D",
+    "round": 2,
+    "fullRoundText": "Winners Round 2",
+    "state": 3,
+    "winnerId": 100022,
+    "displayScore": "Player3 2 - Player32 0",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788480197,
+    "completedAt": 1788480507,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100215",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100021,
+       "seedNum": 1
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100022,
+       "name": "Player3",
+       "initialSeedNum": 1,
+       "participants": [
+        {
+         "id": 100023,
+         "gamerTag": "Player3",
+         "prefix": "",
+         "player": {
+          "id": 100024,
+          "gamerTag": "Player3",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100216",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100211,
+       "seedNum": 33
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100212,
+       "name": "Player32",
+       "initialSeedNum": 33,
+       "participants": [
+        {
+         "id": 100213,
+         "gamerTag": "Player32",
+         "prefix": null,
+         "player": {
+          "id": 100214,
+          "gamerTag": "Player32",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100118",
+    "identifier": "E",
+    "round": 2,
+    "fullRoundText": "Winners Round 2",
+    "state": 3,
+    "winnerId": 100096,
+    "displayScore": "Player14 2 - Player24 0",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478634,
+    "completedAt": 1788479327,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100217",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100095,
+       "seedNum": 16
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100096,
+       "name": "Player14",
+       "initialSeedNum": 16,
+       "participants": [
+        {
+         "id": 100097,
+         "gamerTag": "Player14",
+         "prefix": null,
+         "player": {
+          "id": 100098,
+          "gamerTag": "Player14",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100218",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100163,
+       "seedNum": 17
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100164,
+       "name": "Player24",
+       "initialSeedNum": 17,
+       "participants": [
+        {
+         "id": 100165,
+         "gamerTag": "Player24",
+         "prefix": "",
+         "player": {
+          "id": 100166,
+          "gamerTag": "Player24",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100119",
+    "identifier": "F",
+    "round": 2,
+    "fullRoundText": "Winners Round 2",
+    "state": 3,
+    "winnerId": 100078,
+    "displayScore": "Player11 2 - Player31 0",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478658,
+    "completedAt": 1788479075,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100219",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100077,
+       "seedNum": 8
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100078,
+       "name": "Player11",
+       "initialSeedNum": 8,
+       "participants": [
+        {
+         "id": 100079,
+         "gamerTag": "Player11",
+         "prefix": "",
+         "player": {
+          "id": 100080,
+          "gamerTag": "Player11",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100220",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100205,
+       "seedNum": 25
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100206,
+       "name": "Player31",
+       "initialSeedNum": 25,
+       "participants": [
+        {
+         "id": 100207,
+         "gamerTag": "Player31",
+         "prefix": "",
+         "player": {
+          "id": 100208,
+          "gamerTag": "Player31",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100120",
+    "identifier": "G",
+    "round": 2,
+    "fullRoundText": "Winners Round 2",
+    "state": 3,
+    "winnerId": 100062,
+    "displayScore": "Player9 3 - Player23 2",
+    "lPlacement": 33,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478600,
+    "completedAt": 1788479600,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100221",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100061,
+       "seedNum": 9
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100062,
+       "name": "Player9",
+       "initialSeedNum": 9,
+       "participants": [
+        {
+         "id": 100063,
+         "gamerTag": "Player9",
+         "prefix": "",
+         "player": {
+          "id": 100064,
+          "gamerTag": "Player9",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100222",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100158,
+       "seedNum": 24
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100159,
+       "name": "Player23",
+       "initialSeedNum": 24,
+       "participants": [
+        {
+         "id": 100160,
+         "gamerTag": "Player23",
+         "prefix": "Team7",
+         "player": {
+          "id": 100161,
+          "gamerTag": "Player23",
+          "prefix": "Team7"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100121",
+    "identifier": "H",
+    "round": 2,
+    "fullRoundText": "Winners Round 2",
+    "state": 3,
+    "winnerId": 100044,
+    "displayScore": "Player6 2 - Player30 0",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478668,
+    "completedAt": 1788479136,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100223",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100043,
+       "seedNum": 4
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100044,
+       "name": "Player6",
+       "initialSeedNum": 4,
+       "participants": [
+        {
+         "id": 100045,
+         "gamerTag": "Player6",
+         "prefix": "",
+         "player": {
+          "id": 100046,
+          "gamerTag": "Player6",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100224",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100199,
+       "seedNum": 29
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100200,
+       "name": "Player30",
+       "initialSeedNum": 29,
+       "participants": [
+        {
+         "id": 100201,
+         "gamerTag": "Player30",
+         "prefix": "",
+         "player": {
+          "id": 100202,
+          "gamerTag": "Player30",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100122",
+    "identifier": "I",
+    "round": 2,
+    "fullRoundText": "Winners Round 2",
+    "state": 3,
+    "winnerId": 100090,
+    "displayScore": "Player13 3 - Player22 2",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478679,
+    "completedAt": 1788480948,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100225",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100089,
+       "seedNum": 13
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100090,
+       "name": "Player13",
+       "initialSeedNum": 13,
+       "participants": [
+        {
+         "id": 100091,
+         "gamerTag": "Player13",
+         "prefix": "",
+         "player": {
+          "id": 100092,
+          "gamerTag": "Player13",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100226",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100153,
+       "seedNum": 20
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100154,
+       "name": "Player22",
+       "initialSeedNum": 20,
+       "participants": [
+        {
+         "id": 100155,
+         "gamerTag": "Player22",
+         "prefix": "Team6",
+         "player": {
+          "id": 100156,
+          "gamerTag": "Player22",
+          "prefix": "Team6"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100123",
+    "identifier": "J",
+    "round": 2,
+    "fullRoundText": "Winners Round 2",
+    "state": 3,
+    "winnerId": 100029,
+    "displayScore": "Player4 2 - Player29 0",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478701,
+    "completedAt": 1788479182,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100227",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100028,
+       "seedNum": 5
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100029,
+       "name": "Player4",
+       "initialSeedNum": 5,
+       "participants": [
+        {
+         "id": 100030,
+         "gamerTag": "Player4",
+         "prefix": "",
+         "player": {
+          "id": 100031,
+          "gamerTag": "Player4",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100228",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100193,
+       "seedNum": 28
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100194,
+       "name": "Player29",
+       "initialSeedNum": 28,
+       "participants": [
+        {
+         "id": 100195,
+         "gamerTag": "Player29",
+         "prefix": "",
+         "player": {
+          "id": 100196,
+          "gamerTag": "Player29",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100124",
+    "identifier": "K",
+    "round": 2,
+    "fullRoundText": "Winners Round 2",
+    "state": 3,
+    "winnerId": 100073,
+    "displayScore": "Player8 1 - Player10 3",
+    "lPlacement": 33,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478604,
+    "completedAt": 1788479512,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100229",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100054,
+       "seedNum": 12
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100055,
+       "name": "Player8",
+       "initialSeedNum": 12,
+       "participants": [
+        {
+         "id": 100056,
+         "gamerTag": "Player8",
+         "prefix": null,
+         "player": {
+          "id": 100057,
+          "gamerTag": "Player8",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100230",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100072,
+       "seedNum": 21
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100073,
+       "name": "Player10",
+       "initialSeedNum": 21,
+       "participants": [
+        {
+         "id": 100074,
+         "gamerTag": "Player10",
+         "prefix": "",
+         "player": {
+          "id": 100075,
+          "gamerTag": "Player10",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100125",
+    "identifier": "L",
+    "round": 2,
+    "fullRoundText": "Winners Round 2",
+    "state": 3,
+    "winnerId": 100010,
+    "displayScore": "Player1 2 - Player28 0",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788479653,
+    "completedAt": 1788480170,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100231",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100012,
+       "seedNum": 2
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100010,
+       "name": "Player1",
+       "initialSeedNum": 2,
+       "participants": [
+        {
+         "id": 100013,
+         "gamerTag": "Player1",
+         "prefix": "Team1",
+         "player": {
+          "id": 100014,
+          "gamerTag": "Player1",
+          "prefix": "Team1"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100232",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100187,
+       "seedNum": 31
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100188,
+       "name": "Player28",
+       "initialSeedNum": 31,
+       "participants": [
+        {
+         "id": 100189,
+         "gamerTag": "Player28",
+         "prefix": null,
+         "player": {
+          "id": 100190,
+          "gamerTag": "Player28",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100126",
+    "identifier": "M",
+    "round": 2,
+    "fullRoundText": "Winners Round 2",
+    "state": 3,
+    "winnerId": 100108,
+    "displayScore": "Player16 2 - Player21 0",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478727,
+    "completedAt": 1788479647,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100233",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100107,
+       "seedNum": 15
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100108,
+       "name": "Player16",
+       "initialSeedNum": 15,
+       "participants": [
+        {
+         "id": 100109,
+         "gamerTag": "Player16",
+         "prefix": "",
+         "player": {
+          "id": 100110,
+          "gamerTag": "Player16",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100234",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100147,
+       "seedNum": 18
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100148,
+       "name": "Player21",
+       "initialSeedNum": 18,
+       "participants": [
+        {
+         "id": 100149,
+         "gamerTag": "Player21",
+         "prefix": null,
+         "player": {
+          "id": 100150,
+          "gamerTag": "Player21",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100127",
+    "identifier": "N",
+    "round": 2,
+    "fullRoundText": "Winners Round 2",
+    "state": 3,
+    "winnerId": 100049,
+    "displayScore": "Player7 3 - Player27 2",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478713,
+    "completedAt": 1788480488,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100235",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100048,
+       "seedNum": 7
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100049,
+       "name": "Player7",
+       "initialSeedNum": 7,
+       "participants": [
+        {
+         "id": 100050,
+         "gamerTag": "Player7",
+         "prefix": "Team2",
+         "player": {
+          "id": 100051,
+          "gamerTag": "Player7",
+          "prefix": "Team2"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100236",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100181,
+       "seedNum": 26
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100182,
+       "name": "Player27",
+       "initialSeedNum": 26,
+       "participants": [
+        {
+         "id": 100183,
+         "gamerTag": "Player27",
+         "prefix": "",
+         "player": {
+          "id": 100184,
+          "gamerTag": "Player27",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100128",
+    "identifier": "O",
+    "round": 2,
+    "fullRoundText": "Winners Round 2",
+    "state": 3,
+    "winnerId": 100084,
+    "displayScore": "Player12 2 - Player20 0",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478753,
+    "completedAt": 1788479521,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100237",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100083,
+       "seedNum": 10
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100084,
+       "name": "Player12",
+       "initialSeedNum": 10,
+       "participants": [
+        {
+         "id": 100085,
+         "gamerTag": "Player12",
+         "prefix": "Team3",
+         "player": {
+          "id": 100086,
+          "gamerTag": "Player12",
+          "prefix": "Team3"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100238",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100142,
+       "seedNum": 23
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100143,
+       "name": "Player20",
+       "initialSeedNum": 23,
+       "participants": [
+        {
+         "id": 100144,
+         "gamerTag": "Player20",
+         "prefix": "Team5",
+         "player": {
+          "id": 100145,
+          "gamerTag": "Player20",
+          "prefix": "Team5"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100129",
+    "identifier": "P",
+    "round": 2,
+    "fullRoundText": "Winners Round 2",
+    "state": 3,
+    "winnerId": 100017,
+    "displayScore": "Player2 2 - Player26 0",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478929,
+    "completedAt": 1788479301,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100239",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100016,
+       "seedNum": 3
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100017,
+       "name": "Player2",
+       "initialSeedNum": 3,
+       "participants": [
+        {
+         "id": 100018,
+         "gamerTag": "Player2",
+         "prefix": null,
+         "player": {
+          "id": 100019,
+          "gamerTag": "Player2",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100240",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100175,
+       "seedNum": 30
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100176,
+       "name": "Player26",
+       "initialSeedNum": 30,
+       "participants": [
+        {
+         "id": 100177,
+         "gamerTag": "Player26",
+         "prefix": "",
+         "player": {
+          "id": 100178,
+          "gamerTag": "Player26",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100130",
+    "identifier": "Q",
+    "round": 2,
+    "fullRoundText": "Winners Round 2",
+    "state": 3,
+    "winnerId": 100102,
+    "displayScore": "Player15 3 - Player19 2",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478746,
+    "completedAt": 1788480467,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100241",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100101,
+       "seedNum": 14
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100102,
+       "name": "Player15",
+       "initialSeedNum": 14,
+       "participants": [
+        {
+         "id": 100103,
+         "gamerTag": "Player15",
+         "prefix": "",
+         "player": {
+          "id": 100104,
+          "gamerTag": "Player15",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100242",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100137,
+       "seedNum": 19
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100138,
+       "name": "Player19",
+       "initialSeedNum": 19,
+       "participants": [
+        {
+         "id": 100139,
+         "gamerTag": "Player19",
+         "prefix": "Team4",
+         "player": {
+          "id": 100140,
+          "gamerTag": "Player19",
+          "prefix": "Team4"
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100111",
+    "identifier": "R",
+    "round": 2,
+    "fullRoundText": "Winners Round 2",
+    "state": 3,
+    "winnerId": 100039,
+    "displayScore": "Player5 2 - Player25 0",
+    "lPlacement": 25,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478765,
+    "completedAt": 1788479586,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100243",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100038,
+       "seedNum": 6
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100039,
+       "name": "Player5",
+       "initialSeedNum": 6,
+       "participants": [
+        {
+         "id": 100040,
+         "gamerTag": "Player5",
+         "prefix": null,
+         "player": {
+          "id": 100041,
+          "gamerTag": "Player5",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100244",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100169,
+       "seedNum": 27
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100170,
+       "name": "Player25",
+       "initialSeedNum": 27,
+       "participants": [
+        {
+         "id": 100171,
+         "gamerTag": "Player25",
+         "prefix": "",
+         "player": {
+          "id": 100172,
+          "gamerTag": "Player25",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100112",
+    "identifier": "S",
+    "round": 2,
+    "fullRoundText": "Winners Round 2",
+    "state": 3,
+    "winnerId": 100114,
+    "displayScore": "Player17 3 - Player18 2",
+    "lPlacement": 33,
+    "wPlacement": 17,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478622,
+    "completedAt": 1788479627,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100245",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100113,
+       "seedNum": 11
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100114,
+       "name": "Player17",
+       "initialSeedNum": 11,
+       "participants": [
+        {
+         "id": 100115,
+         "gamerTag": "Player17",
+         "prefix": "",
+         "player": {
+          "id": 100116,
+          "gamerTag": "Player17",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100246",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100132,
+       "seedNum": 22
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100133,
+       "name": "Player18",
+       "initialSeedNum": 22,
+       "participants": [
+        {
+         "id": 100134,
+         "gamerTag": "Player18",
+         "prefix": "",
+         "player": {
+          "id": 100135,
+          "gamerTag": "Player18",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100167",
+    "identifier": "AK",
+    "round": -4,
+    "fullRoundText": "Losers Round 1",
+    "state": 3,
+    "winnerId": 100133,
+    "displayScore": "Player18 2 - Player33 0",
+    "lPlacement": 33,
+    "wPlacement": 25,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788480183,
+    "completedAt": 1788480669,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100112",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100132,
+       "seedNum": 22
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100133,
+       "name": "Player18",
+       "initialSeedNum": 22,
+       "participants": [
+        {
+         "id": 100134,
+         "gamerTag": "Player18",
+         "prefix": "",
+         "player": {
+          "id": 100135,
+          "gamerTag": "Player18",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100247",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100248,
+       "seedNum": 32
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100249,
+       "name": "Player33",
+       "initialSeedNum": 32,
+       "participants": [
+        {
+         "id": 100250,
+         "gamerTag": "Player33",
+         "prefix": null,
+         "player": {
+          "id": 100251,
+          "gamerTag": "Player33",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100191",
+    "identifier": "AL",
+    "round": -4,
+    "fullRoundText": "Losers Round 1",
+    "state": 3,
+    "winnerId": 100055,
+    "displayScore": "Player8 2 - Player34 0",
+    "lPlacement": 33,
+    "wPlacement": 25,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788479580,
+    "completedAt": 1788480096,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100124",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100054,
+       "seedNum": 12
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100055,
+       "name": "Player8",
+       "initialSeedNum": 12,
+       "participants": [
+        {
+         "id": 100056,
+         "gamerTag": "Player8",
+         "prefix": null,
+         "player": {
+          "id": 100057,
+          "gamerTag": "Player8",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100252",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100253,
+       "seedNum": 34
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100254,
+       "name": "Player34",
+       "initialSeedNum": 34,
+       "participants": [
+        {
+         "id": 100255,
+         "gamerTag": "Player34",
+         "prefix": null,
+         "player": {
+          "id": 100256,
+          "gamerTag": "Player34",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100203",
+    "identifier": "AM",
+    "round": -4,
+    "fullRoundText": "Losers Round 1",
+    "state": 3,
+    "winnerId": 100159,
+    "displayScore": "Player23 2 - Player35 0",
+    "lPlacement": 33,
+    "wPlacement": 25,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788479698,
+    "completedAt": 1788480105,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "set",
+      "prereqId": "100120",
+      "prereqPlacement": 2,
+      "seed": {
+       "id": 100158,
+       "seedNum": 24
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100159,
+       "name": "Player23",
+       "initialSeedNum": 24,
+       "participants": [
+        {
+         "id": 100160,
+         "gamerTag": "Player23",
+         "prefix": "Team7",
+         "player": {
+          "id": 100161,
+          "gamerTag": "Player23",
+          "prefix": "Team7"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "set",
+      "prereqId": "100257",
+      "prereqPlacement": 1,
+      "seed": {
+       "id": 100258,
+       "seedNum": 35
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100259,
+       "name": "Player35",
+       "initialSeedNum": 35,
+       "participants": [
+        {
+         "id": 100260,
+         "gamerTag": "Player35",
+         "prefix": "",
+         "player": {
+          "id": 100261,
+          "gamerTag": "Player35",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100216",
+    "identifier": "A",
+    "round": 1,
+    "fullRoundText": "Winners Round 1",
+    "state": 3,
+    "winnerId": 100212,
+    "displayScore": "Player33 2 - Player32 3",
+    "lPlacement": 33,
+    "wPlacement": 25,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478547,
+    "completedAt": 1788480145,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "seed",
+      "prereqId": 100248,
+      "prereqPlacement": null,
+      "seed": {
+       "id": 100248,
+       "seedNum": 32
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100249,
+       "name": "Player33",
+       "initialSeedNum": 32,
+       "participants": [
+        {
+         "id": 100250,
+         "gamerTag": "Player33",
+         "prefix": null,
+         "player": {
+          "id": 100251,
+          "gamerTag": "Player33",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "seed",
+      "prereqId": 100211,
+      "prereqPlacement": null,
+      "seed": {
+       "id": 100211,
+       "seedNum": 33
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100212,
+       "name": "Player32",
+       "initialSeedNum": 33,
+       "participants": [
+        {
+         "id": 100213,
+         "gamerTag": "Player32",
+         "prefix": null,
+         "player": {
+          "id": 100214,
+          "gamerTag": "Player32",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100232",
+    "identifier": "B",
+    "round": 1,
+    "fullRoundText": "Winners Round 1",
+    "state": 3,
+    "winnerId": 100188,
+    "displayScore": "Player28 3 - Player34 1",
+    "lPlacement": 33,
+    "wPlacement": 25,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478556,
+    "completedAt": 1788479488,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "seed",
+      "prereqId": 100187,
+      "prereqPlacement": null,
+      "seed": {
+       "id": 100187,
+       "seedNum": 31
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 3
+        }
+       }
+      },
+      "entrant": {
+       "id": 100188,
+       "name": "Player28",
+       "initialSeedNum": 31,
+       "participants": [
+        {
+         "id": 100189,
+         "gamerTag": "Player28",
+         "prefix": null,
+         "player": {
+          "id": 100190,
+          "gamerTag": "Player28",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "seed",
+      "prereqId": 100253,
+      "prereqPlacement": null,
+      "seed": {
+       "id": 100253,
+       "seedNum": 34
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 1
+        }
+       }
+      },
+      "entrant": {
+       "id": 100254,
+       "name": "Player34",
+       "initialSeedNum": 34,
+       "participants": [
+        {
+         "id": 100255,
+         "gamerTag": "Player34",
+         "prefix": null,
+         "player": {
+          "id": 100256,
+          "gamerTag": "Player34",
+          "prefix": null
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": "100240",
+    "identifier": "C",
+    "round": 1,
+    "fullRoundText": "Winners Round 1",
+    "state": 3,
+    "winnerId": 100176,
+    "displayScore": "Player26 2 - Player35 0",
+    "lPlacement": 33,
+    "wPlacement": 25,
+    "hasPlaceholder": false,
+    "totalGames": 5,
+    "startedAt": 1788478563,
+    "completedAt": 1788478921,
+    "stream": null,
+    "phaseGroup": {
+     "id": 100008
+    },
+    "slots": [
+     {
+      "slotIndex": 0,
+      "prereqType": "seed",
+      "prereqId": 100175,
+      "prereqPlacement": null,
+      "seed": {
+       "id": 100175,
+       "seedNum": 30
+      },
+      "standing": {
+       "placement": 1,
+       "stats": {
+        "score": {
+         "value": 2
+        }
+       }
+      },
+      "entrant": {
+       "id": 100176,
+       "name": "Player26",
+       "initialSeedNum": 30,
+       "participants": [
+        {
+         "id": 100177,
+         "gamerTag": "Player26",
+         "prefix": "",
+         "player": {
+          "id": 100178,
+          "gamerTag": "Player26",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     },
+     {
+      "slotIndex": 1,
+      "prereqType": "seed",
+      "prereqId": 100258,
+      "prereqPlacement": null,
+      "seed": {
+       "id": 100258,
+       "seedNum": 35
+      },
+      "standing": {
+       "placement": 2,
+       "stats": {
+        "score": {
+         "value": 0
+        }
+       }
+      },
+      "entrant": {
+       "id": 100259,
+       "name": "Player35",
+       "initialSeedNum": 35,
+       "participants": [
+        {
+         "id": 100260,
+         "gamerTag": "Player35",
+         "prefix": "",
+         "player": {
+          "id": 100261,
+          "gamerTag": "Player35",
+          "prefix": ""
+         }
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "streamQueue": []
+}
