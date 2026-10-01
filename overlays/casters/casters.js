@@ -2,13 +2,13 @@
  * Caster name tags, from the store's `casters` section:
  * [{ tag, prefix, pronoun, twitter }]. `?i=N` shows only caster N.
  *
- * Cards are kept once made; a caster with no tag hides its card, and filling
- * the tag back in replays the card's entrance.
+ * Cards are kept once made; a caster with no tag hides its card (it leaves
+ * rather than cutting), and filling the tag back in brings it back in.
  */
 (function () {
   "use strict";
 
-  const { h, text, swap, squeeze } = Overlay;
+  const { h, text, swap, presence, squeeze } = Overlay;
   const ov = Overlay.connect({ tag: "casters" });
 
   const only = Overlay.param("i");
@@ -16,10 +16,14 @@
 
   const row = document.querySelector(".casters");
   const cards = [];
+  let drawn = false;
 
   function card(i) {
     if (cards[i]) return cards[i];
-    const el = h("div", "caster");
+    const el = h("div", "caster empty");
+    // A card made after the first draw has no page entrance to ride: start
+    // it hidden, so showing it animates in.
+    if (drawn) presence(el, false);
     const mic = h("div", "mic");
     mic.append(h("span", "mic-icon"));
     const name = h("div", "name");
@@ -40,7 +44,7 @@
     for (const i of indices) {
       const c = list[i] || {};
       const el = card(i);
-      el.classList.toggle("on", !!c.tag);
+      presence(el, !!c.tag);
       if (!c.tag) continue;
 
       swap(el.querySelector(".name .text"), JSON.stringify([c.prefix, c.tag]), (node) => {
@@ -52,5 +56,6 @@
       const chip = el.querySelector(".pronoun");
       text(chip.querySelector(".text"), c.pronoun, { emptyOn: chip });
     }
+    drawn = true;
   });
 })();

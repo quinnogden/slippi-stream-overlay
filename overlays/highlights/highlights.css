@@ -361,7 +361,9 @@ body {
   position:  absolute;
   top:       var(--title-y);
   left:      50%;
-  transform: translateX(-50%);
+  /* Repeated for the entrance animation — see overlay.css. */
+  --base-transform: translateX(-50%);
+  transform: var(--base-transform);
   height:    var(--title-h);
   width:     fit-content;
   min-width: 470px;

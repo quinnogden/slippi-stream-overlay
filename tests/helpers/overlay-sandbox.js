@@ -239,18 +239,25 @@ function makeEl(doc, tag, ns = null) {
     el.checked = false;
     el.disabled = false;
   }
+  // No 2D context — a browser may answer null too, and a page must cope.
+  if (el.localName === "canvas") el.getContext = () => null;
   return el;
 }
 
-/** One compound selector (`div.a.b#c`, `[data-x]`) against one element. */
+/** One compound selector (`div.a.b#c`, `[data-x]`, `[data-x="1"]`) against one element. */
+const SIMPLE = /[#.][\w-]+|\[[\w-]+(?:="[^"]*")?\]/g;
 function matchesCompound(el, compound) {
-  const m = /^([a-z0-9-]*|\*)((?:[#.][\w-]+|\[[\w-]+\])*)$/i.exec(compound);
+  const m = /^([a-z0-9-]*|\*)((?:[#.][\w-]+|\[[\w-]+(?:="[^"]*")?\])*)$/i.exec(compound);
   if (!m) throw new Error(`overlay-sandbox: unsupported selector "${compound}"`);
   if (m[1] && m[1] !== "*" && el.localName !== m[1].toLowerCase()) return false;
-  for (const part of m[2].match(/[#.][\w-]+|\[[\w-]+\]/g) ?? []) {
+  for (const part of m[2].match(SIMPLE) ?? []) {
     if (part[0] === "#" && el.id !== part.slice(1)) return false;
     if (part[0] === "." && !el.classList.contains(part.slice(1))) return false;
-    if (part[0] === "[" && !el.hasAttribute(part.slice(1, -1))) return false;
+    if (part[0] === "[") {
+      const [, name, value] = /^\[([\w-]+)(?:="([^"]*)")?\]$/.exec(part);
+      if (!el.hasAttribute(name)) return false;
+      if (value !== undefined && el.getAttribute(name) !== value) return false;
+    }
   }
   return true;
 }

@@ -17,9 +17,7 @@ body {
   height: 1080px;
   font-family: var(--font);
   color: var(--text-color);
-  transition: opacity 0.8s ease-out;
 }
-body.no-animate { transition: none; }
 
 /* ── Title plate ─────────────────────────────────────────────── */
 
@@ -90,6 +88,7 @@ body.no-animate { transition: none; }
   right: 48px;
   bottom: 28px;
   overflow: hidden;
+  --enter-order: 1; /* after the title (overlay.css's entrance) */
 }
 
 /* One per view; a view switch crossfades the old layer out. */

@@ -34,6 +34,15 @@ body {
   left: -305px;
 }
 
+/* ── Entrance order ──────────────────────────────────────────
+   overlay.css staggers the entrance by --enter-order: the player
+   cards land first, then what hangs off them.
+   ─────────────────────────────────────────────────────────── */
+.info.container { --enter-order: 1; }
+.best-of-pill   { --enter-order: 2; }
+.logo           { --enter-order: 2; }
+.chip           { --enter-order: 3; }
+
 /* ── Base container ───────────────────────────────────────────
    Raised card: outer drop shadows + inner edge lighting.
    ─────────────────────────────────────────────────────────── */
@@ -192,9 +201,12 @@ body {
 .logo {
   position: absolute;
   left: 50%;
-  transform: translateX(-50%);
+  /* Both repeated for the entrance animation — see overlay.css. */
+  --base-transform: translateX(-50%);
+  transform: var(--base-transform);
   background-image: var(--logo-url);          /* from the active theme pack */
   filter:           var(--logo-filter, none); /* packs recolour their own artwork */
+  --enter-filter:   var(--logo-filter, none);
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
@@ -348,7 +360,6 @@ body {
   color: var(--text-color);
   font-size: 24px;
   letter-spacing: 0.16em;
-  text-transform: uppercase;
 }
 
 .best-of-pill::before {

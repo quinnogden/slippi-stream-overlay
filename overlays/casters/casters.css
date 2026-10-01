@@ -32,16 +32,10 @@ body {
   box-shadow: var(--shadow-raised);
 }
 
-/* No tag = no card. Re-shown cards replay the entrance. */
-.caster:not(.on) {
+/* No tag = no card. casters.js shows and hides cards through
+   Overlay.presence(), which animates them in and out around this. */
+.caster.empty {
   display: none;
-}
-
-@keyframes caster-in {
-  from { opacity: 0; transform: translateY(14px); }
-}
-.caster.on {
-  animation: caster-in 0.6s var(--enter-ease) both;
 }
 
 .caster::before {

@@ -76,11 +76,13 @@
         node.append(h("div", "char"));
         node.lastChild.append(img);
       }
-    });
+    }, { motion: "pop" });
 
+    // The score box clips, so the old digit rolls up out of it and the new
+    // one up into it.
     swap(q(el.card, ".score .text"), side.score, (node) => {
       node.replaceChildren(...scoreDigits(side.score));
-    });
+    }, { motion: "roll" });
 
     const chip = q(el.chips, ".pronoun");
     text(q(chip, ".text"), isDoubles ? "" : p.pronoun, { emptyOn: chip });
@@ -125,6 +127,7 @@
     await document.fonts.ready;
 
     const ctx = document.createElement("canvas").getContext("2d");
+    if (!ctx) return;
     ctx.font = font;
 
     for (const digit of "0123456789") {

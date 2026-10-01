@@ -11,7 +11,8 @@
  *     stop and gliding between them.
  *
  * The view follows the dock (state `view.bracketView`) unless ?view= pins
- * this source. A view switch crossfades to a freshly drawn board; a data
+ * this source. A view switch crossfades through depth to a freshly drawn
+ * board (the old one recedes, the new one settles forward); a data
  * change (a reported set, a score) redraws the board in place and keeps the
  * pan going unless the board changed size.
  */
@@ -19,6 +20,7 @@
   "use strict";
 
   const { h, text, icon, fitGroup, param } = Overlay;
+  const { ease, ms } = Overlay.motion;
   const { layoutBracket, fitScale, METRICS } = BracketLayout;
 
   const VIEW_TITLES = {
@@ -34,8 +36,8 @@
   const PAN_MIN_MS  = 1800;
   const FOCUS_HOLD  = 7000;  // at the live round
   const END_HOLD    = 4500;  // at each end
-  const FADE_IN_MS  = 600;
-  const FADE_OUT_MS = 400;
+  const FADE_IN_MS  = 760;
+  const FADE_OUT_MS = 380;
 
   const SVG = "http://www.w3.org/2000/svg";
   const viewport = document.querySelector(".viewport");
@@ -283,8 +285,16 @@
     }
 
     if (old && animated()) {
-      layer.el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: FADE_IN_MS, delay: FADE_OUT_MS / 2, easing: "ease-out", fill: "backwards" });
-      old.el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: FADE_OUT_MS, easing: "ease-in", fill: "forwards" })
+      // Scale and blur on the layer, never the board: the board's transform
+      // is the pan's. The blur is light — the layer is most of the canvas.
+      layer.el.animate([
+        { opacity: 0, transform: "scale(1.02)", filter: "blur(6px)" },
+        { opacity: 1, transform: "scale(1)",    filter: "blur(0px)" },
+      ], { duration: ms(FADE_IN_MS), delay: ms(FADE_OUT_MS / 2), easing: ease("out"), fill: "backwards" });
+      old.el.animate([
+        { opacity: 1, transform: "scale(1)",     filter: "blur(0px)" },
+        { opacity: 0, transform: "scale(0.985)", filter: "blur(4px)" },
+      ], { duration: ms(FADE_OUT_MS), easing: ease("in"), fill: "forwards" })
         .finished.then(() => { stopPan(old); old.el.remove(); }, () => {});
     } else if (old) {
       stopPan(old);

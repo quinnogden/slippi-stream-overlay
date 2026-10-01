@@ -21,13 +21,17 @@
   "use strict";
 
   const { h, fitText, fitGroup, param } = Overlay;
+  const { ease, ms, restOf, pose } = Overlay.motion;
 
+  // Animation durations are at tempo 1; Overlay.motion.ms() scales them by
+  // overlay.css's --motion-tempo. The interval is a dwell, and doesn't.
   const PANEL_INTERVAL = 20000;   // ms per slot, logos included
-  const FADE_MS        = 700;     // panel crossfade
-  const PILL_MS        = 550;     // each pill's drop-in
-  const PILL_DELAY     = 150;     // after the panel starts fading in
-  const PILL_STAGGER   = 100;     // between pills
-  const PILL_DROP      = 40;      // px
+  const OUT_MS         = 380;     // the outgoing panel lifts away…
+  const IN_MS          = 760;     // …the incoming one settles in
+  const IN_OVERLAP     = 180;     // starting this long before the old one is gone
+  const PILL_MS        = 680;     // each pill's rise
+  const PILL_DELAY     = 120;     // after the panel starts coming in
+  const PILL_STAGGER   = 55;      // between pills
   const HOLD_PANEL     = param("panel");
 
   const PANEL_ORDER = [
@@ -36,8 +40,18 @@
     "logo-sponsor", "completed-sets",
   ];
 
-  const HIDDEN = { opacity: "0", transform: "scale(0.97)" };
-  const SHOWN  = { opacity: "1", transform: "scale(1)" };
+  // Resting states, as inline style. Motion lives in the keyframes below.
+  const HIDDEN = { opacity: "0", transform: "", filter: "" };
+  const SHOWN  = { opacity: "1", transform: "", filter: "" };
+
+  // The poses (Overlay.motion). A panel rises into place out of a soft focus
+  // and leaves upward; a logo focuses in from slightly small and leaves by
+  // drifting forward — artwork reads better growing than sliding.
+  const PANEL_IN   = { y: 16, scale: 0.985, blur: 10 };
+  const PANEL_OUT  = { y: -12, blur: 6 };
+  const LOGO_IN    = { scale: 0.92, blur: 12 };
+  const LOGO_OUT   = { scale: 1.04, blur: 8 };
+  const PILL_IN    = { y: 14, blur: 4 };
 
   let sb = null;     // state.scoreboard
   let stats = null;  // the last `stats` event
@@ -132,16 +146,18 @@
 
   // ── Animation ───────────────────────────────────────────────────────────────
   //
-  // Web Animations, committed to inline style when they finish, so nothing is
-  // left filling and a panel's resting state is always readable from its style.
+  // Web Animations, with the resting state committed to inline style when they
+  // finish, so nothing is left filling and a panel's resting state is always
+  // readable from its style. Only opacity is committed: the transform and
+  // blur are motion, and a logo's own CSS filter must stay the stylesheet's.
 
   function stopAnims(el) {
     if (el?.getAnimations) el.getAnimations().forEach((a) => a.cancel());
   }
 
-  function tween(el, from, to, { duration, delay = 0, easing = "ease" }) {
-    const anim = el.animate([from, to], { duration, delay, easing, fill: "both" });
-    anim.finished.then(() => { Object.assign(el.style, to); anim.cancel(); }, () => {});
+  function tween(el, frames, rest, { duration, delay = 0, easing }) {
+    const anim = el.animate(frames, { duration, delay, easing, fill: "both" });
+    anim.finished.then(() => { Object.assign(el.style, rest); anim.cancel(); }, () => {});
     return anim;
   }
 
@@ -242,6 +258,7 @@
       // Nothing but these two may be on screen — so a stray panel can never
       // survive more than one transition.
       this._hideAllExcept([id, this._current]);
+      const leaving = this._current;
       this._current = id;
       const run = ++this._run;
 
@@ -249,24 +266,33 @@
       if (outgoing && outgoing !== incoming) {
         const from = getComputedStyle(outgoing).opacity;
         stopAnims(outgoing);
-        tween(outgoing, { opacity: from, transform: "scale(1)" }, HIDDEN, { duration: FADE_MS, easing: "ease-in" });
-        delay = FADE_MS - 100;
+        const rest = restOf(outgoing);
+        const away = this._isLogo(leaving) ? LOGO_OUT : PANEL_OUT;
+        tween(outgoing, [pose(rest, { opacity: from }), pose(rest, { ...away, opacity: 0 })], HIDDEN,
+          { duration: ms(OUT_MS), easing: ease("in") });
+        delay = ms(Math.max(0, OUT_MS - IN_OVERLAP));
       }
 
       stopAnims(incoming);
-      tween(incoming, HIDDEN, SHOWN, { duration: FADE_MS, delay, easing: "ease-out" })
+      const rest = restOf(incoming);
+      const logo = this._isLogo(id);
+      tween(incoming, [pose(rest, { ...(logo ? LOGO_IN : PANEL_IN), opacity: 0 }), pose(rest)], SHOWN,
+        { duration: ms(IN_MS), delay, easing: ease("out") })
         .finished.then(() => { if (run === this._run) onDone(); }, () => {});
 
-      // The pills fall in top to bottom as the panel appears.
-      if (!id.startsWith("logo-")) {
+      // The pills rise in top to bottom as the panel settles.
+      if (!logo) {
         incoming.querySelectorAll(".panel-pill").forEach((pill, i) => {
           stopAnims(pill);
-          tween(pill,
-            { opacity: "0", transform: `translateY(-${PILL_DROP}px)` },
-            { opacity: "1", transform: "translateY(0)" },
-            { duration: PILL_MS, delay: delay + PILL_DELAY + i * PILL_STAGGER, easing: "ease-out" });
+          const pr = restOf(pill);
+          tween(pill, [pose(pr, { ...PILL_IN, opacity: 0 }), pose(pr)], SHOWN,
+            { duration: ms(PILL_MS), delay: delay + ms(PILL_DELAY + i * PILL_STAGGER), easing: ease("out") });
         });
       }
+    }
+
+    _isLogo(id) {
+      return Boolean(id) && id.startsWith("logo-");
     }
   }
 
@@ -440,11 +466,12 @@
 
   // ── Clip-saved toast ────────────────────────────────────────────────────────
   //
-  // Slides in over the bottom card's bottom edge, holds, slides back out.
-  // Queued rather than concurrent — restarting a visible pill reads as a
-  // flicker — and only the newest waiting clip is kept.
+  // Springs up over the bottom card's bottom edge and into focus, its record
+  // dot pulsing; holds; then sinks back and blurs away. Queued rather than
+  // concurrent — restarting a visible pill reads as a flicker — and only the
+  // newest waiting clip is kept.
 
-  const TOAST_IN = 450, TOAST_HOLD = 3200, TOAST_OUT = 400;
+  const TOAST_IN = 520, TOAST_HOLD = 3200, TOAST_OUT = 360;
   const toast = { busy: false, pending: null };
 
   function showClipToast(clip) {
@@ -460,15 +487,27 @@
     detail.textContent = bits.join(" · ");
     fitText(detail, 14);
 
-    const total = TOAST_IN + TOAST_HOLD + TOAST_OUT;
-    const away = { transform: "translate(-50%, 160%)", opacity: 0 };
-    const shown = { transform: "translate(-50%, 0)", opacity: 1 };
+    // Every keyframe repeats the -50% X so the centring holds throughout.
+    const at = (y, scale, blur, opacity) =>
+      ({ transform: `translate(-50%, ${y}%) scale(${scale})`, filter: `blur(${blur}px)`, opacity });
+    const tIn = ms(TOAST_IN), tOut = ms(TOAST_OUT); // the hold is a dwell, unscaled
+    const total = tIn + TOAST_HOLD + tOut;
+    const shown = at(0, 1, 0, 1);
     const anim = el.animate([
-      { ...away, offset: 0, easing: "cubic-bezier(0.34, 1.4, 0.64, 1)" },
-      { ...shown, offset: TOAST_IN / total },
-      { ...shown, offset: (TOAST_IN + TOAST_HOLD) / total, easing: "ease-in" },
-      { ...away, offset: 1 },
+      { ...at(160, 0.9, 6, 0), offset: 0, easing: ease("spring") },
+      { ...shown, offset: tIn / total },
+      { ...shown, offset: (tIn + TOAST_HOLD) / total, easing: ease("in") },
+      { ...at(40, 0.96, 6, 0), offset: 1 },
     ], { duration: total });
+
+    const dot = el.querySelector(".clip-toast-icon");
+    if (dot?.animate) {
+      dot.animate([
+        { transform: "scale(1)", opacity: 1 },
+        { transform: "scale(1.45)", opacity: 0.5 },
+        { transform: "scale(1)", opacity: 1 },
+      ], { duration: ms(900), delay: tIn * 0.6, iterations: 2, easing: "ease-in-out" });
+    }
     const done = () => {
       toast.busy = false;
       const next = toast.pending;

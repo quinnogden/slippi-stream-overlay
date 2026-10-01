@@ -32,10 +32,13 @@ body {
   overflow:    hidden;
   font-family: var(--font);
   position:    relative;
-  /* overlay.css holds the page at opacity 0 until the first state is drawn. */
-  transition:  opacity 1s ease-out;
+  /* overlay.css holds the page at opacity 0 until the first state is drawn,
+     and fades it in. */
 }
-body.no-animate { transition: none; }
+
+/* Entrance order (overlay.css): the header, then the bottom card. */
+.header-card { --enter-order: 0; }
+.bottom-card { --enter-order: 1; }
 
 
 /* ══════════════════════════════════════════════════════════════

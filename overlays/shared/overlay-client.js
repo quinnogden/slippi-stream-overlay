@@ -192,7 +192,96 @@
 
   // ── Theme switch ────────────────────────────────────────────────────────────
 
-  const THEME_FADE_MS = 400;
+  // ── Motion ──────────────────────────────────────────────────────────────────
+  //
+  // The script half of overlay.css's motion tokens: everything that appears
+  // rises a few px, settles on --ease-out and pulls into focus from a slight
+  // blur; everything that leaves accelerates away on --ease-in. Theme-agnostic
+  // on purpose — a pack changes colours and type, never how things move.
+  //
+  // Every keyframe is built on the element's RESTING transform and filter, by
+  // the same conventions as overlay.css's entrances: --base-transform if the
+  // stylesheet sets one (it keeps a translate(-50%)'s percentages live while
+  // the content changes width), else the inline transform (squeeze()'s
+  // scaleX); and the computed filter, with the blur appended so the two lists
+  // still interpolate. Both ends of a keyframe pair carry the same functions.
+
+  const EASE_FALLBACK = {
+    out:    "cubic-bezier(0.16, 1, 0.3, 1)",
+    in:     "cubic-bezier(0.3, 0, 0.8, 0.15)",
+    spring: "cubic-bezier(0.34, 1.4, 0.64, 1)",
+  };
+
+  /** overlay.css's --ease-<name>, so CSS and script move on the same curves. */
+  function ease(name) {
+    try {
+      const v = getComputedStyle(document.documentElement).getPropertyValue(`--ease-${name}`);
+      if (v && v.trim()) return v.trim();
+    } catch (_) { /* no stylesheet yet */ }
+    return EASE_FALLBACK[name] || "ease";
+  }
+
+  const TEMPO_FALLBACK = 1.5;
+
+  /**
+   * A duration at overlay.css's --motion-tempo, so one token slows every
+   * animation, CSS and script alike. Write durations at tempo 1.
+   */
+  function ms(n) {
+    let t = NaN;
+    try {
+      t = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--motion-tempo"));
+    } catch (_) { /* no stylesheet yet */ }
+    return n * (t > 0 ? t : TEMPO_FALLBACK);
+  }
+
+  const still = () => !document.body || document.body.classList.contains("no-animate");
+  const canAnimate = (el) => Boolean(el && el.animate) && !still();
+
+  /** The transform and filter `el` rests at. Read it with nothing animating on it. */
+  function restOf(el) {
+    const cs = getComputedStyle(el);
+    const base = cs.getPropertyValue ? String(cs.getPropertyValue("--base-transform") || "").trim() : "";
+    const filter = cs.filter && cs.filter !== "none" ? cs.filter : "";
+    return { transform: base || el.style.transform || "", filter };
+  }
+
+  /**
+   * One keyframe: `el` at rest, moved by { x, y, scale, blur, opacity }.
+   * @param {{ transform: string, filter: string }} rest — from restOf()
+   */
+  function pose(rest, { x = 0, y = 0, scale = 1, blur = 0, opacity = 1 } = {}) {
+    return {
+      opacity: String(opacity),
+      transform: `${rest.transform} translate(${x}px, ${y}px) scale(${scale})`.trim(),
+      filter: `${rest.filter} blur(${blur}px)`.trim(),
+    };
+  }
+
+  // A swap is out → draw → in. Three characters, by what's changing:
+  //   lift — text (names, rounds, titles): a short drift up and a re-focus
+  //   roll — a score, inside its clipped box: an odometer tick
+  //   pop  — an icon: shrinks away, the new one lands from slightly large
+  const SWAPS = {
+    lift: { out: { y: -6, blur: 3 },        in: { y: 8, blur: 4 } },
+    roll: { out: { y: -22, blur: 2 },       in: { y: 26, blur: 2 } },
+    pop:  { out: { scale: 0.82, blur: 4 },  in: { scale: 1.16, blur: 6 } },
+  };
+  const SWAP_OUT_MS = 200;
+  const SWAP_IN_MS  = 480;
+
+  // presence(): something that comes and goes whole (a chip, a pill, a card).
+  const SHOW = { from: { y: 10, scale: 0.94, blur: 6 }, ms: 560 };
+  const HIDE = { to:   { y: 6,  scale: 0.96, blur: 4 }, ms: 260 };
+
+  function stopSwap(el) {
+    if (el.__ovAnim) el.__ovAnim.cancel();
+    el.__ovAnim = null;
+    el.__ovPhase = null;
+    el.__ovRender = null;
+  }
+
+  const THEME_FADE_MS = 450;
   let reloading = false;
 
   /**
@@ -207,7 +296,8 @@
     reloading = true;
     const body = document.body;
     if (!body || !body.animate || body.classList.contains("no-animate")) return root.location.reload();
-    body.animate([{ opacity: getComputedStyle(body).opacity }, { opacity: 0 }], { duration: THEME_FADE_MS, fill: "forwards" })
+    body.animate([{ opacity: getComputedStyle(body).opacity }, { opacity: 0 }],
+      { duration: ms(THEME_FADE_MS), easing: ease("in"), fill: "forwards" })
       .onfinish = () => root.location.reload();
   }
 
@@ -219,17 +309,20 @@
 
   // ── DOM helpers ─────────────────────────────────────────────────────────────
 
-  const FADE_MS = 500; // TSH's SetInnerHtml: 0.5s out, 0.5s in
-
   /**
-   * Replace an element's content with a fade out → render → fade in, but only
+   * Replace an element's content with an exit → render → entrance, but only
    * when `key` differs from what it last showed. The first render is instant
-   * (the page's own entrance animation covers it). A swap started mid-fade
-   * takes over from wherever the opacity is.
+   * (the page's own entrance animation covers it).
+   *
+   * A change that lands while the old content is still leaving doesn't
+   * restart anything: the exit already under way draws whatever is newest
+   * when it ends, so a burst of pushes is one swap. One that lands during
+   * the entrance leaves from wherever the opacity is.
    *
    * @param {Element} el
    * @param {string} key — identity of the content; same key = no-op
    * @param {(el: Element) => void} render
+   * @param {{ motion?: "lift"|"roll"|"pop" }} [opts]
    * @returns {boolean} whether anything changed
    */
   function swap(el, key, render, opts = {}) {
@@ -239,34 +332,130 @@
     const first = el.__ovKey === undefined;
     el.__ovKey = key;
 
-    const ms = opts.fadeMs ?? FADE_MS;
-    if (first || !ms || !el.animate || document.body.classList.contains("no-animate")) {
+    if (first || !canAnimate(el)) {
+      stopSwap(el);
       render(el);
       return true;
     }
+    el.__ovRender = render;
+    if (el.__ovPhase === "out") return true;
+
+    const m = SWAPS[opts.motion] || SWAPS.lift;
     const from = getComputedStyle(el).opacity;
     if (el.__ovAnim) el.__ovAnim.cancel();
-    const out = el.__ovAnim = el.animate([{ opacity: from }, { opacity: 0 }], { duration: ms, fill: "forwards" });
-    out.onfinish = () => {
-      render(el);
-      el.__ovAnim = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: ms, fill: "forwards" });
-    };
+    const rest = restOf(el);
+    const out = el.__ovAnim = el.animate(
+      [pose(rest, { opacity: from }), pose(rest, { ...m.out, opacity: 0 })],
+      { duration: ms(SWAP_OUT_MS), easing: ease("in"), fill: "forwards" });
+    el.__ovPhase = "out";
+
+    out.finished.then(() => {
+      if (el.__ovAnim !== out) return;
+      const draw = el.__ovRender;
+      el.__ovRender = null;
+      if (draw) draw(el);
+      // Off before reading the rest pose — it holds the blur. Same task as
+      // the entrance below, so no frame is painted in between.
+      out.cancel();
+      const back = restOf(el); // the render may have re-squeezed it
+      const enter = el.__ovAnim = el.animate(
+        [pose(back, { ...m.in, opacity: 0 }), pose(back)],
+        { duration: ms(SWAP_IN_MS), easing: ease("out") });
+      el.__ovPhase = "in";
+      enter.finished.then(() => { if (el.__ovAnim === enter) { el.__ovAnim = null; el.__ovPhase = null; } }, () => {});
+    }, () => {});
     return true;
   }
 
   /**
-   * Set plain text (never HTML) with a crossfade, and mark the element — and
-   * `opts.emptyOn`, e.g. a chip that should vanish — `.empty` when blank.
+   * Show or hide `el` whole — a chip, a pill, a card — by its `hiddenClass`
+   * (whatever the stylesheet hides: display or visibility). It enters as
+   * everything else does; it leaves before the class goes on, so the
+   * stylesheet's hidden state is reached rather than cut to. The first call
+   * only sets the class (the page entrance covers it).
+   *
+   * Reversing mid-way is safe: a hide that's overtaken never applies its
+   * class or its onHidden.
+   *
+   * @param {Element} el
+   * @param {boolean} on
+   * @param {{ hiddenClass?: string, onHidden?: () => void }} [opts]
+   */
+  function presence(el, on, opts = {}) {
+    if (!el) return;
+    on = Boolean(on);
+    const cls = opts.hiddenClass || "empty";
+    const was = el.__ovShown;
+    if (was === on) return;
+    el.__ovShown = on;
+
+    const from = el.__ovPresAnim ? Number(getComputedStyle(el).opacity) : null;
+    if (el.__ovPresAnim) el.__ovPresAnim.cancel();
+    el.__ovPresAnim = null;
+
+    if (was === undefined || !canAnimate(el)) {
+      el.classList.toggle(cls, !on);
+      if (!on && opts.onHidden) opts.onHidden();
+      return;
+    }
+
+    if (on) {
+      el.classList.remove(cls);
+      const rest = restOf(el);
+      // Overtaking a hide: carry on from where it got to, in place.
+      const start = from === null ? pose(rest, { ...SHOW.from, opacity: 0 }) : pose(rest, { opacity: from });
+      const anim = el.__ovPresAnim = el.animate([start, pose(rest)], { duration: ms(SHOW.ms), easing: ease("out") });
+      anim.finished.then(() => { if (el.__ovPresAnim === anim) el.__ovPresAnim = null; }, () => {});
+      return;
+    }
+
+    const rest = restOf(el);
+    const anim = el.__ovPresAnim = el.animate(
+      [pose(rest, { opacity: from === null ? 1 : from }), pose(rest, { ...HIDE.to, opacity: 0 })],
+      { duration: ms(HIDE.ms), easing: ease("in"), fill: "forwards" });
+    anim.finished.then(() => {
+      if (el.__ovPresAnim !== anim) return;
+      el.classList.add(cls);
+      if (opts.onHidden) opts.onHidden();
+      anim.cancel();
+      el.__ovPresAnim = null;
+    }, () => {});
+  }
+
+  /**
+   * Set plain text (never HTML) and mark the element `.empty` when blank.
+   * A change of text swaps; with `opts.emptyOn` (a chip that should vanish
+   * when blank) the chip itself enters and leaves through presence(), still
+   * showing the old text on its way out.
    */
   function text(el, value, opts = {}) {
     if (!el) return false;
     const s = value == null ? "" : String(value);
-    return swap(el, s, (node) => {
+    const draw = (node) => {
       node.textContent = s;
       node.classList.toggle("empty", s === "");
-      if (opts.emptyOn) opts.emptyOn.classList.toggle("empty", s === "");
       if (opts.squeeze) squeeze(node);
-    }, opts);
+    };
+    const host = opts.emptyOn;
+    if (!host) return swap(el, s, draw, opts);
+
+    if (el.__ovKey === s) return false;
+    const first = el.__ovKey === undefined;
+    const showing = !first && el.__ovKey !== "";
+    if (s === "") {
+      el.__ovKey = s;
+      presence(host, false, { onHidden: () => { stopSwap(el); draw(el); } });
+      return true;
+    }
+    if (!showing) {
+      el.__ovKey = s;
+      stopSwap(el);
+      draw(el);
+      presence(host, true);
+      return true;
+    }
+    presence(host, true);
+    return swap(el, s, draw, opts);
   }
 
   /**
@@ -383,5 +572,7 @@
     return node;
   }
 
-  root.Overlay = { ...api, connect, reveal, followTheme, swap, text, squeeze, fitText, fitGroup, h, param };
+  const motion = { ease, ms, restOf, pose, canAnimate };
+
+  root.Overlay = { ...api, connect, reveal, followTheme, swap, presence, text, motion, squeeze, fitText, fitGroup, h, param };
 })(typeof window !== "undefined" ? window : globalThis);
