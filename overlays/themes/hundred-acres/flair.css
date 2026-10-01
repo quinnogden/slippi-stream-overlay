@@ -1,0 +1,96 @@
+/* ============================================================
+   Hundred Acres — background flair
+
+   Slow ambient orbs drifting in and out of the dark cards. Drawn in
+   the slots each layout provides (see "Flair slots" in
+   shared/overlay.css): .flair-card is the side panel's bottom card,
+   .flair-title the bracket's title bar, .flair-plate the highlights
+   title plate. Imported by this pack's theme.css.
+   ============================================================ */
+
+/* ── Side panel card: five orbs in the forest green ── */
+.flair-card > i:nth-child(-n+5) {
+  display:        block;
+  border-radius:  50%;
+  background:     var(--bg-color);
+  opacity:        0;
+  filter:         blur(40px);
+}
+
+.flair-card > i:nth-child(1) { width:240px; height:240px; top:6%;    left:-16%;  animation: drift1 13s ease-in-out infinite 0s;    }
+.flair-card > i:nth-child(2) { width:180px; height:180px; top:46%;   right:-10%; animation: drift2 16s ease-in-out infinite -5s;   }
+.flair-card > i:nth-child(3) { width:310px; height:185px; bottom:10%; left:5%;   animation: drift3 10s ease-in-out infinite -3s;   }
+.flair-card > i:nth-child(4) { width:130px; height:130px; top:20%;   right:16%;  animation: drift4 14s ease-in-out infinite -8s;   }
+.flair-card > i:nth-child(5) { width:200px; height:200px; bottom:2%; right:-16%; animation: drift5 11s ease-in-out infinite -1.5s; }
+
+@keyframes drift1 {
+  0%,100% { opacity:0;    transform:translate(0,0)       scale(1);    border-radius:50%; }
+  30%     { opacity:0.6;  transform:translate(22px,14px) scale(1.05); border-radius:44% 56% 50% 50%; }
+  65%     { opacity:0.3;  transform:translate(8px,28px)  scale(0.94); border-radius:50%; }
+}
+@keyframes drift2 {
+  0%,100% { opacity:0;    transform:translate(0,0)          scale(1);   border-radius:50%; }
+  40%     { opacity:0.5;  transform:translate(-26px,18px)   scale(1.1); border-radius:48% 52% 55% 45%; }
+  75%     { opacity:0.65; transform:translate(-12px,-12px)  scale(0.9); border-radius:50%; }
+}
+@keyframes drift3 {
+  0%,100% { opacity:0;    transform:translate(0,0)        scale(1);    border-radius:50%; }
+  25%     { opacity:0.4;  transform:translate(16px,-22px) scale(1.15); border-radius:60% 40% 50% 50%; }
+  58%     { opacity:0.55; transform:translate(-4px,12px)  scale(1);    border-radius:50%; }
+}
+@keyframes drift4 {
+  0%,100% { opacity:0;    transform:translate(0,0)        scale(1);    border-radius:50%; }
+  45%     { opacity:0.45; transform:translate(-16px,26px) scale(1.2);  border-radius:52% 48% 46% 54%; }
+  72%     { opacity:0.22; transform:translate(8px,6px)    scale(0.85); border-radius:50%; }
+}
+@keyframes drift5 {
+  0%,100% { opacity:0;    transform:translate(0,0)         scale(1);   border-radius:50%; }
+  38%     { opacity:0.52; transform:translate(-22px,-16px) scale(1.1); border-radius:50% 50% 42% 58%; }
+  68%     { opacity:0.28; transform:translate(-32px,6px)   scale(0.9); border-radius:50%; }
+}
+
+/* ── Title bar and highlights plate: three lighter orbs ── */
+.flair-title > i:nth-child(-n+3),
+.flair-plate > i:nth-child(-n+3) {
+  display:       block;
+  border-radius: 50%;
+  background:    rgb(var(--bg-color-light-rgb));
+  opacity:       0;
+  filter:        blur(26px);
+}
+
+.flair-title > i:nth-child(1) { width: 240px; height: 240px; top: -110px; left:  6%; animation: torb1 14s ease-in-out infinite 0s;  }
+.flair-title > i:nth-child(2) { width: 190px; height: 190px; top:  -90px; right: 10%; animation: torb2 18s ease-in-out infinite -6s; }
+.flair-title > i:nth-child(3) { width: 270px; height: 210px; top: -100px; left: 40%; animation: torb3 11s ease-in-out infinite -3s; }
+
+.flair-plate > i:nth-child(1) { width: 200px; height: 200px; top: -84px; left:  10%; animation: torb1 14s ease-in-out infinite 0s;  }
+.flair-plate > i:nth-child(2) { width: 160px; height: 160px; top: -70px; right: 14%; animation: torb2 18s ease-in-out infinite -6s; }
+.flair-plate > i:nth-child(3) { width: 230px; height: 176px; top: -78px; left:  42%; animation: torb3 11s ease-in-out infinite -3s; }
+
+@keyframes torb1 {
+  0%,100% { opacity: 0;    transform: translate(0,0)       scale(1);    }
+  35%     { opacity: 0.78; transform: translate(28px,6px)  scale(1.06); }
+  68%     { opacity: 0.40; transform: translate(8px,18px)  scale(0.95); }
+}
+@keyframes torb2 {
+  0%,100% { opacity: 0;    transform: translate(0,0)         scale(1);    }
+  40%     { opacity: 0.62; transform: translate(-22px,10px)  scale(1.04); }
+  75%     { opacity: 0.32; transform: translate(-6px,14px)   scale(0.97); }
+}
+@keyframes torb3 {
+  0%,100% { opacity: 0;    transform: translate(0,0)        scale(1);    }
+  45%     { opacity: 0.50; transform: translate(14px,-4px)  scale(1.08); }
+  80%     { opacity: 0.26; transform: translate(-8px,7px)   scale(0.93); }
+}
+
+/* ── ?animate=false ──
+   The card's orbs only exist in motion, so they go. The highlights plate
+   keeps its orbs as a still glow; the bracket bar's rest at opacity 0. */
+body.no-animate .flair-card > i {
+  animation: none !important;
+  opacity:   0 !important;
+}
+body.no-animate .flair-plate > i {
+  animation: none !important;
+  opacity:   0.34 !important;
+}

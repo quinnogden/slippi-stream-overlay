@@ -11,7 +11,7 @@
      ?camx=left,right the two cams' x positions
      ?pad=clip,cam    plate thickness
 
-     ?animate=false   freeze the title orbs and the sheen sweep
+     ?animate=false   freeze the pack's title flair and the sheen sweep
                       (overlay-client.js handles it, as for every overlay)
      ?guides=1        outline each frame's transparent hole and
                       label it with its measured rect, to check the

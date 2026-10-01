@@ -167,7 +167,7 @@ body.no-animate { transition: none; }
     90deg,
     transparent,
     var(--darkened-text) 25%,
-    var(--text-color)    50%,
+    var(--trim-color, var(--text-color)) 50%,
     var(--darkened-text) 75%,
     transparent
   );
@@ -268,123 +268,8 @@ body.no-animate { transition: none; }
   z-index:    0;
 }
 
-
-/* ── Ambient orbs ─────────────────────────────────────────── */
-.ambient {
-  position:       absolute;
-  border-radius:  50%;
-  background:     var(--bg-color);
-  opacity:        0;
-  filter:         blur(40px);
-  pointer-events: none;
-  z-index:        1;
-}
-
-.ambient-1 { width:240px; height:240px; top:6%;    left:-16%;  animation: drift1 13s ease-in-out infinite 0s;    }
-.ambient-2 { width:180px; height:180px; top:46%;   right:-10%; animation: drift2 16s ease-in-out infinite -5s;   }
-.ambient-3 { width:310px; height:185px; bottom:10%; left:5%;   animation: drift3 10s ease-in-out infinite -3s;   }
-.ambient-4 { width:130px; height:130px; top:20%;   right:16%;  animation: drift4 14s ease-in-out infinite -8s;   }
-.ambient-5 { width:200px; height:200px; bottom:2%; right:-16%; animation: drift5 11s ease-in-out infinite -1.5s; }
-
-@keyframes drift1 {
-  0%,100% { opacity:0;    transform:translate(0,0)       scale(1);    border-radius:50%; }
-  30%     { opacity:0.6;  transform:translate(22px,14px) scale(1.05); border-radius:44% 56% 50% 50%; }
-  65%     { opacity:0.3;  transform:translate(8px,28px)  scale(0.94); border-radius:50%; }
-}
-@keyframes drift2 {
-  0%,100% { opacity:0;    transform:translate(0,0)          scale(1);   border-radius:50%; }
-  40%     { opacity:0.5;  transform:translate(-26px,18px)   scale(1.1); border-radius:48% 52% 55% 45%; }
-  75%     { opacity:0.65; transform:translate(-12px,-12px)  scale(0.9); border-radius:50%; }
-}
-@keyframes drift3 {
-  0%,100% { opacity:0;    transform:translate(0,0)        scale(1);    border-radius:50%; }
-  25%     { opacity:0.4;  transform:translate(16px,-22px) scale(1.15); border-radius:60% 40% 50% 50%; }
-  58%     { opacity:0.55; transform:translate(-4px,12px)  scale(1);    border-radius:50%; }
-}
-@keyframes drift4 {
-  0%,100% { opacity:0;    transform:translate(0,0)        scale(1);    border-radius:50%; }
-  45%     { opacity:0.45; transform:translate(-16px,26px) scale(1.2);  border-radius:52% 48% 46% 54%; }
-  72%     { opacity:0.22; transform:translate(8px,6px)    scale(0.85); border-radius:50%; }
-}
-@keyframes drift5 {
-  0%,100% { opacity:0;    transform:translate(0,0)         scale(1);   border-radius:50%; }
-  38%     { opacity:0.52; transform:translate(-22px,-16px) scale(1.1); border-radius:50% 50% 42% 58%; }
-  68%     { opacity:0.28; transform:translate(-32px,6px)   scale(0.9); border-radius:50%; }
-}
-
-
-/* ── Spotlights ───────────────────────────────────────────────
-   Two beams anchored at the bottom edge of the card, widening as
-   they rise and swaying between outward and inward. Fight-night
-   flair, so it is OPT-IN per theme pack rather than on for every
-   event: the pack sets --spotlight-display (and optionally
-   --spotlight-rgb / --spotlight-strength) to turn it on. Left
-   unset, these divs never render and their animations never run.
-
-   Geometry note: three effects stack, and all three are needed —
-   clip-path gives the cone its shape, the background gradient
-   fades it as it travels away from the lamp, and the mask fades
-   it ACROSS the beam. Without the mask the clip's straight sides
-   survive the blur and the whole thing reads as a flat wedge
-   rather than light. blur() then takes the last of the hardness
-   off, and mix-blend-mode: screen keeps the light additive over
-   the card's dark base — a plain alpha fill greys the card
-   instead of glowing on it.
-   ─────────────────────────────────────────────────────────── */
-.spotlight {
-  display:        var(--spotlight-display, none);
-  position:       absolute;
-  bottom:         -40px;
-  width:          330px;
-  height:         112%;
-  transform-origin: 50% 100%;   /* pivot at the lamp, not the beam's middle */
-  pointer-events: none;
-  mix-blend-mode: screen;
-  z-index:        1;            /* above the atmosphere layers, below content */
-
-  /* Narrow at the source, flaring to the full element width at the top.
-     The background only paints inside the border box, so the top corners
-     are simply left unclipped rather than pushed outside it. */
-  clip-path: polygon(45% 100%, 55% 100%, 100% 0%, 0% 0%);
-
-  /* Brightest just above the lamp, gone well before the card's top edge —
-     a beam that reaches the ceiling at full strength stops reading as a
-     beam and starts reading as a background colour. */
-  background: linear-gradient(
-    to top,
-    rgba(var(--spotlight-rgb, var(--text-color-rgb)), calc(0.13 * var(--spotlight-strength, 1))) 0%,
-    rgba(var(--spotlight-rgb, var(--text-color-rgb)), calc(0.16 * var(--spotlight-strength, 1))) 14%,
-    rgba(var(--spotlight-rgb, var(--text-color-rgb)), calc(0.07 * var(--spotlight-strength, 1))) 48%,
-    rgba(var(--spotlight-rgb, var(--text-color-rgb)), calc(0.02 * var(--spotlight-strength, 1))) 76%,
-    transparent 94%
-  );
-
-  /* Across-beam falloff. -webkit- prefix included: OBS's embedded CEF is
-     older than the unprefixed property in some builds, and a dropped mask
-     here would put the hard-edged wedge back on the broadcast. */
-  -webkit-mask-image: linear-gradient(to right,
-    transparent 0%, rgba(0,0,0,0.45) 24%, #000 50%, rgba(0,0,0,0.45) 76%, transparent 100%);
-          mask-image: linear-gradient(to right,
-    transparent 0%, rgba(0,0,0,0.45) 24%, #000 50%, rgba(0,0,0,0.45) 76%, transparent 100%);
-
-  filter: blur(34px);
-}
-
-/* Out-of-phase durations so the two beams cross at irregular intervals
-   instead of locking into a visible mirrored metronome. */
-.spotlight-1 { left:  6%; animation: spotSway1 17s ease-in-out infinite 0s;    }
-.spotlight-2 { right: 6%; animation: spotSway2 21s ease-in-out infinite -6s;   }
-
-@keyframes spotSway1 {
-  0%,100% { transform: rotate(-20deg) scaleX(1);    opacity: 0.75; }
-  35%     { transform: rotate(-4deg)  scaleX(1.08); opacity: 1;    }
-  70%     { transform: rotate(9deg)   scaleX(0.94); opacity: 0.62; }
-}
-@keyframes spotSway2 {
-  0%,100% { transform: rotate(20deg)  scaleX(1);    opacity: 0.68; }
-  40%     { transform: rotate(3deg)   scaleX(1.06); opacity: 0.95; }
-  75%     { transform: rotate(-10deg) scaleX(0.95); opacity: 0.55; }
-}
+/* The card's background flair (.flair-card) is drawn by the theme pack's
+   flair.css — see "Flair slots" in shared/overlay.css. */
 
 
 /* ── Logo ─────────────────────────────────────────────────────
@@ -485,7 +370,7 @@ body.no-animate { transition: none; }
   padding:        0 20px;
   border-radius:  10px;
   overflow:       hidden;
-  background:     rgba(255,255,255,0.06);
+  background:     var(--pill-bg, rgba(255,255,255,0.06));   /* a pack may soften it */
   box-shadow:
     0 2px 8px  rgba(0,0,0,0.40),
     inset 0 1px 0 rgba(255,255,255,0.05);
@@ -515,8 +400,8 @@ body.no-animate { transition: none; }
   background: linear-gradient(
     to right,
     transparent,
-    rgba(var(--text-color-rgb), 0.35) 40%,
-    rgba(var(--text-color-rgb), 0.35) 60%,
+    rgba(var(--trim-rgb, var(--text-color-rgb)), 0.35) 40%,
+    rgba(var(--trim-rgb, var(--text-color-rgb)), 0.35) 60%,
     transparent
   );
 }
@@ -524,8 +409,8 @@ body.no-animate { transition: none; }
   background: linear-gradient(
     to left,
     transparent,
-    rgba(var(--text-color-rgb), 0.35) 40%,
-    rgba(var(--text-color-rgb), 0.35) 60%,
+    rgba(var(--trim-rgb, var(--text-color-rgb)), 0.35) 40%,
+    rgba(var(--trim-rgb, var(--text-color-rgb)), 0.35) 60%,
     transparent
   );
 }
@@ -553,7 +438,7 @@ body.no-animate { transition: none; }
   gap:            2px;
   padding:        8px 18px;
   border-radius:  12px;
-  background:     rgba(255,255,255,0.06);
+  background:     var(--pill-bg, rgba(255,255,255,0.06));   /* a pack may soften it */
   box-shadow:
     0 2px 8px  rgba(0,0,0,0.40),
     inset 0 1px 0 rgba(255,255,255,0.08);
@@ -570,6 +455,8 @@ body.no-animate { transition: none; }
   flex:           1;
   min-width:      0;
   line-height:    1;
+  padding-block:  0.2em;   /* room for descenders under overflow: hidden at */
+  margin-block:   -0.2em;  /* line-height 1, without moving anything */
   text-align:     left;
   text-shadow:
     0 2px 6px  rgba(0,0,0,0.8),
@@ -635,6 +522,8 @@ body.no-animate { transition: none; }
   overflow:       hidden;
   text-overflow:  ellipsis;
   line-height:    1;
+  padding-block:  0.2em;   /* room for descenders under overflow: hidden at */
+  margin-block:   -0.2em;  /* line-height 1, without moving anything */
 }
 
 .player-identity .player-sponsor {
@@ -933,18 +822,3 @@ body.no-animate { transition: none; }
 }
 
 .clip-toast-detail:empty { display: none; }
-
-
-/* ── Animation kill-switch ────────────────────────────────── */
-body.no-animate .ambient {
-  animation: none !important;
-  opacity:   0 !important;
-}
-
-/* Spotlights stay lit but stop moving — they are part of the card's look,
-   not just motion, so killing them entirely would change the design. */
-body.no-animate .spotlight {
-  animation: none !important;
-  transform: rotate(-11deg);
-}
-body.no-animate .spotlight-2 { transform: rotate(11deg); }

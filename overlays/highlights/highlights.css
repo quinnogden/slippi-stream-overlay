@@ -233,7 +233,7 @@ body {
     90deg,
     transparent,
     var(--darkened-text) 25%,
-    var(--text-color)    50%,
+    var(--trim-color, var(--text-color)) 50%,
     var(--darkened-text) 75%,
     transparent
   );
@@ -392,7 +392,7 @@ body {
     90deg,
     transparent,
     var(--darkened-text) 18%,
-    var(--text-color)    50%,
+    var(--trim-color, var(--text-color)) 50%,
     var(--darkened-text) 82%,
     transparent
   );
@@ -415,12 +415,9 @@ body {
 }
 
 /* ── Atmosphere ──
-   The light / grain / vignette layers, the orb base style and the torb
-   keyframes are in ../shared/atmosphere.css, shared with the bracket's title
-   bar. Only the orb geometry is this plate's own. */
-.title-orb-1 { width: 200px; height: 200px; top: -84px; left:  10%; animation: torb1 14s ease-in-out infinite 0s;  }
-.title-orb-2 { width: 160px; height: 160px; top: -70px; right: 14%; animation: torb2 18s ease-in-out infinite -6s; }
-.title-orb-3 { width: 230px; height: 176px; top: -78px; left:  42%; animation: torb3 11s ease-in-out infinite -3s; }
+   The light / grain / vignette layers are in ../shared/atmosphere.css,
+   shared with the bracket's title bar. The plate's background flair
+   (.flair-plate) is drawn by the theme pack's flair.css. */
 
 /* ── Flanking rules ── */
 .title-rule {
@@ -496,10 +493,6 @@ body {
    overlay-client.js adds body.no-animate; overlay.css already stops
    every CSS animation, and these keep the frozen frame looking right.
    ══════════════════════════════════════════════════════════════ */
-body.no-animate .title-orb {
-  animation: none !important;
-  opacity: 0.34 !important;
-}
 body.no-animate .title-word::after {
   animation: none !important;
   opacity: 0 !important;

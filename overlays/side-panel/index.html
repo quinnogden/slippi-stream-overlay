@@ -6,8 +6,8 @@
     <link rel="stylesheet" href="/o/shared/overlay.css" />
     <link rel="stylesheet" href="/o/side-panel/side-panel.css" />
   </head>
-  <!-- 611 × 1080, beside the webcam. ?animate=false stills the ambient orbs
-       and the spotlights' sway; ?panel=<id> holds one panel (for styling). -->
+  <!-- 611 × 1080, beside the webcam. ?animate=false stills the theme pack's
+       background flair; ?panel=<id> holds one panel (for styling). -->
   <body>
 
     <!-- Rounded corners for the cam cutout: an outward spread shadow in the
@@ -30,16 +30,9 @@
       <div class="slot-grain"></div>
       <div class="slot-vignette"></div>
 
-      <div class="ambient ambient-1"></div>
-      <div class="ambient ambient-2"></div>
-      <div class="ambient ambient-3"></div>
-      <div class="ambient ambient-4"></div>
-      <div class="ambient ambient-5"></div>
-
-      <!-- Fight-night spotlights: opt-in per theme pack (display:none unless
-           the pack sets --spotlight-display). Inert markup otherwise. -->
-      <div class="spotlight spotlight-1"></div>
-      <div class="spotlight spotlight-2"></div>
+      <!-- Background flair: empty slots the theme pack draws in (its
+           flair.css). See "Flair slots" in shared/overlay.css. -->
+      <div class="flair flair-card"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
 
       <div class="slot-logo">
         <div class="logo-stage">

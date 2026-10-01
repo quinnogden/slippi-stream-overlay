@@ -306,7 +306,7 @@ body {
     90deg,
     transparent,
     var(--darkened-text) 25%,
-    var(--text-color)    50%,
+    var(--trim-color, var(--text-color)) 50%,
     var(--darkened-text) 75%,
     transparent
   );
@@ -360,7 +360,7 @@ body {
     90deg,
     transparent,
     var(--darkened-text) 25%,
-    var(--text-color)    50%,
+    var(--trim-color, var(--text-color)) 50%,
     var(--darkened-text) 75%,
     transparent
   );
@@ -477,7 +477,9 @@ body {
   box-sizing: border-box;
   border-radius: calc(var(--border-radius) - var(--score-inset));
   border: 1px solid rgba(var(--text-color-rgb), 0.08);
-  font-size: 50px;
+  /* --score-scale: a pack whose face runs large shrinks the digits here
+     (and in .thin below) without touching the box. */
+  font-size: calc(50px * var(--score-scale, 1));
   color: var(--bg-color);
   flex-grow: 1;
   flex-shrink: 0;
@@ -519,7 +521,7 @@ body {
 .score .digit[data-d="9"] { --score-nudge: var(--score-nudge-9, 0); }
 
 .fgc.thin .score {
-  font-size: 40px;
+  font-size: calc(40px * var(--score-scale, 1));
   width: 48px;
 }
 

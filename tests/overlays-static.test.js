@@ -146,6 +146,29 @@ test("every pack's logo and sponsor resolve from an overlay stylesheet", () => {
   }
 });
 
+// The walk above reaches only the active pack; the rest are one dock click
+// from air. A pack's flair.css arrives by @import, which the browser drops
+// without a word when any other rule precedes it — the flair would just be gone.
+test("every pack's stylesheets, fonts and flair artwork resolve, and its @imports come first", () => {
+  for (const pack of themePacks(roots.overlaysDir).map((p) => `/o/themes/${p}/theme.css`)) {
+    const seen = new Set();
+    const queue = [pack];
+    while (queue.length) {
+      const sheet = queue.shift();
+      if (seen.has(sheet)) continue;
+      seen.add(sheet);
+      const rules = read(sheet).replace(/\/\*[\s\S]*?\*\//g, "").trim();
+      // (a quoted url may hold a ";" — Google Fonts' do)
+      const firstOther = rules.replace(/^(@import\s+(?:url\(\s*(?:"[^"]*"|'[^']*'|[^)]*)\s*\)|"[^"]*"|'[^']*')[^;]*;\s*)*/, "");
+      assert.ok(!/@import/.test(firstOther), `${sheet}: an @import after another rule is ignored by the browser`);
+      for (const ref of cssRefs(sheet)) {
+        assert.ok(resolveOverlayPath(ref, roots), `${sheet}: ${ref} → nothing`);
+        if (ref.endsWith(".css")) queue.push(ref);
+      }
+    }
+  }
+});
+
 test("every overlay script parses", () => {
   const files = [];
   (function walk(dir) {

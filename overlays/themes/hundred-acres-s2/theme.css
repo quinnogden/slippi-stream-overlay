@@ -1,0 +1,90 @@
+/* ============================================================
+   Theme pack — Hundred Acres, season 2: "Trail Map"
+
+   The same badge, read as a state park: the routed lettering of a
+   park sign, the pine and slate of the logo's border, the cream of
+   its wordmark, and the fox's orange kept for small trim. Behind the
+   cards, instead of glowing orbs, fireflies at dusk — with a paper
+   trail map's contour lines one token away (see flair.css).
+
+   Activated by the @import in overlays/theme.css. Everything the
+   look depends on is in this folder.
+   ============================================================ */
+
+/* The pack's background flair: fireflies, and topo contours — each switched by a --flair-* token below. Must precede every other rule,
+   as any @import. */
+@import url("./flair.css");
+
+/* National Park — drawn from the routed wooden signs of the U.S. National
+   Park Service. SIL Open Font License (fonts/OFL.txt). Self-hosted: venue
+   wifi must not be able to drop the broadcast to a fallback face. A normal
+   url(), so it resolves relative to THIS file.
+
+   The variable cut runs wght 200–800, but it is declared 600–800 on
+   purpose. Chrome clamps a requested weight into the face's declared
+   range, so the side panel's default 400 draws at a real 600 and the
+   scoreboard's `bold` at 700 — the heft BabyDoll had, from true outlines,
+   with no layout asking for a weight. */
+@font-face {
+  font-family: "ParkSign";
+  font-weight: 600 800;
+  src: url("./fonts/NationalPark-Variable.ttf") format("truetype");
+}
+
+:root {
+  /* Typography — one face throughout, as a park's signage is. */
+  --font:           'ParkSign', 'National Park', sans-serif;
+  --score-font:     'ParkSign', 'National Park', sans-serif;
+
+  /* Shape */
+  --border-radius:  14px;
+
+  /* National Park's figures run larger than BabyDoll's: the scoreboard's
+     digits at 88%. And the side panel's pills are near-solid rather than the
+     default 6% white wash — the same colour that wash makes on the slate
+     card, but the fireflies no longer show through the stats. */
+  --score-scale:    0.88;
+  --pill-bg:        rgba(27, 43, 49, 0.92);
+
+  /* Brand imagery — the season-one badge. The "../themes/<pack>/" prefix is
+     required: a url() inside a custom property resolves against the
+     stylesheet that USES the var(), and every consumer sits one level
+     under /o/. */
+  --logo-url:       url("../themes/hundred-acres-s2/logo.png");
+  --sponsor-url:    url("../themes/hundred-acres-s2/sponsor.png");
+  --logo-filter:    none;
+  --sponsor-filter: none;
+
+  /* Colors — from the badge */
+  --bg-color:       #26392a;   /* the pines: a touch cooler than S1's olive */
+  --text-color:     #f5dba2;   /* the "HUNDRED ACRES" lettering */
+  --darkened-text:  #b39867;   /* weathered cream, for secondary text */
+  --score-bg-color: #0c1d24;   /* the badge's slate border */
+  --score-color:    #f5dba2;
+  --sponsor-color:  #b39867;
+  --accent-color:   #f5dba2;
+
+  /* Fox orange, for small trim only (hairlines, header dividers, the live
+     set's border) — see --trim-color in shared/overlay.css. */
+  --trim-color:     #e08a3c;
+  --trim-rgb:       224, 138, 60;
+
+  /* Semantic UI colors */
+  --icon-bg-color:   var(--score-bg-color);
+  --win-color:       #3fae54;               /* meadow green — a signal, kept bright */
+  --loss-color:      #e5483f;
+  --p2-team-color:   #4a9fd6;               /* the river */
+  --set-score-color: var(--darkened-text);
+
+  /* Background flair — block to show, none to hide; combine freely.
+     contours  the trail map's topographic lines, drifting very slowly
+     fireflies a few warm points blinking in the dark */
+  --flair-contours:  none;
+  --flair-fireflies: block;
+
+  /* RGB triplets for use inside rgba() — keep in sync with the hexes above */
+  --bg-color-rgb:       38, 57, 42;    /* #26392a */
+  --bg-color-light-rgb: 58, 86, 64;    /* lighter pine for gradient highlights */
+  --text-color-rgb:     245, 219, 162; /* #f5dba2 */
+  --score-bg-color-rgb: 12, 29, 36;    /* #0c1d24 */
+}

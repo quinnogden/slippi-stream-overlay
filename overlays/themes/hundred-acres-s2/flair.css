@@ -1,0 +1,171 @@
+/* ============================================================
+   Hundred Acres S2 — background flair: the trail map
+
+   Two features, each switched by a token in theme.css
+   (--flair-contours, --flair-fireflies: block or none), drawn in the slots each layout provides — see "Flair slots"
+   in shared/overlay.css. .flair-card is the side panel's bottom card
+   (587 × 650), .flair-title the bracket's title bar (92px tall,
+   620–1500 wide), .flair-plate the highlights title plate (78px tall,
+   470px and up).
+
+     slot 1      contours   contours.svg
+     slots 2–4   fireflies  box-shadow points
+     slot 5      canopy light (title bar and plate; always on)
+
+   The contours are used as a MASK over a token-coloured fill, never as
+   an image, so they follow the palette: the SVG is black on
+   transparent and only its alpha matters. Plain url()s here resolve
+   against this file. Masks carry the -webkit- prefix too — OBS's
+   Chromium 103 needs it.
+
+   Everything stays faint and behind the content (slots sit at
+   z-index 1; the cards' text is 2+). Motion is a slow drift, never a
+   pulse: a texture that breathes pulls the eye off the players.
+   ============================================================ */
+
+
+/* ── Canopy light (slot 5, always on) ─────────────────────────
+   Season one's orbs did a second job: their green glow lifted the dark
+   title bar and plate by about a quarter. With the orbs gone that light
+   is put back here, still — two soft pine pools, like low sun through
+   trees — so the bars keep S1's brightness whichever features are on. */
+.flair-title > i:nth-child(5),
+.flair-plate > i:nth-child(5) {
+  display: block;
+  inset:   0;
+  background:
+    radial-gradient(ellipse 42% 150% at 24% -10%, rgba(var(--bg-color-light-rgb), 0.85) 0%, transparent 70%),
+    radial-gradient(ellipse 38% 140% at 80% 0%,   rgba(var(--bg-color-light-rgb), 0.60) 0%, transparent 70%);
+}
+
+
+/* ── Topographic contours (slot 1) ────────────────────────────
+   One 640px tile, seamless on both axes (generated on a torus), so the
+   layer is a tile larger than the card each way and drifts exactly one
+   tile per loop. Every fifth line is a heavier "index" contour, as on
+   a real survey map; the SVG draws the others at 55%. */
+.flair-card  > i:nth-child(1),
+.flair-title > i:nth-child(1),
+.flair-plate > i:nth-child(1) {
+  display: var(--flair-contours, none);
+  top:     0;
+  left:    0;
+  width:   calc(100% + 640px);
+  height:  calc(100% + 640px);
+  background: rgba(var(--text-color-rgb), 0.12);
+  -webkit-mask-image: url("./contours.svg");
+          mask-image: url("./contours.svg");
+  -webkit-mask-size: 640px 640px;
+          mask-size: 640px 640px;
+  animation: s2-topo 360s linear infinite;
+}
+.flair-title > i:nth-child(1),
+.flair-plate > i:nth-child(1) {
+  background: rgba(var(--text-color-rgb), 0.10);
+  animation-duration: 480s;
+}
+
+@keyframes s2-topo {
+  from { transform: translate(0, 0); }
+  to   { transform: translate(-640px, -640px); }
+}
+
+
+/* ── Fireflies (slots 2–4) ────────────────────────────────────
+   Each slot is one invisible 3px point carrying its fireflies as
+   box-shadows (a tight core plus a soft halo each), so three elements
+   make a dozen lights. The three groups blink and wander on unrelated
+   16, 22 and 27 second periods, so no two lights ever pulse together. */
+.flair-card  > i:nth-child(2), .flair-card  > i:nth-child(3), .flair-card  > i:nth-child(4),
+.flair-title > i:nth-child(2), .flair-title > i:nth-child(3), .flair-title > i:nth-child(4),
+.flair-plate > i:nth-child(2), .flair-plate > i:nth-child(3), .flair-plate > i:nth-child(4) {
+  display:  var(--flair-fireflies, none);
+  top:      0;
+  left:     0;
+  width:    3px;
+  height:   3px;
+  border-radius: 50%;
+  --ff:      255, 228, 150;
+  --ff-glow: 255, 205, 110;
+  --ff-core: 0.60;   /* peak alpha of each point, and of its halo */
+  --ff-halo: 0.16;
+}
+
+.flair-card > i:nth-child(2) {
+  box-shadow:
+     64px 132px 1px 1px rgba(var(--ff), var(--ff-core)),  64px 132px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
+    402px  96px 1px 1px rgba(var(--ff), var(--ff-core)), 402px  96px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
+    236px 388px 1px 1px rgba(var(--ff), var(--ff-core)), 236px 388px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
+    530px 520px 1px 1px rgba(var(--ff), var(--ff-core)), 530px 520px 10px 4px rgba(var(--ff-glow), var(--ff-halo));
+  animation: s2-ff-a 16s ease-in-out infinite 0s;
+}
+.flair-card > i:nth-child(3) {
+  box-shadow:
+    150px  40px 1px 1px rgba(var(--ff), var(--ff-core)), 150px  40px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
+    500px 250px 1px 1px rgba(var(--ff), var(--ff-core)), 500px 250px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
+     40px 470px 1px 1px rgba(var(--ff), var(--ff-core)),  40px 470px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
+    330px 590px 1px 1px rgba(var(--ff), var(--ff-core)), 330px 590px 10px 4px rgba(var(--ff-glow), var(--ff-halo));
+  animation: s2-ff-b 22s ease-in-out infinite -7s;
+}
+.flair-card > i:nth-child(4) {
+  box-shadow:
+    300px 180px 1px 1px rgba(var(--ff), var(--ff-core)), 300px 180px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
+    110px 300px 1px 1px rgba(var(--ff), var(--ff-core)), 110px 300px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
+    450px 420px 1px 1px rgba(var(--ff), var(--ff-core)), 450px 420px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
+    170px 610px 1px 1px rgba(var(--ff), var(--ff-core)), 170px 610px 10px 4px rgba(var(--ff-glow), var(--ff-halo));
+  animation: s2-ff-c 27s ease-in-out infinite -16s;
+}
+
+/* Title bar and plate: their width varies with the text, so one group
+   hangs off each end and one off the middle. */
+.flair-title > i:nth-child(2), .flair-plate > i:nth-child(2) {
+  box-shadow:
+     40px 22px 1px 1px rgba(var(--ff), var(--ff-core)),  40px 22px 8px 3px rgba(var(--ff-glow), var(--ff-halo)),
+    118px 58px 1px 1px rgba(var(--ff), var(--ff-core)), 118px 58px 8px 3px rgba(var(--ff-glow), var(--ff-halo));
+  animation: s2-ff-a 16s ease-in-out infinite -2s;
+}
+.flair-title > i:nth-child(3), .flair-plate > i:nth-child(3) {
+  left: auto;
+  right: 3px;
+  box-shadow:
+     -52px 30px 1px 1px rgba(var(--ff), var(--ff-core)),  -52px 30px 8px 3px rgba(var(--ff-glow), var(--ff-halo)),
+    -140px 60px 1px 1px rgba(var(--ff), var(--ff-core)), -140px 60px 8px 3px rgba(var(--ff-glow), var(--ff-halo));
+  animation: s2-ff-b 22s ease-in-out infinite -12s;
+}
+.flair-title > i:nth-child(4), .flair-plate > i:nth-child(4) {
+  left: 50%;
+  box-shadow:
+    -170px 14px 1px 1px rgba(var(--ff), var(--ff-core)), -170px 14px 8px 3px rgba(var(--ff-glow), var(--ff-halo)),
+     190px 64px 1px 1px rgba(var(--ff), var(--ff-core)),  190px 64px 8px 3px rgba(var(--ff-glow), var(--ff-halo));
+  animation: s2-ff-c 27s ease-in-out infinite -19s;
+}
+
+@keyframes s2-ff-a {
+  0%, 100% { opacity: 0.10; transform: translate(0, 0); }
+  18%      { opacity: 0.95; }
+  34%      { opacity: 0.15; transform: translate(10px, -14px); }
+  55%      { opacity: 0.80; }
+  72%      { opacity: 0.05; transform: translate(-6px, -22px); }
+}
+@keyframes s2-ff-b {
+  0%, 100% { opacity: 0.05; transform: translate(0, 0); }
+  25%      { opacity: 0.85; transform: translate(-12px, 6px); }
+  42%      { opacity: 0.10; }
+  64%      { opacity: 1;    transform: translate(-4px, -12px); }
+  80%      { opacity: 0.12; }
+}
+@keyframes s2-ff-c {
+  0%, 100% { opacity: 0.70; transform: translate(0, 0); }
+  20%      { opacity: 0.08; transform: translate(8px, 10px); }
+  48%      { opacity: 0.90; transform: translate(14px, -6px); }
+  66%      { opacity: 0.10; }
+  85%      { opacity: 0.60; transform: translate(4px, -14px); }
+}
+
+
+/* ── ?animate=false ──
+   overlay.css stops every animation; the contours simply hold still. The fireflies hold at a low, even glow rather than wherever
+   their blink happened to be. */
+body.no-animate .flair > i:nth-child(n+2):nth-child(-n+4) {
+  opacity: 0.45;
+}

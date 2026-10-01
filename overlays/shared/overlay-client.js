@@ -299,7 +299,48 @@
   function fitText(node, minPx = 13) {
     if (!node) return;
     node.dataset.fitMin = String(minPx);
+    delete node.dataset.fitGroup;
     fitTextNow(node);
+  }
+
+  /**
+   * fitText for rows that read as a set — a list's names, its event lines.
+   * Each node is fitted alone, then the group takes the smallest of those
+   * sizes, so one long name doesn't leave its row a different size from the
+   * rest. Only down to `floorRatio` of the stylesheet size, though: a node
+   * that needs less than that is an outlier and shrinks alone, as fitText
+   * would, rather than taking the whole list down with it.
+   *
+   * Call it once every node is in the document AND the layout is final. A
+   * list built row by row lays its first rows out taller (flex: 1 pills,
+   * text in cqh), and a fit measured then freezes a size the finished list
+   * doesn't use — rows of identical text came out at three sizes.
+   */
+  let fitGroupSeq = 0;
+  function fitGroup(nodes, minPx = 13, floorRatio = 0.8) {
+    nodes = Array.from(nodes).filter(Boolean);
+    if (!nodes.length) return;
+    const id = String(++fitGroupSeq);
+    for (const n of nodes) {
+      n.dataset.fitMin = String(minPx);
+      n.dataset.fitGroup = id;
+      n.dataset.fitFloor = String(floorRatio);
+    }
+    fitGroupNow(nodes);
+  }
+
+  function fitGroupNow(nodes) {
+    const ratio = parseFloat(nodes[0].dataset.fitFloor) || 0.8;
+    let floor = 0;
+    const own = nodes.map((n) => {
+      n.style.fontSize = "";
+      floor = Math.max(floor, parseFloat(getComputedStyle(n).fontSize) * ratio);
+      fitTextNow(n);
+      return parseFloat(getComputedStyle(n).fontSize);
+    });
+    let shared = Infinity;
+    for (const s of own) if (s >= floor) shared = Math.min(shared, s);
+    nodes.forEach((n, i) => { if (own[i] > shared) n.style.fontSize = shared + "px"; });
   }
 
   function fitTextNow(node) {
@@ -320,7 +361,14 @@
   }
 
   function refitAll() {
-    document.querySelectorAll("[data-fit-min]").forEach(fitTextNow);
+    const groups = new Map();
+    document.querySelectorAll("[data-fit-min]").forEach((n) => {
+      const g = n.dataset.fitGroup;
+      if (!g) return fitTextNow(n);
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push(n);
+    });
+    groups.forEach(fitGroupNow);
   }
   if (document.fonts) {
     document.fonts.addEventListener?.("loadingdone", refitAll);
@@ -335,5 +383,5 @@
     return node;
   }
 
-  root.Overlay = { ...api, connect, reveal, followTheme, swap, text, squeeze, fitText, h, param };
+  root.Overlay = { ...api, connect, reveal, followTheme, swap, text, squeeze, fitText, fitGroup, h, param };
 })(typeof window !== "undefined" ? window : globalThis);

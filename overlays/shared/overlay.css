@@ -19,6 +19,13 @@
     inset 0  1px 0 rgba(255,255,255,0.07),
     inset 0 -1px 0 rgba(0,0,0,0.35);
 
+  /* --trim-color / --trim-rgb are a pack's optional second accent, for small
+     details only: the centre of every graduated top-edge hairline, the side
+     panel's header dividers, the bracket's live-set border. Read everywhere
+     as var(--trim-color, var(--text-color)), so a pack that leaves them
+     unset keeps those details in its text colour. Not defined here, or the
+     fallback would never apply. */
+
   /* The entrance: TSH layouts ran GSAP's power2.out over 2s. */
   --enter-time: 2s;
   --enter-ease: cubic-bezier(0.5, 1, 0.89, 1);
@@ -40,6 +47,40 @@ body.ready { opacity: 1; }
   text-shadow:
     0 2px 4px  rgba(0,0,0,0.85),
     0 4px 12px rgba(0,0,0,0.50);
+}
+
+/* ── Flair slots ──────────────────────────────────────────────
+   Background flair (Hundred Acres' drifting orbs, Salty Suite's
+   spotlights) belongs to the theme pack, not the layout. A layout
+   only provides the slots, inside a positioned, overflow:hidden card:
+
+     <div class="flair flair-card"> <i></i> ×8 </div>
+
+   and the pack's flair.css draws in them by context and position:
+   `.flair-card > i:nth-child(2) { display: block; … }`. Contexts:
+   flair-card (side panel bottom card), flair-title (bracket title
+   bar), flair-plate (highlights title plate). An unused slot draws
+   nothing, so a pack with no flair.css has no flair.
+
+   .flair has NO z-index on purpose: a z-index would make it a
+   stacking context, and a slot's mix-blend-mode would then blend
+   with nothing instead of the card it sits on. The slots join the
+   card's own stacking order at z-index 1 — above its light / grain /
+   vignette layers (0), below its content (2+).
+
+   :where() keeps these at the specificity of a bare `i`, so any
+   pack selector beats them although this file loads after the pack.
+   ─────────────────────────────────────────────────────────── */
+:where(.flair) {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+:where(.flair) > i {
+  position: absolute;
+  display: none;
+  z-index: 1;
+  pointer-events: none;
 }
 
 /* ── Entrances ────────────────────────────────────────────────

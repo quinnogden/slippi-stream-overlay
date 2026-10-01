@@ -12,7 +12,7 @@
  * someone else's numbers.
  *
  *   ?panel=<id>     hold one panel instead of rotating (for styling)
- *   ?animate=false  still the ambient orbs and the spotlights' sway
+ *   ?animate=false  still the theme pack's background flair
  *
  * tests/side-panel.test.js runs this file against the real store, channel
  * mirror and overlay client.
@@ -20,7 +20,7 @@
 (function (root) {
   "use strict";
 
-  const { h, fitText, param } = Overlay;
+  const { h, fitText, fitGroup, param } = Overlay;
 
   const PANEL_INTERVAL = 20000;   // ms per slot, logos included
   const FADE_MS        = 700;     // panel crossfade
@@ -315,6 +315,8 @@
     fitText(tagEl, 24);
     panel.querySelector(".player-char-name").textContent = (p.character?.name ?? "").toUpperCase();
 
+    // Rows are fitted together once the card is complete — see fitGroup.
+    const fit = { opp: [], round: [], hist: [] };
     const runList = panel.querySelector(".run-list");
     const run = runView(i).slice(0, 5);
     runList.replaceChildren();
@@ -326,8 +328,8 @@
       const [mine, theirs] = scoreLabels([s.myScore, s.oppScore], s.won ? 0 : 1);
       row.append(opp, round, h("span", "pill-run-score", `${mine}–${theirs}`));
       runList.appendChild(row);
-      fitText(opp);
-      fitText(round, 11);
+      fit.opp.push(opp);
+      fit.round.push(round);
     }
 
     const histList = panel.querySelector(".history-list");
@@ -339,8 +341,11 @@
       const name = h("span", "pill-name", r.tournament || r.event || "");
       row.append(name, r.placement ? placementEl(r.placement, r.entrants) : h("span", "pill-placement"));
       histList.appendChild(row);
-      fitText(name);
+      fit.hist.push(name);
     }
+    fitGroup(fit.opp);
+    fitGroup(fit.round, 11);
+    fitGroup(fit.hist);
   }
 
   function renderRecentSets() {
@@ -360,9 +365,8 @@
     row.append(left, mid, right);
     head.appendChild(row);
     list.appendChild(head);
-    fitText(left, 18);
-    fitText(right, 18);
 
+    const subs = [], rounds = [];
     for (const s of h2h.sets.slice(0, 5)) {
       const sc = scoreLabels(s.score, s.winner);
       const sub = (s.tournament || "") + (s.timestamp ? " · " + formatDate(s.timestamp) : "");
@@ -372,15 +376,19 @@
       const roundEl = s.round ? info.appendChild(h("div", "pill-round recent-set-round", s.round)) : null;
       row2.append(h("span", "pill-score-val", sc[0]), info, h("span", "pill-score-val recent-score-right", sc[1]));
       list.appendChild(row2);
-      if (subEl) fitText(subEl, 11);
-      if (roundEl) fitText(roundEl, 11);
+      subs.push(subEl);
+      rounds.push(roundEl);
     }
+    fitGroup([left, right], 18);
+    fitGroup(subs, 11);
+    fitGroup(rounds, 11);
   }
 
   function renderCompletedSets() {
     const list = document.querySelector("#panel-completed-sets .completed-list");
     if (!list) return;
     list.replaceChildren();
+    const names = [];
     for (const s of completedView()) {
       const sc = scoreLabels(s.scores, s.winner);
       const row = pill("completed-set-pill " + (s.winner === 0 ? "p1win" : "p2win"));
@@ -391,9 +399,9 @@
       const b = h("span", "pill-name right", s.names?.[1] || "");
       row.append(a, info, b);
       list.appendChild(row);
-      fitText(a);
-      fitText(b);
+      names.push(a, b);
     }
+    fitGroup(names);
   }
 
   // Each panel remembers the slice it last drew and skips the rebuild when

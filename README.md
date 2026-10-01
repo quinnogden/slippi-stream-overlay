@@ -199,14 +199,17 @@ A theme is a self-contained folder, so running a different tournament doesn't me
 
 ```
 overlays/theme.css                  ← a one-line switch naming the active pack
-overlays/themes/hundred-acres/
+overlays/themes/hundred-acres-s2/
   theme.css                         every colour token, the @font-face, both logo URLs
+  flair.css                         the pack's background flair (optional)
   logo.png                          tournament logo
   sponsor.png                       sponsor / venue logo
   fonts/                            the brand font, self-hosted
 ```
 
-Every overlay imports the switch, so changing its one `@import` re-skins them all. Refresh the OBS sources and you're done. Shipped today: `hundred-acres` (the default) and `salty-suite`.
+Every overlay imports the switch, so changing its one `@import` re-skins them all. Refresh the OBS sources and you're done. Shipped today: `hundred-acres-s2` (on air), `hundred-acres` (season one) and `salty-suite`.
+
+Each pack owns its background flair — the moving texture behind the side panel's card and the title bars. Season one drifts soft orbs, Salty Suite adds spotlights, and season two has fireflies, with a trail map's topographic contours one token away (`--flair-*` in its `theme.css`).
 
 **To start a new event:** copy a pack folder, change its colours and artwork, and point `overlays/theme.css` at it. Switching back afterwards is the same one-line edit — nothing prompts you, and the wrong branding is only obvious once you're live. When copying, the two logo URLs inside the pack's `theme.css` contain the pack's own folder name and need editing too; preflight fails if they don't resolve.
 

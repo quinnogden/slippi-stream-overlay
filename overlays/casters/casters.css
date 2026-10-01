@@ -53,7 +53,7 @@ body {
     90deg,
     transparent,
     var(--darkened-text) 25%,
-    var(--text-color)    50%,
+    var(--trim-color, var(--text-color)) 50%,
     var(--darkened-text) 75%,
     transparent
   );

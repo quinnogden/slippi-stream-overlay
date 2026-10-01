@@ -12,6 +12,9 @@
    never actually loaded. */
 @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
 
+/* The pack's background flair — the drifting orbs. */
+@import url("./flair.css");
+
 /* Self-hosted: venue wifi must not be able to drop the brand font.
    This is a normal url(), so it resolves relative to THIS file. */
 @font-face {

@@ -50,15 +50,13 @@ body.no-animate { transition: none; }
   top: 0; left: 12%; right: 12%;
   height: 1.5px;
   background: linear-gradient(90deg, transparent, var(--darkened-text) 18%,
-    var(--text-color) 50%, var(--darkened-text) 82%, transparent);
+    var(--trim-color, var(--text-color)) 50%, var(--darkened-text) 82%, transparent);
   opacity: 0.55;
   z-index: 3;
 }
 
-/* Orb geometry is ours; the layers and keyframes are atmosphere.css's. */
-.title-orb-1 { width: 240px; height: 240px; top: -110px; left:  6%; animation: torb1 14s ease-in-out infinite 0s;  }
-.title-orb-2 { width: 190px; height: 190px; top:  -90px; right: 10%; animation: torb2 18s ease-in-out infinite -6s; }
-.title-orb-3 { width: 270px; height: 210px; top: -100px; left: 40%; animation: torb3 11s ease-in-out infinite -3s; }
+/* The light / grain / vignette layers are atmosphere.css's; the bar's
+   background flair (.flair-title) is the theme pack's flair.css. */
 
 .title-text {
   position: relative;
@@ -159,7 +157,7 @@ body.no-animate { transition: none; }
   position: absolute;
   top: 0; left: 14%; right: 14%;
   height: 1.5px;
-  background: linear-gradient(90deg, transparent, var(--text-color), transparent);
+  background: linear-gradient(90deg, transparent, var(--trim-color, var(--text-color)), transparent);
   opacity: 0.25;
 }
 .round-head .maybe { font-size: 0.72em; letter-spacing: 0.12em; color: var(--darkened-text); }
@@ -178,7 +176,7 @@ body.no-animate { transition: none; }
   box-shadow: var(--shadow-raised);
   overflow: hidden;
 }
-.card.live  { border-color: rgba(var(--text-color-rgb), 0.55); }
+.card.live  { border-color: rgba(var(--trim-rgb, var(--text-color-rgb)), 0.55); }
 /* The reset only happens if the losers-side player takes GF 1. */
 .card.maybe { opacity: 0.5; border-style: dashed; box-shadow: none; }
 
@@ -240,6 +238,11 @@ body.no-animate { transition: none; }
   white-space: nowrap;
   text-overflow: ellipsis;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.85);
+  /* overflow: hidden clips at the line box, and the row's line-height is 1:
+     a face whose descenders hang below its em (National Park) loses the tail
+     of g, p, y. Grow the clip box, not the layout. */
+  padding-block: 0.2em;
+  margin-block: -0.2em;
 }
 .name .prefix {
   color: var(--darkened-text);

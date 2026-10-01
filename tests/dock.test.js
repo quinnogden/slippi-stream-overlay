@@ -110,9 +110,12 @@ const SETUP = {
 };
 
 // The theme switch rewrites overlays/theme.css, so it gets a copy: the real
-// switch file over two empty packs.
+// switch file over two empty packs. The copy's @import is pinned to the first
+// of them, so the test doesn't depend on which pack happens to be on air.
 const THEME_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "dock-theme-"));
-fs.copyFileSync(path.join(OVERLAYS, "theme.css"), path.join(THEME_DIR, "theme.css"));
+fs.writeFileSync(path.join(THEME_DIR, "theme.css"),
+  fs.readFileSync(path.join(OVERLAYS, "theme.css"), "utf8")
+    .replace(/\.\/themes\/[^/]+\/theme\.css/, `./themes/${SETUP.themes[0]}/theme.css`));
 for (const pack of SETUP.themes) {
   fs.mkdirSync(path.join(THEME_DIR, "themes", pack), { recursive: true });
   fs.writeFileSync(path.join(THEME_DIR, "themes", pack, "theme.css"), "");

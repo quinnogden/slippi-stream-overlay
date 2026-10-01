@@ -18,7 +18,7 @@
 (function () {
   "use strict";
 
-  const { h, text, icon, fitText, param } = Overlay;
+  const { h, text, icon, fitGroup, param } = Overlay;
   const { layoutBracket, fitScale, METRICS } = BracketLayout;
 
   const VIEW_TITLES = {
@@ -146,8 +146,9 @@
       board.appendChild(card);
       names.push(...card.querySelectorAll(".name"));
     }
-    // In the document now, so the long names can be measured and shrunk.
-    names.forEach((n) => fitText(n, Math.round(METRICS.nameSize * 0.7)));
+    // In the document now, so the names can be measured: shrunk together,
+    // so one long tag does not leave its card a different size (see fitGroup).
+    fitGroup(names, Math.round(METRICS.nameSize * 0.7));
   }
 
   // ── Fit and pan ─────────────────────────────────────────────────────────────
