@@ -1,7 +1,8 @@
 /**
  * slippi-bridge
  *
- * Watches the folder Slippi writes live .slp files into, then pushes game events to:
+ * Watches the folder Slippi writes live .slp files into, and runs the event from
+ * start.gg (lib/event/). Game events go to:
  *   1. the scoreboard — records each game (the score is the game list)
  *   2. Socket.io     — pushes character/game data to OBS browser sources
  *   3. OBS websocket — saves a replay-buffer clip when a combo lands
@@ -17,7 +18,6 @@
 const path = require("path");
 
 const config                 = require("./config");
-const TshClient              = require("./lib/tsh-client");
 const StartggClient          = require("./lib/startgg-client");
 const { createFolderSource } = require("./lib/game-source");
 const { resolveOrExit }      = require("./lib/tsh-root");
@@ -28,6 +28,7 @@ const { ScoreboardStore }    = require("./lib/scoreboard/store");
 const { createPersist }      = require("./lib/scoreboard/persist");
 const { PortMap }            = require("./lib/ports/port-map");
 const { PlayerDb }           = require("./lib/players/player-db");
+const { EventService }       = require("./lib/event/event-service");
 
 const { createState }        = require("./lib/state");
 const { createModes }        = require("./lib/modes");
@@ -38,14 +39,8 @@ const { createServer }        = require("./lib/server/app");
 const { createControlStatus } = require("./lib/server/control-status");
 const { createReportSet }     = require("./lib/server/report-set");
 const { createStartSet }      = require("./lib/server/start-set");
-const { createBracketSwitch } = require("./lib/server/bracket-switch");
 const { registerRoutes }      = require("./lib/server/routes");
 const { createPlayerStats }   = require("./lib/stats");
-
-// ── TSH root path ─────────────────────────────────────────────────────────────
-// Auto-detected from the repo root unless config.TSH_ROOT pins it, so a TSH
-// version bump doesn't require editing this file.
-const TSH_ROOT = resolveOrExit(path.resolve(__dirname, ".."), config.TSH_ROOT, "bridge");
 
 // ── Server ────────────────────────────────────────────────────────────────────
 const { app, io, start: startListening } = createServer(config);
@@ -62,7 +57,11 @@ const persist = createPersist(store, path.join(__dirname, "data", "live-state.js
 if (persist.restore()) console.log("[bridge] Restored the scoreboard from data/live-state.json");
 persist.start();
 
-const playersFile = config.PLAYERS_FILE ?? path.join(TSH_ROOT, "user_data", "local_players.json");
+// The player DB is TSH's local_players.json. Until the TSH folder goes (M8),
+// an unset PLAYERS_FILE means the one in the TSH install next to this repo.
+const playersFile = config.PLAYERS_FILE ?? path.join(
+  resolveOrExit(path.resolve(__dirname, ".."), config.TSH_ROOT, "bridge"),
+  "user_data", "local_players.json");
 
 /**
  * Everything the feature modules need, in one object. Each lib/ module takes
@@ -70,18 +69,19 @@ const playersFile = config.PLAYERS_FILE ?? path.join(TSH_ROOT, "user_data", "loc
  */
 const ctx = {
   config,
-  TSH_ROOT,
   io,
   state:           createState(),
   store,
   portMap:         new PortMap(),
   playerDb:        new PlayerDb(playersFile),
-  tsh:             new TshClient(config, TSH_ROOT),
   startgg:         new StartggClient(config),
   clipperSettings,
   comboDetector:   new ComboDetector(() => clipperSettings.get()),
   obs:             new ObsClient(() => clipperSettings.get()),
 };
+// The loaded start.gg event: picker, set loads, brackets. Needs the store and
+// the player DB, and the stats pre-fetch from its playable sets.
+ctx.event = new EventService(ctx);
 
 // ── Features ──────────────────────────────────────────────────────────────────
 // Ordered so each only depends on what is already built.
@@ -94,14 +94,17 @@ const playerStats   = createPlayerStats(ctx);
 const reportSet     = createReportSet(ctx, controlStatus.refresh);
 const { startCurrentSet }  = createStartSet(ctx, controlStatus.refresh);
 
-// A reported set changes the side panel's stats (both players' runs, their
-// head-to-head, the event's finished sets), so the stats reload after it.
+// A reported set changes the bracket (the picker, the next sets' entrants) and
+// the side panel's stats (both players' runs, their head-to-head, the event's
+// finished sets), so both reload after it — once start.gg has caught up.
 async function reportCurrentSet() {
   const result = await reportSet.reportCurrentSet();
-  if (result.ok) playerStats.onSetReported();
+  if (result.ok) {
+    playerStats.onSetReported();
+    setTimeout(() => ctx.event.refresh({ background: true }), 3000).unref?.();
+  }
   return result;
 }
-const bracketSwitch = createBracketSwitch(ctx, controlStatus.refresh);
 // Ctrl+Shift+S and the dock's ⇆: the ports are the wrong way round.
 function swapPorts() {
   const result = modes.swapPorts();
@@ -111,14 +114,13 @@ function swapPorts() {
 
 registerRoutes(app, {
   publicDir: path.join(__dirname, "public"),
-  tsh: ctx.tsh,
+  event: ctx.event,
   clipperSettings,
   obs: ctx.obs,
   refreshControlStatus: controlStatus.refresh,
   clipperSnapshot: controlStatus.clipperSnapshot,
   reportCurrentSet,
   startCurrentSet,
-  switchBracket: bracketSwitch.switchBracket,
   swapPorts,
   switchSides: () => store.switchSides(),
   reresolvePorts: modes.reresolvePorts,
@@ -133,8 +135,7 @@ io.on("connection", (socket) => {
   }
   // Give a freshly-connected control panel the latest status immediately.
   socket.emit("control_status", ctx.state.lastControlStatus);
-  // And a freshly-connected side panel its stats, so it never falls back to
-  // TSH's while waiting for the next change.
+  // And a freshly-connected side panel its stats, without waiting for a change.
   socket.emit("player_stats", playerStats.snapshot());
 });
 
@@ -147,8 +148,6 @@ const hotkeyMode = installHotkey(swapPorts);
 const clipper = clipperSettings.get();
 
 console.log("[bridge] Starting slippi-bridge...");
-console.log(`[bridge] TSH URL:        ${config.TSH_URL}`);
-console.log(`[bridge] Scoreboard:     ${config.SCOREBOARD_NUM}`);
 console.log(`[bridge] Bridge port:    ${config.BRIDGE_PORT}`);
 console.log(`[bridge] Control panel:  http://localhost:${config.BRIDGE_PORT}/control`);
 for (const url of lanControlUrls(config)) {
@@ -158,10 +157,14 @@ console.log(`[bridge] Players:        ${playersFile} (${ctx.playerDb.size} playe
 console.log(`[bridge] start.gg report: ${ctx.startgg.enabled ? "enabled" : "disabled (no token in config.local.js)"}`);
 console.log(`[bridge] Player stats:   ${ctx.startgg.enabled
   ? "from start.gg (histories saved in stats-cache/)"
-  : "TSH's own (no start.gg token)"}`);
-console.log(`[bridge] Brackets:       ${bracketSwitch.shortLink
-  ? `start.gg/${bracketSwitch.shortLink}${ctx.startgg.enabled ? "" : " (no token — configured event slugs only)"}`
+  : "off (no start.gg token)"}`);
+const loadedEvent = store.tournament();
+console.log(`[bridge] Brackets:       ${ctx.event.shortLink
+  ? `start.gg/${ctx.event.shortLink}${ctx.startgg.enabled ? "" : " (no token — reads via start.gg's web endpoint)"}`
   : "no short link configured (config.BRACKETS.shortLink)"}`);
+console.log(`[bridge] Event:          ${loadedEvent.eventSlug
+  ? `${loadedEvent.name} — ${loadedEvent.eventName} (reloading from start.gg)`
+  : "none yet — press Singles or Doubles in the control panel"}`);
 console.log(`[bridge] Combo clipper:  ${clipper.enabled
   ? `enabled → OBS at ${clipper.obsUrl}`
   : "disabled (turn it on in the control panel)"}`);
@@ -182,6 +185,7 @@ ctx.state.source.on("highlight",  clipRecorder.onHighlight);
 // shows a real OBS status before the first combo rather than after it.
 ctx.obs.applySettings();
 
+ctx.event.start();
 playerStats.start();
 
 // Flush pending debounced writes on the way out, so the last score and the last

@@ -72,7 +72,8 @@ function pickStatus(set) {
  * @param {ReturnType<import("./bracket-model").buildBracket>} graph
  * @param {{ includeDone?: boolean }} [opts]
  * @returns {Array<{ setId: string, status: string, roundName: string, identifier: string,
- *                   names: [string, string], seeds: [number|null, number|null] }>}
+ *                   names: [string, string], seeds: [number|null, number|null],
+ *                   scores: [number|null, number|null], preview: boolean }>}
  */
 function pickerList(graph, opts = {}) {
   const position = new Map();
@@ -97,7 +98,9 @@ function pickerList(graph, opts = {}) {
       identifier: set.identifier,
       names: set.slots.map((s) => (s.entrantId ? graph.entrants[s.entrantId]?.name ?? "" : "")),
       seeds: set.slots.map((s) => s.seed),
+      scores: set.slots.map((s) => s.score),
+      preview: set.preview,
     }));
 }
 
-module.exports = { loadPayload, pickStatus, pickerList };
+module.exports = { loadPayload, pickStatus, pickerList, PICK_ORDER };

@@ -190,25 +190,11 @@ function completedFromEventSets(nodes) {
   return out.sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
 }
 
-/** Player ids in the stream queue, in queue order, deduped. */
-function queuedPlayerIds(streamQueue, limitSets) {
-  const ids = [];
-  for (const q of streamQueue ?? []) {
-    for (const set of (q?.sets ?? []).slice(0, limitSets)) {
-      for (const slot of set?.slots ?? []) {
-        for (const id of playerIdsOf(slot)) if (id && !ids.includes(id)) ids.push(id);
-      }
-    }
-  }
-  return ids;
-}
-
 module.exports = {
   headToHead,
   h2hPill,
   historyFromStandings,
   runFromEventSets,
   completedFromEventSets,
-  queuedPlayerIds,
   slotScore,
 };

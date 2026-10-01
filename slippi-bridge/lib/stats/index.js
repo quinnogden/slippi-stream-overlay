@@ -8,37 +8,38 @@
  * user account. See docs/BRIDGE-API.md (`player_stats`) for what the layout
  * receives, and queries.js / set-history.js for how each problem is avoided.
  *
- * Driven by a 1s read of program_state.json — a file read, not a TSH round-trip.
- * A change in the loaded pair must hold still for SETTLE_MS before anything is
- * fetched: loading a set is several separate TSH writes, and the first of them
- * pairs the new player 1 with the *old* player 2.
+ * Driven by the scoreboard store: a change to the pair on the scoreboard (or to
+ * the loaded event) is acted on at once. Loading a set is one store command, so
+ * there is no half-loaded pair to wait out — TSH wrote a set load as several
+ * separate writes, the first pairing the new player 1 with the old player 2.
+ *
+ * Players in the event's next playable sets are pre-fetched while idle (the
+ * event service lists them), so a first-timer's history is usually saved
+ * before their set is on air.
  *
  * Emits `player_stats` on every change and to each new connection. When no
  * start.gg token is configured it emits `{ enabled: false }` once and does
- * nothing else; the layout then falls back to TSH's own stats.
+ * nothing else.
  */
 
 const path = require("path");
-const { normalizeEventUrl } = require("../server/bracket-switch");
 const { SetHistoryStore } = require("./set-history");
 const { setDetailsQuery, playerCardsQuery, eventOverviewQuery } = require("./queries");
 const N = require("./normalize");
 
-const TICK_MS          = 1000;
-const SETTLE_MS        = 1500;
 const EVENT_POLL_MS    = 90000;  // the same cadence the panel used against TSH
 const HISTORY_FRESH_MS = 120000; // a pair reloaded within this skips the top-up
 const RETRY_MS         = 60000;
 const REPORT_DELAY_MS  = 4000;   // start.gg takes a moment to reflect a report
 const H2H_PILLS        = 5;
-const PREWARM_SETS     = 3;      // how far down the stream queue to pre-fetch
+const PREWARM_SETS     = 3;      // how many playable sets' players to pre-fetch
 
 /**
- * @param {object} ctx — { tsh, startgg, io }
+ * @param {object} ctx — { store, event, startgg, io } (event: lib/event/event-service.js)
  * @param {{ cacheDir?: string|null, log?: Function }} [opts]
  */
 function createPlayerStats(ctx, opts = {}) {
-  const { tsh, startgg, io } = ctx;
+  const { store: scoreboard, event: eventService, startgg, io } = ctx;
   const log = opts.log ?? ((m) => console.log(`[stats] ${m}`));
   const cacheDir = opts.cacheDir === undefined
     ? path.join(__dirname, "..", "..", "stats-cache")
@@ -55,8 +56,6 @@ function createPlayerStats(ctx, opts = {}) {
   };
 
   // The pair the scoreboard shows, and what has been done about it.
-  let seenKey = null;
-  let seenSince = 0;
   let loadedKey = null;
   let forceSync = false;
   let gen = 0;          // bumps on every pair load; stale async work checks it
@@ -74,22 +73,24 @@ function createPlayerStats(ctx, opts = {}) {
     io.emit("player_stats", snap);
   }
 
-  /** What TSH is showing: the singles pair (if any) and the loaded event. */
+  const START_GG_ID = /^[1-9]\d*$/;
+
+  /** What the scoreboard shows: the singles pair (if any) and the loaded event. */
   function readTarget() {
-    const read = tsh.tryReadState();
-    if (!read.ok) return null;
-    const state = read.state;
-    const players = tsh.isDoubles(state)
+    const sb = scoreboard.scoreboard();
+    const players = sb.isDoubles
       ? []
-      : [1, 2].map((n) => tsh.getPlayerIds(state, n)).filter(Boolean);
-    return { players, slug: normalizeEventUrl(tsh.readTournamentUrl()) };
+      : sb.sides.map((side) => side.players[0])
+        .filter((p) => START_GG_ID.test(String(p?.playerId ?? "")))
+        .map((p) => ({ playerId: String(p.playerId), name: p.tag }));
+    return { players, slug: scoreboard.tournament().eventSlug || null };
   }
 
+  // Sorted, so switching sides isn't a new pair.
   const pairKey = (t) => t.players.map((p) => p.playerId).sort().join("|");
 
-  function tick() {
+  function evaluate() {
     const t = readTarget();
-    if (!t) return;
 
     if (t.slug !== eventSlug) {
       eventSlug = t.slug;
@@ -97,13 +98,7 @@ function createPlayerStats(ctx, opts = {}) {
     }
 
     const key = pairKey(t);
-    const now = Date.now();
-    if (key !== seenKey) {
-      seenKey = key;
-      seenSince = now;
-      return;
-    }
-    if (key === loadedKey || now - seenSince < SETTLE_MS) return;
+    if (key === loadedKey) return;
     loadedKey = key;
     loadPair(t);
   }
@@ -156,7 +151,7 @@ function createPlayerStats(ctx, opts = {}) {
 
     const ev = res.data?.ev;
     // A run only means something in a singles event; the scoreboard can hold a
-    // singles pair while TSH's bracket points at doubles.
+    // singles pair while the loaded event is doubles.
     const runNodes = ev && ev.type === 1 ? ev.sets?.nodes ?? [] : [];
     t.players.forEach((p, i) => {
       snap.players[p.playerId] = {
@@ -188,8 +183,8 @@ function createPlayerStats(ctx, opts = {}) {
       log(`H2H ${label} failed: ${error} — retrying in ${RETRY_MS / 1000}s`);
       snap.h2h = { players: [a.playerId, b.playerId], state: "error", error, wins: {}, total: 0, recent: [] };
       emit();
-      // Retry by forgetting the pair was loaded; the next tick loads it again.
-      retryTimer = setTimeout(() => { if (my === gen) loadedKey = null; }, RETRY_MS);
+      // Retry by forgetting the pair was loaded and looking again.
+      retryTimer = setTimeout(() => { if (my === gen) { loadedKey = null; evaluate(); } }, RETRY_MS);
       return;
     }
 
@@ -245,8 +240,13 @@ function createPlayerStats(ctx, opts = {}) {
     const ev = res.data.ev;
     snap.event = { id: String(ev.id), slug, name: ev.name ?? "", singles: ev.type === 1 };
     snap.completedSets = { state: "done", sets: N.completedFromEventSets(ev.sets?.nodes) };
-    queued = N.queuedPlayerIds(ev.tournament?.streamQueue, PREWARM_SETS);
     emit();
+    queuePlayable();
+  }
+
+  /** The players in the next playable sets, from the event service. */
+  function queuePlayable() {
+    queued = eventService?.playablePlayerIds(PREWARM_SETS) ?? [];
     prewarm();
   }
 
@@ -272,17 +272,21 @@ function createPlayerStats(ctx, opts = {}) {
 
   // ── Public ─────────────────────────────────────────────────────────────────
 
-  let tickTimer = null;
+  const onStoreChange = ({ keys }) => {
+    if (keys.includes("scoreboard") || keys.includes("tournament")) evaluate();
+  };
 
   return {
     start() {
       if (!startgg.enabled) return; // the snapshot already says enabled: false
-      tick();
-      tickTimer = setInterval(tick, TICK_MS);
+      scoreboard.on("change", onStoreChange);
+      eventService?.on("change", queuePlayable);
+      evaluate();
     },
 
     stop() {
-      clearInterval(tickTimer);
+      scoreboard.off("change", onStoreChange);
+      eventService?.off("change", queuePlayable);
       clearTimeout(eventTimer);
       clearTimeout(retryTimer);
     },
@@ -299,6 +303,7 @@ function createPlayerStats(ctx, opts = {}) {
       setTimeout(() => {
         forceSync = true;
         loadedKey = null;
+        evaluate();
         refreshEvent();
       }, REPORT_DELAY_MS);
     },

@@ -1,10 +1,9 @@
 /**
  * The control panel's status snapshot, rebuilt on a 2s tick and on demand.
  *
- * The Current Set card reads the scoreboard store. TSH is still probed for its
- * health dot and the loaded tournament's name until the event service replaces
- * both (M3); nothing here reacts to TSH's sides any more — switching sides is a
- * store command now, and the port map follows it directly.
+ * Everything is local: the Current Set card and the tournament come from the
+ * scoreboard store, start.gg's health dot from the event service's last read.
+ * Nothing here makes a network call, so a rebuild can't stall on one.
  */
 
 const { evaluateReportability } = require("./report-set");
@@ -37,7 +36,7 @@ const sideName = (side) => {
  *   heuristic that chose it, with each port's player name
  */
 function createControlStatus(ctx, portInfo) {
-  const { config, tsh, store, startgg, clipperSettings, obs, io, state } = ctx;
+  const { config, store, event, startgg, clipperSettings, obs, io, state } = ctx;
 
   /** The clipper block — also served on its own by GET /api/clipper. */
   function clipperSnapshot() {
@@ -53,15 +52,18 @@ function createControlStatus(ctx, portInfo) {
    * The whole control_status object. The one place its shape is written, so the
    * startup seed and the 2s rebuild can't disagree about which fields exist.
    */
-  function compose({ tshUp, currentSet, tournament }) {
+  function compose({ currentSet }) {
     const src = state.source?.getStatus?.() ?? { connected: false };
+    const ev = event?.status() ?? { state: "none", error: null };
+    const t = store.tournament();
     return {
-      tsh: tshUp,
+      // Up once an event read has succeeded; an error carries start.gg's wording.
+      startgg: { ok: ev.state === "ok", state: ev.state, error: ev.error ?? null },
       slippi: Boolean(src.connected),
       slippiDetail: src,
       portMapping: portInfo(),
       currentSet,
-      tournament,
+      tournament: { name: t.name, eventName: t.eventName },
       shortLink: config.BRACKETS?.shortLink ?? "",
       startggEnabled: startgg.enabled,
       clipper: clipperSnapshot(),
@@ -70,11 +72,7 @@ function createControlStatus(ctx, portInfo) {
   }
 
   // Seeded so a panel that connects before the first tick still gets every field.
-  state.lastControlStatus = compose({
-    tshUp: false,
-    currentSet: emptyCurrentSet("starting up"),
-    tournament: { name: "", eventName: "" },
-  });
+  state.lastControlStatus = compose({ currentSet: emptyCurrentSet("starting up") });
 
   /** The Current Set card, from the store. */
   function currentSetCard() {
@@ -96,13 +94,7 @@ function createControlStatus(ctx, portInfo) {
 
   /** Rebuild lastControlStatus and broadcast it. */
   async function build() {
-    const tshUp = await tsh.ping();
-    let tournament = { name: "", eventName: "" };
-    if (tshUp) {
-      const read = tsh.tryReadState();
-      if (read.ok) tournament = tsh.getTournamentInfo(read.state);
-    }
-    state.lastControlStatus = compose({ tshUp, currentSet: currentSetCard(), tournament });
+    state.lastControlStatus = compose({ currentSet: currentSetCard() });
     io.emit("control_status", state.lastControlStatus);
     return state.lastControlStatus;
   }

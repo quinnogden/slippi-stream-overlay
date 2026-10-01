@@ -58,6 +58,20 @@ function resolveCharacter(charId, costumeIndex) {
   };
 }
 
+/**
+ * The scoreboard character for a display name — how the player DB records mains
+ * (TSH's `mains.ssbm` entries are `[displayName, skin]`). Case-insensitive.
+ *
+ * @param {string} name — e.g. "Captain Falcon"
+ * @param {number} [skin]
+ * @returns {{ codename: string, name: string, skin: number } | null}
+ */
+function characterByName(name, skin = 0) {
+  const want = String(name ?? "").trim().toLowerCase();
+  const char = Object.values(CHAR_MAP).find((c) => c.display.toLowerCase() === want);
+  return char ? { codename: char.codename, name: char.display, skin: Number(skin) || 0 } : null;
+}
+
 // Slippi stage ID → TSH stage codename. Codenames are the basenames of
 // user_data/games/ssbm/stage_icon/*.png, which is also what TSH's
 // /scoreboard{N}-set-current-stage endpoint expects.
@@ -107,4 +121,4 @@ function resolveStage(stageId) {
   return STAGE_MAP[stageId] ?? null;
 }
 
-module.exports = { CHAR_MAP, resolveCharacter, STAGE_MAP, resolveStage };
+module.exports = { CHAR_MAP, resolveCharacter, characterByName, STAGE_MAP, resolveStage };

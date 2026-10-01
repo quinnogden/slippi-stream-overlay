@@ -4,25 +4,23 @@ const config = {
   // (usually the "CurrentGame" or Spectate subfolder of your replays folder).
   SLP_FOLDER: "C:/Users/ogden/OneDrive/Documents/Slippi/Spectate/quinn",
 
-  // ── TSH Integration ────────────────────────────────────────────────────────
-  // URL of the running TSH web server (default port 5000)
+  // ── TSH (until cutover) ────────────────────────────────────────────────────
+  // The app no longer talks to TSH. TSH_URL and SCOREBOARD_NUM are read only by
+  // scripts/preflight.js, which is rewritten at cutover (M8).
   TSH_URL: "http://localhost:5000",
-
-  // Which TSH scoreboard number to control (1 for the default scoreboard)
   SCOREBOARD_NUM: 1,
 
-  // Absolute path to the TSH install directory. Leave null to auto-detect the
-  // newest TournamentStreamHelper-* folder sitting next to slippi-bridge/, so a
-  // TSH update needs no code changes. Set it explicitly (in config.local.js if
-  // it's machine-specific) when TSH lives somewhere else.
+  // Absolute path to the TSH install directory — where PLAYERS_FILE defaults to
+  // when it is null. Leave null to auto-detect the newest
+  // TournamentStreamHelper-* folder sitting next to slippi-bridge/.
   TSH_ROOT: null,
 
   // ── Bridge Server ──────────────────────────────────────────────────────────
   // Port the bridge's Socket.io server listens on for layout connections
   BRIDGE_PORT: 5001,
 
-  // Port→team assignment has no config: PortMapper derives it per game from
-  // names, then scores, then TSH's character history, then port order.
+  // Port→side assignment has no config: lib/ports/port-map.js derives it per
+  // game from the last game's characters or the players' mains, then port order.
 
   // ── Combo Clipper ──────────────────────────────────────────────────────────
   // Starting values for live combo detection → OBS replay-buffer saves. These

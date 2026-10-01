@@ -5,20 +5,13 @@
  * invariant worth keeping: two modules would mean two places handling token
  * expiry, rate limits and timeouts.
  *
- *   - getEvent(), getPhaseGroupSets() — the event and its bracket, which the
- *     app reads itself now rather than through TSH. Both may fall back to
- *     start.gg's keyless web endpoint (see _gql).
- *
- * The rest was added while TSH still did the reading — what TSH cannot do:
- *
- *   - reportSet()        — reportBracketSet; TSH has no reporting capability.
- *   - getSetEntrants()   — TSH's /get-match doesn't expose entrant ids.
- *   - getSetState()      — TSH's set list doesn't carry start.gg's set state, so
- *                          nothing else can tell a not-yet-started set from a
- *                          running one.
- *   - startSet()         — markSetInProgress; TSH can't start a set either.
- *   - listEvents()       — the bracket switcher needs a tournament's real event
- *                          list before TSH has been pointed at anything.
+ *   - getEvent(), getPhaseGroupSets(), getSet(), listEvents() — the event, its
+ *     bracket and the set being loaded (lib/event/event-service.js). All four
+ *     may fall back to start.gg's keyless web endpoint (see _gql).
+ *   - reportSet()        — reportBracketSet.
+ *   - getSetState()      — whether the Start Set button applies; cached per set
+ *                          by start-set.js.
+ *   - startSet()         — markSetInProgress.
  *   - resolveShortLink() — deliberately NOT GraphQL and deliberately NOT gated
  *                          on `enabled`. The API cannot resolve a short link
  *                          (tournament(slug: "100-acres") returns null); only
@@ -43,7 +36,7 @@
 
 const axios = require("axios");
 
-const { EVENT_QUERY, PHASE_GROUP_SETS_QUERY, PAGE_SIZES } = require("./event/queries");
+const { EVENT_QUERY, PHASE_GROUP_SETS_QUERY, SET_QUERY, PAGE_SIZES } = require("./event/queries");
 
 const ENDPOINT = "https://api.start.gg/gql/alpha";
 const WEB_BASE = "https://www.start.gg";
@@ -84,21 +77,8 @@ mutation reportSet($setId: ID!, $winnerId: ID!, $gameData: [BracketSetGameDataIn
   }
 }`.trim();
 
-// TSH stores the start.gg set id but does not expose per-team entrant ids in
-// its /get-match response — reportBracketSet needs the winning ENTRANT id, so
-// we fetch the set's slots directly. Slot order matches TSH's team order
-// (slots[0] = team 1, slots[1] = team 2).
-const SET_ENTRANTS_QUERY = `
-query setEntrants($setId: ID!) {
-  set(id: $setId) {
-    id
-    slots { slotIndex entrant { id name } }
-  }
-}`.trim();
-
 // start.gg's set states: 1 = not started, 2 = in progress, 3 = completed,
-// 6 = called to station. TSH's /get-sets returns 1/6/2 without saying which,
-// so this is the only way to know whether "Start set" would do anything.
+// 6 = called to station — whether "Start set" would do anything.
 const SET_STATE_QUERY = `
 query setState($setId: ID!) {
   set(id: $setId) { id state }
@@ -110,8 +90,8 @@ mutation startSet($setId: ID!) {
   markSetInProgress(setId: $setId) { id state }
 }`.trim();
 
-// event.slug already comes back as "tournament/<t>/event/<e>" — exactly the
-// shape TSH stores — so the switcher never has to assemble one from parts.
+// event.slug already comes back as "tournament/<t>/event/<e>" — exactly what
+// getEvent() takes — so the switcher never has to assemble one from parts.
 const TOURNAMENT_EVENTS_QUERY = `
 query tournamentEvents($slug: String!) {
   tournament(slug: $slug) { id name events { id name slug } }
@@ -204,6 +184,9 @@ class StartggClient {
         ? this._gqlWeb(query, variables, errorPrefix)
         : { ok: false, error: "start.gg token not configured" };
     }
+    // Inside a 429 cooldown the official API will only refuse again; a read
+    // that can fall back goes straight to the web endpoint instead.
+    if (opts.fallback && Date.now() < this._coolUntil) return this._gqlWeb(query, variables, errorPrefix);
 
     this._sent.push(Date.now());
     let res;
@@ -323,28 +306,6 @@ class StartggClient {
   }
 
   /**
-   * Fetch the two entrants for a set, keyed by TSH team number (slot 0 → team 1).
-   * @param {string|number} setId
-   * @returns {Promise<{ ok: boolean, entrants?: { 1?: { id: string, name: string }, 2?: { id: string, name: string } }, error?: string }>}
-   */
-  async getSetEntrants(setId) {
-    const res = await this._gql(SET_ENTRANTS_QUERY, { setId: String(setId) });
-    if (!res.ok) return res;
-
-    const slots = res.data?.set?.slots;
-    if (!Array.isArray(slots) || slots.length < 2) {
-      return { ok: false, error: "start.gg returned no entrants for this set (is it a real, seeded set?)" };
-    }
-
-    const entrants = {};
-    slots.forEach((slot, i) => {
-      const ent = slot?.entrant;
-      if (ent?.id != null) entrants[i + 1] = { id: String(ent.id), name: ent.name ?? "" };
-    });
-    return { ok: true, entrants };
-  }
-
-  /**
    * The set's current start.gg state (1 not started, 2 in progress, 3 done,
    * 6 called). Used to decide whether the panel's Start Set button applies.
    *
@@ -453,13 +414,15 @@ class StartggClient {
   /**
    * A tournament's events, so the switcher can match one by name rather than
    * appending a slug it never verified. Each `slug` is already the full
-   * "tournament/<t>/event/<e>" path TSH wants.
+   * "tournament/<t>/event/<e>" path getEvent() takes. A read, so it falls back
+   * to the web endpoint — the Singles / Doubles buttons work without a token.
    *
    * @param {string} tournamentSlug — e.g. "hundred-acres-43"
    * @returns {Promise<{ ok: boolean, name?: string, events?: Array<{id: string, name: string, slug: string}>, error?: string }>}
    */
   async listEvents(tournamentSlug) {
-    const res = await this._gql(TOURNAMENT_EVENTS_QUERY, { slug: String(tournamentSlug) });
+    const res = await this._gql(TOURNAMENT_EVENTS_QUERY, { slug: String(tournamentSlug) },
+                                "start.gg couldn't list the tournament's events", { fallback: true });
     if (!res.ok) return res;
 
     const t = res.data?.tournament;
@@ -478,15 +441,20 @@ class StartggClient {
 
   /**
    * One event with its phases and phase groups — what the event service needs
-   * to know which brackets exist. Operator-initiated (a bracket switch), so not
-   * budgeted; falls back to the web endpoint.
+   * to know which brackets exist. Falls back to the web endpoint.
+   *
+   * `background` is for the event service's timed refresh, which shares the
+   * stats' budget; an operator's press (a bracket switch, ↻) is never delayed.
    *
    * @param {string} eventSlug — "tournament/<t>/event/<e>"
+   * @param {{ background?: boolean }} [opts]
    * @returns {Promise<{ ok: boolean, event?: object, error?: string }>}
    */
-  async getEvent(eventSlug) {
-    const res = await this._gql(EVENT_QUERY, { slug: String(eventSlug) },
-                                "start.gg couldn't load the event", { fallback: true });
+  async getEvent(eventSlug, { background = false } = {}) {
+    const vars = { slug: String(eventSlug) };
+    const res = background
+      ? await this.backgroundQuery(EVENT_QUERY, vars, { fallback: true })
+      : await this._gql(EVENT_QUERY, vars, "start.gg couldn't load the event", { fallback: true });
     if (!res.ok) return res;
     const event = res.data?.event;
     if (!event) return { ok: false, error: `start.gg doesn't recognise the event "${eventSlug}"` };
@@ -495,22 +463,25 @@ class StartggClient {
 
   /**
    * Every set in a phase group, paged under start.gg's 1000-object ceiling.
-   * Background: refreshed on a timer, so it shares the stats' budget and can
-   * never crowd out a report. Falls back to the web endpoint.
+   * Falls back to the web endpoint. `background` as for getEvent(): the timed
+   * refresh shares the stats' budget, so it can never crowd out a report.
    *
    * A complexity refusal restarts the group at a smaller page size — offsets
    * change with the page size, so pages already read can't be kept.
    *
    * @param {string|number} phaseGroupId
+   * @param {{ background?: boolean }} [opts]
    * @returns {Promise<{ ok: boolean, sets?: Array<object>, error?: string }>}
    */
-  async getPhaseGroupSets(phaseGroupId) {
+  async getPhaseGroupSets(phaseGroupId, { background = false } = {}) {
     for (const perPage of PAGE_SIZES) {
       const sets = [];
       let refused = false;
       for (let page = 1; ; page++) {
-        const res = await this.backgroundQuery(PHASE_GROUP_SETS_QUERY,
-          { id: String(phaseGroupId), page, perPage }, { fallback: true });
+        const vars = { id: String(phaseGroupId), page, perPage };
+        const res = background
+          ? await this.backgroundQuery(PHASE_GROUP_SETS_QUERY, vars, { fallback: true })
+          : await this._gql(PHASE_GROUP_SETS_QUERY, vars, undefined, { fallback: true });
         if (!res.ok) {
           if (res.complexity) { refused = true; break; }
           return res;
@@ -523,8 +494,23 @@ class StartggClient {
     }
     return { ok: false, error: `start.gg refused phase group ${phaseGroupId} even at ${PAGE_SIZES.at(-1)} sets a page` };
   }
+
+  /**
+   * One set as it stands now, in getPhaseGroupSets()'s node shape — read when
+   * the operator loads it. Operator path; falls back to the web endpoint.
+   * @param {string|number} setId — a real id (a preview_… id has nothing to read)
+   * @returns {Promise<{ ok: boolean, set?: object, error?: string }>}
+   */
+  async getSet(setId) {
+    const res = await this._gql(SET_QUERY, { id: String(setId) },
+                                "start.gg couldn't read the set", { fallback: true });
+    if (!res.ok) return res;
+    const set = res.data?.set;
+    if (!set) return { ok: false, error: `start.gg doesn't recognise set ${setId}` };
+    return { ok: true, set };
+  }
 }
 
 module.exports = StartggClient;
-// Exported so bracket-switch.js and its test share the one parser.
+// Exported for the short-link tests.
 module.exports.tournamentSlugFromUrl = tournamentSlugFromUrl;

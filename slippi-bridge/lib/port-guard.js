@@ -20,7 +20,7 @@ const { execFile } = require("child_process");
 
 const APP_ID              = "slippi-bridge";
 const IDENTITY_TIMEOUT_MS = 1000;
-const STATUS_TIMEOUT_MS   = 3000;   // /api/status hits TSH, so it's slower
+const STATUS_TIMEOUT_MS   = 3000;   // a pre-identity bridge's /api/status waited on TSH
 const FREE_TIMEOUT_MS     = 5000;
 const FREE_POLL_MS        = 150;
 

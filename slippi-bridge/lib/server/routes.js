@@ -2,8 +2,7 @@
  * The control panel's HTTP surface.
  *
  * Served to an OBS custom browser dock. Browser→bridge calls are same-origin
- * (bridge port); the bridge makes the TSH/start.gg calls server-side, so there
- * is no browser-CORS surface against TSH.
+ * (bridge port); the bridge makes every start.gg call server-side.
  */
 
 const path = require("path");
@@ -11,15 +10,15 @@ const path = require("path");
 /**
  * @param {import("express").Express} app
  * @param {object} deps — {
- *   publicDir, tsh, clipperSettings, obs,
- *   refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet, switchBracket,
+ *   publicDir, event, clipperSettings, obs,
+ *   refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet,
  *   swapPorts, switchSides, reresolvePorts, recordClip, playerStatsSnapshot
  * }
  */
 function registerRoutes(app, deps) {
   const {
-    publicDir, tsh, clipperSettings, obs,
-    refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet, switchBracket, swapPorts,
+    publicDir, event, clipperSettings, obs,
+    refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet, swapPorts,
     switchSides, reresolvePorts, recordClip, playerStatsSnapshot,
   } = deps;
 
@@ -60,36 +59,49 @@ function registerRoutes(app, deps) {
     res.json({ ok: true });
   });
 
-  app.post("/api/pull-stream", async (req, res) => {
-    res.json(await tsh.pullStreamSet());
+  // The set picker: playable sets first. Answered from the event service's
+  // last read (refreshed every 90s); ?refresh=1 is the dock's ↻ and re-reads
+  // start.gg first.
+  app.get("/api/sets", async (req, res) => {
+    if (req.query.refresh === "1") {
+      const r = await event.refresh();
+      if (!r.ok) return res.json(r);
+    }
+    const status = event.status();
+    if (!event.snapshot().event) {
+      return res.json({ ok: false, error: status.error ?? "No event loaded — press Singles or Doubles" });
+    }
+    res.json({ ok: true, data: event.openSets({ includeDone: req.query.finished === "1" }), status });
   });
 
-  app.get("/api/sets", async (req, res) => {
-    res.json(await tsh.getOpenSets(req.query.finished === "1"));
+  // The loaded event, its phase groups and the last read's status.
+  app.get("/api/event", (req, res) => {
+    res.json({ ok: true, ...event.snapshot() });
   });
 
   app.post("/api/load-set", async (req, res) => {
     const setId = req.body?.setId;
     if (setId == null) return res.status(400).json({ ok: false, error: "setId required" });
-    const result = await tsh.loadSet(setId);
-    // Push the new names/scores out now rather than on the next 2s tick, so the
+    const result = await event.loadSet(setId);
+    // Push the new names out now rather than on the next 2s tick, so the
     // panel's Current Set card matches what the operator just loaded.
     if (result.ok) refreshControlStatus();
     res.json(result);
   });
 
-  // Two start.gg hops on the way; bracket-switch.js owns the re-entrancy guard
-  // and the follow-up refresh, because only it knows whether anything changed.
+  // This week's singles or doubles event, via the series' short link.
   app.post("/api/bracket", async (req, res) => {
     const kind = req.body?.kind;
     if (typeof kind !== "string" || !kind) {
       return res.status(400).json({ ok: false, error: 'kind ("singles" | "doubles") required' });
     }
-    res.json(await switchBracket(kind));
+    const result = await event.switchEvent(kind);
+    refreshControlStatus();
+    res.json(result);
   });
 
   // start.gg's "Start match" for the loaded set. No body: the set is whatever
-  // TSH has loaded, which is what the panel is showing.
+  // the scoreboard has loaded, which is what the panel is showing.
   app.post("/api/start-set", async (req, res) => {
     res.json(await startCurrentSet());
   });

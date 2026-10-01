@@ -58,4 +58,11 @@ query phaseGroupSets($id: ID!, $page: Int!, $perPage: Int!) {
   }
 }`.trim();
 
-module.exports = { SET_FIELDS, PAGE_SIZES, EVENT_QUERY, PHASE_GROUP_SETS_QUERY };
+// One set, fresh — read when the operator loads it, so the scoreboard never
+// starts from a picker list up to 90s old.
+const SET_QUERY = `
+query set($id: ID!) {
+  set(id: $id) { ${SET_FIELDS} }
+}`.trim();
+
+module.exports = { SET_FIELDS, PAGE_SIZES, EVENT_QUERY, PHASE_GROUP_SETS_QUERY, SET_QUERY };

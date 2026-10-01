@@ -1,6 +1,6 @@
 /**
  * ScoreboardStore — the one owner of live state: the set on the scoreboard,
- * the casters, and the overlays' shared view settings.
+ * the loaded tournament, the casters, and the overlays' shared view settings.
  *
  * Replaces TSH's scoreboard. Every change goes through a command method, which
  * bumps `rev` and emits `change` with the top-level sections it touched — the
@@ -51,6 +51,8 @@ function emptySet() {
   };
 }
 
+const emptyTournament = () => ({ name: "", slug: "", eventName: "", eventSlug: "", kind: null });
+
 const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
 
 class ScoreboardStore extends EventEmitter {
@@ -62,6 +64,7 @@ class ScoreboardStore extends EventEmitter {
     this._setText = opts.setText ?? {};
     this._rev = 0;
     this._set = emptySet();
+    this._tournament = emptyTournament();
     this._casters = [];
     this._view = { bracketView: "top8" };
   }
@@ -91,17 +94,22 @@ class ScoreboardStore extends EventEmitter {
     };
   }
 
+  /** The loaded start.gg event: { name, slug, eventName, eventSlug, kind }. */
+  tournament() { return clone(this._tournament); }
   casters() { return clone(this._casters); }
   view() { return clone(this._view); }
 
   /** Everything the overlays get, keyed by section. */
   snapshot() {
-    return { v: STATE_VERSION, rev: this._rev, scoreboard: this.scoreboard(), casters: this.casters(), view: this.view() };
+    return {
+      v: STATE_VERSION, rev: this._rev,
+      tournament: this.tournament(), scoreboard: this.scoreboard(), casters: this.casters(), view: this.view(),
+    };
   }
 
   /**
    * Whether the loaded set can be reported to start.gg, and with what.
-   * Replaces server/set-gate.js + the TSH-side score/swap reads.
+   * Replaces the TSH-side score/swap reads; set-gate.js still holds the token check.
    * @returns {{ ok: true, setId: string, winnerSide: 0|1, winnerEntrantId: string, games: Array }
    *         | { ok: false, reason: string }}
    */
@@ -288,6 +296,20 @@ class ScoreboardStore extends EventEmitter {
     this._changed(["scoreboard"]);
   }
 
+  /**
+   * The start.gg event the dock is working from (event-service.js sets it).
+   * Loading another event leaves the scoreboard alone: the set on air keeps its
+   * names, score and set id, so a pending report still targets the right set.
+   * @param {{ name?: string, slug?: string, eventName?: string, eventSlug?: string, kind?: string|null } | null} t
+   */
+  setTournament(t) {
+    const next = { ...emptyTournament(), ...(t ?? {}) };
+    for (const k of ["name", "slug", "eventName", "eventSlug"]) next[k] = String(next[k] ?? "");
+    if (JSON.stringify(next) === JSON.stringify(this._tournament)) return;
+    this._tournament = next;
+    this._changed(["tournament"]);
+  }
+
   /** @param {Array<{ tag?: string, prefix?: string, pronoun?: string, twitter?: string }>} list */
   setCasters(list) {
     this._casters = (list ?? []).map((c) => ({
@@ -308,7 +330,10 @@ class ScoreboardStore extends EventEmitter {
 
   /** What persist.js saves — the raw (underived) state. */
   toJSON() {
-    return { v: STATE_VERSION, set: clone(this._set), casters: clone(this._casters), view: clone(this._view) };
+    return {
+      v: STATE_VERSION, set: clone(this._set), tournament: clone(this._tournament),
+      casters: clone(this._casters), view: clone(this._view),
+    };
   }
 
   /**
@@ -318,9 +343,10 @@ class ScoreboardStore extends EventEmitter {
   restore(saved) {
     if (!saved || saved.v !== STATE_VERSION || !saved.set) return false;
     this._set = { ...emptySet(), ...clone(saved.set) };
+    this._tournament = { ...emptyTournament(), ...(saved.tournament ?? {}) };
     this._casters = Array.isArray(saved.casters) ? clone(saved.casters) : [];
     this._view = { ...this._view, ...(saved.view ?? {}) };
-    this._changed(["scoreboard", "casters", "view"]);
+    this._changed(["tournament", "scoreboard", "casters", "view"]);
     return true;
   }
 

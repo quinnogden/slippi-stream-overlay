@@ -151,7 +151,7 @@
     <div class="header">
       <h1>Stream Control</h1>
       <div class="health">
-        <span class="dot" id="dot-tsh">TSH</span>
+        <span class="dot" id="dot-startgg">start.gg</span>
         <span class="dot" id="dot-slippi">Slippi</span>
         <span class="dot" id="dot-obs" style="display:none">OBS</span>
         <button class="linkish" id="btn-collapse-all" title="Collapse or expand every section">collapse all</button>
@@ -191,13 +191,12 @@
         </div>
         <div class="card-body">
           <div id="ports"></div>
-          <div class="hint" id="tsh-swap-line" style="margin-top:8px"></div>
           <div class="btn-row" style="margin-top:10px">
-            <button class="compact" id="btn-swap" title="Flip which Slippi port scores for which team">⇄ Swap Teams</button>
-            <button class="compact" id="btn-swap-sides" title="Move both teams to the other side of the scoreboard in TSH">⇆ Switch Sides</button>
-            <button class="compact" id="btn-reresolve" title="Throw away the mapping and re-detect the ports from TSH's current names and characters">↻ Re-detect Players</button>
+            <button class="compact" id="btn-swap" title="Flip which Slippi port plays for which side">⇄ Swap Ports</button>
+            <button class="compact" id="btn-swap-sides" title="Move both players (names, scores, games) to the other side of the scoreboard">⇆ Switch Sides</button>
+            <button class="compact" id="btn-reresolve" title="Throw away the mapping and re-detect the ports from the players' mains">↻ Re-detect Players</button>
           </div>
-          <div class="hint" id="swap-hint">Names entered late? Enter them in TSH first, then <b>Re-detect Players</b> — it re-matches the ports against the new names' characters. If the sides come out reversed, press <b>Swap Teams</b> (or Ctrl+Shift+S). Switch Sides moves the names across the scoreboard and re-detects the ports for you. Amber = positional guess — verify before the game ends.</div>
+          <div class="hint" id="swap-hint">Set loaded after game 1 started? Press <b>Re-detect Players</b> — it re-matches the ports against the players' mains. If the ports come out reversed, press <b>Swap Ports</b> (or Ctrl+Shift+S). Switch Sides moves the players across the scoreboard; the ports follow. Amber = positional guess — verify before the game ends.</div>
         </div>
       </div>
 
@@ -213,7 +212,6 @@
           <div class="set-footer">
             <div class="links">
               <button class="linkish" id="btn-toggle-finished">show finished</button>
-              <button class="linkish" id="btn-pull" title="Pull the next queued stream set onto the scoreboard">pull next match</button>
             </div>
             <span class="muted" id="sets-stamp"></span>
           </div>
@@ -231,9 +229,9 @@
         <div class="card-body">
           <div class="btn-row">
             <button class="compact" id="btn-bracket-singles" data-kind="singles"
-                    title="Point TSH at this week's singles event">Singles Bracket</button>
+                    title="Load this week's singles event">Singles Bracket</button>
             <button class="compact" id="btn-bracket-doubles" data-kind="doubles"
-                    title="Point TSH at this week's doubles event">Doubles Bracket</button>
+                    title="Load this week's doubles event">Doubles Bracket</button>
           </div>
           <div class="hint" id="bracket-hint">—</div>
         </div>
@@ -405,7 +403,9 @@
       const prevEvent = status?.tournament?.eventName;
       status = s;
       // Labels are static markup; only the up/down class and tooltip change.
-      $("dot-tsh").classList.toggle("up", !!s.tsh);
+      const gg = $("dot-startgg");
+      gg.classList.toggle("up", !!s.startgg?.ok);
+      gg.title = s.startgg?.error || "";
       const sl = $("dot-slippi");
       sl.classList.toggle("up", !!s.slippi);
       sl.title = s.slippiDetail?.detail || "";
@@ -426,17 +426,6 @@
                  '<span class="team-tag ' + teamCls + '">' + teamTxt +
                  (p.name ? ' · ' + escapeHtml(p.name) : "") + '</span></div>';
         }).join("");
-      }
-
-      // TSH's own Swap Teams flag. Shown so the operator can see that the
-      // bridge noticed a swap made in TSH's UI rather than in this panel.
-      const swapLine = $("tsh-swap-line");
-      if (s.tshSwapped == null) {
-        swapLine.textContent = "TSH swap state: unknown";
-      } else if (s.tshSwapped) {
-        swapLine.textContent = "TSH swap state: swapped — bridge mapping re-derived";
-      } else {
-        swapLine.textContent = "TSH swap state: normal";
       }
 
       // Current set
@@ -461,15 +450,14 @@
         btnStart.disabled = !cs.canStart;
       }
 
-      // What TSH says is actually loaded. /set-tournament returns "OK" before the
-      // load finishes, so this line — not the toast — is the real confirmation.
-      // bracketBusy/bracketMsg keep the 2s tick from repainting over an
-      // in-progress message or an actionable failure, same as clipDirty.
+      // The event the bridge has loaded. bracketBusy/bracketMsg keep the 2s
+      // tick from repainting over an in-progress message or an actionable
+      // failure, same as clipDirty.
       const tn = s.tournament || {};
       if (!bracketBusy) {
         $("bracket-hint").textContent = bracketMsg || (tn.eventName
           ? "Live: " + (tn.name ? tn.name + " — " : "") + tn.eventName
-          : "No bracket loaded in TSH.");
+          : "No bracket loaded — press Singles or Doubles.");
       }
 
       renderClipper(s.clipper);
@@ -479,8 +467,7 @@
       if (cs.setId !== prevSetId) renderSets();
 
       // A new event means an entirely different set list. Guarded on undefined
-      // because the first render has no previous value, and this is a real
-      // start.gg query on TSH's side — not a local repaint.
+      // because the first render has no previous value.
       if (prevEvent !== undefined && tn.eventName !== prevEvent) fetchSets();
     }
 
@@ -617,7 +604,7 @@
 
     // ── Upcoming sets ──
     let sets = [];            // last payload from /api/sets
-    let setsError = null;     // fetch/TSH error, null when the last fetch was fine
+    let setsError = null;     // fetch error, null when the last fetch was fine
     let showFinished = false;
     let pendingSet = null;    // set awaiting the overwrite confirm, null otherwise
 
@@ -634,7 +621,7 @@
       const f = $("set-filter").value.trim().toLowerCase();
       if (!f) return sets;
       return sets.filter((s) =>
-        [s.p1_name, s.p2_name, s.round_name, s.tournament_phase]
+        [s.names[0], s.names[1], s.roundName, s.phase]
           .some((v) => String(v ?? "").toLowerCase().includes(f)));
     }
 
@@ -649,7 +636,7 @@
       }
       if (sets.length === 0) {
         listEl.innerHTML = '<div class="muted">' + (showFinished
-          ? "No sets returned. Is a tournament URL set in TSH?"
+          ? "No sets in this event yet."
           : "No open sets — the bracket may be finished. Try “show finished”.") + "</div>";
         return;
       }
@@ -663,37 +650,38 @@
       const liveId = currentSetId();
       listEl.innerHTML = "";
       rows.forEach((set) => {
-        const isLive = liveId != null && String(set.id) === String(liveId);
+        const isLive = liveId != null && String(set.setId) === String(liveId);
         const row = document.createElement("div");
         row.className = "set-row" + (isLive ? " live" : "");
         row.setAttribute("role", "button");
 
         const chips = [];
         if (isLive) chips.push('<span class="chip air">on air</span>');
-        if (set.station) chips.push('<span class="chip">Stn. ' + escapeHtml(set.station) + "</span>");
-        if (set.stream) chips.push('<span class="chip">stream</span>');
+        else if (set.status === "live") chips.push('<span class="chip">in progress</span>');
+        else if (set.status === "waiting") chips.push('<span class="chip">waiting</span>');
+        else if (set.status === "done") chips.push('<span class="chip">done</span>');
 
         const seed = (n) => (n == null ? "" : ' <span class="seed">(' + escapeHtml(n) + ")</span>");
-        const t1 = Number(set.team1score) || 0, t2 = Number(set.team2score) || 0;
+        const t1 = Math.max(0, Number(set.scores?.[0]) || 0), t2 = Math.max(0, Number(set.scores?.[1]) || 0);
         const scoreTxt = (t1 > 0 || t2 > 0) ? t1 + "–" + t2 : "vs";
 
         row.innerHTML =
           '<div class="set-meta">' +
-            '<span class="round">' + escapeHtml(set.round_name || "Set " + set.id) + "</span>" +
-            (set.tournament_phase ? '<span class="phase">· ' + escapeHtml(set.tournament_phase) + "</span>" : "") +
+            '<span class="round">' + escapeHtml(set.roundName || "Set " + set.identifier) + "</span>" +
+            (set.phase ? '<span class="phase">· ' + escapeHtml(set.phase) + "</span>" : "") +
             chips.join("") +
           "</div>" +
           '<div class="set-players">' +
-            '<span class="p p1">' + escapeHtml(set.p1_name || "—") + seed(set.p1_seed) + "</span>" +
+            '<span class="p p1">' + escapeHtml(set.names[0] || "TBD") + seed(set.seeds[0]) + "</span>" +
             '<span class="sc">' + scoreTxt + "</span>" +
-            '<span class="p p2">' + escapeHtml(set.p2_name || "—") + seed(set.p2_seed) + "</span>" +
+            '<span class="p p2">' + escapeHtml(set.names[1] || "TBD") + seed(set.seeds[1]) + "</span>" +
           "</div>";
 
         if (!isLive) row.onclick = () => requestLoad(set);
         listEl.appendChild(row);
 
         // Overwrite confirm renders inline under the row it belongs to.
-        if (pendingSet && String(pendingSet.id) === String(set.id)) {
+        if (pendingSet && pendingSet.setId === set.setId) {
           listEl.appendChild(buildLoadConfirm(set));
         }
       });
@@ -721,14 +709,16 @@
     }
 
     function loadSet(set) {
-      return act("/api/load-set", "Loaded " + (set.round_name || "set"), "Load failed",
-                 { body: { setId: set.id }, then: fetchSets });
+      return act("/api/load-set", (r) => "Loaded " + (set.roundName || "set") + (r.warning ? " — " + r.warning : ""),
+                 "Load failed", { body: { setId: set.setId }, then: () => fetchSets() });
     }
 
-    async function fetchSets() {
+    /** @param {boolean} [fromStartgg] — re-read start.gg first (the ↻ button) */
+    async function fetchSets(fromStartgg) {
       const listEl = $("sets-list");
       if (sets.length === 0 && !setsError) listEl.innerHTML = '<div class="muted">Loading…</div>';
-      const r = await api("/api/sets" + (showFinished ? "?finished=1" : ""), "GET");
+      const q = [showFinished ? "finished=1" : "", fromStartgg ? "refresh=1" : ""].filter(Boolean).join("&");
+      const r = await api("/api/sets" + (q ? "?" + q : ""), "GET");
       if (!r.ok) {
         setsError = r.error || "unknown error";
       } else {
@@ -745,7 +735,7 @@
 
     // ── Bracket switcher ──
     // No confirm, deliberately: switching the tournament keeps the loaded set,
-    // its scores and its set_id, so a misclick costs a bracket re-pull rather
+    // its scores and its set id, so a misclick costs a bracket re-read rather
     // than operator work. render() never touches these buttons' disabled state,
     // so the 2s tick can't re-enable them mid-flight.
     let bracketBusy = false;
@@ -772,21 +762,21 @@
       if (r.warning) bracketMsg = r.warning;
       const what = (r.tournamentName ? r.tournamentName + " — " : "") + (r.eventName || kind);
       toast(r.refreshed ? what + " was already loaded — bracket refreshed"
-                        : "Loading " + what + " in TSH.", true);
+                        : "Loaded " + what, true);
       fetchSets();
     }
 
     BRACKET_BUTTONS.forEach((id) => { $(id).onclick = () => switchBracket($(id).dataset.kind); });
 
     // ── Actions ──
-    $("btn-swap").onclick = () => act("/api/swap", "Teams swapped", "Swap failed");
+    $("btn-swap").onclick = () => act("/api/swap", "Ports swapped", "Swap failed");
 
-    // TSH's own Swap Teams — moves names and scores across the scoreboard. The
-    // bridge's 2s poll sees the flag change and re-derives the port mapping.
+    // Moves the players, scores and games across the scoreboard; the port map
+    // follows on the bridge.
     $("btn-swap-sides").onclick = () =>
-      act("/api/swap-sides", "Sides switched — re-detecting ports", "Switch sides failed");
+      act("/api/swap-sides", "Sides switched", "Switch sides failed");
 
-    // Re-run the game-start port resolution against TSH's corrected names. The
+    // Re-run the game-start port resolution against the players' mains. The
     // toast names the result because a positional outcome means no character
     // match was found — that one is a coin flip and wants checking.
     $("btn-reresolve").onclick = () => act("/api/reresolve",
@@ -794,10 +784,7 @@
              (r.method === "positional" ? " — no character match, verify this" : ""),
       "Re-detect failed");
 
-    $("btn-pull").onclick = () =>
-      act("/api/pull-stream", "Pulled next match", "Pull failed", { then: fetchSets });
-
-    $("btn-refresh-sets").onclick = () => fetchSets();
+    $("btn-refresh-sets").onclick = () => fetchSets(true);
     $("set-filter").oninput = () => renderSets();
 
     $("btn-toggle-finished").onclick = () => {
@@ -857,11 +844,11 @@
     document.head.appendChild(sio);
 
     // No status fetch on load: the bridge pushes control_status to every socket
-    // as it connects, so one would only duplicate a TSH round-trip per reload —
-    // and an OBS dock reloads every time it's reopened.
+    // as it connects, so one would only duplicate it per reload — and an OBS
+    // dock reloads every time it's reopened.
 
-    // Every refresh is a live paginated start.gg query on TSH's side, so this
-    // stays slow and pauses entirely while the panel isn't on screen.
+    // The list is the bridge's own copy, which it re-reads from start.gg every
+    // 90s; this only picks that up, and pauses while the panel isn't on screen.
     fetchSets();
     setInterval(() => {
       if (document.visibilityState === "visible") fetchSets();

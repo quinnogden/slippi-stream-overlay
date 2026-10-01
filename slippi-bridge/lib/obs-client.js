@@ -1,8 +1,8 @@
 /**
  * ObsClient — the only module that talks to OBS (obs-websocket v5).
  *
- * Returns typed { ok, error?, ... } results like tsh-client.js and
- * startgg-client.js rather than throwing, because every caller is either a
+ * Returns typed { ok, error?, ... } results like startgg-client.js rather than
+ * throwing, because every caller is either a
  * fire-and-forget combo hit or an Express handler and neither should be able to
  * take the bridge down when OBS simply isn't open.
  *

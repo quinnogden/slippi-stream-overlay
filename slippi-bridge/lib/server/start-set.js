@@ -19,8 +19,7 @@ const NOT_STARTED = new Set([1, 6]);
 /**
  * The last state we fetched, keyed by set id.
  *
- * Module-level for the same reason as bracket-switch's inFlight: one bridge per
- * process, and threading a two-field cache through ctx buys nothing. Keying on
+ * Module-level: one bridge per process, and threading a two-field cache through ctx buys nothing. Keying on
  * the set id is what makes it self-invalidating — loading another set simply
  * misses, and the miss is what schedules the next fetch.
  *

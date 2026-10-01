@@ -117,25 +117,29 @@ const eventData = { data: { data: { event: { id: 1, name: "Melee Singles", phase
     assert.match(r.error, /Network error contacting start.gg/);
   });
 
-  await test("phase group paging: a 429 mid-read finishes the read from the web, without stalling", async () => {
-    const page = (n, total) => ({ data: { data: { phaseGroup: { sets: {
-      pageInfo: { total: total * 2, totalPages: total }, nodes: [{ id: `${n}a` }, { id: `${n}b` }] } } } } });
-    const calls = stub({
-      [OFFICIAL]: async (body) => {
-        if (body.variables.page === 1) return page(1, 3);
-        throw httpError(429);
-      },
-      [WEB]: async (body) => page(body.variables.page, 3),
+  // Both paths: an operator's read (a bracket switch, ↻) and the timed refresh,
+  // which goes through the background budget.
+  for (const background of [false, true]) {
+    await test(`phase group paging (${background ? "timed refresh" : "operator"}): a 429 mid-read finishes the read from the web, without stalling`, async () => {
+      const page = (n, total) => ({ data: { data: { phaseGroup: { sets: {
+        pageInfo: { total: total * 2, totalPages: total }, nodes: [{ id: `${n}a` }, { id: `${n}b` }] } } } } });
+      const calls = stub({
+        [OFFICIAL]: async (body) => {
+          if (body.variables.page === 1) return page(1, 3);
+          throw httpError(429);
+        },
+        [WEB]: async (body) => page(body.variables.page, 3),
+      });
+      const gg = new StartggClient({ STARTGG_TOKEN: "tok" });
+      const t0 = Date.now();
+      const r = await gg.getPhaseGroupSets(42, { background });
+      assert.ok(r.ok);
+      assert.deepStrictEqual(r.sets.map((s) => s.id), ["1a", "1b", "2a", "2b", "3a", "3b"]);
+      assert.ok(Date.now() - t0 < 2000, "no 30s cooldown wait between pages");
+      // Page 3 goes straight to the web: the cooldown is running.
+      assert.deepStrictEqual(calls.map((c) => c.url), [OFFICIAL, OFFICIAL, WEB, WEB]);
     });
-    const gg = new StartggClient({ STARTGG_TOKEN: "tok" });
-    const t0 = Date.now();
-    const r = await gg.getPhaseGroupSets(42);
-    assert.ok(r.ok);
-    assert.deepStrictEqual(r.sets.map((s) => s.id), ["1a", "1b", "2a", "2b", "3a", "3b"]);
-    assert.ok(Date.now() - t0 < 2000, "no 30s cooldown wait between pages");
-    // Page 3 goes straight to the web: the cooldown is running.
-    assert.deepStrictEqual(calls.map((c) => c.url), [OFFICIAL, OFFICIAL, WEB, WEB]);
-  });
+  }
 
   await test("phase group paging: a complexity refusal restarts at a smaller page size", async () => {
     const sizes = [];

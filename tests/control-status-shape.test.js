@@ -8,20 +8,17 @@
  * of a missing object freezes the dock outright. Both now come from compose();
  * this pins that they stay that way.
  *
- * Also pins that start.gg's token gate holds for every GraphQL method, since
- * the gate now lives in one place (_gql) rather than in each method.
+ * Also pins that start.gg's token gate holds for every method that needs the
+ * token, since the gate lives in one place (_gql) rather than in each method.
+ * Reads that fall back to the web endpoint are covered by startgg-fallback.
  */
 
 const assert = require("assert");
-const path   = require("path");
 
 const { ScoreboardStore } = require("../slippi-bridge/lib/scoreboard/store");
-const TshClient       = require("../slippi-bridge/lib/tsh-client");
 const StartggClient   = require("../slippi-bridge/lib/startgg-client");
 const { createState } = require("../slippi-bridge/lib/state");
 const { createControlStatus } = require("../slippi-bridge/lib/server/control-status");
-
-const FIXTURE = require("./fixtures/program-state.json");
 
 let failed = 0;
 async function test(name, fn) {
@@ -45,14 +42,12 @@ function keyPaths(obj, prefix = "") {
 }
 
 function ctxFor() {
-  const tsh = new TshClient({ TSH_URL: "http://127.0.0.1:0", SCOREBOARD_NUM: 1 },
-                            path.join(__dirname, "nonexistent-tsh"));
-  tsh.readState    = () => JSON.parse(JSON.stringify(FIXTURE));
-  tsh.ping         = async () => true;
+  const store = new ScoreboardStore();
+  store.setTournament({ name: "Hundred Acres #49", eventName: "Melee Singles", eventSlug: "tournament/x/event/y" });
   return {
-    config:          { BRACKETS: { shortLink: "x" }, SCOREBOARD_NUM: 1 },
-    tsh,
-    store:           new ScoreboardStore(),
+    config:          { BRACKETS: { shortLink: "x" } },
+    store,
+    event:           { status: () => ({ state: "ok", error: null, updatedAt: 1 }) },
     startgg:         { enabled: false },
     clipperSettings: { get: () => ({ enabled: false }) },
     obs:             { getStatus: () => ({ connected: false }) },
@@ -68,14 +63,16 @@ function ctxFor() {
     const ctx  = ctxFor();
     const cs   = createControlStatus(ctx, () => ({ method: "positional", ports: [] }));
     const seed = keyPaths(ctx.state.lastControlStatus);
-    const built = keyPaths(await cs.refresh());
-    assert.deepStrictEqual(built, seed);
+    const built = await cs.refresh();
+    assert.deepStrictEqual(keyPaths(built), seed);
+    assert.deepStrictEqual(built.tournament, { name: "Hundred Acres #49", eventName: "Melee Singles" });
+    assert.strictEqual(built.startgg.ok, true);
   });
 
   await test("a failed rebuild resolves to the last status instead of rejecting", async () => {
     const ctx = ctxFor();
-    ctx.tsh.ping = async () => { throw new Error("boom"); };
     const cs = createControlStatus(ctx, () => ({ method: "positional", ports: [] }));
+    ctx.event.status = () => { throw new Error("boom"); };
     const warn = console.warn;
     console.warn = () => {};
     try {
@@ -86,13 +83,10 @@ function ctxFor() {
     }
   });
 
-  await test("with no token, every start.gg GraphQL method refuses without a request", async () => {
+  await test("with no token, every start.gg method that needs one refuses without a request", async () => {
     // A broken gate would reach axios and fail with a network error instead.
     const gg = new StartggClient({ STARTGG_TOKEN: "" });
-    const calls = [
-      gg.reportSet(1, 2), gg.getSetEntrants(1), gg.getSetState(1),
-      gg.startSet(1), gg.listEvents("t"),
-    ];
+    const calls = [gg.reportSet(1, 2), gg.getSetState(1), gg.startSet(1)];
     for (const r of await Promise.all(calls)) {
       assert.strictEqual(r.ok, false);
       assert.match(r.error, /token not configured/);

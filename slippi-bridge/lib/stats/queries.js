@@ -98,10 +98,7 @@ function playerCardsQuery(playerIds, eventSlug) {
   return `{ ${players.join("\n")} ${run} } ${run ? RESULT_SET_FRAGMENT : ""}`;
 }
 
-// ── The loaded event: just-finished sets + the stream queue ─────────────────
-// The queue rides along only for its player ids, so the bridge can crawl the
-// next players' histories before their set goes on air. It costs nothing extra —
-// same request as the completed sets the panel already needs.
+// ── The loaded event: just-finished sets ────────────────────────────────────
 const COMPLETED_PER_PAGE = 12;
 
 function eventOverviewQuery(eventSlug) {
@@ -110,9 +107,6 @@ function eventOverviewQuery(eventSlug) {
       id name type
       sets(page: 1, perPage: ${COMPLETED_PER_PAGE}, sortType: RECENT, filters: { state: [3] }) {
         nodes { ...ResultSet }
-      }
-      tournament {
-        streamQueue { sets { id slots { entrant { participants { player { id } } } } } }
       }
     }
   } ${RESULT_SET_FRAGMENT}`;

@@ -97,8 +97,8 @@ function resolveTshRoot(baseDir, override) {
 /**
  * resolveTshRoot, but for a process that cannot continue without it.
  *
- * Both entry points (index.js, scripts/start-all.js) want the same thing: log
- * the resolved root, or print the error and exit 1. Nothing useful happens after
+ * index.js wants exactly this: log the resolved root, or print the error and
+ * exit 1. Nothing useful happens after
  * a failure, so the try/catch was copy-pasted rather than meaningful.
  *
  * @param {string} baseDir

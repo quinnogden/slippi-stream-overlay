@@ -1,11 +1,11 @@
 /**
  * The bracket switcher picks the right event.
  *
- * Squarely in this suite's charter: picking the wrong event is silent. TSH
- * validates nothing about the url it is handed, so a mis-picked event toasts
- * green, puts the wrong bracket on the broadcast, and mis-targets every set id
- * downstream — including the one /api/report publishes against. Nothing errors
- * anywhere, and the operator finds out on stream.
+ * Squarely in this suite's charter: picking the wrong event is silent. A
+ * mis-picked event loads fine, puts the wrong bracket on the broadcast, and
+ * mis-targets every set id downstream — including the one /api/report
+ * publishes against. Nothing errors anywhere, and the operator finds out on
+ * stream.
  *
  * The helpers under test are pure and the module has no side effects on
  * require, so this needs no sandbox and no network.
@@ -14,7 +14,7 @@
 const assert = require("assert");
 const {
   pickEvent, sameEvent, normalizeEventUrl, normalizeBrackets,
-} = require("../slippi-bridge/lib/server/bracket-switch");
+} = require("../slippi-bridge/lib/event/event-target");
 
 let failed = 0;
 function test(name, fn) {

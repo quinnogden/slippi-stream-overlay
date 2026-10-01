@@ -58,6 +58,12 @@ function fakeStartgg(captureName, { enabled = true } = {}) {
         ? { ok: true, sets: JSON.parse(JSON.stringify(sets)) }
         : { ok: false, error: `no phase group ${id}` });
     },
+    getSet: (id) => {
+      const set = Object.values(capture.phaseGroupSets).flat().find((s) => String(s.id) === String(id));
+      return rec("getSet", [id], set
+        ? { ok: true, set: JSON.parse(JSON.stringify(set)) }
+        : { ok: false, error: `start.gg doesn't recognise set ${id}` });
+    },
     reportSet: (...a) => rec("reportSet", a, { ok: true, state: 3 }),
     startSet: (...a) => rec("startSet", a, { ok: true, state: 2 }),
     getSetState: (...a) => rec("getSetState", a, { ok: true, state: 1 }),
