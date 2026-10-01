@@ -128,8 +128,9 @@
         const head = h("div", "round-head");
         head.style.left = `${col.x}px`;
         head.style.top = `${section.top}px`;
-        head.appendChild(h("span", null, col.name));
-        if (col.setIds.every((id) => feed.sets[id].conditional)) head.appendChild(h("span", "maybe", "if needed"));
+        const plate = head.appendChild(h("div", "plate"));
+        plate.appendChild(h("span", null, col.name));
+        if (col.setIds.every((id) => feed.sets[id].conditional)) plate.appendChild(h("span", "maybe", "if needed"));
         board.appendChild(head);
       }
     }
