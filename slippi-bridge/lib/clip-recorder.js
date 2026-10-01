@@ -6,7 +6,6 @@
  */
 
 const path = require("path");
-const { teamOfPort } = require("./players");
 
 /** How many recent clips the panel can show after being reopened mid-set. */
 const RECENT_CLIPS_MAX = 10;
@@ -16,12 +15,19 @@ const RECENT_CLIPS_MAX = 10;
  * @param {() => Promise<any>} refreshControlStatus — push the new clip list to the panel
  */
 function createClipRecorder(ctx, refreshControlStatus) {
-  const { obs, clipperSettings, portMapper, io, state } = ctx;
+  const { obs, clipperSettings, store, portMap, io, state } = ctx;
 
-  /** Who threw the combo, in the operator's terms rather than a port number. */
+  /**
+   * Who threw the combo, in the operator's terms rather than a port number:
+   * the tag on the scoreboard side the port is mapped to right now.
+   * teamNum (1 = left) is the payload's field name, kept for the panel + overlay.
+   */
   function describeAttacker(playerIndex) {
     if (playerIndex == null) return { name: "", teamNum: null };
-    return { name: portMapper.getPortName(playerIndex) || "", teamNum: teamOfPort(ctx, playerIndex) };
+    const side = portMap.sideOf(playerIndex) ?? state.currentGameState?.players?.[playerIndex]?.side ?? null;
+    if (side == null) return { name: "", teamNum: null };
+    const player = store.scoreboard().sides[side]?.players[portMap.slotOf(playerIndex)];
+    return { name: player?.tag || "", teamNum: side + 1 };
   }
 
   /**

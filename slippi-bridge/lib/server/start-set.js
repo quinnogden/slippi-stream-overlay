@@ -10,7 +10,7 @@
  * and the operator is looking at this card when they load the set anyway.
  */
 
-const { startggSetGate, loadedSetId } = require("./set-gate");
+const { startggSetGate } = require("./set-gate");
 
 // start.gg set states. 1 = created, 6 = called to station: both mean "hasn't
 // started", which is exactly when the button applies. 2 = in progress, 3 = done.
@@ -86,16 +86,14 @@ function evaluateStartability({ startgg }, setId) {
 }
 
 function createStartSet(ctx, refreshControlStatus) {
-  const { tsh, startgg } = ctx;
+  const { store, startgg } = ctx;
 
   /**
    * Mark the currently-loaded set in progress.
    * @returns {Promise<{ ok: boolean, state?: number, error?: string }>}
    */
   async function startCurrentSet() {
-    const loaded = loadedSetId(tsh);
-    if (!loaded.ok) return loaded;
-    const { setId } = loaded;
+    const { setId } = store.scoreboard();
     const { canStart, reason } = evaluateStartability(ctx, setId);
     if (!canStart) return { ok: false, error: reason };
 

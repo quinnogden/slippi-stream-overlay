@@ -13,14 +13,14 @@ const path = require("path");
  * @param {object} deps — {
  *   publicDir, tsh, clipperSettings, obs,
  *   refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet, switchBracket,
- *   swapTeams, reresolvePorts, recordClip, playerStatsSnapshot
+ *   swapPorts, switchSides, reresolvePorts, recordClip, playerStatsSnapshot
  * }
  */
 function registerRoutes(app, deps) {
   const {
     publicDir, tsh, clipperSettings, obs,
-    refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet, switchBracket, swapTeams,
-    reresolvePorts, recordClip, playerStatsSnapshot,
+    refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet, switchBracket, swapPorts,
+    switchSides, reresolvePorts, recordClip, playerStatsSnapshot,
   } = deps;
 
   app.get("/control", (req, res) => {
@@ -37,34 +37,27 @@ function registerRoutes(app, deps) {
     res.json(await refreshControlStatus());
   });
 
+  // The ports are the wrong way round: flip which side each port plays for.
+  // The scoreboard stays put (same as Ctrl+Shift+S).
   app.post("/api/swap", (req, res) => {
-    swapTeams();
+    const result = swapPorts();
     refreshControlStatus();
-    res.json({ ok: true });
+    res.json(result);
   });
 
-  // Throw away the port→team mapping and re-derive it from TSH's current names
-  // and characters — for when the set changed before the TO updated the names.
+  // Throw away the port map and re-derive it from the players' mains.
   app.post("/api/reresolve", (req, res) => {
     const result = reresolvePorts();
     refreshControlStatus();
     res.json(result);
   });
 
-  // Moves the teams to the other side of the scoreboard. The follow-up refresh
-  // picks up TSH's flipped teamsSwapped flag and re-detects the port mapping
-  // (control-status.js#handleTshSwap).
-  //
-  // TSH's /swap-teams only emits a Qt signal and answers "OK" — the flag flip and
-  // the program_state.json rewrite happen afterwards on its GUI thread. So the
-  // immediate refresh is for the panel's health/set card, and the delayed one is
-  // what actually catches the swap. Without it the operator waits out the 2s tick
-  // for the sides to follow.
-  app.post("/api/swap-sides", async (req, res) => {
-    const result = await tsh.swapSides();
+  // The two sides trade columns on the scoreboard — names, scores, entrant ids
+  // and the per-game list together (store.switchSides). The port map follows.
+  app.post("/api/swap-sides", (req, res) => {
+    switchSides();
     refreshControlStatus();
-    if (result.ok) setTimeout(refreshControlStatus, 400);
-    res.json(result);
+    res.json({ ok: true });
   });
 
   app.post("/api/pull-stream", async (req, res) => {

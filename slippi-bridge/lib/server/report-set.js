@@ -2,9 +2,15 @@
  * start.gg result reporting.
  *
  * Manual-trigger only — the control panel two-step-confirms before POSTing.
+ *
+ * Everything comes from the scoreboard store. Each side carries its start.gg
+ * entrant id and moves with Switch Sides, and the per-game list is the score,
+ * so the old hazards — TSH's swapped columns inverting the entrant slot, a
+ * per-game log disagreeing with the scoreboard — no longer have anywhere to
+ * live. There is no entrant lookup and no swap read before a report.
  */
 
-const { startggSetGate, loadedSetId } = require("./set-gate");
+const { startggSetGate } = require("./set-gate");
 
 /**
  * Determine whether the current set can be reported, and why not if it can't.
@@ -19,84 +25,41 @@ function evaluateReportability({ startgg }, setId) {
 }
 
 /**
- * Map a TSH column number to its start.gg entrant slot.
- *
- * getSetEntrants() keys entrants by start.gg's own slot order (slot 0 → 1), and
- * TSH's provider fills column 1 from that same slot 0 — but only while the sides
- * aren't swapped. TSH's Swap Teams moves each team to the other column and keeps
- * that orientation for every set loaded afterwards (`scoreContainers.reverse()`
- * in TSHScoreboardWidget), so while swapped, column 1 holds slot 2's entrant.
- * Ignoring the flag reports the loser as the winner.
- *
- * @param {number} tshTeam — 1 or 2, a scoreboard column
- * @param {boolean} swapped — TSH's teamsSwapped flag
- * @returns {number} start.gg entrant slot, 1 or 2
+ * The store's game list as start.gg BracketSetGameDataInput[]. Winners only —
+ * no stages or characters (decision #13).
+ * @param {{ sides: Array<{ entrantId: string }>, games: Array<{ winnerSide: 0|1 }> }} r — store.reportable()
  */
-function entrantSlot(tshTeam, swapped) {
-  if (!swapped) return tshTeam;
-  return tshTeam === 1 ? 2 : 1;
+function gameDataOf(r) {
+  if (!r.games.length || r.sides.some((s) => !s.entrantId)) return undefined;
+  return r.games.map((g, i) => ({ gameNum: i + 1, winnerId: r.sides[g.winnerSide].entrantId }));
 }
 
 function createReportSet(ctx, refreshControlStatus) {
-  const { tsh, startgg, state } = ctx;
+  const { store, startgg } = ctx;
 
   /**
-   * Translate the accumulated per-game winners into BracketSetGameDataInput[].
-   * Returns undefined when the log is empty or inconsistent with the final score,
-   * so the report falls back to set winner + score only.
-   * @param {object} entrants — slot-keyed entrants from getSetEntrants()
-   * @param {boolean} swapped — TSH's teamsSwapped flag
-   */
-  function buildGameData(entrants, swapped) {
-    if (!entrants[1] || !entrants[2] || state.currentSetGames.length === 0) return undefined;
-    return state.currentSetGames.map((g) => ({
-      gameNum:  g.gameNum,
-      winnerId: entrants[entrantSlot(g.winnerTeam, swapped)]?.id,
-    }));
-  }
-
-  /**
-   * Report the currently-loaded set to start.gg using the live score as the result.
+   * Report the loaded set to start.gg with the scoreboard's result.
    * @returns {Promise<{ ok: boolean, winnerName?: string, score?: string, error?: string }>}
    */
   async function reportCurrentSet() {
-    const loaded = loadedSetId(tsh);
-    if (!loaded.ok) return loaded;
-    const { setId, state: tshState } = loaded;
+    const { setId } = store.scoreboard();
     const { canReport, reason } = evaluateReportability(ctx, setId);
     if (!canReport) return { ok: false, error: reason };
 
-    const scores = tsh.getLiveScores(tshState);
-    if (scores.team1 === scores.team2) {
-      return { ok: false, error: `Score is tied ${scores.team1}-${scores.team2}; play out a winner first` };
-    }
-    const winnerTeam = scores.team1 > scores.team2 ? 1 : 2;
+    const r = store.reportable();
+    if (!r.ok) return { ok: false, error: r.reason };
 
-    // Which start.gg entrant a column holds depends on TSH's swap state, so read
-    // it fresh and authoritatively rather than trusting the 2s poll. Guessing
-    // wrong publishes the loser as the winner to a live bracket, so a swap state
-    // that can't be established at all is a refusal, not a default.
-    const swap = await tsh.getSwapState();
-    const swapped = swap.ok ? swap.data : state.tshSwapped;
-    if (swapped == null) {
-      return { ok: false, error: "Can't read TSH's swap state — reporting could pick the wrong entrant" };
-    }
+    const result = await startgg.reportSet(r.setId, r.winnerEntrantId, gameDataOf(r));
+    if (!result.ok) return result;
 
-    const ent = await startgg.getSetEntrants(setId);
-    if (!ent.ok) return { ok: false, error: ent.error };
-    const winner = ent.entrants[entrantSlot(winnerTeam, swapped)];
-    if (!winner) return { ok: false, error: "Could not resolve the winning team's start.gg entrant" };
-
-    const result = await startgg.reportSet(setId, winner.id, buildGameData(ent.entrants, swapped));
-    if (result.ok) {
-      // Refresh so the panel reflects the reported state on its next tick.
-      refreshControlStatus();
-      return { ok: true, winnerName: winner.name, score: `${scores.team1}-${scores.team2}` };
-    }
-    return result;
+    // Refresh so the panel reflects the reported state on its next tick.
+    refreshControlStatus();
+    const w = r.sides[r.winnerSide];
+    const winnerName = w.teamName || w.players.map((p) => p.tag).filter(Boolean).join(" / ");
+    return { ok: true, winnerName, score: `${r.sides[0].score}-${r.sides[1].score}` };
   }
 
   return { reportCurrentSet };
 }
 
-module.exports = { createReportSet, evaluateReportability, entrantSlot };
+module.exports = { createReportSet, evaluateReportability, gameDataOf };

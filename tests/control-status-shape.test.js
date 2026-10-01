@@ -15,7 +15,7 @@
 const assert = require("assert");
 const path   = require("path");
 
-const PortMapper      = require("../slippi-bridge/lib/port-mapper");
+const { ScoreboardStore } = require("../slippi-bridge/lib/scoreboard/store");
 const TshClient       = require("../slippi-bridge/lib/tsh-client");
 const StartggClient   = require("../slippi-bridge/lib/startgg-client");
 const { createState } = require("../slippi-bridge/lib/state");
@@ -48,11 +48,11 @@ function ctxFor() {
   const tsh = new TshClient({ TSH_URL: "http://127.0.0.1:0", SCOREBOARD_NUM: 1 },
                             path.join(__dirname, "nonexistent-tsh"));
   tsh.readState    = () => JSON.parse(JSON.stringify(FIXTURE));
-  tsh.getSwapState = async () => ({ ok: true, data: false });
+  tsh.ping         = async () => true;
   return {
     config:          { BRACKETS: { shortLink: "x" }, SCOREBOARD_NUM: 1 },
     tsh,
-    portMapper:      new PortMapper(),
+    store:           new ScoreboardStore(),
     startgg:         { enabled: false },
     clipperSettings: { get: () => ({ enabled: false }) },
     obs:             { getStatus: () => ({ connected: false }) },
@@ -66,7 +66,7 @@ function ctxFor() {
 
   await test("the startup seed and a rebuilt status have the same fields", async () => {
     const ctx  = ctxFor();
-    const cs   = createControlStatus(ctx, () => ({ ok: false, error: "no game" }));
+    const cs   = createControlStatus(ctx, () => ({ method: "positional", ports: [] }));
     const seed = keyPaths(ctx.state.lastControlStatus);
     const built = keyPaths(await cs.refresh());
     assert.deepStrictEqual(built, seed);
@@ -74,8 +74,8 @@ function ctxFor() {
 
   await test("a failed rebuild resolves to the last status instead of rejecting", async () => {
     const ctx = ctxFor();
-    ctx.tsh.getSwapState = async () => { throw new Error("boom"); };
-    const cs = createControlStatus(ctx, () => ({ ok: false }));
+    ctx.tsh.ping = async () => { throw new Error("boom"); };
+    const cs = createControlStatus(ctx, () => ({ method: "positional", ports: [] }));
     const warn = console.warn;
     console.warn = () => {};
     try {

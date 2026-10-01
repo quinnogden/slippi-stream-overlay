@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+> **Branch `tsh-replacement`:** this file still describes master (TSH + bridge). The branch is replacing TSH milestone by milestone (plan: `~/.claude/plans/i-want-to-start-abundant-walrus.md`). Already superseded here: `PortMapper`, `swap.js`, TSH-side swap detection, the 0-0 late-bind, stage reporting and `entrantSlot` — the scoreboard is `lib/scoreboard/store.js` (+ `persist.js`), ports are `lib/ports/port-map.js`, players are `lib/players/player-db.js`, icons are `overlays/assets/icons/`. Trust the code and `tests/README.md` over the sections below until the M8 rewrite.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What This Repo Is

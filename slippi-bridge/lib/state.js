@@ -1,10 +1,9 @@
 /**
- * The bridge's shared mutable state.
+ * The bridge's shared mutable state — the bits that aren't the scoreboard.
  *
- * This used to be a dozen module-level `let` bindings in index.js, which is why
- * everything that touched them had to live in index.js too. Collecting them into
- * one object lets the game-mode handlers, the control-status loop and the routes
- * move into their own modules while still coordinating.
+ * The scoreboard itself (set, names, score, per-game list) lives in
+ * lib/scoreboard/store.js, behind commands. What's left here is the live game
+ * and per-process bookkeeping.
  *
  * Passed around as `ctx.state`. Every field is written by exactly the modules
  * noted below — if you add a writer, note it here, because the reads are spread
@@ -15,29 +14,18 @@
 function createState() {
   return {
     // ── Live game ──────────────────────────────────────────────────────────────
-    // Written by modes/{singles,doubles,game-end} (reresolvePorts reruns the
-    // first two, including on a TSH-side swap) and swap.js. Read by the io
-    // connection handler, clip-recorder and players.teamOfPort.
+    // Written by modes/{singles,doubles} at game start (and again on a re-detect
+    // or port swap), adjusted by modes/index.js when the sides switch, cleared by
+    // modes/game-end. Read by the io connection handler and clip-recorder. Its
+    // `players` carry each port's side and slot.
     currentGameState: null,
 
     // The raw slippi-js player records for the live game, sorted by port.
-    // Written by modes/index.js at each game start and read by its
-    // reresolvePorts(), which re-runs resolution from the same input the game
-    // start used — currentGameState.players drops characterId and teamId, which
-    // the character and doubles-grouping heuristics both need. Deliberately not
+    // Written by modes/index.js at each game start and read by its re-detect and
+    // port swap, which re-run resolution from the same input — currentGameState
+    // drops characterId and teamId, which the port map needs. Deliberately not
     // cleared at game end: nothing reads it without a live currentGameState.
     currentRawPlayers: null,
-
-    // ── Set tracking for start.gg reporting ────────────────────────────────────
-    // currentSetGames accumulates one { gameNum, winnerTeam } per completed game
-    // so the report can include per-game detail. It resets whenever the loaded
-    // set_id changes (new set on the scoreboard).
-    //
-    // winnerTeam is a TSH column number, so it only means anything alongside the
-    // scoreboard's *current* orientation — handleTshSwap() flips these entries
-    // when the sides move, exactly as TSH flips its own scores and game tracker.
-    currentSetId: null,
-    currentSetGames: [],
 
     // ── Combo clipper rate limiting ────────────────────────────────────────────
     // Owned by clip-recorder.js; clipsThisGame is also reset by modes/index.js
@@ -53,10 +41,6 @@ function createState() {
     // connection handler, so a freshly-connected panel gets a value immediately.
     // Seeded by control-status.js at construction.
     lastControlStatus: null,
-
-    // Last value of TSH's own teamsSwapped flag. null = not yet observed, so the
-    // first poll only seeds the baseline instead of firing a phantom change.
-    tshSwapped: null,
 
     // ── Game source ────────────────────────────────────────────────────────────
     // Assigned at the entry point once the folder watcher exists; read by the

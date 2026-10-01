@@ -68,6 +68,19 @@ const config = {
     },
   },
 
+  // ── Player database ──────────────────────────────────────────────────────────
+  // TSH-format local_players.json, read and updated in place (new start.gg
+  // players, learned mains). null = the one in the TSH install, until cutover.
+  // Each machine has its own file, so set an absolute path in config.local.js
+  // rather than here. Never run TSH and this app against the same file at once.
+  PLAYERS_FILE: null,
+
+  // ── Scoreboard set text ──────────────────────────────────────────────────────
+  // Best-of label: `topLabel` once the set's loser is guaranteed `topN`th or
+  // better (start.gg lPlacement), `defaultLabel` before that. The dock can
+  // override per set.
+  SET_TEXT: { topN: 8, topLabel: "Bo5", defaultLabel: "Flex" },
+
   // ── Secrets (do NOT put real values here — this file is committed to git) ────
   // The start.gg personal access token lives in config.local.js (gitignored),
   // which is merged over this object below. See config.local.example.js.

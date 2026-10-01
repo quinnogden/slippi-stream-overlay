@@ -1,191 +1,169 @@
 /**
- * Game-mode dispatch.
+ * Game-mode dispatch, and the port map's link to the scoreboard.
  *
- * The game source doesn't know what kind of set is running, so every game start
- * lands here: read TSH once, decide singles / doubles, hand off. The per-mode
- * handlers receive data rather than reading TSH themselves.
+ * Every game start lands here: decide singles / doubles, resolve which side
+ * each port plays for (lib/ports/port-map.js), and write the live characters
+ * into the store. Game end (game-end.js) reads the winner's side from the same
+ * map — at game end, not at game start, so a correction made during the game
+ * (a port swap, a set loaded late) decides who gets the point.
+ *
+ * The store tells this module when the scoreboard moves under a live game:
+ *   set-loaded     → the port map belongs to the previous set: clear it, and
+ *                    re-detect now if a game is running (this replaces the old
+ *                    0-0 late-bind and most uses of the Re-detect button)
+ *   sides-switched → flip the map; the store already moved the characters
  */
 
-const { resolveStage } = require("../char_map");
+const { resolveCharacter } = require("../char_map");
 const { activePlayers, isDoubles } = require("../players");
 const { createSingles } = require("./singles");
 const { createDoubles } = require("./doubles");
 const { createGameEnd } = require("./game-end");
 
 function createModes(ctx) {
-  const { tsh, state, portMapper } = ctx;
+  const { store, portMap, io, state } = ctx;
 
   const singles = createSingles(ctx);
   const doubles = createDoubles(ctx);
   const { onGameEnd } = createGameEnd(ctx);
 
   /**
-   * Pick the mode for a set of players and run its game-start path.
+   * What each side's players are expected to be playing.
    *
-   * Split out of onGameStart so reresolvePorts() can re-run exactly the same
-   * decision against corrected TSH state — a second copy of the doubles test
-   * would be free to drift from this one.
-   *
-   * @param {Array} sorted — active players, ascending by port
-   * @param {Array} rawPlayers — the unfiltered list isDoubles() needs
-   * @param {object|null} tshState
-   * @param {{ fromScratch?: boolean }} [opts]
-   * @returns {"singles"|"doubles"}
+   * Mid-set, the last game that recorded characters — a port change between
+   * games is matched against what each side just played. At the start of a set
+   * (or on a re-detect, `mainsOnly`) the players' DB mains, prefilled on load.
+   * @returns {Array<Array<{ name: string, skin?: number }|null>>}
    */
-  function dispatchGameStart(sorted, rawPlayers, tshState, opts = {}) {
-    const isDoublesGame = isDoubles(rawPlayers) && (!tshState || tsh.isDoubles(tshState));
-
-    if (isDoublesGame) {
-      console.log("[bridge] Doubles game detected");
-      doubles.onGameStart(sorted, tshState, opts);
-      return "doubles";
+  function referenceChars({ mainsOnly = false } = {}) {
+    const sb = store.scoreboard();
+    if (!mainsOnly) {
+      const last = [...sb.games].reverse().find((g) => Array.isArray(g.characters));
+      if (last) return [0, 1].map((i) => (last.characters[i] ?? []).map((c) => (c ? { name: c.name, skin: c.skin } : null)));
     }
-    singles.onGameStart(sorted, tshState, opts);
-    return "singles";
+    return sb.sides.map((side) => side.players.map((p) => p.main ?? null));
+  }
+
+  /** Doubles needs 4 Slippi teams-mode players and a doubles set (or no set at all). */
+  function isDoublesGame(rawPlayers) {
+    if (!isDoubles(rawPlayers)) return false;
+    const sb = store.scoreboard();
+    return sb.isDoubles || !sb.setId;
   }
 
   /**
-   * Reset the per-game accumulator when the scoreboard's loaded set changes.
-   * @param {object|null} tshState
+   * Resolve the ports for a game and push it to the store + overlays.
+   * @param {Array} sorted — active players, ascending by port
+   * @param {{ mainsOnly?: boolean }} [opts]
+   * @returns {{ mode: "singles"|"doubles", method: string }}
    */
-  function syncSetTracking(tshState) {
-    const setId = tshState ? tsh.getSetId(tshState) : null;
-    if (setId !== state.currentSetId) {
-      state.currentSetId    = setId;
-      state.currentSetGames = [];
+  function applyGame(sorted, opts = {}) {
+    const doublesGame = isDoublesGame(sorted);
+    const { method } = portMap.resolve({
+      players: sorted,
+      doubles: doublesGame,
+      refs: referenceChars(opts),
+      resolveChar: resolveCharacter,
+    });
+    if (doublesGame) {
+      console.log("[bridge] Doubles game detected");
+      doubles.apply(sorted);
+    } else {
+      singles.apply(sorted);
     }
+    return { mode: doublesGame ? "doubles" : "singles", method };
   }
 
   /**
    * Called by the game source when a new game starts.
    * @param {Array} rawPlayers — from slippi-js getSettings()
-   * @param {number|null} stageId — Slippi stage ID, or null if unavailable
    */
-  function onGameStart(rawPlayers, stageId = null) {
-    // Read TSH state once; all downstream calls receive data, not file handles.
-    // A failed read still starts the game — positionally, with no names.
-    const read = tsh.tryReadState();
-    if (!read.ok) console.warn(read.error);
-    const tshState = read.ok ? read.state : null;
-
-    syncSetTracking(tshState);
+  function onGameStart(rawPlayers) {
     state.clipsThisGame = 0;
 
     const sorted = activePlayers(rawPlayers).sort((a, b) => a.playerIndex - b.playerIndex);
-
     if (sorted.length < 2) {
       console.warn("[bridge] Fewer than 2 players found; skipping game start");
       return;
     }
-
-    // Kept so a re-resolve can re-run the same handlers mid-game; the shape the
-    // layouts get (currentGameState.players) drops characterId and teamId.
+    // Kept so a re-detect or port swap can re-run against the same input;
+    // currentGameState.players drops characterId and teamId.
     state.currentRawPlayers = sorted;
+    applyGame(sorted);
+  }
 
-    dispatchGameStart(sorted, rawPlayers, tshState);
+  /** The live game's ports in the dock's terms. */
+  function portSummary() {
+    const sb = store.scoreboard();
+    return portMap.info().ports.map((p) => {
+      const pl = sb.sides[p.side]?.players[p.slot];
+      // team (1 = left) is what the current control panel reads, until the dock (M6).
+      return { ...p, team: p.side + 1, name: pl ? [pl.prefix, pl.tag].filter(Boolean).join(" ") || null : null };
+    });
+  }
 
-    reportStage(stageId);
+  /** For control_status: the mapping and the heuristic that chose it. */
+  function portInfo() {
+    return { method: portMap.method ?? "positional", ports: portSummary() };
   }
 
   /**
-   * Re-derive the port→team mapping from scratch, on operator demand.
+   * Re-derive the mapping from scratch against the players' mains, on operator
+   * demand (↻ Re-detect) or because a new set was loaded mid-game.
    *
-   * The case: a set is loaded and game 1 is already running before the TO
-   * finishes entering the new players in TSH. Every port fact the bridge holds
-   * belongs to the previous set, and nothing self-corrects until the *next*
-   * game start — by which time game 1's point has already been awarded, quite
-   * possibly to the wrong player.
-   *
-   * This is the game-start path with the name/score step skipped. After the
-   * reset there are no stored names to match and no earned tallies, so the chain
-   * reduces to character history → positional: exactly the 0-0 route, which is
-   * the right one because TSH now holds the correct registered characters for
-   * the names the TO just entered. Reusing the handlers rather than
-   * reimplementing means the TSH character push, syncNames, the doubles team
-   * colours and the slippi_game_start re-emit all come along and cannot drift.
-   *
-   * Requires a live game: with no currentGameState there is nothing to re-push
-   * or re-emit, and fabricating one would resurrect a dead game for the layouts.
-   * Between games the next game start re-derives correctly on its own.
-   *
-   * Also the reaction to a TSH-side swap (server/control-status.js), which is
-   * the same problem from the other end: the sides just moved, so the names the
-   * mapper recorded no longer say which column a port sits in.
-   *
-   * @param {string} [reason] — logged with the reset, so the operator's console
-   *   says which of the two triggered it
-   * @param {object} [tshState] — an already-read program_state.json; the swap
-   *   handler has one from the same tick, so there's no second read
-   * @returns {{ ok: boolean, error?: string, mode?: string, method?: string,
-   *             ports?: Array, summary?: string }}
+   * Requires a live game: with none there is nothing to re-apply, and the next
+   * game start resolves from a clear map on its own.
+   * @param {string} [reason]
    */
-  function reresolvePorts(reason = "Operator pressed Re-detect Players", tshState = null) {
+  function reresolvePorts(reason = "Operator pressed Re-detect Players") {
     const sorted = state.currentRawPlayers;
     if (!sorted || !state.currentGameState) {
       return { ok: false, error: "No game in progress — the next game start will re-derive on its own" };
     }
-
-    if (!tshState) {
-      const read = tsh.tryReadState();
-      if (!read.ok) return { ok: false, error: read.error };
-      tshState = read.state;
-    }
-
-    portMapper.reset(reason);
-
-    const mode = dispatchGameStart(sorted, sorted, tshState, { fromScratch: true });
-
-    // syncNames() only re-seeds zeros, so without this the score fallback would
-    // compare 0-0 against a mid-set scoreboard on the next game start. recordWin()
-    // only ever credits the single winning port, so putting a team's whole score
-    // on its lowest port matches how the tallies would have accumulated — and in
-    // doubles resolveDoubles() reads the group total anyway.
-    const scores  = tsh.getLiveScores(tshState);
-    const players = Object.values(state.currentGameState.players);
-    const seeded  = {};
-    for (const p of players) seeded[p.playerIndex] = 0;
-    for (const teamNum of [1, 2]) {
-      const ports = players.filter((p) => p.teamNum === teamNum).map((p) => p.playerIndex);
-      if (ports.length) seeded[Math.min(...ports)] = scores[`team${teamNum}`] ?? 0;
-    }
-    portMapper.seedScores(seeded);
-
-    // team is null for the singles positional case, where _portToTeam stays null
-    // by design — fill it from the players the handler just built so the operator
-    // sees a real side either way.
-    const info  = portMapper.getResolutionInfo();
-    const ports = info.ports.map((p) => ({
-      ...p,
-      team: p.team ?? state.currentGameState.players[p.port]?.teamNum ?? null,
-    }));
-    const summary = ports
-      .map((p) => `P${p.port + 1}→T${p.team ?? "?"}${p.name ? ` ${p.name}` : ""}`)
-      .join(", ");
-
-    console.log(`[bridge] Re-detected ports (${mode}, ${info.method}): ${summary}`);
-    return { ok: true, mode, method: info.method, ports, summary };
+    portMap.reset(reason);
+    const { mode, method } = applyGame(sorted, { mainsOnly: true });
+    const ports = portSummary();
+    const summary = ports.map((p) => `P${p.port + 1}→${p.side === 0 ? "L" : "R"}${p.name ? ` ${p.name}` : ""}`).join(", ");
+    console.log(`[bridge] Re-detected ports (${mode}, ${method}): ${summary}`);
+    return { ok: true, mode, method, ports, summary };
   }
 
   /**
-   * Push the current game's stage to TSH's Individual Game Tracker (TSH 5.972+).
-   *
-   * Best-effort and fire-and-forget: an unmapped stage or an unreachable TSH must
-   * never interfere with scoring, which is the bridge's actual job.
-   * @param {number|null} stageId
+   * The operator says the ports are the wrong way round (Ctrl+Shift+S, ⇆).
+   * The scoreboard stays put; the live characters and colours move, and the
+   * rest of the set keeps the corrected mapping.
    */
-  function reportStage(stageId) {
-    if (stageId == null) return;
-
-    const codename = resolveStage(stageId);
-    if (!codename) {
-      console.warn(`[bridge] Unknown stage id ${stageId}; skipping stage report`);
-      return;
+  function swapPorts() {
+    if (!portMap.flip("manual")) {
+      console.log("[bridge] Nothing to swap yet — no port mapping established");
+      return { ok: false, error: "No port mapping yet" };
     }
-
-    tsh.setCurrentStage(codename).catch(() => {});
+    if (state.currentRawPlayers && state.currentGameState) {
+      const sorted = state.currentRawPlayers;
+      if (state.currentGameState.isDoubles) doubles.apply(sorted);
+      else singles.apply(sorted);
+    }
+    return { ok: true };
   }
 
-  return { onGameStart, onGameEnd, reresolvePorts };
+  store.on("set-loaded", () => {
+    portMap.reset("A new set was loaded");
+    if (state.currentGameState) reresolvePorts("A new set was loaded mid-game");
+  });
+
+  store.on("sides-switched", () => {
+    portMap.flip();
+    const game = state.currentGameState;
+    if (!game) return;
+    for (const p of Object.values(game.players)) {
+      p.side = portMap.sideOf(p.playerIndex) ?? 1 - p.side;
+      p.teamNum = p.side + 1;
+    }
+    if (game.teamColorMap) game.teamColorMap = { 1: game.teamColorMap[2], 2: game.teamColorMap[1] };
+    io.emit("slippi_game_start", game);
+  });
+
+  return { onGameStart, onGameEnd, reresolvePorts, swapPorts, portInfo };
 }
 
 module.exports = { createModes };
