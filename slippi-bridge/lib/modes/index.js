@@ -97,8 +97,7 @@ function createModes(ctx) {
     const sb = store.scoreboard();
     return portMap.info().ports.map((p) => {
       const pl = sb.sides[p.side]?.players[p.slot];
-      // team (1 = left) is what the current control panel reads, until the dock (M6).
-      return { ...p, team: p.side + 1, name: pl ? [pl.prefix, pl.tag].filter(Boolean).join(" ") || null : null };
+      return { ...p, name: pl ? [pl.prefix, pl.tag].filter(Boolean).join(" ") || null : null };
     });
   }
 

@@ -121,10 +121,12 @@ function swapPorts() {
   return result;
 }
 
-registerOverlays(app, { overlaysDir: path.resolve(__dirname, "..", "overlays") });
+const overlaysDir = path.resolve(__dirname, "..", "overlays");
+registerOverlays(app, { overlaysDir });
 
 registerRoutes(app, {
   publicDir: path.join(__dirname, "public"),
+  iconsDir: path.join(overlaysDir, "assets", "icons"),
   store,
   event: ctx.event,
   clipperSettings,
@@ -140,14 +142,8 @@ registerRoutes(app, {
   playerStatsSnapshot: playerStats.snapshot,
 });
 
-// The default namespace: only the control panel is left on it, until the dock
-// replaces it (M6). /overlay and /dock replay their own on connect.
-io.on("connection", (socket) => {
-  // Give a freshly-connected control panel the latest status immediately.
-  socket.emit("control_status", ctx.state.lastControlStatus);
-});
-
-// Push status to any connected control panel every 2s.
+// Rebuild the dock's status every 2s; it goes out when it changed, and every
+// 5s regardless (control-status.js).
 setInterval(controlStatus.refresh, 2000);
 
 const hotkeyMode = installHotkey(swapPorts);
@@ -157,7 +153,7 @@ const clipper = clipperSettings.get();
 
 console.log("[bridge] Starting slippi-bridge...");
 console.log(`[bridge] Bridge port:    ${config.BRIDGE_PORT}`);
-console.log(`[bridge] Control panel:  http://localhost:${config.BRIDGE_PORT}/control`);
+console.log(`[bridge] Dock:           http://localhost:${config.BRIDGE_PORT}/dock`);
 console.log(`[bridge] Overlays:       http://localhost:${config.BRIDGE_PORT}/o/scoreboard  (also /o/scoreboard/players, /o/casters, /o/side-panel, /o/bracket, /o/highlights)`);
 for (const url of lanControlUrls(config)) {
   console.log(`[bridge]   on phone:    ${url}`);
@@ -173,10 +169,10 @@ console.log(`[bridge] Brackets:       ${ctx.event.shortLink
   : "no short link configured (config.BRACKETS.shortLink)"}`);
 console.log(`[bridge] Event:          ${loadedEvent.eventSlug
   ? `${loadedEvent.name} — ${loadedEvent.eventName} (reloading from start.gg)`
-  : "none yet — press Singles or Doubles in the control panel"}`);
+  : "none yet — press Singles or Doubles in the dock's Bracket tab"}`);
 console.log(`[bridge] Combo clipper:  ${clipper.enabled
   ? `enabled → OBS at ${clipper.obsUrl}`
-  : "disabled (turn it on in the control panel)"}`);
+  : "disabled (turn it on in the dock's Clips tab)"}`);
 console.log(`[bridge] Keyboard:       ${hotkeyMode === "global"
   ? "Ctrl+Shift+S = swap ports"
   : hotkeyMode === "terminal"

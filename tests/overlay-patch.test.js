@@ -229,9 +229,7 @@ const assertInSync = (client, store, msg) =>
     const names = (c) => c.events.map(([e]) => e);
     assert.deepStrictEqual(names(ov), ["game:start", "stats"], "overlays: no operator status or clip errors");
     assert.deepStrictEqual(names(dock), ["game:start", "status", "clip:error"]);
-    assert.deepStrictEqual(wire.io.emitted.map(([e]) => e),
-      ["slippi_game_start", "player_stats", "control_status", "slippi_clip_error"],
-      "the control panel and side panel still get the original names");
+    assert.deepStrictEqual(wire.io.emitted, [], "nothing goes to the default namespace — no client listens there");
 
     const late = connectClient(wire);
     assert.deepStrictEqual(names(late), ["game:start", "stats"], "a source loaded mid-game gets the live game and the stats");

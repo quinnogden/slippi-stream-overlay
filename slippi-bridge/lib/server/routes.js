@@ -1,195 +1,34 @@
 /**
- * The control panel's HTTP surface.
+ * The operator's HTTP surface: the dock page and every /api/* route.
  *
- * Served to an OBS custom browser dock. Browser→bridge calls are same-origin
- * (bridge port); the bridge makes every start.gg call server-side.
+ * The routes are grouped by what they act on, one file each under api/. The
+ * dock is the only browser client of /api/*; everything start.gg is called
+ * server-side.
  */
 
-const path = require("path");
-const { VIEWS } = require("../event/bracket-model");
+const path    = require("path");
+const express = require("express");
 
-const MAX_CASTERS = 4;
+const API = ["status", "scoreboard", "event", "casters", "clipper"].map((name) => require(`./api/${name}`));
 
 /**
  * @param {import("express").Express} app
  * @param {object} deps — {
- *   publicDir, store, event, clipperSettings, obs,
+ *   publicDir, iconsDir, store, event, clipperSettings, obs,
  *   refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet,
  *   swapPorts, switchSides, reresolvePorts, recordClip, playerStatsSnapshot
  * }
  */
 function registerRoutes(app, deps) {
-  const {
-    publicDir, store, event, clipperSettings, obs,
-    refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet, swapPorts,
-    switchSides, reresolvePorts, recordClip, playerStatsSnapshot,
-  } = deps;
+  const dockDir = path.join(deps.publicDir, "dock");
 
-  app.get("/control", (req, res) => {
-    res.sendFile(path.join(publicDir, "control-panel.html"));
-  });
+  // The dock. `/` and the old control panel's `/control` lead here, so an OBS
+  // dock or a phone bookmark from before the dock still lands somewhere.
+  app.get(["/", "/control"], (req, res) => res.redirect("/dock"));
+  app.get(["/dock", "/dock/"], (req, res) => res.sendFile(path.join(dockDir, "index.html")));
+  app.use("/dock", express.static(dockDir, { index: false, redirect: false }));
 
-  // Lets a bridge that finds this port busy confirm the occupant is one of its
-  // own — and which process to stop — instead of asking the operator for netstat.
-  app.get("/api/identity", (req, res) => {
-    res.json({ app: "slippi-bridge", pid: process.pid });
-  });
-
-  app.get("/api/status", async (req, res) => {
-    res.json(await refreshControlStatus());
-  });
-
-  // The ports are the wrong way round: flip which side each port plays for.
-  // The scoreboard stays put (same as Ctrl+Shift+S).
-  app.post("/api/swap", (req, res) => {
-    const result = swapPorts();
-    refreshControlStatus();
-    res.json(result);
-  });
-
-  // Throw away the port map and re-derive it from the players' mains.
-  app.post("/api/reresolve", (req, res) => {
-    const result = reresolvePorts();
-    refreshControlStatus();
-    res.json(result);
-  });
-
-  // The two sides trade columns on the scoreboard — names, scores, entrant ids
-  // and the per-game list together (store.switchSides). The port map follows.
-  app.post("/api/swap-sides", (req, res) => {
-    switchSides();
-    refreshControlStatus();
-    res.json({ ok: true });
-  });
-
-  // The set picker: playable sets first. Answered from the event service's
-  // last read (refreshed every 90s); ?refresh=1 is the dock's ↻ and re-reads
-  // start.gg first.
-  app.get("/api/sets", async (req, res) => {
-    if (req.query.refresh === "1") {
-      const r = await event.refresh();
-      if (!r.ok) return res.json(r);
-    }
-    const status = event.status();
-    if (!event.snapshot().event) {
-      return res.json({ ok: false, error: status.error ?? "No event loaded — press Singles or Doubles" });
-    }
-    res.json({ ok: true, data: event.openSets({ includeDone: req.query.finished === "1" }), status });
-  });
-
-  // The loaded event, its phase groups and the last read's status.
-  app.get("/api/event", (req, res) => {
-    res.json({ ok: true, ...event.snapshot() });
-  });
-
-  app.post("/api/load-set", async (req, res) => {
-    const setId = req.body?.setId;
-    if (setId == null) return res.status(400).json({ ok: false, error: "setId required" });
-    const result = await event.loadSet(setId);
-    // Push the new names out now rather than on the next 2s tick, so the
-    // panel's Current Set card matches what the operator just loaded.
-    if (result.ok) refreshControlStatus();
-    res.json(result);
-  });
-
-  // This week's singles or doubles event, via the series' short link.
-  app.post("/api/bracket", async (req, res) => {
-    const kind = req.body?.kind;
-    if (typeof kind !== "string" || !kind) {
-      return res.status(400).json({ ok: false, error: 'kind ("singles" | "doubles") required' });
-    }
-    const result = await event.switchEvent(kind);
-    refreshControlStatus();
-    res.json(result);
-  });
-
-  // start.gg's "Start match" for the loaded set. No body: the set is whatever
-  // the scoreboard has loaded, which is what the panel is showing.
-  app.post("/api/start-set", async (req, res) => {
-    res.json(await startCurrentSet());
-  });
-
-  app.post("/api/report", async (req, res) => {
-    res.json(await reportCurrentSet());
-  });
-
-  // Everything the overlays are drawing — the same object `state:full` sends.
-  app.get("/api/state", (req, res) => {
-    res.json(store.snapshot());
-  });
-
-  // What the bracket overlay shows: { view?, phaseGroupId? }. Every bracket
-  // source not pinned with ?view= follows `view`; phaseGroupId null goes back
-  // to following the set on the scoreboard.
-  app.post("/api/bracket-view", (req, res) => {
-    const { view, phaseGroupId } = req.body ?? {};
-    if (view !== undefined && !VIEWS.includes(view)) {
-      return res.status(400).json({ ok: false, error: `view must be one of ${VIEWS.join(", ")}` });
-    }
-    if (phaseGroupId !== undefined && phaseGroupId !== null
-        && !event.groups().some((g) => g.id === String(phaseGroupId))) {
-      return res.status(400).json({ ok: false, error: `phase group ${phaseGroupId} isn't in the loaded event` });
-    }
-    if (view !== undefined) store.setBracketView(view);
-    if (phaseGroupId !== undefined) store.setBracketPhaseGroup(phaseGroupId);
-    const v = store.view();
-    res.json({ ok: true, view: v.bracketView, phaseGroupId: v.bracketPhaseGroupId,
-      showing: store.bracket()?.phaseGroupId ?? null });
-  });
-
-  // The caster name tags (the dock's Casters tab, M7). Each caster is
-  // { tag, prefix, pronoun, twitter }; an empty tag hides that caster's card.
-  app.get("/api/casters", (req, res) => {
-    res.json({ ok: true, casters: store.casters() });
-  });
-
-  app.post("/api/casters", (req, res) => {
-    const list = req.body?.casters;
-    if (!Array.isArray(list) || list.length > MAX_CASTERS || list.some((c) => !c || typeof c !== "object")) {
-      return res.status(400).json({ ok: false, error: `casters must be an array of up to ${MAX_CASTERS} objects` });
-    }
-    store.setCasters(list);
-    res.json({ ok: true, casters: store.casters() });
-  });
-
-  // The side panel's stats snapshot — the same object `player_stats` pushes.
-  // For checking what the overlay is being fed, from a browser.
-  app.get("/api/player-stats", (req, res) => {
-    res.json(playerStatsSnapshot());
-  });
-
-  // ── Combo clipper ───────────────────────────────────────────────────────────
-  app.get("/api/clipper", (req, res) => {
-    res.json({ ok: true, ...clipperSnapshot() });
-  });
-
-  app.post("/api/clipper/settings", (req, res) => {
-    const result = clipperSettings.save(req.body ?? {});
-    // Apply either way: save() returns ok:false when only the disk write failed,
-    // and the operator's change should still take effect for this session.
-    obs.applySettings();
-    refreshControlStatus();
-    res.json(result);
-  });
-
-  app.post("/api/clipper/toggle", (req, res) => {
-    const enabled = req.body?.enabled;
-    if (typeof enabled !== "boolean") {
-      return res.status(400).json({ ok: false, error: "enabled (boolean) required" });
-    }
-    const result = clipperSettings.save({ enabled });
-    obs.applySettings();
-    refreshControlStatus();
-    res.json(result);
-  });
-
-  // Proves the whole OBS chain (websocket → buffer → file) without waiting for a
-  // combo. The one thing an operator can run at a venue before the bracket starts.
-  app.post("/api/clipper/test", async (req, res) => {
-    const result = await obs.saveReplayBuffer();
-    const clip = recordClip(null, { name: "Test clip", teamNum: null }, result);
-    res.json({ ok: result.ok, error: result.error ?? null, clip });
-  });
+  for (const api of API) api.register(app, deps);
 }
 
 module.exports = { registerRoutes };

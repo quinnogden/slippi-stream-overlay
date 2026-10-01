@@ -18,9 +18,10 @@
  * store commands, and an overlay should animate the score once.
  *
  * Events that aren't state are relayed too. The feature modules still emit
- * their original Socket.io names through `emit()`, which also sends them to
- * the default namespace for the control panel, the one client that hasn't
- * moved onto this channel yet (M6).
+ * their original names through `emit()` (ctx.io); RELAY maps each to this
+ * channel's name per namespace, and an event with no entry goes nowhere.
+ * Nothing listens on the default namespace any more — the dock replaced the
+ * control panel, the last client there.
  */
 
 /**
@@ -79,9 +80,8 @@ function createOverlayChannel({ io, store }) {
     });
   }
 
-  /** Send an event under its original name (default namespace) and this channel's. */
+  /** Relay an event, by its original name, to the namespaces that take it. */
   function emit(event, payload) {
-    io.emit(event, payload);
     const relay = RELAY[event];
     if (!relay) return;
     if (relay.sticky) sticky.set(event, payload);

@@ -34,7 +34,7 @@ function lanControlUrls(config) {
   }
 
   addrs.sort((a, b) => Number(isTailscale(b.address)) - Number(isTailscale(a.address)));
-  return addrs.map((a) => `http://${a.address}:${config.BRIDGE_PORT}/control  (${a.name})`);
+  return addrs.map((a) => `http://${a.address}:${config.BRIDGE_PORT}/dock  (${a.name})`);
 }
 
 module.exports = { lanControlUrls };

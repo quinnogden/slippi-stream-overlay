@@ -1,8 +1,8 @@
 # Bridge API Contract
 
-Everything the bridge exposes on `BRIDGE_PORT` (default 5001): the HTTP routes the control panel drives, and the Socket.io events the OBS layouts consume.
+Everything the bridge exposes on `BRIDGE_PORT` (default 5001): the HTTP routes the operator's dock drives, and the Socket.io events the OBS sources consume.
 
-This is the contract between `slippi-bridge/` and its two clients — [public/control-panel.html](../slippi-bridge/public/control-panel.html) and the layouts under `TournamentStreamHelper-*/layout/`. Change a payload shape here and something in a browser stops updating **silently**, because nothing on either side validates. Keep this file in step with `index.js`.
+This is the contract between `slippi-bridge/` and its clients — on branch `tsh-replacement`, the dock ([public/dock/](../slippi-bridge/public/dock/)) and the overlays under [overlays/](../overlays/); on master, `public/control-panel.html` and the layouts under `TournamentStreamHelper-*/layout/`. Change a payload shape here and something in a browser stops updating **silently**, because nothing on either side validates. Keep this file in step with `index.js`.
 
 For what TSH exposes *to* the bridge, see the TSH HTTP API section of [CLAUDE.md](../CLAUDE.md).
 
@@ -10,7 +10,7 @@ For what TSH exposes *to* the bridge, see the TSH HTTP API section of [CLAUDE.md
 
 ## Overlay channel — `/overlay` and `/dock` (branch `tsh-replacement`)
 
-Every overlay is the app's own on this branch — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/side-panel`, `/o/bracket`, `/o/highlights` — and all but highlights (which never connects) use the `/overlay` namespace through [overlays/shared/overlay-client.js](../overlays/shared/overlay-client.js); the dock will use `/dock` (M6). Built in [lib/overlay/channel.js](../slippi-bridge/lib/overlay/channel.js).
+Every overlay is the app's own on this branch — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/side-panel`, `/o/bracket`, `/o/highlights` — and all but highlights (which never connects) use the `/overlay` namespace through [overlays/shared/overlay-client.js](../overlays/shared/overlay-client.js); the dock uses `/dock` through the same client. Built in [lib/overlay/channel.js](../slippi-bridge/lib/overlay/channel.js).
 
 | Event | Direction | Payload |
 |---|---|---|
@@ -25,7 +25,7 @@ Every overlay is the app's own on this branch — `/o/scoreboard`, `/o/scoreboar
 - **`from` is what keeps a source honest.** A page applies a patch only when `from` ≤ its own rev. A larger `from` means it missed one, and it must send `state:resync` rather than apply it: every later patch carries only the sections that changed, so a source that missed one would otherwise show the old score indefinitely while looking healthy. A patch whose `rev` it already has (it connected mid-burst, and its `state:full` was newer) is ignored. `state:full` is always taken, even at a lower rev — the app may have restarted. `tests/overlay-patch.test.js` pins all three.
 - **Selectors run on change only.** `ov.select(path, fn)` compares the JSON at `path`, so a casters edit doesn't re-run, and re-animate, the scoreboard.
 - **Sticky events.** A page that connects mid-game gets `game:start` (dropped at `game:end`, a handwarmer's included) and the last `stats`; the dock also gets the last `status`.
-- **The feature modules don't know about the channel.** They still emit their original names through `ctx.io`, which is the channel's `emit()`. It sends each on the default namespace too, for the control panel, which hasn't moved yet.
+- **The feature modules don't know about the channel.** They still emit their original names through `ctx.io`, which is the channel's `emit()`; its `RELAY` table maps each to the names above, per namespace. Nothing is sent on the default namespace any more — the dock replaced the control panel, the last client there.
 - **Overlay urls are absolute** (`/o/shared/overlay.css`), so a source works with or without a trailing slash. Every stylesheet sits one level under `/o/`, because a theme pack's `--logo-url` resolves against the stylesheet that uses it. The theme switch is `overlays/theme.css` (`/o/theme.css`) and the packs are `overlays/themes/<pack>/`. `tests/overlays-static.test.js` resolves every page's urls through the server's own tables.
 
 ### The `bracket` section
@@ -56,7 +56,7 @@ The layout (card positions, connectors) is computed in the page by [overlays/bra
 
 ## Socket.io events (bridge → browser)
 
-Clients connect to `http://localhost:5001`. On this branch the only client left on the default namespace is the control panel, so on connect the app replays just `control_status`; the overlays get their replays from the channel above.
+On this branch these payloads reach pages only through the channel above, under its names (`game:start`, `status`, …); nothing listens on the default namespace. The names below are what the feature modules emit and what master's clients still use.
 
 ### `slippi_game_start`
 
@@ -162,7 +162,7 @@ Consumer rules — each is a way to put a healthy-looking wrong number on stream
 
 ### `control_status`
 
-The full control-panel snapshot. Pushed **every 2 seconds** and on connect. Identical shape to `GET /api/status`.
+The full control-panel snapshot. Identical shape to `GET /api/status`. Rebuilt every 2 seconds; on this branch it is **sent only when it changed, and every 5 seconds regardless** — the heartbeat the dock uses to tell a quiet app from a stalled one (no status for 12s dims its health lights). The dock reads the scoreboard itself from the channel's state, so `currentSet.scores` / `teamNames` here are for `/api/status` readers.
 
 ```js
 {
@@ -216,11 +216,11 @@ Two consumer rules learned the hard way:
 
 All under `http://localhost:5001`. Responses are `{ ok, error?, data? }` — the same convention as `lib/tsh-client.js` and `lib/startgg-client.js` — with the exception of `/api/status`, which returns the status object directly.
 
-A permissive CORS middleware fronts every route. It exists for exactly one case: an OBS dock pointed at `control-panel.html` as a **file**, which runs on a `file://` origin (`Origin: null`) and would otherwise be unable to reach `/api/*`. Same-origin dock use needs none of it.
+On this branch the routes live in `lib/server/api/` by what they act on (`status`, `scoreboard`, `event`, `casters`, `clipper`), and there is **no CORS**: the dock and every overlay are served from the app's own origin. (Master's permissive CORS existed for the control panel opened as a `file://` page.)
 
 | Method | Route | Purpose |
 |---|---|---|
-| `GET` | `/control` | The operator panel HTML |
+| `GET` | `/dock` | The operator's dock (`public/dock/`). `/` and `/control` redirect here |
 | `GET` | `/api/identity` | `{ app: "slippi-bridge", pid }` — how a starting bridge recognises a stale one before killing it (see Port Reclaim in [CLAUDE.md](../CLAUDE.md)) |
 | `GET` | `/api/status` | The `control_status` object above |
 | `POST` | `/api/swap` | Flip the internal port→team map. Same as `Ctrl+Shift+S`. Does **not** touch TSH |
@@ -235,6 +235,12 @@ A permissive CORS middleware fronts every route. It exists for exactly one case:
 | `GET` | `/api/player-stats` | The `player_stats` snapshot above — for checking what the side panel is being fed |
 | `GET` | `/api/state` | The overlays' state — the same object `state:full` sends |
 | `GET` / `POST` | `/api/casters` | `{ casters: [{ tag, prefix, pronoun, twitter }] }`, up to 4. An empty tag hides that caster's card |
+| `GET` | `/api/characters` | The picker's 26 characters in Melee's select-screen order: `[{ id, codename, name, skins }]`, `skins` counted from the icons on disk |
+| `POST` | `/api/score` | `{ side, delta: 1 \| -1 }` adds or removes one game; `{ side, score }` (0–9) sets it. The score is the game list, so ± is a game, not a number |
+| `POST` | `/api/player` | `{ side, index, tag?, prefix?, pronoun? }` — the names shown. The start.gg entrant behind the side is untouched, so a corrected tag still reports to the right one |
+| `POST` | `/api/character` | `{ side, index, codename, skin }`, or `codename: null` for none. Also becomes the player's `main` for the set, which the port map matches the next game's Slippi characters against |
+| `POST` | `/api/set-text` | `{ round?, bestOf?, losers?: [bool\|null, bool\|null] }` — overrides; `null` goes back to derived. Send **both** `losers` entries: JSON turns a missing one into `null`, which clears that side's override |
+| `POST` | `/api/clear-set` | An empty scoreboard, for a set that isn't on start.gg |
 | `POST` | `/api/bracket-view` | `{ view?, phaseGroupId? }` — what every bracket source not pinned with `?view=` shows. `phaseGroupId: null` goes back to following the set on air. 400 for an unknown view or a group not in the loaded event |
 | `GET` | `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters[?i=N]` | The OBS browser sources. `?animate=false` skips the entrances |
 | `GET` | `/o/side-panel[?panel=<id>]` | The 611×1080 panel beside the cam. `?panel=` holds one panel (for styling) |
@@ -319,6 +325,6 @@ An empty list is **normal**, not an error: `get_sets` returns start.gg states 1/
 ## Adding to this surface
 
 - **A new Socket.io event** — emit it in `index.js`, document the payload here, and remember every consumer may already be connected: send enough state to be useful standalone rather than a delta.
-- **A new route** — keep handlers thin and let the client module own the I/O and the `{ ok, error }` shaping, matching the existing block at the end of `index.js`.
+- **A new route** — keep handlers thin and let the client module own the I/O and the `{ ok, error }` shaping. On this branch it goes in the matching `lib/server/api/<group>.js`; `tests/dock-static.test.js` fails if the dock calls a route (or a method) that doesn't exist.
 - **A new `control_status` field** — add it to `compose()` in `lib/server/control-status.js`. That one function builds both the startup seed and every 2s rebuild, so the two can't drift; `tests/control-status-shape.test.js` pins that their key sets match.
 - **Anything reached from `obs.getStatus()`** must stay synchronous — it runs every 2 seconds.

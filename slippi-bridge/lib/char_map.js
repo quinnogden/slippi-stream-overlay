@@ -36,6 +36,17 @@ const CHAR_MAP = {
 };
 
 /**
+ * Slippi character ids in the order of Melee's character select screen, row
+ * by row (9 · 10 · 7), Sheik beside Zelda. The dock's picker is laid out this
+ * way because it is where an operator's eye already goes for a character.
+ */
+const CSS_ORDER = [
+  22, 8, 7, 5, 12, 17, 1, 0, 25,
+  20, 2, 11, 14, 4, 16, 18, 19, 6, 21,
+  24, 13, 15, 10, 3, 9, 23,
+];
+
+/**
  * Resolves a Slippi character ID + costume to TSH display info.
  *
  * Deliberately returns no icon path: the layouts build `chara_2_{codename}_{skin}.png`
@@ -121,4 +132,4 @@ function resolveStage(stageId) {
   return STAGE_MAP[stageId] ?? null;
 }
 
-module.exports = { CHAR_MAP, resolveCharacter, characterByName, STAGE_MAP, resolveStage };
+module.exports = { CHAR_MAP, CSS_ORDER, resolveCharacter, characterByName, STAGE_MAP, resolveStage };

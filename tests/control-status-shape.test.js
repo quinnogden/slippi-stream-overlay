@@ -18,7 +18,7 @@ const assert = require("assert");
 const { ScoreboardStore } = require("../slippi-bridge/lib/scoreboard/store");
 const StartggClient   = require("../slippi-bridge/lib/startgg-client");
 const { createState } = require("../slippi-bridge/lib/state");
-const { createControlStatus } = require("../slippi-bridge/lib/server/control-status");
+const { createControlStatus, HEARTBEAT_MS } = require("../slippi-bridge/lib/server/control-status");
 
 let failed = 0;
 async function test(name, fn) {
@@ -81,6 +81,27 @@ function ctxFor() {
     } finally {
       console.warn = warn;
     }
+  });
+
+  await test("status goes out when it changes, and on the heartbeat — not every tick", async () => {
+    const ctx = ctxFor();
+    const sent = [];
+    ctx.io = { emit: (ev, s) => sent.push(s) };
+    const cs = createControlStatus(ctx, () => ({ method: "positional", ports: [] }));
+    await cs.refresh();
+    await cs.refresh();
+    assert.strictEqual(sent.length, 1, "an unchanged rebuild isn't re-sent");
+    ctx.store.setTournament({ name: "Hundred Acres #50", eventName: "Melee Singles" });
+    await cs.refresh();
+    assert.strictEqual(sent.length, 2, "a change is sent at once");
+    const realNow = Date.now;
+    Date.now = () => realNow() + HEARTBEAT_MS + 1;
+    try {
+      await cs.refresh();
+    } finally {
+      Date.now = realNow;
+    }
+    assert.strictEqual(sent.length, 3, "and an unchanged one goes out once the heartbeat is due");
   });
 
   await test("with no token, every start.gg method that needs one refuses without a request", async () => {

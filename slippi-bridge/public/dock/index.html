@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stream Console</title>
+  <!-- The active theme pack, for its accent only (--text-color). Every dock
+       token is its own (--d-*), so no pack can restyle the console. -->
+  <link rel="stylesheet" href="/o/theme.css" />
+  <link rel="stylesheet" href="/dock/dock.css" />
+</head>
+<body>
+  <div class="accent-bar"></div>
+  <div class="offline-bar">App not reachable — showing the last state. Reconnecting…</div>
+
+  <header class="head">
+    <div class="brand">
+      <div class="brand-name">Stream Console</div>
+      <div class="brand-event" id="event-name">No event loaded</div>
+    </div>
+    <div class="meters">
+      <span class="lamp" id="lamp" title="Lit while a Slippi game is running">In game</span>
+      <span class="led" id="led-startgg">start.gg</span>
+      <span class="led" id="led-slippi">Slippi</span>
+      <span class="led" id="led-obs">OBS</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- The live strip: what is on the scoreboard right now. Pinned, so a
+         score or a swap is never a scroll away. -->
+    <section class="strip" aria-label="Live set">
+      <div class="strip-meta">
+        <input class="round" id="round" type="text" placeholder="Round" spellcheck="false" title="The round shown on stream. Clear it to go back to start.gg's" />
+        <select class="best-of" id="best-of" title="Best-of label. Auto = Flex outside top 8, Bo5 in it">
+          <option value="">Auto</option>
+          <option value="Flex">Flex</option>
+          <option value="Bo3">Bo3</option>
+          <option value="Bo5">Bo5</option>
+        </select>
+        <span class="set-ref" id="set-ref">Manual set</span>
+        <button class="key ghost mini" id="btn-text-auto" type="button" title="Back to start.gg's round, the Flex/Bo5 rule and the automatic [L]">Auto text</button>
+      </div>
+
+      <div class="side s0" id="side-0"></div>
+      <div class="side s1" id="side-1"></div>
+
+      <div class="strip-actions">
+        <button class="key" id="btn-sides" type="button" title="Move both sides across the scoreboard — names, scores, games. The ports follow">⇆ Sides</button>
+        <button class="key" id="btn-ports" type="button" title="The ports are the wrong way round: flip them (Ctrl+Shift+S). The scoreboard stays put">⇄ Ports</button>
+        <button class="key" id="btn-redetect" type="button" title="Re-match the ports against the players' characters">↻ Detect</button>
+        <button class="key go" id="btn-start" type="button" title="Mark this set in progress on start.gg">Start</button>
+        <button class="key arm" id="btn-report" type="button" title="Report the result to start.gg (asks first)">Report</button>
+      </div>
+      <div id="report-confirm"></div>
+      <div class="strip-hint" id="strip-hint"></div>
+    </section>
+
+    <section class="desk">
+      <nav class="tabs" role="tablist">
+        <button class="tab" type="button" data-tab="set">Set</button>
+        <button class="tab" type="button" data-tab="bracket">Bracket</button>
+        <button class="tab" type="button" data-tab="clips">Clips</button>
+      </nav>
+
+      <!-- ── Set ── -->
+      <div class="panel" id="panel-set">
+        <div class="card">
+          <div class="card-head">
+            <span class="label">Up next</span>
+            <span class="card-meta" id="sets-stamp"></span>
+            <button class="key mini" id="btn-refresh-sets" type="button" title="Re-read start.gg">↻</button>
+          </div>
+          <input class="filter" id="set-filter" type="search" placeholder="Filter by player or round…" />
+          <div class="sets-list" id="sets-list"></div>
+          <div class="card-foot">
+            <button class="linkish" id="btn-toggle-finished" type="button">Show finished</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <span class="label">Ports</span>
+            <span class="badge" id="method-badge">—</span>
+          </div>
+          <div id="ports-list"></div>
+          <div class="hint">Set loaded after game 1 started? <b>Detect</b> re-matches the ports against the players' characters. Reversed? <b>Ports</b> flips them. Amber is a positional guess — check it before the game ends.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span class="label">Scoreboard</span></div>
+          <button class="key wide" id="btn-clear-set" type="button">Clear for a manual set</button>
+          <div id="clear-confirm"></div>
+          <div class="hint">For a set that isn't on start.gg: clears the scoreboard so the names can be typed into the strip. Nothing is reported.</div>
+        </div>
+      </div>
+
+      <!-- ── Bracket ── -->
+      <div class="panel" id="panel-bracket">
+        <div class="card">
+          <div class="card-head"><span class="label">This week's event</span></div>
+          <div class="key-row">
+            <button class="key" id="btn-bracket-singles" type="button" data-kind="singles">Singles</button>
+            <button class="key" id="btn-bracket-doubles" type="button" data-kind="doubles">Doubles</button>
+          </div>
+          <div class="hint" id="bracket-hint">No event loaded — press Singles or Doubles.</div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span class="label">Bracket overlay</span></div>
+          <div class="seg" id="bracket-views">
+            <button class="key" type="button" data-view="winners">Winners</button>
+            <button class="key" type="button" data-view="losers">Losers</button>
+            <button class="key" type="button" data-view="top8">Top 8</button>
+            <button class="key" type="button" data-view="top16">Top 16</button>
+            <button class="key" type="button" data-view="full">Full</button>
+          </div>
+          <label class="field">
+            <span>Phase group</span>
+            <select id="bracket-group"></select>
+          </label>
+          <div class="hint" id="bracket-view-hint"></div>
+        </div>
+      </div>
+
+      <!-- ── Clips ── -->
+      <div class="panel" id="panel-clips">
+        <div class="card">
+          <div class="card-head">
+            <span class="label">Combo clipper</span>
+            <label class="switch" title="Detect combos and save the OBS replay buffer">
+              <input type="checkbox" id="clip-enabled" /> <span>On</span>
+            </label>
+          </div>
+          <div class="hint" id="clip-status">—</div>
+          <!-- Built from CLIP_FIELDS in dock.js, so the ids can't drift from the
+               code that reads them. -->
+          <div class="clip-fields" id="clip-fields"></div>
+          <div class="key-row">
+            <button class="key go" id="btn-clip-save" type="button">Save settings</button>
+            <button class="key" id="btn-clip-test" type="button" title="Save the replay buffer now — proves the OBS chain works">Test clip</button>
+          </div>
+          <div class="hint" id="clip-hint"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="label">Recent clips</span></div>
+          <div class="clip-list" id="clip-list"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- The character picker: Melee's select screen, one tap to set. -->
+  <div class="sheet" id="picker">
+    <div class="sheet-card" role="dialog" aria-label="Character">
+      <div class="sheet-head">
+        <div>
+          <div class="label">Character</div>
+          <div class="sheet-who" id="picker-who"></div>
+        </div>
+        <button class="key mini" id="picker-close" type="button">Close</button>
+      </div>
+      <div class="costumes" id="picker-costumes"></div>
+      <div class="char-grid" id="picker-grid"></div>
+      <div class="sheet-foot">
+        <button class="linkish" id="picker-none" type="button">No character</button>
+        <span class="hint">Hold or right-click a character for its costumes</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/o/shared/overlay-client.js"></script>
+  <script src="/dock/dock.js"></script>
+</body>
+</html>

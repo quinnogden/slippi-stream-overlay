@@ -1,10 +1,17 @@
 /**
- * The control panel's status snapshot, rebuilt on a 2s tick and on demand.
+ * The dock's status snapshot (health, the report/start buttons, the port map,
+ * the clipper), rebuilt on a 2s tick and on demand.
  *
  * Everything is local: the Current Set card and the tournament come from the
  * scoreboard store, start.gg's health dot from the event service's last read.
  * Nothing here makes a network call, so a rebuild can't stall on one.
+ *
+ * A rebuild is sent only when it differs from the last one sent, or 5s have
+ * passed — the heartbeat that lets the dock tell a quiet app from a dead one.
+ * The scoreboard itself reaches the dock as state patches, not through here.
  */
+
+const HEARTBEAT_MS = 5000;
 
 const { evaluateReportability } = require("./report-set");
 const { evaluateStartability }  = require("./start-set");
@@ -95,11 +102,21 @@ function createControlStatus(ctx, portInfo) {
     };
   }
 
-  /** Rebuild lastControlStatus and broadcast it. */
+  let sentJson = null;
+  let sentAt = 0;
+
+  /** Rebuild lastControlStatus; broadcast it if it changed or the heartbeat is due. */
   async function build() {
-    state.lastControlStatus = compose({ currentSet: currentSetCard() });
-    io.emit("control_status", state.lastControlStatus);
-    return state.lastControlStatus;
+    const status = compose({ currentSet: currentSetCard() });
+    state.lastControlStatus = status;
+    const { ts, ...body } = status;
+    const json = JSON.stringify(body);
+    if (json !== sentJson || ts - sentAt >= HEARTBEAT_MS) {
+      sentJson = json;
+      sentAt = ts;
+      io.emit("control_status", status);
+    }
+    return status;
   }
 
   // Many call sites ask for a refresh — several of them in a burst when the
@@ -125,4 +142,4 @@ function createControlStatus(ctx, portInfo) {
   return { refresh, clipperSnapshot };
 }
 
-module.exports = { createControlStatus, emptyCurrentSet };
+module.exports = { createControlStatus, emptyCurrentSet, HEARTBEAT_MS };

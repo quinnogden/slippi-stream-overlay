@@ -15,20 +15,12 @@ const { reclaimPort } = require("../port-guard");
 function createServer(config) {
   const app = express();
 
-  // The control panel is normally served from this origin, so same-origin requests
-  // need nothing. But an OBS dock pointed at public/control-panel.html directly
-  // runs on a file:// origin (Origin: null), which needs CORS to reach /api/*.
-  app.use((req, res, next) => {
-    res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Headers", "Content-Type");
-    if (req.method === "OPTIONS") return res.sendStatus(204);
-    next();
-  });
-
+  // No CORS: the dock and every overlay are served from this origin. (The old
+  // control panel needed it when an OBS dock opened its .html as a file://.)
   app.use(express.json());
 
   const httpServer = http.createServer(app);
-  const io         = new Server(httpServer, { cors: { origin: "*" } });
+  const io         = new Server(httpServer);
 
   // A stale bridge holding the port is the normal case, not an operator error, so
   // try once to take it back before giving up. reclaimPort only kills a process

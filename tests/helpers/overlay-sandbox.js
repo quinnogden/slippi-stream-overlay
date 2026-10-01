@@ -12,8 +12,13 @@
  * What it does NOT do: lay anything out. There is no cascade and no geometry
  * (every element is 200px wide with 100px of content, so fitText never
  * shrinks). Animations finish on a timer, `timeScale` × their real length, so
- * their ordering is a browser's: a cancelled one never finishes. It answers
- * "did the script do the right thing", never "does it look right".
+ * their ordering is a browser's: a cancelled one never finishes. Events are
+ * delivered to the element's own listeners only — nothing bubbles — and
+ * fire(el, type) is how a test clicks or types. It answers "did the script do
+ * the right thing", never "does it look right".
+ *
+ * The dock (slippi-bridge/public/dock/) runs here too: pass `htmlFile`, a
+ * `resolve` for its /dock/ scripts, and a `fetch` that reaches the app.
  *
  *   const { io, nsps } = fakeIo();
  *   createOverlayChannel({ io, store });
@@ -71,6 +76,22 @@ function makeStyle() {
   };
 }
 
+/** An event as a page's listener sees one. */
+function makeEvent(type, props = {}) {
+  return {
+    type, defaultPrevented: false, target: null, currentTarget: null,
+    preventDefault() { this.defaultPrevented = true; },
+    stopPropagation() {},
+    ...props,
+  };
+}
+
+/** Deliver an event to an element's listeners (click, input, change, contextmenu…). */
+function fire(el, type, props = {}) {
+  if (type === "click" && el.disabled) return false;
+  return el.dispatchEvent(makeEvent(type, props));
+}
+
 function textNode(text) {
   return { nodeType: 3, parentNode: null, _text: String(text), get textContent() { return this._text; }, set textContent(v) { this._text = String(v); } };
 }
@@ -89,6 +110,7 @@ function makeEl(doc, tag, ns = null) {
     style: makeStyle(),
     dataset: {},
     _anims: [],
+    _listeners: {},
     clientWidth: 200,
     scrollWidth: 100,
     clientHeight: 100,
@@ -191,10 +213,32 @@ function makeEl(doc, tag, ns = null) {
     },
     getAnimations() { return [...el._anims]; },
 
-    addEventListener() {},
-    removeEventListener() {},
+    addEventListener(type, fn) { (el._listeners[type] = el._listeners[type] || []).push(fn); },
+    removeEventListener(type, fn) {
+      const list = el._listeners[type] || [];
+      if (list.includes(fn)) list.splice(list.indexOf(fn), 1);
+    },
+    dispatchEvent(ev) {
+      if (!ev.target) ev.target = el;
+      ev.currentTarget = el;
+      for (const fn of [...(el._listeners[ev.type] || [])]) fn.call(el, ev);
+      return !ev.defaultPrevented;
+    },
+    click() { fire(el, "click"); },
+    focus() { doc.activeElement = el; },
+    blur() {
+      if (doc.activeElement !== el) return;
+      doc.activeElement = null;
+      fire(el, "blur");
+    },
     getBoundingClientRect() { return { left: 0, top: 0, right: 200, bottom: 100, width: 200, height: 100 }; },
   };
+  // A form control starts empty, as in a browser (not undefined).
+  if (["input", "select", "textarea"].includes(el.localName)) {
+    el.value = "";
+    el.checked = false;
+    el.disabled = false;
+  }
   return el;
 }
 
@@ -260,11 +304,15 @@ function parseInto(doc, html) {
  * @param {string}  [opts.search]    the source url's query, e.g. "?view=top8"
  * @param {number}  [opts.timeScale] animation time multiplier (default 0.01)
  */
-async function loadOverlay({ page, nsps = null, search = "", timeScale = 0.01, namespace = "/overlay" }) {
-  const htmlFile = path.join(OVERLAYS, page, "index.html");
+async function loadOverlay({
+  page, nsps = null, search = "", timeScale = 0.01,
+  htmlFile = path.join(OVERLAYS, page, "index.html"),
+  resolve = (src) => resolveOverlayPath(src, { overlaysDir: OVERLAYS }),
+  fetch = null,
+}) {
   const html = fs.readFileSync(htmlFile, "utf8");
 
-  const doc = { _timeScale: timeScale, _animations: [] };
+  const doc = { _timeScale: timeScale, _animations: [], activeElement: null };
   doc.documentElement = makeEl(doc, "html");
   parseInto(doc, html);
   const find = (sel) => doc.documentElement.querySelector(sel);
@@ -320,8 +368,15 @@ async function loadOverlay({ page, nsps = null, search = "", timeScale = 0.01, n
     return socket;
   }
 
+  const storage = new Map();
   const sandbox = {
     document: doc,
+    fetch: fetch ?? (() => Promise.reject(new Error("overlay-sandbox: this page was given no fetch"))),
+    localStorage: {
+      getItem: (k) => (storage.has(k) ? storage.get(k) : null),
+      setItem: (k, v) => storage.set(k, String(v)),
+      removeItem: (k) => storage.delete(k),
+    },
     // The client's "[tag] connected" chatter off; warnings and errors kept.
     console: { ...console, log() {}, info() {} },
     location: { search },
@@ -347,8 +402,8 @@ async function loadOverlay({ page, nsps = null, search = "", timeScale = 0.01, n
       if (nsps) sandbox.io = io;
       continue;
     }
-    const file = resolveOverlayPath(src, { overlaysDir: OVERLAYS });
-    if (!file) throw new Error(`overlay-sandbox: ${page} loads ${src}, which doesn't resolve`);
+    const file = resolve(src);
+    if (!file) throw new Error(`overlay-sandbox: ${page ?? htmlFile} loads ${src}, which doesn't resolve`);
     vm.runInContext(fs.readFileSync(file, "utf8"), sandbox, { filename: path.relative(REPO_ROOT, file) });
   }
 
@@ -376,4 +431,4 @@ function texts(node, out = []) {
   return out;
 }
 
-module.exports = { loadOverlay, fakeIo, texts, sleep };
+module.exports = { loadOverlay, fakeIo, texts, sleep, fire };
