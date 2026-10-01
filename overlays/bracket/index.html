@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Bracket</title>
+    <link rel="stylesheet" href="/o/shared/overlay.css" />
+    <link rel="stylesheet" href="/o/shared/atmosphere.css" />
+    <link rel="stylesheet" href="/o/bracket/bracket.css" />
+  </head>
+  <!-- 1920 × 1080. The view (Winners · Losers · Top 8 · Top 16 · Full) follows
+       the dock; ?view=<name> pins this source to one. ?animate=false holds the
+       pan at its starting point and switches views without a crossfade. -->
+  <body>
+    <header class="title-bar fade_down">
+      <div class="title-atm title-light"></div>
+      <div class="title-atm title-grain"></div>
+      <div class="title-atm title-vignette"></div>
+      <div class="title-orb title-orb-1"></div>
+      <div class="title-orb title-orb-2"></div>
+      <div class="title-orb title-orb-3"></div>
+      <div class="title-text">
+        <div class="title-main"><span class="text"></span></div>
+        <div class="title-sub"><span class="text"></span></div>
+      </div>
+    </header>
+
+    <main class="viewport fade"></main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/o/shared/overlay-client.js"></script>
+    <script src="/o/bracket/layout.js"></script>
+    <script src="/o/bracket/bracket.js"></script>
+  </body>
+</html>

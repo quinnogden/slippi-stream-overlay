@@ -2,8 +2,7 @@
    Active theme pack.
 
    This file is a SWITCH, not a theme. All tokens, fonts and brand
-   imagery live in layout/themes/<pack>/theme.css, and every url()
-   in a pack resolves relative to that file — so a pack is a
+   imagery live in overlays/themes/<pack>/theme.css — a pack is a
    self-contained folder you can copy to start a new event.
 
    Every pack lives under themes/ at once; this line picks the one
@@ -11,9 +10,9 @@
    below, then refresh the OBS browser sources. Switch it back when
    the event is over — nothing else will remind you.
 
-   Loaded by main.css:1, which every layout links.
-   slippi-bridge/scripts/preflight.js parses the @import to verify
-   the named pack is actually present.
+   Served at /o/theme.css and @imported by /o/shared/overlay.css,
+   which every overlay links. tests/overlays-static.test.js follows
+   this @import down to the pack and checks its logo urls resolve.
    ============================================================ */
 
 @import url("./themes/hundred-acres/theme.css");

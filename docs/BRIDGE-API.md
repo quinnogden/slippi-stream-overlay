@@ -10,11 +10,11 @@ For what TSH exposes *to* the bridge, see the TSH HTTP API section of [CLAUDE.md
 
 ## Overlay channel — `/overlay` and `/dock` (branch `tsh-replacement`)
 
-The overlays the app serves itself (`/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`) connect to the `/overlay` namespace through [overlays/shared/overlay-client.js](../overlays/shared/overlay-client.js); the dock will use `/dock` (M6). Built in [lib/overlay/channel.js](../slippi-bridge/lib/overlay/channel.js).
+Every overlay is the app's own on this branch — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/side-panel`, `/o/bracket`, `/o/highlights` — and all but highlights (which never connects) use the `/overlay` namespace through [overlays/shared/overlay-client.js](../overlays/shared/overlay-client.js); the dock will use `/dock` (M6). Built in [lib/overlay/channel.js](../slippi-bridge/lib/overlay/channel.js).
 
 | Event | Direction | Payload |
 |---|---|---|
-| `state:full` | app → page | The store's snapshot: `{ v, rev, tournament, scoreboard, casters, view }`. Sent on connect and on request |
+| `state:full` | app → page | The store's snapshot: `{ v, rev, tournament, scoreboard, casters, view, bracket }`. Sent on connect and on request |
 | `state:patch` | app → page | `{ from, rev, ops: [{ path, value }] }` — whole top-level sections. One per tick, however many store commands ran in it |
 | `state:resync` | page → app | No payload. Asks for `state:full` |
 | `game:start` / `game:end` | app → both | The `slippi_game_start` / `slippi_game_end` payloads below |
@@ -25,15 +25,38 @@ The overlays the app serves itself (`/o/scoreboard`, `/o/scoreboard/players`, `/
 - **`from` is what keeps a source honest.** A page applies a patch only when `from` ≤ its own rev. A larger `from` means it missed one, and it must send `state:resync` rather than apply it: every later patch carries only the sections that changed, so a source that missed one would otherwise show the old score indefinitely while looking healthy. A patch whose `rev` it already has (it connected mid-burst, and its `state:full` was newer) is ignored. `state:full` is always taken, even at a lower rev — the app may have restarted. `tests/overlay-patch.test.js` pins all three.
 - **Selectors run on change only.** `ov.select(path, fn)` compares the JSON at `path`, so a casters edit doesn't re-run, and re-animate, the scoreboard.
 - **Sticky events.** A page that connects mid-game gets `game:start` (dropped at `game:end`, a handwarmer's included) and the last `stats`; the dock also gets the last `status`.
-- **The feature modules don't know about the channel.** They still emit their original names through `ctx.io`, which is the channel's `emit()`. It sends each on the default namespace too, for the control panel and the TSH-era side panel, which haven't moved yet.
-- **Overlay urls are absolute** (`/o/shared/overlay.css`), so a source works with or without a trailing slash. Every stylesheet sits one level under `/o/`, because a theme pack's `--logo-url` resolves against the stylesheet that uses it. The theme switch and packs are served from the TSH `layout/` folder until M5. `tests/overlays-static.test.js` resolves every page's urls through the server's own tables.
+- **The feature modules don't know about the channel.** They still emit their original names through `ctx.io`, which is the channel's `emit()`. It sends each on the default namespace too, for the control panel, which hasn't moved yet.
+- **Overlay urls are absolute** (`/o/shared/overlay.css`), so a source works with or without a trailing slash. Every stylesheet sits one level under `/o/`, because a theme pack's `--logo-url` resolves against the stylesheet that uses it. The theme switch is `overlays/theme.css` (`/o/theme.css`) and the packs are `overlays/themes/<pack>/`. `tests/overlays-static.test.js` resolves every page's urls through the server's own tables.
+
+### The `bracket` section
+
+What the bracket overlay draws, published by [lib/event/bracket-feed.js](../slippi-bridge/lib/event/bracket-feed.js) from the event service's reads. `null` with no event loaded. **Not saved** with the rest of the state — it is re-read from start.gg on boot — so a bracket refresh never writes `live-state.json`.
+
+```js
+{
+  phaseGroupId: "3441449",         // the group shown: view.bracketPhaseGroupId if set, else the
+  label: "Bracket",                //   on-air set's, else the furthest running one
+  phaseName, bracketType, eventName, tournamentName,
+  groups: [ { id, label } ],       // every group of the event, for the dock's picker
+  preview: false,                  // the event hasn't started: sets are preview_… placeholders
+  sets: { [id]: { … } },           // bracket-model.buildBracket's set nodes (side, round, name, state,
+                                   //   completedAt, winner, conditional, slots[{ entrantId, seed,
+                                   //   score, dq, from }]) — the on-air set carries its LIVE score
+  entrants: { [id]: { name, seed, players: [{ playerId, tag, prefix }],
+                      character } },   // singles only: Slippi's for the two on air, else the DB main
+  rounds: [ … ],
+  views: { winners, losers, top8, top16, full },  // each { rounds, setIds, fedFromOutside }
+}
+```
+
+The layout (card positions, connectors) is computed in the page by [overlays/bracket/layout.js](../overlays/bracket/layout.js), because it depends on the fit scale. Which view a source shows is `view.bracketView` (`POST /api/bracket-view`), unless its url pins one with `?view=`.
 - **Start the app before OBS**, or refresh the sources: a browser source whose page failed to load doesn't retry. Once a page has loaded, it survives app restarts, because socket.io reconnects and is sent `state:full`.
 
 ---
 
 ## Socket.io events (bridge → browser)
 
-Clients connect to `http://localhost:5001`. On connect, the bridge immediately replays `slippi_game_start` (if a game is live), `control_status` and `player_stats`, so a browser source that loads mid-set is never blank waiting for the next event.
+Clients connect to `http://localhost:5001`. On this branch the only client left on the default namespace is the control panel, so on connect the app replays just `control_status`; the overlays get their replays from the channel above.
 
 ### `slippi_game_start`
 
@@ -99,8 +122,8 @@ The side panel's player cards, head-to-head and Just Finished, from start.gg (`l
 
 ```js
 {
-  enabled: true,                   // false = no start.gg token: nothing else is filled in,
-                                   // and the layout must use TSH's own stats instead
+  enabled: true,                   // false = no start.gg token: no players / h2h. completedSets
+                                   // still comes through — it is the event service's own reads
   event: { id: "1700988", slug: "tournament/…/event/…", name: "Melee Singles", singles: true },  // or null
   players: {                       // keyed by start.gg PLAYER id (string) — never by column
     "1097": {
@@ -131,10 +154,11 @@ The side panel's player cards, head-to-head and Just Finished, from start.gg (`l
 
 Consumer rules — each is a way to put a healthy-looking wrong number on stream:
 
-- **Orient by id, every render.** Match `players` / `h2h.players` against the start.gg ids TSH shows in each column *now* (`score.<N>.team.<n>.player.1.id`, which is `[playerId, userId]`). Never cache a left/right orientation: Swap Teams moves the players, not the snapshot.
-- **An `h2h` for any other pair is not this pair's.** Loading a set is several TSH writes and the bridge answers seconds later, so a snapshot for the *previous* pair is routinely current while the new names are already up. Show nothing until `h2h.players` contains both column ids.
-- **`enabled: true` means the bridge is the only source.** Don't fill a `loading` gap with TSH's `recent_sets` — that head-to-head is the one that was wrong.
+- **Orient by id, every render.** Match `players` / `h2h.players` against the start.gg ids the scoreboard shows in each column *now* (`scoreboard.sides[i].players[0].playerId`). Never cache a left/right orientation: Switch Sides moves the players, not the snapshot.
+- **An `h2h` for any other pair is not this pair's.** The stats answer seconds after a set loads, so a snapshot for the *previous* pair is routinely current while the new names are already up. Show nothing until `h2h.players` contains both column ids.
+- **There is no second source.** A pair still `loading` shows nothing — the TSH head-to-head that used to fill that gap was the one that was wrong.
 - **`scores` can be null** for a winner-only report. Derive W/L from `winner`.
+- **`completedSets`** is the loaded event's finished sets, newest first (12), from the event service's 90s reads — not a query of its own.
 
 ### `control_status`
 
@@ -162,6 +186,10 @@ The full control-panel snapshot. Pushed **every 2 seconds** and on connect. Iden
   tournament: {                    // what TSH's provider actually has loaded
     name: "Hundred Acres #43",     // "" when nothing is loaded
     eventName: "Melee Doubles",
+  },
+  bracketOverlay: {                // branch tsh-replacement: what /o/bracket is showing
+    view: "top8",                  // winners | losers | top8 | top16 | full
+    group: "Bracket",              // the phase group's label, or null with no event
   },
   shortLink: "100-acres",          // config.BRACKETS.shortLink, for the panel's label
   startggEnabled: true,            // a token is configured
@@ -207,7 +235,11 @@ A permissive CORS middleware fronts every route. It exists for exactly one case:
 | `GET` | `/api/player-stats` | The `player_stats` snapshot above — for checking what the side panel is being fed |
 | `GET` | `/api/state` | The overlays' state — the same object `state:full` sends |
 | `GET` / `POST` | `/api/casters` | `{ casters: [{ tag, prefix, pronoun, twitter }] }`, up to 4. An empty tag hides that caster's card |
+| `POST` | `/api/bracket-view` | `{ view?, phaseGroupId? }` — what every bracket source not pinned with `?view=` shows. `phaseGroupId: null` goes back to following the set on air. 400 for an unknown view or a group not in the loaded event |
 | `GET` | `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters[?i=N]` | The OBS browser sources. `?animate=false` skips the entrances |
+| `GET` | `/o/side-panel[?panel=<id>]` | The 611×1080 panel beside the cam. `?panel=` holds one panel (for styling) |
+| `GET` | `/o/bracket[?view=…]` | The bracket. Follows the dock's view unless `?view=` pins it |
+| `GET` | `/o/highlights` | The replay-scene frame. Keeps `?clip= ?cam= ?camx= ?pad= ?guides=1` |
 | `GET` | `/api/clipper` | `{ settings, obs, recentClips, clipsThisGame, supported }` |
 | `POST` | `/api/clipper/settings` | Validate, clamp, persist to `clipper-settings.json`, apply live |
 | `POST` | `/api/clipper/toggle` | `{ enabled }` — master switch, applied immediately |

@@ -1,0 +1,262 @@
+/* ============================================================
+   bracket.css — the bracket overlay (1920 × 1080)
+
+   A title plate, and under it a viewport holding one "board": the
+   bracket at its natural (1080p) size, scaled to fit by bracket.js
+   and panned when even the legibility floor doesn't fit. Card and
+   row sizes come from layout.js's METRICS through the custom
+   properties bracket.js sets on each board — change them there.
+
+   Theme tokens only, so the active pack re-skins it.
+   ============================================================ */
+
+* { box-sizing: border-box; }
+
+body {
+  width: 1920px;
+  height: 1080px;
+  font-family: var(--font);
+  color: var(--text-color);
+  transition: opacity 0.8s ease-out;
+}
+body.no-animate { transition: none; }
+
+/* ── Title plate ─────────────────────────────────────────────── */
+
+.title-bar {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  --base-transform: translateX(-50%);
+  transform: var(--base-transform);
+  min-width: 620px;
+  max-width: 1500px;
+  height: 92px;
+  padding: 0 56px;
+  background: var(--score-bg-color);
+  border-radius: var(--border-radius);
+  border: 1px solid rgba(var(--text-color-rgb), 0.12);
+  box-shadow: var(--shadow-raised);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Graduated gold accent along the top inner edge. */
+.title-bar::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 12%; right: 12%;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, var(--darkened-text) 18%,
+    var(--text-color) 50%, var(--darkened-text) 82%, transparent);
+  opacity: 0.55;
+  z-index: 3;
+}
+
+/* Orb geometry is ours; the layers and keyframes are atmosphere.css's. */
+.title-orb-1 { width: 240px; height: 240px; top: -110px; left:  6%; animation: torb1 14s ease-in-out infinite 0s;  }
+.title-orb-2 { width: 190px; height: 190px; top:  -90px; right: 10%; animation: torb2 18s ease-in-out infinite -6s; }
+.title-orb-3 { width: 270px; height: 210px; top: -100px; left: 40%; animation: torb3 11s ease-in-out infinite -3s; }
+
+.title-text {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 100%;
+}
+.title-main, .title-sub { max-width: 100%; display: flex; justify-content: center; }
+.title-main .text {
+  font-size: 44px;
+  line-height: 1.05;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.title-sub .text {
+  font-size: 19px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--darkened-text);
+}
+.title-sub .text.empty { display: none; }
+
+/* ── Viewport and boards ─────────────────────────────────────── */
+
+.viewport {
+  position: absolute;
+  top: 140px;
+  left: 48px;
+  right: 48px;
+  bottom: 28px;
+  overflow: hidden;
+}
+
+/* One per view; a view switch crossfades the old layer out. */
+.layer {
+  position: absolute;
+  inset: 0;
+}
+
+.board {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.links {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+}
+.links path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.links .dim  { stroke: rgba(var(--text-color-rgb), 0.22); stroke-width: 3; }
+.links .glow { stroke: rgba(var(--text-color-rgb), 0.16); stroke-width: 10; }
+.links .lit  { stroke: var(--text-color); stroke-width: 3; }
+
+/* ── Round headers ───────────────────────────────────────────── */
+
+.round-head {
+  position: absolute;
+  width: var(--card-w);
+  height: var(--head-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--darkened-text);
+  white-space: nowrap;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+}
+.round-head::after {
+  content: "";
+  width: 60%;
+  height: 1px;
+  margin-top: 6px;
+  background: linear-gradient(90deg, transparent, rgba(var(--text-color-rgb), 0.35), transparent);
+}
+.round-head .maybe { font-size: 0.7em; opacity: 0.8; letter-spacing: 0.12em; }
+
+/* ── Set cards ───────────────────────────────────────────────── */
+
+.card {
+  position: absolute;
+  width: var(--card-w);
+  height: calc(var(--row-h) * 2);
+  display: flex;
+  flex-direction: column;
+  background: var(--score-bg-color);
+  border: 1px solid rgba(var(--text-color-rgb), 0.14);
+  border-radius: min(var(--border-radius), 12px);
+  box-shadow: var(--shadow-raised);
+  overflow: hidden;
+}
+.card.live  { border-color: rgba(var(--text-color-rgb), 0.55); }
+/* The reset only happens if the losers-side player takes GF 1. */
+.card.maybe { opacity: 0.5; border-style: dashed; box-shadow: none; }
+
+.row {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 8px;
+  font-size: var(--name-size);
+  line-height: 1;
+}
+.row + .row { border-top: 1px solid rgba(var(--text-color-rgb), 0.10); }
+
+.seed {
+  flex: none;
+  width: 1.3em;
+  font-size: 0.5em;
+  text-align: right;
+  color: var(--darkened-text);
+}
+
+.char {
+  flex: none;
+  width: calc(var(--row-h) - 10px);
+  height: calc(var(--row-h) - 10px);
+}
+.char img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+}
+.board.no-chars .char { display: none; }
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.85);
+}
+.name .prefix {
+  color: var(--darkened-text);
+  font-size: 0.68em;
+  margin-right: 0.3em;
+}
+
+/* A losers slot filled by a winners-side loser: where they dropped from. */
+.drop {
+  flex: none;
+  font-size: 0.46em;
+  letter-spacing: 0.08em;
+  color: var(--darkened-text);
+  border: 1px solid rgba(var(--text-color-rgb), 0.28);
+  border-radius: 999px;
+  padding: 0.25em 0.7em;
+}
+
+.score {
+  flex: none;
+  width: calc(var(--row-h) * 1.2);
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--score-font, var(--font));
+  background: rgba(255, 255, 255, 0.04);
+  border-left: 1px solid rgba(var(--text-color-rgb), 0.10);
+}
+
+.row.win .score { background: rgba(var(--text-color-rgb), 0.18); }
+.row.lose { color: var(--darkened-text); }
+.row.lose .char, .row.lose .name { opacity: 0.55; }
+.row.empty .name {
+  font-size: 0.62em;
+  letter-spacing: 0.08em;
+  color: rgba(var(--text-color-rgb), 0.38);
+  text-shadow: none;
+}
+
+/* ── Nothing loaded ──────────────────────────────────────────── */
+
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(var(--text-color-rgb), 0.4);
+}

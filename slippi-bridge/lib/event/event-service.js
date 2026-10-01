@@ -277,6 +277,33 @@ class EventService extends EventEmitter {
     return this._groups.find((g) => g.id === String(phaseGroupId))?.graph ?? null;
   }
 
+  /**
+   * Every phase group in bracket order, with its graph once read. The graphs
+   * are this service's own objects — read them, don't change them.
+   * @returns {Array<{ id, label, phaseName, state, bracketType, graph }>}
+   */
+  groups() {
+    return this._groups.map(({ id, label, phaseName, state, bracketType, graph }) =>
+      ({ id, label, phaseName, state, bracketType, graph }));
+  }
+
+  /** The loaded event: { id, slug, name, singles, tournamentName }, or null. */
+  eventInfo() {
+    if (!this._event) return null;
+    return {
+      id: String(this._event.id ?? ""),
+      slug: this._store.tournament().eventSlug,
+      name: this._event.name ?? "",
+      singles: Number(this._event.type) === 1,
+      tournamentName: this._event.tournament?.name ?? "",
+    };
+  }
+
+  /** Every set read from start.gg, across all phase groups, as start.gg returned them. */
+  rawSets() {
+    return this._groups.flatMap((g) => g.raw);
+  }
+
   /** What GET /api/event shows. */
   snapshot() {
     const t = this._store.tournament();

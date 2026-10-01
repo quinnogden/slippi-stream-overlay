@@ -4,10 +4,7 @@
    Everything the broadcast's look depends on lives in this folder:
    the tokens below, fonts/, logo.png and sponsor.png. To start a
    new event, copy the folder, edit this file, and point the single
-   @import in layout/theme.css at it.
-
-   Activated by that @import. Overrides TSH's injected defaults so
-   the theme is consistent regardless of TSH settings panel changes.
+   @import in overlays/theme.css at it.
    ============================================================ */
 
 /* @import must precede every other rule or it is silently dropped —
@@ -15,9 +12,7 @@
    never actually loaded. */
 @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
 
-/* Self-hosted so a TSH release zip overwriting layout/include/ can't take the
-   brand font with it. include/Baby-Doll.ttf still exists for the vendored
-   overlays that declare their own @font-face against it.
+/* Self-hosted: venue wifi must not be able to drop the brand font.
    This is a normal url(), so it resolves relative to THIS file. */
 @font-face {
   font-family: "BabyDoll";
@@ -35,10 +30,10 @@
   /* Brand imagery. NOTE the "../themes/<pack>/" prefix, and do not "simplify"
      it to "./" — unlike the @font-face above, a url() inside a custom property
      is resolved by Chrome against the stylesheet that USES the var(), not the
-     one that declares it. Every consumer (scoreboard/, side-panel/, bracket/)
-     is exactly one level under layout/, so this one prefix works from all of
-     them. Copying this pack therefore means editing the pack name here too;
-     preflight.js checks that these two paths resolve to real files. */
+     one that declares it. Every overlay stylesheet is exactly one level under
+     /o/, so this one prefix works from all of them. Copying this pack
+     therefore means editing the pack name here too;
+     tests/overlays-static.test.js checks the two paths resolve. */
   --logo-url:       url("../themes/hundred-acres/logo.png");
   --sponsor-url:    url("../themes/hundred-acres/sponsor.png");
 

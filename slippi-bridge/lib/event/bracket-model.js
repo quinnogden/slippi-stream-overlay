@@ -121,6 +121,7 @@ function buildBracket(rawSets, meta = {}) {
       lPlacement: s.lPlacement ?? null,
       wPlacement: s.wPlacement ?? null,
       state: stateOf(s),
+      completedAt: s.completedAt ?? null,
       preview: id.startsWith("preview"),
       dq: slots.some((x) => x.dq) || s.displayScore === "DQ",
       winner,

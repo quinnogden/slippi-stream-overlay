@@ -6,11 +6,11 @@
    OBS source sits BELOW this browser source and shows through the
    holes the frames leave.
 
-   Purely decorative: no TSH state, no bridge events, no JS beyond
-   two URL flags. See highlights.html for why globals.js is absent.
+   Purely decorative: no state, no events, no JS beyond the URL
+   flags. See index.html for why.
 
    Design tokens all come from the active theme pack via
-   main.css → theme.css → themes/<pack>/theme.css:
+   /o/shared/overlay.css → /o/theme.css → themes/<pack>/theme.css:
      --bg-color, --score-bg-color, --text-color, --darkened-text,
      --border-radius, --font, and the *-rgb triplets.
    Nothing here hardcodes a pack colour, so switching packs
@@ -103,8 +103,8 @@ body {
   font-family:  var(--font);
   /* Nothing here is interactive; keep OBS's browser source inert. */
   pointer-events: none;
-  /* NOTE: no `opacity: 0`. Without globals.js nothing would ever fade
-     the body back in. See the comment in highlights.html. */
+  /* overlay.css holds the page at opacity 0; highlights.js reveals it
+     (Overlay.reveal) once the fonts are in, since no state ever arrives. */
 }
 
 
@@ -493,7 +493,8 @@ body {
 
 /* ══════════════════════════════════════════════════════════════
    ?animate=false — freeze motion, keep the look.
-   Same convention as side-panel.css.
+   overlay-client.js adds body.no-animate; overlay.css already stops
+   every CSS animation, and these keep the frozen frame looking right.
    ══════════════════════════════════════════════════════════════ */
 body.no-animate .title-orb {
   animation: none !important;

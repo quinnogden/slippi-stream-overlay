@@ -5,7 +5,7 @@
    promo poster: charcoal canvas, gold ring ropes, oxblood corner
    posts, white fighter names.
 
-   Activated by the @import in layout/theme.css. Everything the
+   Activated by the @import in overlays/theme.css. Everything the
    look depends on is in this folder.
    ============================================================ */
 
@@ -15,7 +15,7 @@
    A normal url(), so it resolves relative to THIS file.
 
    This is the VARIABLE cut, wght axis 100..900, declared across its full range.
-   The layouts ask for several different weights across the 16 overlays, and a
+   The overlays ask for several different weights, and a
    variable face serves each from real outlines — no synthetic bold anywhere,
    and one 157KB file instead of a static cut per weight. Bump the 700 below to
    800 or 900 if the broadcast wants more punch; nothing else has to change. */
@@ -37,7 +37,7 @@
 
   /* Brand imagery. The "../themes/<pack>/" prefix is required: a url() inside
      a custom property resolves against the stylesheet that USES the var(),
-     not this one. Consumers all sit one level under layout/. */
+     not this one. Consumers all sit one level under /o/. */
   --logo-url:       url("../themes/salty-suite/logo.png");
   --sponsor-url:    url("../themes/salty-suite/sponsor.png");
 

@@ -29,6 +29,7 @@ const { createPersist }      = require("./lib/scoreboard/persist");
 const { PortMap }            = require("./lib/ports/port-map");
 const { PlayerDb }           = require("./lib/players/player-db");
 const { EventService }       = require("./lib/event/event-service");
+const { createBracketFeed }  = require("./lib/event/bracket-feed");
 const { createOverlayChannel } = require("./lib/overlay/channel");
 
 const { createState }        = require("./lib/state");
@@ -59,9 +60,8 @@ const persist = createPersist(store, path.join(__dirname, "data", "live-state.js
 if (persist.restore()) console.log("[bridge] Restored the scoreboard from data/live-state.json");
 persist.start();
 
-// Until the TSH folder goes (M8) two things still live in it: the player DB
-// (TSH's local_players.json, the default when PLAYERS_FILE is unset) and the
-// theme packs, which the TSH-era side panel, bracket and highlights read too.
+// Until the TSH folder goes (M8) one thing still lives in it: the player DB
+// (TSH's local_players.json, the default when PLAYERS_FILE is unset).
 const TSH_ROOT    = resolveOrExit(path.resolve(__dirname, ".."), config.TSH_ROOT, "bridge");
 const playersFile = config.PLAYERS_FILE ?? path.join(TSH_ROOT, "user_data", "local_players.json");
 
@@ -89,6 +89,8 @@ const ctx = {
 // The loaded start.gg event: picker, set loads, brackets. Needs the store and
 // the player DB, and the stats pre-fetch from its playable sets.
 ctx.event = new EventService(ctx);
+// …and the bracket overlay's slice of it, published into the store.
+const bracketFeed = createBracketFeed({ event: ctx.event, store, playerDb: ctx.playerDb });
 
 // ── Features ──────────────────────────────────────────────────────────────────
 // Ordered so each only depends on what is already built.
@@ -119,10 +121,7 @@ function swapPorts() {
   return result;
 }
 
-registerOverlays(app, {
-  overlaysDir: path.resolve(__dirname, "..", "overlays"),
-  themeRoot:   path.join(TSH_ROOT, "layout"),
-});
+registerOverlays(app, { overlaysDir: path.resolve(__dirname, "..", "overlays") });
 
 registerRoutes(app, {
   publicDir: path.join(__dirname, "public"),
@@ -141,17 +140,11 @@ registerRoutes(app, {
   playerStatsSnapshot: playerStats.snapshot,
 });
 
-// The default namespace: the control panel and the TSH-era side panel, until
-// they move onto the channel (M5/M6). /overlay and /dock replay their own.
+// The default namespace: only the control panel is left on it, until the dock
+// replaces it (M6). /overlay and /dock replay their own on connect.
 io.on("connection", (socket) => {
-  console.log(`[bridge] Layout connected: ${socket.id}`);
-  if (ctx.state.currentGameState) {
-    socket.emit("slippi_game_start", ctx.state.currentGameState);
-  }
   // Give a freshly-connected control panel the latest status immediately.
   socket.emit("control_status", ctx.state.lastControlStatus);
-  // And a freshly-connected side panel its stats, without waiting for a change.
-  socket.emit("player_stats", playerStats.snapshot());
 });
 
 // Push status to any connected control panel every 2s.
@@ -165,7 +158,7 @@ const clipper = clipperSettings.get();
 console.log("[bridge] Starting slippi-bridge...");
 console.log(`[bridge] Bridge port:    ${config.BRIDGE_PORT}`);
 console.log(`[bridge] Control panel:  http://localhost:${config.BRIDGE_PORT}/control`);
-console.log(`[bridge] Overlays:       http://localhost:${config.BRIDGE_PORT}/o/scoreboard  (also /o/scoreboard/players, /o/casters)`);
+console.log(`[bridge] Overlays:       http://localhost:${config.BRIDGE_PORT}/o/scoreboard  (also /o/scoreboard/players, /o/casters, /o/side-panel, /o/bracket, /o/highlights)`);
 for (const url of lanControlUrls(config)) {
   console.log(`[bridge]   on phone:    ${url}`);
 }
@@ -202,6 +195,7 @@ ctx.state.source.on("highlight",  clipRecorder.onHighlight);
 ctx.obs.applySettings();
 
 ctx.event.start();
+bracketFeed.start();
 playerStats.start();
 
 // Flush pending debounced writes on the way out, so the last score and the last

@@ -3,30 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <title>Highlights</title>
-
-    <!-- main.css @imports theme.css — linking theme.css here as well would
-         refetch every token and the brand TTF a second time. -->
-    <link rel="stylesheet" href="../main.css" />
-    <link rel="stylesheet" href="../shared/atmosphere.css" />
-    <link rel="stylesheet" href="./highlights.css" />
+    <link rel="stylesheet" href="/o/shared/overlay.css" />
+    <link rel="stylesheet" href="/o/shared/atmosphere.css" />
+    <link rel="stylesheet" href="/o/highlights/highlights.css" />
   </head>
 
   <!--
-    ../include/globals.js is DELIBERATELY not loaded.
-
-    This overlay reads no TSH state and no bridge events — it is pure
-    decoration for the replay/break scene — so it needs neither Start() nor
-    Update(), and LoadEverything() would pull jQuery, GSAP, lodash, kuroshiro
-    and socket.io for nothing.
-
-    Consequence, and the trap to avoid: do NOT copy `opacity: 0` from
-    scoreboard/index.css onto this body. That rule depends on globals.js's
-    UpdateWrapper calling $("body").fadeTo(...) once TSH pushes its first
-    state. With no globals.js nothing ever fades it back in, and the layout
-    stays permanently invisible — a failure that only shows up on stream.
-
-    ../shared/tsh-assets.js and ../shared/slippi-bridge-client.js are absent
-    for the same reason: there is nothing here for them to do.
+    Decoration only, deliberately: nothing knows which clip the replay
+    playlist is showing, so any on-screen credit would be wrong as often as
+    right. No state, no events, no socket — overlay-client.js is loaded only
+    for its page reveal and ?animate=false. highlights.js reveals the page
+    itself; overlay.css holds every overlay at opacity 0 until something does.
   -->
   <body>
 
@@ -42,12 +29,10 @@
 
     <!-- ── Title plate ─────────────────────────────────────────────── -->
     <div class="title-plate">
-      <!-- Atmospheric depth (behind everything in the plate) -->
       <div class="title-atm title-light"></div>
       <div class="title-atm title-grain"></div>
       <div class="title-atm title-vignette"></div>
 
-      <!-- Ambient orbs -->
       <div class="title-orb title-orb-1"></div>
       <div class="title-orb title-orb-2"></div>
       <div class="title-orb title-orb-3"></div>
@@ -73,6 +58,7 @@
     <div class="frame frame-cam cam-l" data-label="CAM L"></div>
     <div class="frame frame-cam cam-r" data-label="CAM R"></div>
 
-    <script src="highlights.js"></script>
+    <script src="/o/shared/overlay-client.js"></script>
+    <script src="/o/highlights/highlights.js"></script>
   </body>
 </html>

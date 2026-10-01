@@ -19,16 +19,16 @@ Preflight covers config, dependencies, the TSH install, the four `general` setti
 
 ```bash
 node tests/run.js                              # everything, no deps, ~2s
-node tests/side-panel-rotation.test.js         # one file, with detail
+node tests/side-panel.test.js                  # one file, with detail
 node tests/combo-detector.test.js              # run after touching the clipper's thresholds
-node tests/layout-static.test.js -v            # every individual check
+node tests/overlays-static.test.js             # every overlay url resolves (branch tsh-replacement)
 ```
 
 [`tests/`](../tests/README.md) holds the few failures worth automating: the ones that are **invisible until they are on stream**, where the manual reproduction step is "run a tournament". Today that's static integrity of the layouts (parse errors, dead `<script src>`, unwired `shared/` helpers) and of the control panel (a missing element id freezes the dock), the side panel's rotation under a burst of TSH state pushes, the combo clipper's qualifying thresholds, the bracket buttons' event matching, the Start Set button's per-set caching, and the Re-detect Players port re-derivation. [tests/README.md](../tests/README.md) has a line on each saying what it protects and why that failure is expensive.
 
-It is not a general test suite and shouldn't grow into one — everything else on this page is still the way to check a change. But if you fix a layout bug that only showed up live, that is exactly the kind of thing that belongs in `tests/`; `tests/helpers/layout-sandbox.js` will load any layout script headlessly, and [tests/README.md](../tests/README.md) documents the four sandbox gotchas.
+It is not a general test suite and shouldn't grow into one — everything else on this page is still the way to check a change. But if you fix an overlay bug that only showed up live, that is exactly the kind of thing that belongs in `tests/`; `tests/helpers/overlay-sandbox.js` runs any overlay page headlessly against the real channel, and [tests/README.md](../tests/README.md) documents its gotchas.
 
-**Do not hand-write TSH state for a new test.** Clone `tests/fixtures/program-state.json` and mutate it. The slot predicates dig into `history_sets` / `last_sets` / `recent_sets` / `streamQueue` in non-obvious shapes, and invented state silently fails every predicate — which produces a test that passes because it exercised nothing.
+**Do not hand-write state for a new test.** Build it with the app's own models from a captured tournament (`tests/fixtures/startgg/`). Invented state silently fails every predicate — which produces a test that passes because it exercised nothing.
 
 ---
 
@@ -164,7 +164,7 @@ Note the toast is deliberately unreachable from the browser console — the layo
 
 - `DEBUG_PANEL` at the top of `side-panel.js` locks rotation to one slot — the fastest way to iterate on a single card. **It must be `null` in anything committed.**
 - `?animate=false` disables the ambient animation.
-- After touching `Rotator`, run `node tests/side-panel-rotation.test.js` first — it drives the two bursts that actually break it (loading a set, Swap Teams) without needing a bracket.
+- After touching `Rotator`, run `node tests/side-panel.test.js` first — it drives the bursts that actually break it (loading a set, Switch Sides) without needing a bracket.
 - Rotation bugs show up two ways. *Acceleration*: panels advancing faster than `PANEL_INTERVAL` means a stale GSAP timeline survived a rebuild — leave it running for several minutes. *Flashing*: the logo appearing several times in a row right after a set load means something restarts the rotation on a slot-list change again (`restart()` rotates from the top, and slot 0 is always the logo). The second is covered by the test above; the first still needs eyes on it.
 - The header reads `out/tournamentInfo/tournamentName.txt`, so it needs TSH running with a `TOURNAMENT_URL`, not the bridge.
 

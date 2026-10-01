@@ -1,7 +1,7 @@
 /* ============================================================
-   side-panel.css — Right-side OBS overlay panel (611 × 1080)
-   body { background: transparent } — cam source shows through
-   Design tokens from theme.css:
+   side-panel.css — the panel beside the webcam (611 × 1080)
+   body { background: transparent } — the cam source shows through
+   Design tokens from the theme pack (via /o/shared/overlay.css):
      --bg-color, --score-bg-color, --text-color, --darkened-text,
      --border-radius, --font
    ============================================================ */
@@ -32,7 +32,10 @@ body {
   overflow:    hidden;
   font-family: var(--font);
   position:    relative;
+  /* overlay.css holds the page at opacity 0 until the first state is drawn. */
+  transition:  opacity 1s ease-out;
 }
+body.no-animate { transition: none; }
 
 
 /* ══════════════════════════════════════════════════════════════
@@ -430,9 +433,9 @@ body {
     saturate(1.08);
 }
 
-/* Brand imagery from the active theme pack. The pack declares these as url()
-   values, and CSS resolves them against the pack's own theme.css — which is
-   why these stay in CSS rather than being assigned as an <img src> from JS. */
+/* Brand imagery from the active theme pack. A url() in a custom property
+   resolves against THIS stylesheet (one level under /o/, as the pack expects)
+   — which is why these stay in CSS rather than an <img src> set from JS. */
 .logo-primary {
   background-image: var(--logo-url);
   --brand-filter:   var(--logo-filter, none);
@@ -450,7 +453,7 @@ body {
   z-index:  3;
 }
 
-/* Base panel — hidden by default, GSAP controls opacity/scale */
+/* Base panel — hidden by default; side-panel.js animates opacity/scale */
 .info-panel {
   position:   absolute;
   inset:      0;
@@ -859,27 +862,13 @@ body {
 #panel-completed-sets .set-score   { font-size: clamp(26px, 36cqh, 48px); }
 #panel-completed-sets .pill-name   { font-size: clamp(24px, 36cqh, 48px); }
 
-/* ── Queue panel ──────────────────────────────────────────── */
-.queue-pill {
-  justify-content: space-between;
-  align-items:     center;
-  gap:             8px;
-}
-
-#panel-queue .queue-round {
-  flex-shrink: 0;
-  text-align:  center;
-  font-size:   clamp(13px, 18cqh, 22px);
-}
-
 /* ── List containers (hold dynamically generated pills) ──── */
 /* Each list is a flex column that stretches to fill remaining
    space in the panel. Pills inside each list also flex: 1. */
 .history-list,
 .run-list,
 .sets-list,
-.completed-list,
-.queue-list {
+.completed-list {
   display:        flex;
   flex-direction: column;
   gap:            8px;
@@ -891,8 +880,8 @@ body {
 
 /* ── Clip-saved toast ─────────────────────────────────────────
    Rests just below the bottom card's bottom edge (clipped by its
-   overflow:hidden) and is slid up into view by GSAP. Positioned rather than
-   in flow so it never disturbs the rotating panels underneath. */
+   overflow:hidden) and is slid up into view by side-panel.js. Positioned
+   rather than in flow so it never disturbs the rotating panels underneath. */
 .clip-toast {
   position:    absolute;
   left:        50%;
@@ -913,8 +902,8 @@ body {
     0 2px 6px  rgba(0,0,0,0.4),
     inset 0 1px 0 rgba(255,255,255,0.07);
 
-  /* Resting state. GSAP animates transform/opacity from here; keeping the
-     -50% X in the same transform avoids it being clobbered mid-tween. */
+  /* Resting state. The animation runs transform/opacity from here; its
+     keyframes repeat the -50% X so the centring holds mid-slide. */
   transform: translate(-50%, 160%);
   opacity:   0;
 }

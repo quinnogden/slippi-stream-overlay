@@ -62,6 +62,10 @@
        than the pair needs. */
     .btn-row { display: flex; flex-wrap: wrap; gap: 6px; }
     .btn-row > button { flex: 1 1 140px; }
+    /* One-of-five: the bracket overlay's view. */
+    .seg { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+    .seg > button { flex: 1 1 60px; }
+    .seg > button.on { background: #223a5e; border-color: var(--info); color: #fff; }
     .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: .04em; }
     .b-name { background: rgba(53,194,106,.18); color: var(--ok); }
     .b-character, .b-score { background: rgba(74,157,240,.18); color: var(--info); }
@@ -234,6 +238,15 @@
                     title="Load this week's doubles event">Doubles Bracket</button>
           </div>
           <div class="hint" id="bracket-hint">—</div>
+          <!-- What every bracket overlay source (not pinned with ?view=) shows. -->
+          <div class="seg" id="bracket-views">
+            <button class="compact" data-view="winners">Winners</button>
+            <button class="compact" data-view="losers">Losers</button>
+            <button class="compact" data-view="top8">Top 8</button>
+            <button class="compact" data-view="top16">Top 16</button>
+            <button class="compact" data-view="full">Full</button>
+          </div>
+          <div class="hint" id="bracket-view-hint"></div>
         </div>
       </div>
 
@@ -459,6 +472,12 @@
           ? "Live: " + (tn.name ? tn.name + " — " : "") + tn.eventName
           : "No bracket loaded — press Singles or Doubles.");
       }
+
+      const bo = s.bracketOverlay || {};
+      document.querySelectorAll("#bracket-views button").forEach((b) => {
+        b.classList.toggle("on", b.dataset.view === bo.view);
+      });
+      $("bracket-view-hint").textContent = bo.group ? "Overlay showing: " + bo.group : "";
 
       renderClipper(s.clipper);
 
@@ -767,6 +786,16 @@
     }
 
     BRACKET_BUTTONS.forEach((id) => { $(id).onclick = () => switchBracket($(id).dataset.kind); });
+
+    // The bracket overlay's view. The overlay crossfades on its own; the
+    // highlight is set now and re-read from the next status push.
+    document.querySelectorAll("#bracket-views button").forEach((b) => {
+      b.onclick = async () => {
+        const r = await api("/api/bracket-view", "POST", { view: b.dataset.view });
+        if (!r.ok) return toast("View switch failed: " + r.error, false);
+        document.querySelectorAll("#bracket-views button").forEach((x) => x.classList.toggle("on", x === b));
+      };
+    });
 
     // ── Actions ──
     $("btn-swap").onclick = () => act("/api/swap", "Ports swapped", "Swap failed");

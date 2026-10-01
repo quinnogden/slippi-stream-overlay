@@ -1,10 +1,9 @@
 /* ============================================================
    highlights.js — geometry + URL flags for the replay-scene overlay.
 
-   That is the whole job. This layout reads no TSH state and no
-   bridge events, so there is no LoadEverything(), no Start(), no
-   Update() and no Socket.io here — see the comment block in
-   highlights.html for why globals.js is deliberately absent.
+   That is the whole job. This overlay reads no state and no events,
+   so it never connects — see the comment in index.html. It reveals
+   itself (overlay.css holds every overlay at opacity 0 until then).
 
      ?clip=x,y,w,h    move/resize the clip window
      ?cam=y,w,h       both cams' vertical position and size
@@ -12,7 +11,7 @@
      ?pad=clip,cam    plate thickness
 
      ?animate=false   freeze the title orbs and the sheen sweep
-                      (same convention as side-panel.js)
+                      (overlay-client.js handles it, as for every overlay)
      ?guides=1        outline each frame's transparent hole and
                       label it with its measured rect, to check the
                       OBS source transforms underneath
@@ -54,10 +53,6 @@
       root.style.setProperty(name, value + "px");
     });
   });
-
-  if (params.get("animate") === "false") {
-    document.body.classList.add("no-animate");
-  }
 
   var guides = params.has("guides");
   if (guides) document.body.classList.add("guides");
@@ -115,4 +110,6 @@
       "   " + Math.round(left) + ", " + Math.round(top) +
       "   " + Math.round(right - left) + " × " + Math.round(bottom - top);
   });
+
+  Overlay.reveal();
 })();

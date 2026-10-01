@@ -7,7 +7,9 @@
  * page's urls are resolved through lib/server/overlays.js's own tables (the
  * ones the app serves from), not checked against the folder layout by hand.
  *
- * Also: every overlay script parses, the scripts load in the order they need,
+ * Also: every overlay script parses, the scripts load in the order they need
+ * (a page that connects loads socket.io first, and everything after the
+ * overlay client),
  * every stylesheet sits one level under /o/ (a theme pack's --logo-url is
  * resolved against the stylesheet using it), and the icon url the overlays
  * build names a real file for every character and costume.
@@ -19,15 +21,11 @@ const path   = require("path");
 const vm     = require("vm");
 
 const { PAGES, resolveOverlayPath } = require("../slippi-bridge/lib/server/overlays");
-const { resolveTshRoot } = require("../slippi-bridge/lib/tsh-root");
 const { CHAR_MAP } = require("../slippi-bridge/lib/char_map");
 const Overlay = require("../overlays/shared/overlay-client");
 
 const REPO = path.join(__dirname, "..");
-const roots = {
-  overlaysDir: path.join(REPO, "overlays"),
-  themeRoot: path.join(resolveTshRoot(REPO, null), "layout"),
-};
+const roots = { overlaysDir: path.join(REPO, "overlays") };
 const SOCKET_IO = "/socket.io/socket.io.js"; // served by socket.io itself
 
 let failed = 0;
@@ -88,13 +86,19 @@ test("every script and stylesheet a page links resolves, whichever way OBS was g
   }
 });
 
-test("scripts load socket.io, then the overlay client, then the page", () => {
+test("scripts load socket.io (if the page connects), then the overlay client, then the page", () => {
   for (const url of Object.keys(PAGES)) {
     const { scripts } = pageRefs(url);
-    assert.strictEqual(scripts[0], SOCKET_IO, `${url}: socket.io first`);
-    assert.strictEqual(scripts[1], "/o/shared/overlay-client.js", `${url}: overlay client second`);
-    assert.ok(scripts.length >= 3, `${url}: no page script`);
+    const own = scripts.filter((s) => s !== SOCKET_IO && s !== "/o/shared/overlay-client.js");
+    const connects = own.some((s) => /Overlay\.connect\(/.test(read(s)));
+    if (connects) assert.strictEqual(scripts[0], SOCKET_IO, `${url}: connects, so socket.io must load first`);
+    assert.strictEqual(scripts[connects ? 1 : 0], "/o/shared/overlay-client.js", `${url}: overlay client before the page's own scripts`);
+    assert.ok(own.length >= 1, `${url}: no page script`);
   }
+});
+
+test("highlights, which never connects, reveals itself (overlay.css hides every page until then)", () => {
+  assert.match(read("/o/highlights/highlights.js"), /Overlay\.reveal\(\)/);
 });
 
 test("every stylesheet sits one level under /o/, so a pack's --logo-url resolves", () => {

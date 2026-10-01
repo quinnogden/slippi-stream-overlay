@@ -21,6 +21,11 @@
  *     never disagree with the scoreboard, and a switch of sides flips both at
  *     once by construction.
  *
+ * The `bracket` section is the exception to "the store owns it": the event
+ * service publishes the graph the bracket overlay draws (setBracket), and it
+ * is not saved — it is re-read from start.gg on boot. It lives here so the
+ * overlays get one state with one rev.
+ *
  * Events (beyond `change`), for the modules that react to the scoreboard:
  *   `set-loaded`     a different set (or a cleared one) is now on the scoreboard
  *   `sides-switched` the two sides traded columns
@@ -30,6 +35,9 @@ const { EventEmitter } = require("events");
 const { bestOfLabel, losersMarks } = require("./set-text");
 
 const STATE_VERSION = 1;
+
+// What persist.js saves. `bracket` is derived from start.gg and re-read on boot.
+const PERSISTED = ["tournament", "scoreboard", "casters", "view"];
 
 const emptyPlayer = () => ({ playerId: null, tag: "", prefix: "", pronoun: "", main: null, character: null });
 const emptySide = () => ({ entrantId: null, seed: null, teamName: "", color: null, fromLosers: false, players: [emptyPlayer()] });
@@ -66,7 +74,9 @@ class ScoreboardStore extends EventEmitter {
     this._set = emptySet();
     this._tournament = emptyTournament();
     this._casters = [];
-    this._view = { bracketView: "top8" };
+    // bracketPhaseGroupId null = follow the set on the scoreboard (bracket-feed.js)
+    this._view = { bracketView: "top8", bracketPhaseGroupId: null };
+    this._bracket = null;
   }
 
   get rev() { return this._rev; }
@@ -98,12 +108,15 @@ class ScoreboardStore extends EventEmitter {
   tournament() { return clone(this._tournament); }
   casters() { return clone(this._casters); }
   view() { return clone(this._view); }
+  /** What the bracket overlay draws (bracket-feed.js), or null with no event. */
+  bracket() { return clone(this._bracket); }
 
   /** Everything the overlays get, keyed by section. */
   snapshot() {
     return {
       v: STATE_VERSION, rev: this._rev,
       tournament: this.tournament(), scoreboard: this.scoreboard(), casters: this.casters(), view: this.view(),
+      bracket: this.bracket(),
     };
   }
 
@@ -326,6 +339,25 @@ class ScoreboardStore extends EventEmitter {
     this._changed(["view"]);
   }
 
+  /** Which phase group the bracket overlay shows; null = the one the set on air is in. */
+  setBracketPhaseGroup(id) {
+    const next = id == null || id === "" ? null : String(id);
+    if (this._view.bracketPhaseGroupId === next) return;
+    this._view.bracketPhaseGroupId = next;
+    this._changed(["view"]);
+  }
+
+  /**
+   * The bracket overlay's data, from bracket-feed.js. A refresh that changed
+   * nothing (the usual 90s poll) is not a change.
+   */
+  setBracket(data) {
+    const next = data ?? null;
+    if (JSON.stringify(next) === JSON.stringify(this._bracket)) return;
+    this._bracket = clone(next);
+    this._changed(["bracket"]);
+  }
+
   // ── Persistence ─────────────────────────────────────────────────────────────
 
   /** What persist.js saves — the raw (underived) state. */
@@ -377,4 +409,4 @@ function sameChar(a, b) {
   return a.codename === b.codename && Number(a.skin) === Number(b.skin);
 }
 
-module.exports = { ScoreboardStore, STATE_VERSION };
+module.exports = { ScoreboardStore, STATE_VERSION, PERSISTED };

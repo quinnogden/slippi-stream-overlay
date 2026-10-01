@@ -13,21 +13,24 @@
  * there is no half-loaded pair to wait out — TSH wrote a set load as several
  * separate writes, the first pairing the new player 1 with the old player 2.
  *
- * Players in the event's next playable sets are pre-fetched while idle (the
- * event service lists them), so a first-timer's history is usually saved
- * before their set is on air.
+ * The loaded event's finished sets come from the event service's own reads
+ * (every set of every phase group, refreshed every 90s and after a report),
+ * so they cost no request of their own and need no token. Players in the
+ * event's next playable sets are pre-fetched while idle (the event service
+ * lists them), so a first-timer's history is usually saved before their set
+ * is on air.
  *
- * Emits `player_stats` on every change and to each new connection. When no
- * start.gg token is configured it emits `{ enabled: false }` once and does
- * nothing else.
+ * Emits `player_stats` on every change and to each new connection. Without a
+ * start.gg token `enabled` is false: no player cards or head-to-head, but the
+ * finished sets still come through.
  */
 
 const path = require("path");
 const { SetHistoryStore } = require("./set-history");
-const { setDetailsQuery, playerCardsQuery, eventOverviewQuery } = require("./queries");
+const { setDetailsQuery, playerCardsQuery } = require("./queries");
 const N = require("./normalize");
 
-const EVENT_POLL_MS    = 90000;  // the same cadence the panel used against TSH
+const COMPLETED_SHOWN  = 12;
 const HISTORY_FRESH_MS = 120000; // a pair reloaded within this skips the top-up
 const RETRY_MS         = 60000;
 const REPORT_DELAY_MS  = 4000;   // start.gg takes a moment to reflect a report
@@ -63,7 +66,6 @@ function createPlayerStats(ctx, opts = {}) {
   let retryTimer = null;
 
   let eventSlug = null;
-  let eventTimer = null;
   let queued = [];      // player ids waiting to be pre-fetched
 
   const details = new Map(); // set id → detail node; finished sets don't change
@@ -92,10 +94,7 @@ function createPlayerStats(ctx, opts = {}) {
   function evaluate() {
     const t = readTarget();
 
-    if (t.slug !== eventSlug) {
-      eventSlug = t.slug;
-      refreshEvent();
-    }
+    eventSlug = t.slug;
 
     const key = pairKey(t);
     if (key === loadedKey) return;
@@ -216,32 +215,21 @@ function createPlayerStats(ctx, opts = {}) {
 
   // ── The loaded event ───────────────────────────────────────────────────────
 
-  async function refreshEvent() {
-    clearTimeout(eventTimer);
-    eventTimer = setTimeout(refreshEvent, EVENT_POLL_MS);
-
-    const slug = eventSlug;
-    if (!slug) {
-      snap.event = null;
-      snap.completedSets = { state: "none", sets: [] };
+  /** The event service read (or lost) the event: its finished sets, and who's next. */
+  function onEvent() {
+    const info = eventService?.eventInfo() ?? null;
+    const status = eventService?.status().state;
+    const next = {
+      event: info && { id: info.id, slug: info.slug, name: info.name, singles: info.singles },
+      completedSets: !info ? { state: "none", sets: [] }
+        : status === "error" && snap.completedSets.state !== "done" ? { state: "error", sets: [] }
+        : { state: "done", sets: N.completedFromEventSets(eventService.rawSets()).slice(0, COMPLETED_SHOWN) },
+    };
+    if (JSON.stringify(next) !== JSON.stringify({ event: snap.event, completedSets: snap.completedSets })) {
+      Object.assign(snap, next);
       emit();
-      return;
     }
-
-    const res = await startgg.backgroundQuery(eventOverviewQuery(slug));
-    if (slug !== eventSlug) return;
-    if (!res.ok || !res.data?.ev) {
-      log(`event ${slug}: ${res.ok ? "start.gg doesn't recognise it" : res.error}`);
-      snap.completedSets = { ...snap.completedSets, state: "error" };
-      emit();
-      return;
-    }
-
-    const ev = res.data.ev;
-    snap.event = { id: String(ev.id), slug, name: ev.name ?? "", singles: ev.type === 1 };
-    snap.completedSets = { state: "done", sets: N.completedFromEventSets(ev.sets?.nodes) };
-    emit();
-    queuePlayable();
+    if (startgg.enabled) queuePlayable();
   }
 
   /** The players in the next playable sets, from the event service. */
@@ -278,16 +266,16 @@ function createPlayerStats(ctx, opts = {}) {
 
   return {
     start() {
+      eventService?.on("change", onEvent);
+      onEvent();
       if (!startgg.enabled) return; // the snapshot already says enabled: false
       scoreboard.on("change", onStoreChange);
-      eventService?.on("change", queuePlayable);
       evaluate();
     },
 
     stop() {
       scoreboard.off("change", onStoreChange);
-      eventService?.off("change", queuePlayable);
-      clearTimeout(eventTimer);
+      eventService?.off("change", onEvent);
       clearTimeout(retryTimer);
     },
 
@@ -295,8 +283,9 @@ function createPlayerStats(ctx, opts = {}) {
     snapshot: () => snap,
 
     /**
-     * A set was reported: the pair's run, their head-to-head and the event's
-     * finished sets all just changed. Reload after start.gg has caught up.
+     * A set was reported: the pair's run and their head-to-head just changed.
+     * Reload after start.gg has caught up. (The event's finished sets follow
+     * the event service's own re-read.)
      */
     onSetReported() {
       if (!startgg.enabled) return;
@@ -304,7 +293,6 @@ function createPlayerStats(ctx, opts = {}) {
         forceSync = true;
         loadedKey = null;
         evaluate();
-        refreshEvent();
       }, REPORT_DELAY_MS);
     },
   };

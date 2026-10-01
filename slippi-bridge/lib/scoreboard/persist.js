@@ -15,6 +15,7 @@
 
 const fs   = require("fs");
 const path = require("path");
+const { PERSISTED } = require("./store");
 
 const SAVE_DEBOUNCE_MS = 300;
 
@@ -64,7 +65,10 @@ function createPersist(store, file, opts = {}) {
 
   /** Start saving on change. Call after restore(), so the restore isn't re-saved for nothing. */
   function start() {
-    store.on("change", schedule);
+    // A bracket refresh isn't saved (it is re-read on boot), so it doesn't write.
+    store.on("change", ({ keys }) => {
+      if (keys.some((k) => PERSISTED.includes(k))) schedule();
+    });
   }
 
   return { restore, start, saveNow, get pending() { return timer !== null; } };

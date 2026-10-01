@@ -2,7 +2,7 @@
 
 ```bash
 node tests/run.js                          # everything
-node tests/side-panel-rotation.test.js     # one file, with detail
+node tests/side-panel.test.js              # one file, with detail
 ```
 
 No framework, no dependency to install, nothing to configure. Each `*.test.js` is a plain Node script that prints a summary and exits non-zero on failure; `run.js` spawns them all and only shows output for the ones that failed.
@@ -13,10 +13,8 @@ This is **not** a general test suite, and it is not trying to become one. Almost
 
 | File | Guards |
 |---|---|
-| `layout-static.test.js` | Every layout script parses; every `<script src>` / `<link href>` resolves; the `shared/` helpers are wired into the pages that need them; no layout rebuilds the `chara_2_` icon path by hand. Fast — run it after touching anything under `layout/`, and after a TSH update copies `layout/` back. |
-| `side-panel-rotation.test.js` | The side panel's rotation does not flash the logo when TSH bursts state pushes at it (loading a set, Swap Teams), while still restarting when the visible panel genuinely drops out of the rotation. |
-| `side-panel-singles-filter.test.js` | Doubles sets stay off the head-to-head card. start.gg's recent-sets query filters on player ids, not on event, so a doubles set the two also played arrives shaped exactly like a singles one — it renders as a pill *and* skews the H2H record, which is the part that is wrong rather than merely noisy. Pins the event-name rule, the slot predicate (nothing left after filtering means skip the panel, not show it blank) and what the renderer actually draws. |
-| `side-panel-bridge-stats.test.js` | The side panel with the bridge's `player_stats` as its source. Records are oriented by start.gg player id against the columns *as they are now* (so Swap Teams flips them), a snapshot for any other pair — the previous set's, arriving late — shows nothing, TSH's head-to-head never fills a gap while the bridge is live, winner-only sets read W/L on the winner's side, the bridge going away falls back to TSH, and the stream queue is read in TSH's real shape without the on-air set. |
+| `side-panel.test.js` | The side panel (`overlays/side-panel/`) run against the real store, channel and overlay client. Its rotation must not flash the logo when a set load lands as a burst (the scoreboard, then the stats' "loading", cards and head-to-head), and must still restart when the panel on screen drops out — or that panel is stranded under the next one. Its stats are oriented by start.gg player id against the columns *now* (Switch Sides flips the tally), a record for any other pair shows nothing, winner-only sets read W/L on the winner's side, doubles drops the cards, and clip toasts queue. All three rotation rules are mutation-checked. |
+| `bracket-overlay.test.js` | The bracket overlay end to end on every capture. The layout (`overlays/bracket/layout.js`, pure): every set has a card, no two in a column overlap, every winner's path inside a side is a connector to the row it fills, a set sits between its two feeders, drop-ins and the grand final's losers slot are tagged rather than lined. The fit: Top 8 always fits whole, a big full bracket stops at the legibility floor and pans, starting from the live round or the set finished last. The feed (`lib/event/bracket-feed.js`): the dock's group, else the on-air set's; the on-air set's live score and characters; DB mains for everyone else; never saved. The page: draws the dock's view, crossfades on a switch without leaving the old board, `?view=` pins it, a data change redraws in place. |
 | `player-stats.test.js` | The bridge's head-to-head rules (`lib/stats/normalize.js`), each the shape of a set that broke a hand-verified record: a set played under an old tag (the slot carries the *old* player id), a Project M set in a Melee history, doubles, DQs, the same set seen from both histories. Also that the saved-history top-up stops at the first page it already holds, that a page start.gg refuses as too large is re-read smaller rather than counted as empty (TSH's bug), and that background requests wait for rate budget. |
 | `combo-detector.test.js` | The combo clipper's qualifying thresholds, and `comboWindowSec` in particular — the closing window is measured from `endFrame`, is strictly stricter than judging the whole conversion, and falls back rather than rejecting when there is no move data. Every way it can be wrong is silent: too tight and the clipper banks nothing all night while OBS, the bridge and the dock all look healthy. Pure logic, no sandbox. |
 | `bracket-target.test.js` | The Singles/Doubles buttons resolve to the right start.gg event (`lib/event/event-target.js`), and refuse rather than guess when a keyword matches two. A wrong pick is silent: the wrong bracket on the broadcast, every set id downstream mis-targeted. Also covers the shallow-merge trap in `config.local.js`. |
@@ -35,51 +33,39 @@ This is **not** a general test suite, and it is not trying to become one. Almost
 | `overlays-static.test.js` | Every url an overlay page loads (scripts, stylesheets, every `url()` and `@import` down to the active theme pack, the pack's logo from an overlay stylesheet) resolves through `lib/server/overlays.js`'s own tables, with or without a trailing slash; scripts load in order and parse; and the icon url the overlays build names a real file for every character and costume. A mistyped url is a blank or unstyled OBS source with no error anywhere. |
 | `icons.test.js` | Every character and costume Slippi can report has a stock icon in `overlays/assets/icons/`, under `char_map`'s codename. |
 | `helpers/fake-startgg.js` | Loads captured tournaments from `fixtures/startgg/` (`loadCapture`, `eventFrom`) and stands in for `StartggClient` with captured answers (`fakeStartgg`). Not a test. |
-| `helpers/layout-sandbox.js` | Shared machinery: loads a real layout script into a `vm` with a fake DOM + GSAP. Not a test. |
-| `fixtures/program-state.json` | A pruned, scrubbed `program_state.json`. |
+| `helpers/overlay-sandbox.js` | Runs a real overlay page in a `vm` — its own `index.html` parsed into a small fake DOM, its scripts, overlay-client.js included — connected to a real channel. Not a test. |
 | `fixtures/startgg/*.json` | Real start.gg tournaments, scrubbed, captured by `slippi-bridge/scripts/capture-startgg.js`. Raw material for the TSH replacement's bracket model — see below. |
 
-## Writing another layout test
+## Writing another overlay test
 
-The layouts are browser scripts with no module boundary — they read the DOM, drive GSAP, and hang their logic off TSH's `Start()` / `Update()` hooks inside a `LoadEverything().then()` closure, so `require()` cannot reach any of it. `helpers/layout-sandbox.js` exists to get around that:
+The overlays are browser scripts, so `require()` can't reach them. `helpers/overlay-sandbox.js` runs one as OBS would, fed by the app's own channel:
 
 ```js
-const { loadLayout, fixture, clone, sleep } = require("./helpers/layout-sandbox");
+const { ScoreboardStore } = require("../slippi-bridge/lib/scoreboard/store");
+const { createOverlayChannel } = require("../slippi-bridge/lib/overlay/channel");
+const { loadOverlay, fakeIo, texts, sleep } = require("./helpers/overlay-sandbox");
 
-const env = await loadLayout({
-  file: "TournamentStreamHelper-5.972/layout/side-panel/side-panel.js",
-  ids: ["panel-player-1"],              // document.getElementById keys
-  selectors: [".logo-primary"],         // document.querySelector keys
-  expose: ["rotator"],                  // top-level consts to publish (see below)
-}).ready();
+const store = new ScoreboardStore();
+store.loadSet(loadPayload(graph, setId));         // a real set-model payload
+const { io, nsps } = fakeIo();
+const channel = createOverlayChannel({ io, store });
+const page = await loadOverlay({ page: "side-panel", nsps, search: "?panel=player-1" });
 
-await env.sandbox.Update({ data: fixture("program-state") });
-env.exposed.rotator._slots;             // now assert on what the layout did
+store.switchSides();                              // drive the app, not the page
+channel.emit("player_stats", snapshot);           // events under their original names
+await sleep(15);                                  // patches flush on the next tick
+texts(page.$("#panel-recent-sets"));              // assert on what the page drew
+page.window.SidePanel.rotator;                    // whatever the page exposes on window
 ```
 
-Four things about the sandbox that will otherwise cost you an hour each:
+Things about the sandbox that will otherwise cost you an hour each:
 
-- **Lexical top-level bindings are unreachable.** A top-level `const rotator` never becomes a property of the sandbox global, so `expose: ["rotator"]` appends an explicit publish line to the source. `loadLayout` throws if the name doesn't materialise, rather than handing you a silent `undefined`.
-- **`Start` / `Update` do not exist synchronously.** They are assigned inside `LoadEverything().then()`, so `await env.ready()` waits a microtask and fails loudly if the bootstrap threw.
-- **`querySelector` returns a stub, never `null`.** The render functions are wrapped in bare `catch (_) {}`, so a `null` here would send them straight into the catch and quietly pass a test that exercised nothing.
-- **`fetch` fails by default.** A layout must degrade when TSH or the bridge is down; if a test needs a response, stub it via `globals`.
+- **The DOM is the page's own markup.** `index.html` is parsed into the fake DOM, so `querySelector` finds what the page really has — and returns `null` for what it doesn't, which is a real bug in the page, not the sandbox.
+- **Animations finish on a timer**, `timeScale` (default 0.01) × their real length, in browser order: a cancelled one never finishes. There is no geometry (every element is 200px wide with 100px of content, so nothing is ever fitted), no cascade, no paint.
+- **The page's arrays are another realm's.** `assert.deepStrictEqual(page.window.X.list, [...])` fails on the prototype alone; compare `JSON.parse(JSON.stringify(…))`.
+- **Build state with the app's own models**, never by hand: a store loaded from a captured set, stats from `lib/stats/normalize.js` over the captured event. Hand-written TSH state is how the old side-panel tests came to pass while exercising nothing — their slot predicates read shapes no real state had.
 
-The sandbox has **no geometry, no cascade and no real animation**. It answers "did the script do the right thing", never "does it look right". Anything visual stays in [docs/TESTING.md](../docs/TESTING.md).
-
-## The fixture
-
-`fixtures/program-state.json` is a real TSH `program_state.json` — pruned to the subtrees the layouts read, then scrubbed: every player tag, real name, birthday, twitter handle, city/country and start.gg id replaced with a synthetic value. The structure is untouched.
-
-Both parts matter:
-
-- **It is scrubbed** because the live file carries real attendee data pulled from start.gg, and this repo is not the place for it.
-- **It is vendored** because `TournamentStreamHelper-*/out/` is gitignored, so a fresh clone has no live state to read.
-
-Hand-writing this file is a trap worth naming: the side panel's slot predicates (`hasPlayerCardContent`, `hasRecentSets`, `hasQueue`) dig into `history_sets` / `last_sets` / `recent_sets` / `streamQueue`, all in shapes that are not obvious. The first attempt at the rotation test used invented state, and it could not fail — the predicates all returned false, the slot list never changed, and the bug it was written to catch never fired. If you need a state shape that isn't in the fixture, take it from a live `out/program_state.json` and scrub it; don't invent it.
-
-`streamQueue` is the one exception — it's populated by hand here, because the live capture had an empty queue and the `queue` slot is worth being able to exercise. It follows TSH's real shape as `StartGGDataProvider.ProcessFutureSet` builds it (objects keyed `"1"`, `"2"`…, `team` → `player`). The first hand-written version invented an array shape instead, and the side panel was written against it — so on a real bracket the queue panel never showed, and every test passed. The same trap as above, one level down.
-
-The fixture's player `id`s are bare strings; TSH really writes `[playerId, userId]`. The side panel accepts both, and `side-panel-bridge-stats.test.js` exercises the array form explicitly.
+The sandbox answers "did the script do the right thing", never "does it look right". Anything visual stays in [docs/TESTING.md](../docs/TESTING.md) — on this branch, a headless Chrome screenshot of the page served by the running app.
 
 ## The start.gg captures
 
@@ -92,7 +78,7 @@ node scripts/capture-startgg.js --label live-r2  # a named snapshot of the same
 node scripts/capture-startgg.js --past 3         # plus the series' last 3 tournaments
 ```
 
-Scrubbed the same way and for the same reason as the TSH fixture, with one addition: **every id goes through a single table**, so a `prereqId` still points at the set (or seed) it named and the graph still joins up. Tags become `Player<n>`, prefixes `Team<n>`; tournament, event, phase, round and stream names are kept.
+Scrubbed — the live data carries real attendee data, and this repo is not the place for it — with one rule worth knowing: **every id goes through a single table**, so a `prereqId` still points at the set (or seed) it named and the graph still joins up. Tags become `Player<n>`, prefixes `Team<n>`; tournament, event, phase, round and stream names are kept.
 
 An existing capture is **never overwritten** — the same tournament before it starts, mid-event and after are three different test cases. A repeat run without `--label` lands as `<slug>.<HHMM>.json`.
 

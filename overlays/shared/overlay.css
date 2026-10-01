@@ -11,8 +11,8 @@
 
 :root {
   /* Raised-card depth: an outer drop shadow plus inner edge lighting.
-     Same stack as the TSH-era main.css, which the side panel and
-     highlights still read until they move here. */
+     The scoreboard boxes, the side panel's cards, the bracket cards and
+     the highlights plates all use exactly this stack. */
   --shadow-raised:
     0 8px 32px rgba(0,0,0,0.60),
     0 3px 8px  rgba(0,0,0,0.45),

@@ -7,12 +7,10 @@
  * `/o/scoreboard/`. The one relative url left is inside a theme pack's custom
  * properties (`--logo-url: url("../themes/<pack>/logo.png")`), which Chrome
  * resolves against the stylesheet that *uses* the var() — so every overlay
- * stylesheet sits exactly one level under `/o/`, as the TSH layouts sat one
- * level under `layout/`, and the packs work unedited for both.
+ * stylesheet sits exactly one level under `/o/`.
  *
- * The packs and the theme switch (`theme.css`) are served from the TSH
- * layout folder until the side panel, bracket and highlights move off it
- * (M5), so there is still only one switch to flip.
+ * The theme switch and the packs are plain files under overlays/
+ * (`/o/theme.css`, `/o/themes/<pack>/`), so the `/o/` mount serves them.
  *
  * tests/overlays-static.test.js resolves every page's urls through
  * resolveOverlayPath(), i.e. through these same tables.
@@ -27,18 +25,19 @@ const PAGES = {
   "/o/scoreboard":         "scoreboard/index.html",
   "/o/scoreboard/players": "scoreboard/players.html",
   "/o/casters":            "casters/index.html",
+  "/o/side-panel":         "side-panel/index.html",
+  "/o/highlights":         "highlights/index.html",
+  "/o/bracket":            "bracket/index.html",
 };
 
 /**
  * Url prefix → directory, most specific first.
- * @param {{ overlaysDir: string, themeRoot: string }} roots — themeRoot holds theme.css and themes/
+ * @param {{ overlaysDir: string }} roots
  */
-function mounts({ overlaysDir, themeRoot }) {
+function mounts({ overlaysDir }) {
   return [
-    { url: "/assets/",     dir:  path.join(overlaysDir, "assets") },
-    { url: "/o/themes/",   dir:  path.join(themeRoot, "themes") },
-    { url: "/o/theme.css", file: path.join(themeRoot, "theme.css") },
-    { url: "/o/",          dir:  overlaysDir },
+    { url: "/assets/", dir: path.join(overlaysDir, "assets") },
+    { url: "/o/",      dir: overlaysDir },
   ];
 }
 
@@ -52,10 +51,6 @@ function resolveOverlayPath(url, roots) {
   if (page) return existing(path.join(roots.overlaysDir, page));
 
   for (const m of mounts(roots)) {
-    if (m.file) {
-      if (clean === m.url) return existing(m.file);
-      continue;
-    }
     if (!clean.startsWith(m.url)) continue;
     const file = path.resolve(m.dir, "." + clean.slice(m.url.length - 1));
     if (!file.startsWith(path.resolve(m.dir) + path.sep)) return null; // ../ escape
@@ -75,16 +70,14 @@ function existing(file) {
 
 /**
  * @param {import("express").Express} app
- * @param {{ overlaysDir: string, themeRoot: string }} roots
+ * @param {{ overlaysDir: string }} roots
  */
 function registerOverlays(app, roots) {
   for (const [url, file] of Object.entries(PAGES)) {
     app.get([url, `${url}/`], (req, res) => res.sendFile(path.join(roots.overlaysDir, file)));
   }
   for (const m of mounts(roots)) {
-    const prefix = m.url.replace(/\/$/, "");
-    if (m.file) app.get(prefix, (req, res) => res.sendFile(m.file));
-    else app.use(prefix, express.static(m.dir, { index: false, redirect: false }));
+    app.use(m.url.replace(/\/$/, ""), express.static(m.dir, { index: false, redirect: false }));
   }
 }
 

@@ -2,67 +2,56 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <script src="../include/globals.js"></script>
-    <!-- main.css @imports theme.css — linking it here too would refetch the
-         tokens and the BabyDoll font a second time. -->
-    <link rel="stylesheet" href="../main.css" />
-    <link rel="stylesheet" href="./side-panel.css" />
+    <title>Side panel</title>
+    <link rel="stylesheet" href="/o/shared/overlay.css" />
+    <link rel="stylesheet" href="/o/side-panel/side-panel.css" />
   </head>
+  <!-- 611 × 1080, beside the webcam. ?animate=false stills the ambient orbs
+       and the spotlights' sway; ?panel=<id> holds one panel (for styling). -->
   <body>
 
-    <!-- ── Cam overlay: rounded corners + edge blend (transparent center) ── -->
+    <!-- Rounded corners for the cam cutout: an outward spread shadow in the
+         surface colour paints over the cam's square corners. -->
     <div class="cam-overlay"></div>
 
-    <!-- ── Green surface bands framing the transparent cam cutout ── -->
-    <!-- In OBS: body background is transparent. These four divs    -->
-    <!-- provide the forest green frame; the cam region between them -->
-    <!-- has no elements → transparent pixels → OBS cam shows through -->
+    <!-- The surface around the cam cutout. Where none of these (or the cards)
+         cover, the source is transparent and the OBS cam shows through. -->
     <div class="bg-top"></div>
     <div class="bg-bottom"></div>
     <div class="bg-left"></div>
     <div class="bg-right"></div>
 
-    <!-- ── Header card: tournament name ──────────────────────────── -->
     <div class="header-card">
       <span class="tournament-name"></span>
     </div>
 
-    <!-- ── Bottom slot card: logo + #3 player card placeholder ───── -->
     <div class="bottom-card">
-      <!-- Atmospheric depth layers (behind everything) -->
       <div class="slot-light"></div>
       <div class="slot-grain"></div>
       <div class="slot-vignette"></div>
 
-      <!-- Ambient animation orbs -->
       <div class="ambient ambient-1"></div>
       <div class="ambient ambient-2"></div>
       <div class="ambient ambient-3"></div>
       <div class="ambient ambient-4"></div>
       <div class="ambient ambient-5"></div>
 
-      <!-- Fight-night spotlights: two beams rising from the bottom edge that
-           sweep outward↔inward. Opt-in per theme pack — the shared rules are
-           display:none unless the pack sets --spotlight-display (see
-           side-panel.css). Inert markup in packs that don't. -->
+      <!-- Fight-night spotlights: opt-in per theme pack (display:none unless
+           the pack sets --spotlight-display). Inert markup otherwise. -->
       <div class="spotlight spotlight-1"></div>
       <div class="spotlight spotlight-2"></div>
 
-      <!-- Logo cycle: tournament logo ↔ sponsor logo -->
       <div class="slot-logo">
         <div class="logo-stage">
-          <!-- Images come from the active theme pack via --logo-url /
-               --sponsor-url; divs, not <img>, so CSS resolves the pack-relative
-               paths (see side-panel.css). -->
+          <!-- Divs with a background-image, not <img>: the theme pack's
+               --logo-url / --sponsor-url resolve in CSS (see side-panel.css). -->
           <div class="logo-img logo-primary"></div>
           <div class="logo-img logo-sponsor"></div>
         </div>
       </div>
 
-      <!-- ── Rotating info panels (issue #3) ──────────────────── -->
       <div class="panel-slot-content">
 
-        <!-- Player 1 Card -->
         <div class="info-panel" id="panel-player-1">
           <div class="player-identity">
             <div class="player-tag"></div>
@@ -74,7 +63,6 @@
           <div class="history-list"></div>
         </div>
 
-        <!-- Player 2 Card -->
         <div class="info-panel" id="panel-player-2">
           <div class="player-identity">
             <div class="player-tag"></div>
@@ -86,29 +74,20 @@
           <div class="history-list"></div>
         </div>
 
-        <!-- Recent Sets (featured players) -->
         <div class="info-panel" id="panel-recent-sets">
           <div class="panel-header">Recent Sets</div>
           <div class="sets-list"></div>
         </div>
 
-        <!-- Completed Sets (whole tournament) -->
         <div class="info-panel" id="panel-completed-sets">
           <div class="panel-header">Just Finished</div>
           <div class="completed-list"></div>
         </div>
 
-        <!-- Stream Queue -->
-        <div class="info-panel" id="panel-queue">
-          <div class="panel-header">Up Next</div>
-          <div class="queue-list"></div>
-        </div>
-
       </div>
 
-      <!-- Clip-saved notification: slides in over the bottom edge of this card
-           when the bridge banks a combo clip, then slides back out. The card's
-           overflow:hidden is what hides it off-edge at rest. -->
+      <!-- Slides in over this card's bottom edge when a combo clip is saved;
+           the card's overflow:hidden hides it at rest. -->
       <div class="clip-toast">
         <span class="clip-toast-icon">●</span>
         <span class="clip-toast-label">Clip Saved</span>
@@ -116,8 +95,8 @@
       </div>
     </div>
 
-    <!-- Slippi Bridge: no-ops when the bridge isn't running on port 5001 -->
-    <script src="../shared/slippi-bridge-client.js"></script>
-    <script src="side-panel.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/o/shared/overlay-client.js"></script>
+    <script src="/o/side-panel/side-panel.js"></script>
   </body>
 </html>

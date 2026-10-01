@@ -56,6 +56,7 @@ function createControlStatus(ctx, portInfo) {
     const src = state.source?.getStatus?.() ?? { connected: false };
     const ev = event?.status() ?? { state: "none", error: null };
     const t = store.tournament();
+    const bracket = store.bracket();
     return {
       // Up once an event read has succeeded; an error carries start.gg's wording.
       startgg: { ok: ev.state === "ok", state: ev.state, error: ev.error ?? null },
@@ -64,6 +65,8 @@ function createControlStatus(ctx, portInfo) {
       portMapping: portInfo(),
       currentSet,
       tournament: { name: t.name, eventName: t.eventName },
+      // What the bracket overlay is showing: the dock's view, and which group.
+      bracketOverlay: { view: store.view().bracketView, group: bracket?.label ?? null },
       shortLink: config.BRACKETS?.shortLink ?? "",
       startggEnabled: startgg.enabled,
       clipper: clipperSnapshot(),

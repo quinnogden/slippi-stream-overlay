@@ -6,6 +6,7 @@
  */
 
 const path = require("path");
+const { VIEWS } = require("../event/bracket-model");
 
 const MAX_CASTERS = 4;
 
@@ -115,6 +116,25 @@ function registerRoutes(app, deps) {
   // Everything the overlays are drawing — the same object `state:full` sends.
   app.get("/api/state", (req, res) => {
     res.json(store.snapshot());
+  });
+
+  // What the bracket overlay shows: { view?, phaseGroupId? }. Every bracket
+  // source not pinned with ?view= follows `view`; phaseGroupId null goes back
+  // to following the set on the scoreboard.
+  app.post("/api/bracket-view", (req, res) => {
+    const { view, phaseGroupId } = req.body ?? {};
+    if (view !== undefined && !VIEWS.includes(view)) {
+      return res.status(400).json({ ok: false, error: `view must be one of ${VIEWS.join(", ")}` });
+    }
+    if (phaseGroupId !== undefined && phaseGroupId !== null
+        && !event.groups().some((g) => g.id === String(phaseGroupId))) {
+      return res.status(400).json({ ok: false, error: `phase group ${phaseGroupId} isn't in the loaded event` });
+    }
+    if (view !== undefined) store.setBracketView(view);
+    if (phaseGroupId !== undefined) store.setBracketPhaseGroup(phaseGroupId);
+    const v = store.view();
+    res.json({ ok: true, view: v.bracketView, phaseGroupId: v.bracketPhaseGroupId,
+      showing: store.bracket()?.phaseGroupId ?? null });
   });
 
   // The caster name tags (the dock's Casters tab, M7). Each caster is

@@ -3,7 +3,7 @@
  * `/dock`. Replaces TSH's globals.js polling program_state.json.
  *
  * State is the scoreboard store's snapshot (`{ v, rev, tournament, scoreboard,
- * casters, view }`), sent as:
+ * casters, view, bracket }`), sent as:
  *
  *   state:full   { v, rev, …sections }       on connect, and on request
  *   state:patch  { from, rev, ops }          after every change
@@ -19,8 +19,8 @@
  *
  * Events that aren't state are relayed too. The feature modules still emit
  * their original Socket.io names through `emit()`, which also sends them to
- * the default namespace for the control panel and side panel that haven't
- * moved onto this channel yet (M5/M6).
+ * the default namespace for the control panel, the one client that hasn't
+ * moved onto this channel yet (M6).
  */
 
 /**

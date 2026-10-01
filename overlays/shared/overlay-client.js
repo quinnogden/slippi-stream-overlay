@@ -172,7 +172,11 @@
     };
   }
 
-  /** Fonts in, one frame painted, then fade the page in. */
+  /**
+   * Fonts in, one frame painted, then fade the page in. connect() calls it on
+   * the first state; a page with no state to wait for (highlights) calls it
+   * itself.
+   */
   async function reveal() {
     try { await document.fonts.ready; } catch (_) { /* draw anyway */ }
     await new Promise((r) => requestAnimationFrame(() => r()));
@@ -249,6 +253,46 @@
     if (document.fonts && document.fonts.status !== "loaded") document.fonts.ready.then(fit);
   }
 
+  /**
+   * Shrink single-line text's font size until it fits its box — the side
+   * panel's way (squeeze() is the scoreboard's). The CSS ellipsis stays as
+   * the fallback once `minPx` is reached; below that it stops being legible.
+   *
+   * Synchronous, so call it once the node is in the document. The node
+   * remembers its floor in data-fit-min, and every fitted node is redone when
+   * a web font lands: measured against the fallback face, the size is wrong.
+   */
+  function fitText(node, minPx = 13) {
+    if (!node) return;
+    node.dataset.fitMin = String(minPx);
+    fitTextNow(node);
+  }
+
+  function fitTextNow(node) {
+    const minPx = parseFloat(node.dataset.fitMin) || 13;
+    // From the stylesheet size, so a re-fit can grow back as well as shrink.
+    node.style.fontSize = "";
+    const width = node.clientWidth;
+    if (!width || node.scrollWidth <= width) return;
+    // Width scales ~linearly with font size (letter-spacing is in em), so jump
+    // to the ratio and only nudge for rounding — not a reflow per half pixel.
+    const base = parseFloat(getComputedStyle(node).fontSize);
+    let size = Math.max(minPx, Math.floor(base * width / node.scrollWidth * 2) / 2);
+    node.style.fontSize = size + "px";
+    while (node.scrollWidth > width && size > minPx) {
+      size = Math.max(minPx, size - 0.5);
+      node.style.fontSize = size + "px";
+    }
+  }
+
+  function refitAll() {
+    document.querySelectorAll("[data-fit-min]").forEach(fitTextNow);
+  }
+  if (document.fonts) {
+    document.fonts.addEventListener?.("loadingdone", refitAll);
+    document.fonts.ready.then(refitAll);
+  }
+
   /** document.createElement with a class and optional text. */
   function h(tagName, className, textContent) {
     const node = document.createElement(tagName);
@@ -257,5 +301,5 @@
     return node;
   }
 
-  root.Overlay = { ...api, connect, swap, text, squeeze, h, param };
+  root.Overlay = { ...api, connect, reveal, swap, text, squeeze, fitText, h, param };
 })(typeof window !== "undefined" ? window : globalThis);

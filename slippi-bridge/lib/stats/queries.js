@@ -98,20 +98,6 @@ function playerCardsQuery(playerIds, eventSlug) {
   return `{ ${players.join("\n")} ${run} } ${run ? RESULT_SET_FRAGMENT : ""}`;
 }
 
-// ── The loaded event: just-finished sets ────────────────────────────────────
-const COMPLETED_PER_PAGE = 12;
-
-function eventOverviewQuery(eventSlug) {
-  return `{
-    ev: event(slug: ${JSON.stringify(eventSlug)}) {
-      id name type
-      sets(page: 1, perPage: ${COMPLETED_PER_PAGE}, sortType: RECENT, filters: { state: [3] }) {
-        nodes { ...ResultSet }
-      }
-    }
-  } ${RESULT_SET_FRAGMENT}`;
-}
-
 // A finished set with everything a pill shows: both entrants, their game
 // counts, and who won. `gamerTag` is the tag alone; `entrant.name` carries the
 // sponsor prefix (and is the team name in doubles).
@@ -129,6 +115,5 @@ module.exports = {
   PLAYER_SETS_PAGE,
   setDetailsQuery,
   playerCardsQuery,
-  eventOverviewQuery,
   idList,
 };
