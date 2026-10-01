@@ -38,7 +38,7 @@ const { createClipRecorder } = require("./lib/clip-recorder");
 const { installHotkeys }     = require("./lib/hotkey");
 const { lanControlUrls, lanDockUrls } = require("./lib/lan-urls");
 const { createMainsLearning } = require("./lib/players/mains-learning");
-const { activeThemePack }     = require("./lib/server/api/setup");
+const { activeThemePack, themePacks } = require("./lib/server/api/setup");
 const { createServer }        = require("./lib/server/app");
 const { createControlStatus } = require("./lib/server/control-status");
 const { createReportSet }     = require("./lib/server/report-set");
@@ -177,6 +177,8 @@ registerRoutes(app, {
   gameLive: () => !!ctx.state.currentGameState,
   recordClip: clipRecorder.recordClip,
   playerStatsSnapshot: playerStats.snapshot,
+  overlaysDir,
+  emit: channel.emit,
   setupInfo: () => ({
     base: `http://localhost:${config.BRIDGE_PORT}`,
     lan: lanDockUrls(config),
@@ -185,6 +187,7 @@ registerRoutes(app, {
     slippiFolder: config.SLP_FOLDER,
     startgg: { token: ctx.startgg.enabled, shortLink: ctx.event.shortLink ?? null },
     theme: activeThemePack(overlaysDir),
+    themes: themePacks(overlaysDir),
   }),
 });
 

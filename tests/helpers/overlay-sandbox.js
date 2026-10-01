@@ -379,7 +379,8 @@ async function loadOverlay({
     },
     // The client's "[tag] connected" chatter off; warnings and errors kept.
     console: { ...console, log() {}, info() {} },
-    location: { search },
+    // reload() counts: a theme switch reloads a source rather than restyling it.
+    location: { search, reloads: 0, reload() { this.reloads++; } },
     URLSearchParams,
     setTimeout, clearTimeout, setInterval, clearInterval, queueMicrotask,
     requestAnimationFrame: (fn) => setTimeout(() => fn(Date.now()), 0),

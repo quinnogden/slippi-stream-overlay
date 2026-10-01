@@ -120,7 +120,7 @@
           </div>
           <div class="field">
             <span>Or any event by URL</span>
-            <div class="url-row">
+            <div class="url-load">
               <input type="text" id="bracket-url" placeholder="start.gg/tournament/…/event/…" autocomplete="off" spellcheck="false" aria-label="start.gg event URL">
               <button class="key" id="btn-bracket-url" type="button">Load</button>
             </div>
@@ -205,12 +205,17 @@
       <!-- ── Setup ── -->
       <div class="panel" id="panel-setup">
         <div class="card">
-          <div class="card-head">
-            <span class="label">OBS browser sources</span>
-            <span class="card-meta" id="setup-theme"></span>
-          </div>
+          <div class="card-head"><span class="label">Theme</span></div>
+          <label class="field">
+            <span>Pack on stream</span>
+            <select id="theme-pack"></select>
+          </label>
+          <div class="hint">Every overlay fades out and reloads in the new pack. It's saved in overlays/theme.css, so it stays after a restart — switch back when the event is over.</div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="label">OBS browser sources</span></div>
           <div id="setup-overlays"></div>
-          <div class="hint">Add each as a Browser source at its size. The theme pack is the one <b>@import</b> in overlays/theme.css.</div>
+          <div class="hint">Add each as a Browser source at its size.</div>
         </div>
         <div class="card">
           <div class="card-head">

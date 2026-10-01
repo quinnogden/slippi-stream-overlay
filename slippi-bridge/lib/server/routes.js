@@ -17,7 +17,7 @@ const API = ["status", "scoreboard", "event", "players", "casters", "clipper", "
  *   publicDir, iconsDir, store, event, playerDb, clipperSettings, obs,
  *   refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet,
  *   swapPorts, switchSides, reresolvePorts, gameLive, recordClip, playerStatsSnapshot,
- *   setupInfo
+ *   setupInfo, overlaysDir, emit
  * }
  */
 function registerRoutes(app, deps) {

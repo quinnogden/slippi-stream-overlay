@@ -21,6 +21,7 @@ const { loadPayload } = require("../slippi-bridge/lib/event/set-model");
 const { buildBracket } = require("../slippi-bridge/lib/event/bracket-model");
 const { createMirror } = require("../overlays/shared/overlay-client");
 const { eventFrom } = require("./helpers/fake-startgg");
+const sandbox = require("./helpers/overlay-sandbox");
 
 let failed = 0;
 async function test(name, fn) {
@@ -237,6 +238,19 @@ const assertInSync = (client, store, msg) =>
     channel.emit("slippi_game_end", { winner: null, handwarmer: true });
     const after = connectClient(wire);
     assert.deepStrictEqual(names(after), ["stats"], "once the game is over it isn't replayed");
+  });
+
+  await test("a theme switch fades out and reloads every source — the highlights frame too, which reads no state", async () => {
+    const store = new ScoreboardStore();
+    const { io, nsps } = sandbox.fakeIo();
+    const channel = createOverlayChannel({ io, store });
+    const pages = [];
+    for (const page of ["side-panel", "bracket", "casters", "highlights"]) pages.push([page, await sandbox.loadOverlay({ page, nsps })]);
+
+    channel.emit("theme_changed", { pack: "salty-suite" });
+    channel.emit("theme_changed", { pack: "hundred-acres" }); // mid-fade: still one reload
+    await sandbox.sleep(30);
+    for (const [page, p] of pages) assert.strictEqual(p.window.location.reloads, 1, `${page} reloaded ${p.window.location.reloads} times`);
   });
 
   console.log(failed === 0 ? "overlay-patch: all passed" : `overlay-patch: ${failed} failed`);

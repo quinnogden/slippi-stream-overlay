@@ -1577,9 +1577,44 @@
     none: "The global listener (uiohook-napi) didn't load and the app has no console: use the strip's keys.",
   };
 
+  /** "hundred-acres" → "Hundred Acres": a pack is named by its folder. */
+  const packName = (pack) => pack.split(/[-_]+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+
+  function renderThemes() {
+    const sel = $("theme-pack");
+    const packs = setup.themes || [];
+    // A theme.css pointing at a pack that isn't there still shows what it says.
+    const list = setup.theme && !packs.includes(setup.theme) ? [setup.theme, ...packs] : packs;
+    const want = list.join("|");
+    if (sel.dataset.ids !== want) {
+      sel.replaceChildren(...list.map((p) => {
+        const o = h("option", "", packName(p));
+        o.value = p;
+        return o;
+      }));
+      sel.dataset.ids = want;
+    }
+    sel.value = setup.theme || "";
+    sel.disabled = packs.length < 2;
+  }
+
+  $("theme-pack").addEventListener("change", async () => {
+    const sel = $("theme-pack");
+    const pack = sel.value;
+    sel.disabled = true;
+    const r = await api("/api/theme", { pack });
+    if (r.ok) {
+      setup.theme = r.pack;
+      toast(`Theme: ${packName(r.pack)} — the overlays are reloading`, true);
+    } else {
+      toast(`Theme switch failed: ${r.error}`, false);
+    }
+    renderThemes();
+  });
+
   const renderSetup = guard("setup", () => {
     if (!setup) return;
-    $("setup-theme").textContent = setup.theme ? `Theme: ${setup.theme}` : "";
+    renderThemes();
     $("setup-overlays").replaceChildren(...(setup.overlays || []).map((o) =>
       copyRow(o.name, (setup.base || "") + o.path, o.size, o.note)));
 
@@ -1827,6 +1862,12 @@
   ov.on("game:start", () => { gameLive = true; renderLamp(); });
   ov.on("game:end", () => { gameLive = false; renderLamp(); });
   ov.on("clip:saved", (c) => toast(`Clip saved${c && c.playerName ? ` — ${c.playerName}` : ""}`, true));
+  // Another dock (a phone) switched the theme.
+  ov.on("theme", (t) => {
+    if (!setup || !t || !t.pack) return;
+    setup.theme = t.pack;
+    renderSetup();
+  });
   ov.on("clip:error", (c) => toast(`Clip failed: ${(c && c.error) || "OBS didn't save it"}`, false));
 
   if (ov.socket) {

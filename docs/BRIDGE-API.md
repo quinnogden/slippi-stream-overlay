@@ -8,7 +8,7 @@ This is the contract between `slippi-bridge/` and its clients — the dock ([pub
 
 ## Overlay channel — `/overlay` and `/dock`
 
-Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/side-panel`, `/o/bracket`, `/o/highlights` — except highlights (which never connects) uses the `/overlay` namespace through [overlays/shared/overlay-client.js](../overlays/shared/overlay-client.js); the dock uses `/dock` through the same client. Built in [lib/overlay/channel.js](../slippi-bridge/lib/overlay/channel.js).
+Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/side-panel`, `/o/bracket`, `/o/highlights` — uses the `/overlay` namespace (highlights only for `theme`) through [overlays/shared/overlay-client.js](../overlays/shared/overlay-client.js); the dock uses `/dock` through the same client. Built in [lib/overlay/channel.js](../slippi-bridge/lib/overlay/channel.js).
 
 | Event | Direction | Payload |
 |---|---|---|
@@ -19,6 +19,7 @@ Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/si
 | `clip:saved` | app → both | The `slippi_clip_saved` payload |
 | `stats` | app → overlay | The `player_stats` payload |
 | `status` / `clip:error` | app → dock | The `control_status` / `slippi_clip_error` payloads |
+| `theme` | app → both | `{ pack }` (from `theme_changed`), after `POST /api/theme` changed the pack. **An overlay fades out and reloads** — `connect()` and `followTheme()` both listen; the dock only updates its select. Not sticky: a page that loads later reads the new `theme.css` anyway |
 
 - **`from` is what keeps a source honest.** A page applies a patch only when `from` ≤ its own rev. A larger `from` means it missed one, and it must send `state:resync` rather than apply it: every later patch carries only the sections that changed, so a source that missed one would otherwise show the old score indefinitely while looking healthy. A patch whose `rev` it already has (it connected mid-burst, and its `state:full` was newer) is ignored. `state:full` is always taken, even at a lower rev — the app may have restarted. `tests/overlay-patch.test.js` pins all three.
 - **Selectors run on change only.** `ov.select(path, fn)` compares the JSON at `path`, so a casters edit doesn't re-run, and re-animate, the scoreboard.
@@ -265,7 +266,8 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `GET` | `/api/players/suggest[?q=][&scope=list]` | The name fields' autocomplete. **While an event is loaded, only its entrants** (from the bracket graphs — everyone in a set read so far), filled in from the DB; with none, or `scope=list` (the casters), the DB (`playerDb.search`). `{ scope: "event"\|"list", total, players }`, each as `/api/players` plus `team` (doubles) and `seed`; `ref` is `null` for an entrant not in the DB. No `q` (the field was just clicked): every entrant by seed, or the DB A–Z capped at 150 — `total` is the uncapped count |
 | `POST` | `/api/players/assign` | Puts a suggested player in one slot, like a set load: tag, prefix, pronoun, `playerId` and the preferred main. `{ side, index, playerId }` for an entrant of the loaded event (upserted into the DB), `{ side, index, ref, tag }` for a DB record (409 rules as `update`). `playerId` is overwritten — `null` for a record with no start.gg id — so the side panel can't show the previous player's stats under the new name. A different player in the slot unlinks the start.gg set, as `/api/player` does; `{ ok, tag, detached }`. The main also becomes the shown character **unless a game is running**; a player with no main leaves the character alone |
 | `GET` | `/api/players/values` | `{ prefixes, pronouns }`: each distinct value in the DB, most used first — the prefix and pronoun suggestions |
-| `GET` | `/api/setup` | The Setup tab: `{ overlays: [{ name, path, size, note? }], base, lan: [{ url, name, tailscale }], hotkeys: { mode, bindings, errors }, players: { file, count }, slippiFolder, startgg: { token, shortLink }, theme }` |
+| `GET` | `/api/setup` | The Setup tab: `{ overlays: [{ name, path, size, note? }], base, lan: [{ url, name, tailscale }], hotkeys: { mode, bindings, errors }, players: { file, count }, slippiFolder, startgg: { token, shortLink }, theme, themes }` — `theme` is the pack `overlays/theme.css` imports (null if unreadable), `themes` every folder under `overlays/themes/` with a `theme.css` |
+| `POST` | `/api/theme` | `{ pack }` — rewrites the `@import` line in `overlays/theme.css` (atomic; the header comment is kept) and sends `theme`. 400 for a pack not in `themes` or a `theme.css` with no `@import` line to repoint. `{ ok, pack, changed }`. The file is git-tracked, so a non-default pack shows as a local change |
 | `GET` | `/api/clipper` | `{ settings, obs, recentClips, clipsThisGame, supported }` |
 | `POST` | `/api/clipper/settings` | Validate, clamp, persist to `clipper-settings.json`, apply live |
 | `POST` | `/api/clipper/toggle` | `{ enabled }` — master switch, applied immediately |

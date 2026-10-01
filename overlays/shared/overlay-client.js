@@ -17,6 +17,10 @@
  * its first TSH push stayed invisible for good. `?animate=false` adds
  * `body.no-animate`, which overlay.css uses to skip every entrance.
  *
+ * A theme switch from the dock (`theme`) fades the page out and reloads it,
+ * so it comes back exactly as a freshly added source would in the new pack.
+ * connect() follows it; a page that never connects calls followTheme().
+ *
  * The state mirror at the top has no DOM in it, so tests/overlay-patch.test.js
  * runs this same file under Node.
  */
@@ -147,7 +151,8 @@
     if (typeof root.io !== "function") {
       console.error(`[${tag}] socket.io client missing — is the app running?`);
     } else {
-      socket = root.io(opts.namespace || "/overlay");
+      const namespace = opts.namespace || "/overlay";
+      socket = root.io(namespace);
       socket.on("state:full", (msg) => {
         mirror.full(msg);
         if (!drawn) {
@@ -158,6 +163,8 @@
       socket.on("state:patch", (msg) => {
         if (mirror.patch(msg) === "gap") console.warn(`[${tag}] missed an update — resyncing`);
       });
+      // Overlays only: the dock hears `theme` too, and must not reload away a draft.
+      if (namespace === "/overlay") socket.on("theme", reloadForTheme);
       socket.on("connect", () => console.log(`[${tag}] connected`));
       socket.on("disconnect", () => console.warn(`[${tag}] disconnected — keeping the last state`));
       socket.onAny((event, payload) => (handlers[event] || []).forEach((fn) => fn(payload)));
@@ -181,6 +188,33 @@
     try { await document.fonts.ready; } catch (_) { /* draw anyway */ }
     await new Promise((r) => requestAnimationFrame(() => r()));
     onBody((b) => b.classList.add("ready"));
+  }
+
+  // ── Theme switch ────────────────────────────────────────────────────────────
+
+  const THEME_FADE_MS = 400;
+  let reloading = false;
+
+  /**
+   * Fade out, then reload. A reload rather than swapping stylesheets in place:
+   * the old pack's tokens and @font-face would linger under the new one, and
+   * every measured fit (squeeze, fitText, the bracket's scale) would be stale.
+   * The /o/ files are served with max-age=0, so the reload revalidates
+   * theme.css and gets the new @import.
+   */
+  function reloadForTheme() {
+    if (reloading) return;
+    reloading = true;
+    const body = document.body;
+    if (!body || !body.animate || body.classList.contains("no-animate")) return root.location.reload();
+    body.animate([{ opacity: getComputedStyle(body).opacity }, { opacity: 0 }], { duration: THEME_FADE_MS, fill: "forwards" })
+      .onfinish = () => root.location.reload();
+  }
+
+  /** For a page that never connects (highlights): listen for the theme alone. */
+  function followTheme() {
+    if (typeof root.io !== "function") return;
+    root.io("/overlay").on("theme", reloadForTheme);
   }
 
   // ── DOM helpers ─────────────────────────────────────────────────────────────
@@ -301,5 +335,5 @@
     return node;
   }
 
-  root.Overlay = { ...api, connect, reveal, swap, text, squeeze, fitText, h, param };
+  root.Overlay = { ...api, connect, reveal, followTheme, swap, text, squeeze, fitText, h, param };
 })(typeof window !== "undefined" ? window : globalThis);

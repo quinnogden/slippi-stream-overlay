@@ -1,9 +1,10 @@
 /* ============================================================
    highlights.js — geometry + URL flags for the replay-scene overlay.
 
-   That is the whole job. This overlay reads no state and no events,
-   so it never connects — see the comment in index.html. It reveals
-   itself (overlay.css holds every overlay at opacity 0 until then).
+   That is the whole job. This overlay reads no state and no events —
+   its socket only hears a theme switch (Overlay.followTheme), see the
+   comment in index.html. It reveals itself (overlay.css holds every
+   overlay at opacity 0 until then).
 
      ?clip=x,y,w,h    move/resize the clip window
      ?cam=y,w,h       both cams' vertical position and size
@@ -112,4 +113,5 @@
   });
 
   Overlay.reveal();
+  Overlay.followTheme();
 })();

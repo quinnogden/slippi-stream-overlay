@@ -11,8 +11,9 @@
   <!--
     Decoration only, deliberately: nothing knows which clip the replay
     playlist is showing, so any on-screen credit would be wrong as often as
-    right. No state, no events, no socket — overlay-client.js is loaded only
-    for its page reveal and ?animate=false. highlights.js reveals the page
+    right. No state and no events — overlay-client.js is loaded for its page
+    reveal, ?animate=false, and the socket's one job here: reloading into a
+    new theme pack when the dock switches it. highlights.js reveals the page
     itself; overlay.css holds every overlay at opacity 0 until something does.
   -->
   <body>
@@ -58,6 +59,7 @@
     <div class="frame frame-cam cam-l" data-label="CAM L"></div>
     <div class="frame frame-cam cam-r" data-label="CAM R"></div>
 
+    <script src="/socket.io/socket.io.js"></script>
     <script src="/o/shared/overlay-client.js"></script>
     <script src="/o/highlights/highlights.js"></script>
   </body>

@@ -36,6 +36,7 @@ const RELAY = {
   slippi_clip_error: {                        dock: "clip:error" },
   player_stats:      { overlay: "stats",                          sticky: true },
   control_status:    {                        dock: "status",     sticky: true },
+  theme_changed:     { overlay: "theme",      dock: "theme" },
 };
 
 const NAMESPACES = ["overlay", "dock"];

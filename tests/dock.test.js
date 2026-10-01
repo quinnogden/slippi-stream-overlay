@@ -46,6 +46,7 @@ const { EventService } = require("../slippi-bridge/lib/event/event-service");
 const { CSS_ORDER, CHAR_MAP } = require("../slippi-bridge/lib/char_map");
 const { eventFrom } = require("./helpers/fake-startgg");
 const { loadOverlay, fakeIo, texts, sleep, fire } = require("./helpers/overlay-sandbox");
+const { activeThemePack } = require("../slippi-bridge/lib/server/api/setup");
 
 const ROOT = path.resolve(__dirname, "..");
 const PUBLIC = path.join(ROOT, "slippi-bridge", "public");
@@ -105,7 +106,18 @@ const SETUP = {
   slippiFolder: "C:/Slippi/Spectate",
   startgg: { token: false, shortLink: "100-acres" },
   theme: "hundred-acres",
+  themes: ["hundred-acres", "salty-suite"],
 };
+
+// The theme switch rewrites overlays/theme.css, so it gets a copy: the real
+// switch file over two empty packs.
+const THEME_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "dock-theme-"));
+fs.copyFileSync(path.join(OVERLAYS, "theme.css"), path.join(THEME_DIR, "theme.css"));
+for (const pack of SETUP.themes) {
+  fs.mkdirSync(path.join(THEME_DIR, "themes", pack), { recursive: true });
+  fs.writeFileSync(path.join(THEME_DIR, "themes", pack, "theme.css"), "");
+}
+process.on("exit", () => fs.rmSync(THEME_DIR, { recursive: true, force: true }));
 
 /** Wait until `cond()` holds (a request, a patch and a redraw take a few ms). */
 async function until(cond, what, ms = 1000) {
@@ -151,6 +163,8 @@ async function rig() {
     event,
     playerDb: db,
     setupInfo: () => SETUP,
+    overlaysDir: THEME_DIR,
+    emit: channel.emit,
     clipperSettings: { save: () => ({ ok: true }), get: () => ({}) },
     obs: { applySettings() {}, saveReplayBuffer: async () => ({ ok: false, error: "no OBS here" }) },
     refreshControlStatus: async () => ({}),
@@ -183,7 +197,7 @@ async function rig() {
   const button = (root, label) => root.querySelectorAll("button").find((b) => b.textContent === label);
   const status = (s) => channel.emit("control_status", s);
 
-  return { store, db, base, channel, page, Dock, calls, side, tagInput, scoreText, keys, button, status, close: () => server.close() };
+  return { store, db, base, channel, nsps, page, Dock, calls, side, tagInput, scoreText, keys, button, status, close: () => server.close() };
 }
 
 (async () => {
@@ -688,7 +702,8 @@ async function rig() {
       r.Dock.showTab("setup");
       await until(() => r.page.$$("#setup-overlays .u-url").length >= 6, "the overlays");
       assert.strictEqual(r.page.$$("#setup-overlays .u-url")[0].value, "http://localhost:5001/o/scoreboard");
-      assert.strictEqual(r.page.$("#setup-theme").textContent, "Theme: hundred-acres");
+      assert.strictEqual(r.page.$("#theme-pack").value, "hundred-acres");
+      assert.deepStrictEqual(r.page.$$("#theme-pack option").map((o) => o.textContent), ["Hundred Acres", "Salty Suite"]);
       assert.deepStrictEqual(r.page.$$("#setup-hotkeys .hk-row").map((x) => texts(x).join("")),
         ["Swap portsCtrlShiftS", "Left +1CtrlShift1"]);
       assert.match(texts(r.page.$("#hotkeys-hint")).join(""), /Shift\+X.*needs Ctrl/, "a chord that didn't bind says why");
@@ -699,6 +714,43 @@ async function rig() {
       assert.match(r.keys(0)[1].title, /\(Ctrl\+Shift\+1\)$/);
       assert.doesNotMatch(r.keys(1)[1].title, /Ctrl/, "an unbound action names none");
     } finally { r.close(); }
+  });
+
+  await test("setup: the theme switch repoints theme.css's @import and tells every overlay", async () => {
+    const r = await rig();
+    const file = path.join(THEME_DIR, "theme.css");
+    const before = fs.readFileSync(file, "utf8");
+    const heard = [];
+    const overlayNsp = r.nsps["/overlay"];
+    const emit = overlayNsp.emit;
+    overlayNsp.emit = (event, payload) => { heard.push([event, payload]); return emit.call(overlayNsp, event, payload); };
+    try {
+      r.Dock.showTab("setup");
+      await until(() => r.page.$("#theme-pack").value === "hundred-acres", "the theme list");
+      r.page.$("#theme-pack").value = "salty-suite";
+      fire(r.page.$("#theme-pack"), "change");
+      await until(() => heard.some(([e]) => e === "theme"), "the overlays told");
+      assert.deepStrictEqual(heard.find(([e]) => e === "theme")[1], { pack: "salty-suite" });
+      await sleep(30);
+      assert.strictEqual(r.page.window.location.reloads, 0, "the dock hears the switch but doesn't reload (a draft would go)");
+
+      const after = fs.readFileSync(file, "utf8");
+      assert.strictEqual(activeThemePack(THEME_DIR), "salty-suite");
+      // Only the @import changed; and it is still the file's first rule, or
+      // the browser drops it and every overlay goes unstyled.
+      assert.strictEqual(after, before.replace("./themes/hundred-acres/", "./themes/salty-suite/"));
+      assert.match(after.replace(/\/\*[\s\S]*?\*\//g, "").trim(), /^@import url\("\.\/themes\/salty-suite\/theme\.css"\);$/);
+
+      const bad = await fetch(`${r.base}/api/theme`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pack: "../../slippi-bridge" }),
+      });
+      assert.strictEqual(bad.status, 400, "a pack that isn't a folder under themes/ is refused");
+      assert.strictEqual(activeThemePack(THEME_DIR), "salty-suite");
+    } finally {
+      fs.writeFileSync(file, before);
+      r.close();
+    }
   });
 
   await test("Start and Report only on a start.gg set; Clear score and Clear set are on the strip", async () => {

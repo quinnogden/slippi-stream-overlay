@@ -22,6 +22,7 @@ const vm     = require("vm");
 
 const { PAGES, resolveOverlayPath } = require("../slippi-bridge/lib/server/overlays");
 const { CHAR_MAP } = require("../slippi-bridge/lib/char_map");
+const { themePacks } = require("../slippi-bridge/lib/server/api/setup");
 const Overlay = require("../overlays/shared/overlay-client");
 
 const REPO = path.join(__dirname, "..");
@@ -86,13 +87,15 @@ test("every script and stylesheet a page links resolves, whichever way OBS was g
   }
 });
 
-test("scripts load socket.io (if the page connects), then the overlay client, then the page", () => {
+// Every page has a socket: connect() for the state, or followTheme() alone —
+// a page with neither stays in the old pack when the dock switches theme.
+test("scripts load socket.io, then the overlay client, then the page; every page follows a theme switch", () => {
   for (const url of Object.keys(PAGES)) {
     const { scripts } = pageRefs(url);
     const own = scripts.filter((s) => s !== SOCKET_IO && s !== "/o/shared/overlay-client.js");
-    const connects = own.some((s) => /Overlay\.connect\(/.test(read(s)));
-    if (connects) assert.strictEqual(scripts[0], SOCKET_IO, `${url}: connects, so socket.io must load first`);
-    assert.strictEqual(scripts[connects ? 1 : 0], "/o/shared/overlay-client.js", `${url}: overlay client before the page's own scripts`);
+    assert.ok(own.some((s) => /Overlay\.(connect|followTheme)\(/.test(read(s))), `${url}: neither connects nor follows the theme`);
+    assert.strictEqual(scripts[0], SOCKET_IO, `${url}: socket.io must load first`);
+    assert.strictEqual(scripts[1], "/o/shared/overlay-client.js", `${url}: overlay client before the page's own scripts`);
     assert.ok(own.length >= 1, `${url}: no page script`);
   }
 });
@@ -125,15 +128,21 @@ test("every url() and @import in the overlays' stylesheets, the switch and the a
   assert.ok([...seen].some((s) => /^\/o\/themes\/[^/]+\/theme\.css$/.test(s)), "the active pack was never reached");
 });
 
-test("the active pack's logo and sponsor resolve from an overlay stylesheet", () => {
-  const pack = cssRefs("/o/theme.css").find((r) => /^\/o\/themes\/[^/]+\/theme\.css$/.test(r));
-  assert.ok(pack, "theme.css imports no pack");
-  const css = read(pack);
-  for (const prop of ["--logo-url", "--sponsor-url"]) {
-    const m = css.match(new RegExp(`${prop}\\s*:\\s*url\\(\\s*["']?([^"')]+)`));
-    assert.ok(m, `${pack} sets no ${prop}`);
-    const ref = resolveFrom("/o/scoreboard/scoreboard.css", m[1]);
-    assert.ok(resolveOverlayPath(ref, roots), `${prop} → ${ref} → nothing`);
+// Every pack, not just the active one: the dock's Setup tab switches packs on
+// air, so a pack with a broken logo url goes on stream the moment it's picked.
+test("every pack's logo and sponsor resolve from an overlay stylesheet", () => {
+  const active = cssRefs("/o/theme.css").find((r) => /^\/o\/themes\/[^/]+\/theme\.css$/.test(r));
+  assert.ok(active, "theme.css imports no pack");
+  const packs = themePacks(roots.overlaysDir).map((p) => `/o/themes/${p}/theme.css`);
+  assert.ok(packs.includes(active), `${active} isn't one of the packs the dock offers`);
+  for (const pack of packs) {
+    const css = read(pack);
+    for (const prop of ["--logo-url", "--sponsor-url"]) {
+      const m = css.match(new RegExp(`${prop}\\s*:\\s*url\\(\\s*["']?([^"')]+)`));
+      assert.ok(m, `${pack} sets no ${prop}`);
+      const ref = resolveFrom("/o/scoreboard/scoreboard.css", m[1]);
+      assert.ok(resolveOverlayPath(ref, roots), `${pack}: ${prop} → ${ref} → nothing`);
+    }
   }
 });
 

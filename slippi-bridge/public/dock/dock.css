@@ -636,9 +636,9 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 }
 .field input:focus, .field select:focus, .filter:focus { border-color: rgba(var(--d-accent-rgb), .9); }
 .field input[type="number"] { font-family: var(--d-mono); font-size: 13px; }
-.url-row { display: flex; gap: 6px; }
-.url-row > input { flex: 1 1 auto; min-width: 0; }
-.url-row > .key { flex: 0 0 auto; padding: 0 16px; }
+.url-load { display: flex; gap: 6px; }
+.url-load > input { flex: 1 1 auto; min-width: 0; }
+.url-load > .key { flex: 0 0 auto; padding: 0 16px; }
 .field.check { flex-direction: row; align-items: center; gap: 8px; margin-top: 0; min-height: 36px; }
 .field.check > span { text-transform: none; letter-spacing: 0; font: 400 13px/1.2 var(--d-text); color: var(--d-ink); }
 .field input[type="checkbox"], .switch input { width: 17px; height: 17px; accent-color: rgb(var(--d-accent-rgb)); }
