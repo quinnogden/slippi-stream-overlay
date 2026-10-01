@@ -141,9 +141,8 @@
             <button class="key go" id="btn-casters-save" type="button">Put on stream</button>
             <button class="key" id="btn-casters-revert" type="button">Revert</button>
           </div>
-          <div class="hint">Caster 1 is <b>/o/casters?i=0</b>, caster 2 <b>?i=1</b> — keep each under their own cam. A blank tag hides that card. Tags from the player list fill in the rest.</div>
+          <div class="hint">Caster 1 is <b>/o/casters?i=0</b>, caster 2 <b>?i=1</b> — keep each under their own cam. A blank tag hides that card. Pick a tag from the suggestions to fill in the rest.</div>
         </div>
-        <datalist id="caster-suggest"></datalist>
       </div>
 
       <!-- ── Players ── -->
@@ -233,6 +232,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Suggestions for whichever text field has focus (autocomplete() in dock.js). -->
+  <div class="ac-menu" id="ac-menu" role="listbox"></div>
 
   <div class="toast" id="toast"></div>
 

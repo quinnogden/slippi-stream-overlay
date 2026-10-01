@@ -103,6 +103,43 @@ class PlayerDb {
   }
 
   /**
+   * Every record with a tag, A–Z by tag — the dock's suggestions for an empty
+   * name field.
+   * @returns {object[]} live records — read only
+   */
+  byTag() {
+    return this._records
+      .filter((r) => String(r.gamerTag ?? "").trim())
+      .sort((a, b) => String(a.gamerTag).localeCompare(String(b.gamerTag), undefined, { sensitivity: "base" }));
+  }
+
+  /**
+   * Every distinct prefix and pronoun in the file, most used first (ties
+   * alphabetical) — the dock's suggestions for those fields. Case-folded for
+   * counting; each is shown as its most common spelling.
+   * @returns {{ prefixes: string[], pronouns: string[] }}
+   */
+  values() {
+    const tally = (key) => {
+      const seen = new Map(); // folded → { count, spellings: Map }
+      for (const r of this._records) {
+        const v = typeof r[key] === "string" ? r[key].trim() : "";
+        if (!v) continue;
+        const k = v.toLowerCase();
+        const e = seen.get(k) ?? { count: 0, spellings: new Map() };
+        e.count++;
+        e.spellings.set(v, (e.spellings.get(v) ?? 0) + 1);
+        seen.set(k, e);
+      }
+      return [...seen.values()]
+        .map((e) => ({ count: e.count, text: [...e.spellings].sort((a, b) => b[1] - a[1])[0][0] }))
+        .sort((a, b) => b.count - a.count || a.text.localeCompare(b.text))
+        .map((e) => e.text);
+    };
+    return { prefixes: tally("prefix"), pronouns: tally("pronoun") };
+  }
+
+  /**
    * A record's handle for the dock: its position in the file. Stable for the
    * life of the process — records are only ever appended, and the file is
    * read once — and the dock sends the tag back with it, so a stale handle is

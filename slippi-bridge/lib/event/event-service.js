@@ -272,6 +272,28 @@ class EventService extends EventEmitter {
     return ids;
   }
 
+  /**
+   * Every player entered in the loaded event, once each — the dock's player
+   * autocomplete while an event is loaded. Read from the bracket graphs, so it
+   * is everyone in a set read so far (an unstarted bracket's preview sets
+   * carry the seeded entrants); `team` is the entrant's name in doubles.
+   * @returns {Array<{ playerId: string|null, tag: string, prefix: string, team: string, seed: number|null }>}
+   */
+  players() {
+    const out = new Map();
+    for (const g of this._groups) {
+      for (const ent of Object.values(g.graph?.entrants ?? {})) {
+        const team = (ent.players?.length ?? 0) > 1 ? ent.name ?? "" : "";
+        for (const p of ent.players ?? []) {
+          if (!p.tag) continue;
+          const key = p.playerId ?? `tag:${p.tag.toLowerCase()}`;
+          if (!out.has(key)) out.set(key, { playerId: p.playerId ?? null, tag: p.tag, prefix: p.prefix ?? "", team, seed: ent.seed ?? null });
+        }
+      }
+    }
+    return [...out.values()];
+  }
+
   /** One phase group's bracket graph (bracket-model.buildBracket), or null. */
   graph(phaseGroupId) {
     return this._groups.find((g) => g.id === String(phaseGroupId))?.graph ?? null;

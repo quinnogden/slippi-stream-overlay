@@ -169,6 +169,7 @@ registerRoutes(app, {
   swapPorts,
   switchSides: () => store.switchSides(),
   reresolvePorts: modes.reresolvePorts,
+  gameLive: () => !!ctx.state.currentGameState,
   recordClip: clipRecorder.recordClip,
   playerStatsSnapshot: playerStats.snapshot,
   setupInfo: () => ({

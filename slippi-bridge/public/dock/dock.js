@@ -126,6 +126,206 @@
     return b;
   }
 
+  // ── Autocomplete ────────────────────────────────────────────────────────────
+
+  /**
+   * A suggestion list under a text field, as TSH has on its manual fields. One
+   * menu (#ac-menu) serves every field, placed under whichever has focus. A
+   * list of our own rather than a <datalist>: OBS's dock browser draws those
+   * badly, and a player suggestion carries their main's icon.
+   *
+   * ↑/↓ move, Enter or a tap picks, Escape closes. Enter with nothing
+   * highlighted is left to the field — it commits what was typed — unless the
+   * text is exactly a suggestion, which starts highlighted. A field's own
+   * keydown handler must be added after this one and skip a defaultPrevented
+   * key, so Enter on a suggestion doesn't also commit the typed text.
+   *
+   * @param {HTMLInputElement} input
+   * @param {{
+   *   source: (text: string) => (object[] | Promise<object[]>), // "" = the field just got focus
+   *   label: (item: object) => string,
+   *   render?: (item: object) => Node[],
+   *   caption?: (items: object[]) => string,
+   *   pick: (item: object) => void,
+   * }} o
+   */
+  function autocomplete(input, o) {
+    input.setAttribute("autocomplete", "off");
+    input.addEventListener("focus", () => acOpen(input, o, ""));
+    input.addEventListener("click", () => { if (ac.input !== input) acOpen(input, o, ""); });
+    input.addEventListener("input", () => {
+      clearTimeout(ac.timer);
+      ac.timer = setTimeout(() => acOpen(input, o, input.value), 120);
+    });
+    input.addEventListener("blur", () => { if (ac.input === input) acClose(); });
+    input.addEventListener("keydown", (e) => {
+      const open = ac.input === input;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        if (!open) return acOpen(input, o, input.value);
+        acMove(e.key === "ArrowDown" ? 1 : -1);
+      } else if (e.key === "Enter" && open && ac.active >= 0) {
+        e.preventDefault();
+        acPick(ac.active);
+      } else if (e.key === "Escape" && open) {
+        e.preventDefault();
+        acClose();
+      } else if (e.key === "Tab" && open) {
+        acClose();
+      }
+    });
+  }
+
+  const ac = { input: null, o: null, items: [], active: -1, req: 0, timer: null };
+
+  async function acOpen(input, o, text) {
+    clearTimeout(ac.timer);
+    const req = ++ac.req;
+    let items = [];
+    try { items = (await o.source(text.trim())) || []; } catch (err) { console.error("[dock] suggestions failed", err); }
+    if (req !== ac.req || document.activeElement !== input) return; // typed on, or left the field
+    if (!items.length) return acHide(); // not acClose: a lookup for what's being typed may be queued
+    const want = text.trim().toLowerCase();
+    Object.assign(ac, { input, o, items, active: want ? items.findIndex((it) => o.label(it).toLowerCase() === want) : -1 });
+    acRender();
+  }
+
+  /** Close the menu and drop any lookup still on its way. */
+  function acClose() {
+    ac.req++;
+    clearTimeout(ac.timer);
+    acHide();
+  }
+
+  function acHide() {
+    Object.assign(ac, { input: null, o: null, items: [], active: -1 });
+    $("ac-menu").classList.remove("open");
+    $("ac-menu").replaceChildren();
+  }
+
+  function acMove(delta) {
+    const n = ac.items.length;
+    ac.active = ac.active < 0 ? (delta > 0 ? 0 : n - 1) : (ac.active + delta + n) % n;
+    acRender();
+  }
+
+  function acPick(i) {
+    const { items, o } = ac;
+    acClose();
+    if (o && items[i]) o.pick(items[i]);
+  }
+
+  const acRender = guard("autocomplete", () => {
+    const menu = $("ac-menu");
+    const rows = [];
+    const cap = ac.o.caption ? ac.o.caption(ac.items) : "";
+    if (cap) rows.push(h("div", "ac-cap", cap));
+    ac.items.forEach((it, i) => {
+      const row = h("button", "ac-item" + (i === ac.active ? " on" : ""));
+      row.type = "button";
+      row.tabIndex = -1;
+      row.append(...(ac.o.render ? ac.o.render(it) : [h("span", "ac-label", ac.o.label(it))]));
+      // mousedown, not click, keeps the focus in the field — a blur would close the menu first.
+      row.addEventListener("mousedown", (e) => e.preventDefault());
+      row.addEventListener("click", () => acPick(i));
+      rows.push(row);
+    });
+    menu.replaceChildren(...rows);
+    menu.classList.add("open");
+    acPlace();
+    const on = menu.querySelector(".ac-item.on");
+    if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest" });
+  });
+
+  /** Under the field, or over it when the dock has no room below. */
+  function acPlace() {
+    if (!ac.input) return;
+    const menu = $("ac-menu");
+    const r = ac.input.getBoundingClientRect();
+    const vh = window.innerHeight || 600;
+    const vw = window.innerWidth || 400;
+    const below = vh - r.bottom - 8;
+    const above = r.top - 8;
+    const up = below < 160 && above > below;
+    const width = Math.min(Math.max(r.width, 260), vw - 16);
+    menu.style.left = Math.max(8, Math.min(r.left, vw - width - 8)) + "px";
+    menu.style.width = width + "px";
+    menu.style.maxHeight = Math.max(120, Math.min(300, up ? above : below)) + "px";
+    menu.style.top = up ? "auto" : r.bottom + 2 + "px";
+    menu.style.bottom = up ? vh - r.top + 2 + "px" : "auto";
+  }
+
+  if (window.addEventListener) {
+    window.addEventListener("resize", acPlace);
+    window.addEventListener("scroll", (e) => { if (e.target !== $("ac-menu")) acPlace(); }, true);
+  }
+
+  /** `list` narrowed to `text`: entries starting with it first, then containing it. */
+  function narrow(list, text, limit = 40) {
+    const q = text.toLowerCase();
+    if (!q) return list.slice(0, limit);
+    const starts = list.filter((v) => v.toLowerCase().startsWith(q));
+    const has = list.filter((v) => !v.toLowerCase().startsWith(q) && v.toLowerCase().includes(q));
+    return [...starts, ...has].slice(0, limit);
+  }
+
+  // The player list's prefixes and pronouns. Re-read at most every 30s: a
+  // save on the Players tab adds one rarely, and these are only suggestions.
+  let fieldValues = null;
+  async function knownValues() {
+    if (fieldValues && Date.now() - fieldValues.at < 30000) return fieldValues;
+    const r = await api("/api/players/values");
+    if (r.ok) fieldValues = { at: Date.now(), prefixes: r.prefixes || [], pronouns: r.pronouns || [] };
+    return fieldValues || { prefixes: [], pronouns: [] };
+  }
+
+  const COMMON_PRONOUNS = ["he/him", "she/her", "they/them", "he/they", "she/they", "any/all"];
+  const textItem = { label: (v) => v };
+
+  /** A field suggesting the player list's prefixes. */
+  function prefixSuggest(input, pick) {
+    autocomplete(input, {
+      ...textItem,
+      source: async (text) => narrow((await knownValues()).prefixes, text),
+      pick,
+    });
+  }
+
+  /** A field suggesting pronouns: the common ones, then any others in the player list. */
+  function pronounSuggest(input, pick) {
+    autocomplete(input, {
+      ...textItem,
+      source: async (text) => {
+        const seen = new Set(COMMON_PRONOUNS);
+        const more = (await knownValues()).pronouns.filter((v) => !seen.has(v.toLowerCase()));
+        return narrow([...COMMON_PRONOUNS, ...more], text);
+      },
+      pick,
+    });
+  }
+
+  /** A suggestion row for a player: main, prefix, tag, pronoun, and seed or team. */
+  function playerItem(p) {
+    const out = [];
+    const url = p.main ? icon(p.main) : null;
+    if (url) {
+      const img = h("img");
+      img.alt = "";
+      img.src = url;
+      out.push(img);
+    } else {
+      out.push(h("span", "ac-noimg"));
+    }
+    const name = h("span", "ac-label");
+    if (p.prefix) name.append(h("span", "ac-prefix", p.prefix));
+    name.append(h("span", "ac-tag", p.tag || "?"));
+    out.push(name);
+    if (p.pronoun) out.push(h("span", "chip", p.pronoun));
+    const meta = [p.team, p.seed != null ? `Seed ${p.seed}` : ""].filter(Boolean).join(" · ");
+    if (meta) out.push(h("span", "ac-meta", meta));
+    return out;
+  }
+
   const playerName = (p) => [p.prefix, p.tag].filter(Boolean).join(" ");
   const sideName = (side) => side.teamName || side.players.map(playerName).filter(Boolean).join(" / ");
 
@@ -150,6 +350,7 @@
   function bindField(input, commit) {
     input.addEventListener("input", () => { input.dataset.dirty = "1"; });
     input.addEventListener("keydown", (e) => {
+      if (e.defaultPrevented) return; // the autocomplete took it
       if (e.key === "Enter") input.blur();
       if (e.key === "Escape") {
         delete input.dataset.dirty;
@@ -175,8 +376,66 @@
   /** Show `value` unless the operator is busy with the field. */
   function setField(input, value) {
     input.dataset.saved = value;
-    if (input.dataset.dirty || document.activeElement === input) return;
+    if (input.dataset.dirty || input.dataset.sending || document.activeElement === input) return;
     if (input.value !== value) input.value = value;
+  }
+
+  /**
+   * A suggestion picked into a bound field: shown at once, the field left,
+   * and `send` commits it — directly, since a value set from script raises no
+   * change event. The field holds the pick until the app answers.
+   * @param {() => Promise<object>} send
+   */
+  async function commitPick(input, value, send) {
+    const before = input.dataset.saved || "";
+    delete input.dataset.dirty;
+    input.dataset.sending = "1";
+    input.dataset.saved = value;
+    input.value = value;
+    input.blur();
+    const r = await send();
+    delete input.dataset.sending;
+    if (!r.ok) {
+      toast(`Couldn't save that: ${r.error}`, false);
+      if (input.dataset.saved === value) input.dataset.saved = before;
+    }
+    if (document.activeElement !== input && !input.dataset.dirty) input.value = input.dataset.saved || "";
+  }
+
+  /**
+   * Players for a name field: the loaded event's entrants, or the player list
+   * (with no event, or `listOnly`). Clicked into empty, it's all of them —
+   * by seed, or A–Z — so a name can be picked without typing.
+   */
+  async function playerSuggestions(text, listOnly) {
+    const r = await api("/api/players/suggest?q=" + encodeURIComponent(text) + (listOnly ? "&scope=list" : ""));
+    if (!r.ok) return [];
+    const total = r.total || 0;
+    return (r.players || []).map((p) => ({ ...p, scope: r.scope, total }));
+  }
+
+  function playerCaption(items) {
+    const first = items[0] || {};
+    const name = first.scope === "event" ? "Entered in this event" : "Player list";
+    return first.total > items.length && items.length > 12 ? `${name} · ${items.length} of ${first.total} — type to search` : name;
+  }
+
+  /**
+   * A strip tag field's suggestions. A pick puts the whole player in that
+   * slot — tag, prefix, pronoun, start.gg id and main — as a set load would.
+   */
+  function tagSuggest(input, side, index) {
+    autocomplete(input, {
+      label: (p) => p.tag,
+      source: (text) => playerSuggestions(text, false),
+      caption: playerCaption,
+      render: playerItem,
+      pick: (p) => commitPick(input, p.tag, () => {
+        if (p.scope === "event" && p.startggPlayerId) return api("/api/players/assign", { side, index, playerId: p.startggPlayerId });
+        if (p.ref != null) return api("/api/players/assign", { side, index, ref: p.ref, tag: p.tag });
+        return api("/api/player", { side, index, tag: p.tag, prefix: p.prefix || "" });
+      }),
+    });
   }
 
   function buildSide(i, count) {
@@ -207,6 +466,9 @@
       tag.type = "text";
       tag.placeholder = count > 1 ? `Player ${n + 1}` : "Player";
       tag.spellcheck = false;
+      // The suggestions first: their Enter must run before the field's own.
+      prefixSuggest(prefix, (v) => commitPick(prefix, v, () => api("/api/player", { side: i, index: n, prefix: v })));
+      tagSuggest(tag, i, n);
       bindField(prefix, (v) => api("/api/player", { side: i, index: n, prefix: v }));
       bindField(tag, (v) => api("/api/player", { side: i, index: n, tag: v }));
       const names = h("div", "names");
@@ -304,6 +566,33 @@
     });
   }
 
+  // TSH's round and match terms, after the loaded bracket's own round names.
+  const ROUND_TERMS = [
+    "Winners Round 1", "Winners Round 2", "Winners Round 3", "Winners Quarter-Final", "Winners Semi-Final", "Winners Final",
+    "Losers Round 1", "Losers Round 2", "Losers Round 3", "Losers Round 4", "Losers Top 8",
+    "Losers Quarter-Final", "Losers Semi-Final", "Losers Final", "Grand Final", "Grand Final Reset",
+    "Pools", "Top 8", "Top 16", "Top 32", "Final", "Semi-Final", "Quarter-Final",
+    "Friendlies", "Casuals", "Exhibition Match", "Money Match", "Crew Battle", "Round Robin", "Ladder", "Freeplay",
+  ];
+
+  function roundOptions() {
+    const out = [];
+    const seen = new Set();
+    const add = (name) => {
+      const v = String(name || "").trim();
+      if (v && !seen.has(v.toLowerCase())) { seen.add(v.toLowerCase()); out.push(v); }
+    };
+    ((bracket && bracket.rounds) || []).forEach((r) => add(r.name));
+    sets.forEach((s) => add(s.roundName));
+    ROUND_TERMS.forEach(add);
+    return out;
+  }
+
+  autocomplete($("round"), {
+    ...textItem,
+    source: (text) => narrow(roundOptions(), text, 60),
+    pick: (v) => commitPick($("round"), v, () => api("/api/set-text", { round: v })),
+  });
   bindField($("round"), (v) => api("/api/set-text", { round: v || null }));
 
   $("best-of").addEventListener("change", () => {
@@ -701,12 +990,18 @@
       input.addEventListener("input", () => {
         draft()[i][f.key] = input.value;
         renderCastersDirty();
-        if (f.key === "tag") suggestCasters(input.value);
       });
+      const set = (v) => {
+        draft()[i][f.key] = v;
+        input.value = v;
+        renderCastersDirty();
+      };
       if (f.key === "tag") {
-        input.setAttribute("list", "caster-suggest");
+        casterSuggest(input, i);
         input.addEventListener("change", () => fillCaster(i));
       }
+      if (f.key === "prefix") prefixSuggest(input, set);
+      if (f.key === "pronoun") pronounSuggest(input, set);
       fields.append(input);
     }
     const ops = h("div", "c-ops");
@@ -729,26 +1024,38 @@
     return row;
   }
 
-  let suggestReq = 0;
-  /** The player list's matching tags, offered as the tag field's autocomplete. */
-  function suggestCasters(text) {
-    clearTimeout(suggestCasters.timer);
-    const q = text.trim();
-    if (!q) return;
-    suggestCasters.timer = setTimeout(async () => {
-      const req = ++suggestReq;
-      const r = await api("/api/players?q=" + encodeURIComponent(q));
-      if (req !== suggestReq || !r.ok) return;
-      $("caster-suggest").replaceChildren(...(r.players || []).map((p) => {
-        const o = h("option");
-        o.value = p.tag;
-        if (p.prefix) o.label = `${p.prefix} ${p.tag}`;
-        return o;
-      }));
-    }, 150);
+  /** The input of caster row i's field, or null. */
+  function casterInput(i, k) {
+    const row = $("casters-list").querySelectorAll(".caster-row")[i];
+    return (row && row.querySelector(".c-" + k)) || null;
   }
 
-  /** A tag that's in the player list fills the fields left blank. */
+  /**
+   * The tag field suggests from the whole player list (casters aren't
+   * entrants), all of it on a click into the field. A pick is that person:
+   * every field is theirs, blanks included, so nothing is left over from
+   * whoever the row held before.
+   */
+  function casterSuggest(input, i) {
+    autocomplete(input, {
+      label: (p) => p.tag,
+      source: (text) => playerSuggestions(text, true),
+      caption: playerCaption,
+      render: playerItem,
+      pick: (p) => {
+        const c = draft()[i];
+        if (!c) return;
+        for (const f of CASTER_FIELDS) {
+          c[f.key] = p[f.key] || "";
+          const el = casterInput(i, f.key);
+          if (el && el.value !== c[f.key]) el.value = c[f.key];
+        }
+        renderCastersDirty();
+      },
+    });
+  }
+
+  /** A tag typed out in full that's in the player list fills the fields left blank. */
   async function fillCaster(i) {
     const c = casterDraft && casterDraft[i];
     const tag = c ? c.tag.trim() : "";
@@ -762,9 +1069,8 @@
     }
     // Into that row's fields in place: a redraw would take the focus, and
     // Enter commits a tag without leaving the field.
-    const row = $("casters-list").querySelectorAll(".caster-row")[i];
     for (const f of CASTER_FIELDS) {
-      const input = row && row.querySelector(".c-" + f.key);
+      const input = casterInput(i, f.key);
       if (input && input.value !== c[f.key]) input.value = c[f.key];
     }
     renderCastersDirty();
@@ -896,7 +1202,10 @@
       input.spellcheck = false;
       input.placeholder = placeholder;
       input.value = p[k] || "";
-      input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
+      const set = (v) => { input.value = v; };
+      if (k === "prefix") prefixSuggest(input, set);
+      if (k === "pronoun") pronounSuggest(input, set);
+      input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.defaultPrevented) save(); });
       fields[k] = input;
       f.append(h("span", "", label), input);
       box.append(f);

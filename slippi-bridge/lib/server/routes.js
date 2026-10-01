@@ -16,7 +16,7 @@ const API = ["status", "scoreboard", "event", "players", "casters", "clipper", "
  * @param {object} deps — {
  *   publicDir, iconsDir, store, event, playerDb, clipperSettings, obs,
  *   refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet,
- *   swapPorts, switchSides, reresolvePorts, recordClip, playerStatsSnapshot,
+ *   swapPorts, switchSides, reresolvePorts, gameLive, recordClip, playerStatsSnapshot,
  *   setupInfo
  * }
  */

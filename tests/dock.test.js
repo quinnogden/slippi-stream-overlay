@@ -40,6 +40,7 @@ const { registerRoutes } = require("../slippi-bridge/lib/server/routes");
 const { resolveOverlayPath } = require("../slippi-bridge/lib/server/overlays");
 const { loadPayload, pickerList } = require("../slippi-bridge/lib/event/set-model");
 const { buildBracket } = require("../slippi-bridge/lib/event/bracket-model");
+const { EventService } = require("../slippi-bridge/lib/event/event-service");
 const { CSS_ORDER, CHAR_MAP } = require("../slippi-bridge/lib/char_map");
 const { eventFrom } = require("./helpers/fake-startgg");
 const { loadOverlay, fakeIo, texts, sleep, fire } = require("./helpers/overlay-sandbox");
@@ -120,7 +121,7 @@ async function rig() {
   const store = new ScoreboardStore();
   const { io, nsps } = fakeIo();
   const channel = createOverlayChannel({ io, store });
-  const calls = { report: 0, loadSet: [], swapPorts: 0 };
+  const calls = { report: 0, loadSet: [], swapPorts: 0, gameLive: false };
 
   // The event service's reads, over the preview graph.
   const event = {
@@ -128,6 +129,8 @@ async function rig() {
     snapshot: () => ({ event: { name: "Melee Singles" } }),
     openSets: (opts) => pickerList(pgraph, opts).map((r) => ({ ...r, phaseGroupId: pgraph.phaseGroupId, phase: "" })),
     groups: () => [{ id: String(pgraph.phaseGroupId), label: "Bracket" }],
+    // The real entrant list, over the preview graph.
+    players: () => EventService.prototype.players.call({ _groups: [{ graph: pgraph }] }),
     refresh: async () => ({ ok: true }),
     loadSet: async (id) => {
       calls.loadSet.push(id);
@@ -155,6 +158,7 @@ async function rig() {
     swapPorts: () => { calls.swapPorts++; return { ok: true }; },
     switchSides: () => store.switchSides(),
     reresolvePorts: () => ({ ok: false, error: "No game in progress" }),
+    gameLive: () => calls.gameLive,
     recordClip: () => null,
     playerStatsSnapshot: () => ({}),
   });
@@ -464,6 +468,162 @@ async function rig() {
       fire(r.page.$("#btn-casters-revert"), "click");
       assert.strictEqual(tagAt(0).value, "Caster B", "Revert drops the draft");
       assert.strictEqual(r.store.casters()[0].tag, "Caster B");
+    } finally { r.close(); }
+  });
+
+  // ── Autocomplete ──
+  const menu = (r) => r.page.$("#ac-menu");
+  const menuRows = (r) => (menu(r).classList.contains("open") ? menu(r).querySelectorAll(".ac-item") : []);
+  const rowNamed = (r, text) => menuRows(r).find((b) => texts(b).join("").includes(text));
+  const type = (input, text) => { input.value = text; fire(input, "input"); };
+  const focusIn = (input) => { input.focus(); fire(input, "focus"); };
+
+  await test("player autocomplete, no event: the player list; a pick puts the whole player in the slot", async () => {
+    const r = await rig();
+    try {
+      r.store.clearSet();
+      await until(() => r.tagInput(0), "the strip");
+      const tag = r.tagInput(0);
+      focusIn(tag);
+      await until(() => menuRows(r).length === 3, "a click lists the player list");
+      assert.deepStrictEqual(menuRows(r).map((b) => texts(b.querySelector(".ac-tag")).join("")), ["Commentator", "Player2", "xPlayer"],
+        "no event: the whole player list, A–Z");
+
+      type(tag, "play");
+      await until(() => menuRows(r).length === 2, "two matches");
+      assert.deepStrictEqual(menuRows(r).map((b) => texts(b).join(" ")), ["Team1 Player2", "xPlayer"],
+        "tags starting with the text first, with their prefix");
+      assert.strictEqual(texts(menu(r).querySelector(".ac-cap")).join(""), "Player list");
+
+      fire(rowNamed(r, "Player2"), "click");
+      await until(() => r.store.scoreboard().sides[0].players[0].tag === "Player2", "the pick reached the scoreboard");
+      const p = r.store.scoreboard().sides[0].players[0];
+      assert.strictEqual(p.prefix, "Team1");
+      assert.strictEqual(p.playerId, PLAYER2_ID, "their start.gg id, for the side panel's stats");
+      assert.strictEqual(`${p.main.codename}/${p.main.skin}`, "fox/2", "their learned main");
+      assert.strictEqual(`${p.character.codename}/${p.character.skin}`, "fox/2", "shown, with no game running");
+      assert.strictEqual(menuRows(r).length, 0, "the menu closed");
+      assert.strictEqual(tag.value, "Player2");
+
+      // Mid-game, Slippi's character is the true one: the pick sets only the main.
+      r.store.setCharacter(1, 0, { codename: "marth", name: "Marth", skin: 0 });
+      r.calls.gameLive = true;
+      const right = r.tagInput(1);
+      focusIn(right);
+      type(right, "Player2");
+      await until(() => menuRows(r).length === 1, "the exact match");
+      assert.ok(menuRows(r)[0].classList.contains("on"), "an exact match starts highlighted");
+      fire(right, "keydown", { key: "Enter" });
+      await until(() => r.store.scoreboard().sides[1].players[0].prefix === "Team1", "Enter picked it");
+      assert.strictEqual(r.store.scoreboard().sides[1].players[0].character.codename, "marth", "Slippi's character stays");
+      assert.strictEqual(r.store.scoreboard().sides[1].players[0].main.codename, "fox");
+    } finally { r.close(); }
+  });
+
+  await test("player autocomplete, event loaded: only its entrants, and a pick is the start.gg player", async () => {
+    const r = await rig();
+    try {
+      const entrants = EventService.prototype.players.call({ _groups: [{ graph: pgraph }] });
+      assert.ok(entrants.length > 4, "the preview event has entrants");
+      const bySeed = [...entrants].sort((a, b) => a.seed - b.seed);
+      r.store.clearSet();
+      r.store.setTournament({ name: "100 Acres", eventName: "Melee Singles", eventSlug: "tournament/x/event/melee-singles", kind: "singles" });
+      await until(() => r.tagInput(0), "the strip");
+      const tag = r.tagInput(0);
+
+      focusIn(tag);
+      await until(() => menuRows(r).length === entrants.length, "every entrant, on focus");
+      assert.strictEqual(texts(menu(r).querySelector(".ac-cap")).join(""), "Entered in this event");
+      assert.ok(texts(menuRows(r)[0]).join(" ").includes(`Seed ${bySeed[0].seed}`), "top seed first");
+
+      type(tag, "Comm");
+      await sleep(200);
+      assert.strictEqual(menuRows(r).length, 0, "the caster is in the player list but not the event: not offered");
+
+      const pick = bySeed[2];
+      type(tag, pick.tag);
+      await until(() => rowNamed(r, pick.tag), "the entrant");
+      fire(rowNamed(r, pick.tag), "click");
+      await until(() => r.store.scoreboard().sides[0].players[0].tag === pick.tag, "the pick reached the scoreboard");
+      assert.strictEqual(r.store.scoreboard().sides[0].players[0].playerId, pick.playerId);
+      assert.ok(r.db.find({ playerId: pick.playerId }), "a new start.gg player is added to the list, as a set load does");
+    } finally { r.close(); }
+  });
+
+  await test("autocomplete keys: Enter on a partial name commits the text; Escape only closes the menu", async () => {
+    const r = await rig();
+    try {
+      r.store.clearSet();
+      await until(() => r.tagInput(0), "the strip");
+      const tag = r.tagInput(0);
+      focusIn(tag);
+      type(tag, "Play");
+      await until(() => menuRows(r).length === 2, "suggestions");
+      assert.ok(!menuRows(r).some((b) => b.classList.contains("on")), "nothing highlighted for a partial name");
+
+      fire(tag, "keydown", { key: "Escape" });
+      assert.strictEqual(menuRows(r).length, 0, "Escape closed the menu");
+      assert.strictEqual(tag.value, "Play", "and kept the typing");
+
+      fire(tag, "keydown", { key: "ArrowDown" });
+      await until(() => menuRows(r).length === 2, "↓ reopens");
+      fire(tag, "keydown", { key: "ArrowDown" });
+      fire(tag, "keydown", { key: "ArrowDown" });
+      assert.ok(menuRows(r)[1].classList.contains("on"), "↓ moves down the list");
+      fire(tag, "keydown", { key: "Escape" });
+
+      fire(tag, "keydown", { key: "Enter" });
+      fire(tag, "change");
+      await until(() => r.store.scoreboard().sides[0].players[0].tag === "Play", "the typed text");
+      assert.strictEqual(r.store.scoreboard().sides[0].players[0].prefix, "", "no player filled in");
+    } finally { r.close(); }
+  });
+
+  await test("round, prefix and pronoun suggestions", async () => {
+    const r = await rig();
+    try {
+      const values = await (await fetch(r.base + "/api/players/values")).json();
+      assert.deepStrictEqual(JSON.parse(JSON.stringify([values.prefixes, values.pronouns])), [["Team1"], ["he/him"]]);
+
+      r.store.loadSet(fresh(LOSERS_FINAL));
+      await until(() => r.Dock.sets.length > 0 && r.tagInput(0).value === "Player2", "the set and the picker");
+      const round = r.page.$("#round");
+      focusIn(round);
+      await until(() => menuRows(r).length > 10, "the round list");
+      const roundNames = new Set(r.Dock.sets.map((s) => s.roundName));
+      const first = texts(menuRows(r)[0]).join("");
+      assert.ok(roundNames.has(first), `the event's own round names first (got ${first})`);
+      type(round, "money");
+      await until(() => menuRows(r).length === 1, "narrowed");
+      fire(menuRows(r)[0], "click");
+      await until(() => r.store.scoreboard().round === "Money Match", "the round override");
+
+      const prefix = r.side(1).querySelector(".prefix");
+      focusIn(prefix);
+      type(prefix, "te");
+      await until(() => rowNamed(r, "Team1"), "the list's prefixes");
+      fire(rowNamed(r, "Team1"), "click");
+      await until(() => r.store.scoreboard().sides[1].players[0].prefix === "Team1", "the prefix");
+
+      // Casters: a picked tag is that person — blanks included.
+      r.store.setCasters([{ tag: "Old", prefix: "OldTeam", twitter: "@old" }]);
+      const casterField = (k) => r.page.$(`#casters-list .c-${k}`);
+      await until(() => casterField("tag") && casterField("tag").value === "Old", "the caster");
+      focusIn(casterField("pronoun"));
+      await until(() => menuRows(r).length > 0, "pronouns");
+      assert.strictEqual(texts(menuRows(r)[0]).join(""), "he/him", "the common pronouns first");
+      casterField("pronoun").blur();
+      r.store.setTournament({ name: "100 Acres", eventName: "Melee Singles", eventSlug: "tournament/x/event/melee-singles", kind: "singles" });
+      focusIn(casterField("tag"));
+      await until(() => menuRows(r).length === 3, "a click lists the player list");
+      assert.strictEqual(texts(menu(r).querySelector(".ac-cap")).join(""), "Player list",
+        "casters aren't entrants: the player list even with an event loaded");
+      type(casterField("tag"), "comm");
+      await until(() => rowNamed(r, "Commentator"), "the player list");
+      fire(rowNamed(r, "Commentator"), "click");
+      assert.deepStrictEqual(["tag", "prefix", "pronoun", "twitter"].map((k) => casterField(k).value),
+        ["Commentator", "", "he/him", "@comms"]);
+      assert.strictEqual(r.store.casters()[0].tag, "Old", "still a draft");
     } finally { r.close(); }
   });
 
