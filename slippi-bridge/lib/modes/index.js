@@ -44,7 +44,10 @@ function createModes(ctx) {
     return sb.sides.map((side) => side.players.map((p) => p.main ?? null));
   }
 
-  /** Doubles needs 4 Slippi teams-mode players and a doubles set (or no set at all). */
+  /**
+   * Doubles needs 4 Slippi teams-mode players and a doubles scoreboard — a
+   * doubles set, or the dock's toggle — or no start.gg set at all.
+   */
   function isDoublesGame(rawPlayers) {
     if (!isDoubles(rawPlayers)) return false;
     const sb = store.scoreboard();
@@ -67,6 +70,8 @@ function createModes(ctx) {
     });
     if (doublesGame) {
       console.log("[bridge] Doubles game detected");
+      // No set loaded: the game's shape decides, and the dock's toggle follows.
+      store.setDoubles(true);
       doubles.apply(sorted);
     } else {
       singles.apply(sorted);

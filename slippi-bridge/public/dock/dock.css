@@ -42,8 +42,11 @@
   --d-red:    #ff3b30;
   --d-green:  #34e07a;
   --d-amber:  #ffb020;
-  --d-left:   #ff7a59;
-  --d-right:  #58a6ff;
+  /* The two sides. Deliberately none of Melee's team colours (red, blue,
+     green): in doubles the team colour is its own thing, and a left side that
+     glowed red beside a blue team would read as the wrong team. */
+  --d-left:   #b48cff;
+  --d-right:  #f0d84a;
 
   --d-sign: "Dock Sign", "Bahnschrift", "Arial Narrow", sans-serif;
   --d-text: "Dock Text", "Bahnschrift", "Segoe UI", sans-serif;
@@ -247,8 +250,8 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
   top: 0;
   z-index: 5;
   display: grid;
-  gap: 8px;
-  padding: 10px;
+  gap: 6px;
+  padding: 8px 10px;
   background: linear-gradient(180deg, #171c23, #10141a);
   border: 1px solid var(--d-line);
   border-radius: 10px;
@@ -258,14 +261,68 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 /* A dock too short to give the strip a pinned slot scrolls it like the rest. */
 @media (max-height: 560px) { .strip { position: static; } }
 
+/* The strip's header: fold, the one-line summary (folded) or which set is
+   loaded (open), doubles. */
+.strip-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+}
+.strip-fold {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 6px 4px 2px;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.strip-fold:hover .label { color: var(--d-ink); }
+.fold-chev::before {
+  content: "\25BE";
+  display: inline-block;
+  width: 12px;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--d-ink-dim);
+  transition: transform .15s ease;
+}
+.strip.folded .fold-chev::before { transform: rotate(-90deg); }
+
+.strip-summary {
+  display: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+  font: 600 14px/1.2 var(--d-text);
+}
+.strip.folded .strip-summary { display: flex; }
+.strip.folded .strip-fold .label { display: none; }
+.sum-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sum-name:first-child { color: var(--d-left); }
+.sum-name:last-child  { color: var(--d-right); }
+.sum-score {
+  flex: 0 0 auto;
+  font: 700 15px/1 var(--d-mono);
+  color: var(--d-accent);
+}
+
+.mode-key { flex: none; }
+
+.strip-body { display: grid; gap: 6px; }
+.strip.folded .strip-body { display: none; }
+
+/* Round, best-of and — only once something is overridden — Auto text, on one row. */
 .strip-meta {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 6px 8px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
   align-items: center;
 }
-.strip-meta .set-ref { grid-column: 1; }
-.strip-meta #btn-text-auto { grid-column: 2; justify-self: end; }
 
 /* Fields that read as labels until touched. */
 .round, .best-of, .player input {
@@ -302,24 +359,27 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 .best-of option { background: var(--d-panel); color: var(--d-ink); }
 
 .set-ref {
-  padding-left: 7px;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
   font: 500 11px/1.2 var(--d-mono);
   color: var(--d-ink-faint);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-#btn-text-auto { visibility: hidden; }
-#btn-text-auto.show { visibility: visible; }
+.strip.folded .set-ref { display: none; }
+#btn-text-auto { display: none; }
+#btn-text-auto.show { display: block; }
 
-/* One channel strip per side. */
+/* One channel strip per side. Doubles adds a team-colour column. */
 .side {
   position: relative;
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
-  padding: 8px 8px 8px 12px;
+  padding: 6px 8px 6px 12px;
   background: var(--d-panel);
   border: 1px solid var(--d-line);
   border-radius: 8px;
@@ -329,14 +389,36 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
   content: "";
   position: absolute;
   left: -1px;
-  top: 8px;
-  bottom: 8px;
+  top: 6px;
+  bottom: 6px;
   width: 3px;
   border-radius: 0 3px 3px 0;
   background: var(--d-left);
   box-shadow: 0 0 10px var(--d-left);
 }
 .side.s1::before { background: var(--d-right); box-shadow: 0 0 10px var(--d-right); }
+
+/* Doubles: the team's colour, as the overlay shows it. One lit at most. */
+.team-colors { display: flex; gap: 6px; flex: none; }
+.swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, .55);
+  background: var(--swatch);
+  opacity: .4;
+  cursor: pointer;
+}
+.swatch:hover { opacity: .75; }
+.swatch.on {
+  opacity: 1;
+  border-color: #fff;
+  box-shadow: 0 0 0 2px var(--d-panel), 0 0 12px var(--swatch);
+}
+.swatch.red   { --swatch: #D32F2F; }
+.swatch.blue  { --swatch: #1565C0; }
+.swatch.green { --swatch: #2E7D32; }
 
 /* [L] — lit when the side carries it on stream. */
 .l-chip {
@@ -369,6 +451,13 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
   align-items: center;
 }
 .names { display: grid; min-width: 0; }
+/* Doubles: no character and no prefix (the overlay shows tags alone), so a
+   player is one line: the port badge, then the tag. */
+.side.doubles .player { grid-template-columns: 26px minmax(0, 1fr); }
+.side.doubles .port { position: static; display: inline-block; }
+/* Under both players: the team colour, the seed and the team name. */
+.sub-row { display: flex; align-items: center; gap: 10px; min-width: 0; padding-left: 4px; }
+.sub-row .side-sub:first-of-type { flex: none; } /* the seed is short; the team name gives way */
 .player .prefix { width: 100%; padding: 1px 5px; font-size: 12px; color: var(--d-ink-dim); }
 .player .tag    { width: 100%; padding: 1px 5px; font: 600 18px/1.2 var(--d-text); }
 .char-wrap { position: relative; }
@@ -406,8 +495,13 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 .port.guess { color: var(--d-amber); border-color: rgba(255, 176, 32, .5); }
 .port:empty { visibility: hidden; }
 
+/* The prefix line also carries the side's seed and team name, right-aligned. */
+.pre-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* The prefix keeps enough room to click into; the seed and team name get the rest. */
+.pre-row .prefix { flex: 1 1 0; min-width: 48px; }
 .side-sub {
-  padding-left: 46px;
+  flex: 0 1 auto;
+  min-width: 0;
   font: 500 11px/1.2 var(--d-mono);
   color: var(--d-ink-faint);
   white-space: nowrap;
@@ -423,13 +517,13 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
   align-items: center;
   gap: 4px;
 }
-.score-box .key { min-height: 44px; padding: 0; font: 700 20px/1 var(--d-mono); }
+.score-box .key { min-height: 40px; padding: 0; font: 700 20px/1 var(--d-mono); }
 .score {
   display: block;
-  height: 50px;
-  line-height: 50px;
+  height: 44px;
+  line-height: 44px;
   text-align: center;
-  font: 700 30px/50px var(--d-mono);
+  font: 700 28px/44px var(--d-mono);
   color: var(--d-accent);
   text-shadow: 0 0 12px rgba(var(--d-accent-rgb), .5);
   background: var(--d-well);
@@ -438,18 +532,17 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, .8), 0 1px 0 rgba(255, 255, 255, .05);
 }
 
-.strip-actions {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 5px;
-}
-.strip-actions .key { padding: 0 4px; font-size: 13px; }
-/* Start only exists while start.gg has the set waiting; Report takes the room. */
-.strip-actions #btn-start.gone { display: none; }
-.strip-actions.no-start { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.strip-actions { display: flex; gap: 5px; }
+.strip-actions .key { flex: 1 1 0; min-width: 0; min-height: 36px; padding: 0 4px; font-size: 13px; }
+/* Start and Report only exist for a start.gg set; the rest take the room. */
+.strip-actions .key.gone { display: none; }
+
+.strip-tools { display: flex; gap: 5px; }
+.strip-tools .key { flex: 1 1 0; }
 
 .strip-hint { font-size: 12px; color: var(--d-ink-dim); min-height: 1em; }
 .strip-hint:empty { display: none; }
+#report-confirm:empty, #clear-confirm:empty { display: none; }
 
 /* An inline "are you sure", for anything that touches start.gg or loses work. */
 .confirm {
@@ -543,6 +636,9 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 }
 .field input:focus, .field select:focus, .filter:focus { border-color: rgba(var(--d-accent-rgb), .9); }
 .field input[type="number"] { font-family: var(--d-mono); font-size: 13px; }
+.url-row { display: flex; gap: 6px; }
+.url-row > input { flex: 1 1 auto; min-width: 0; }
+.url-row > .key { flex: 0 0 auto; padding: 0 16px; }
 .field.check { flex-direction: row; align-items: center; gap: 8px; margin-top: 0; min-height: 36px; }
 .field.check > span { text-transform: none; letter-spacing: 0; font: 400 13px/1.2 var(--d-text); color: var(--d-ink); }
 .field input[type="checkbox"], .switch input { width: 17px; height: 17px; accent-color: rgb(var(--d-accent-rgb)); }
@@ -915,7 +1011,6 @@ kbd {
 .ac-label > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ac-prefix { color: var(--d-ink-dim); }
 .ac-tag { flex-shrink: 0; font-weight: 600; }
-.ac-meta { margin-left: auto; padding-left: 6px; font: 500 11px/1 var(--d-mono); color: var(--d-ink-faint); white-space: nowrap; }
 
 /* ── Toast ── */
 

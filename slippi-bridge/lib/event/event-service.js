@@ -4,6 +4,7 @@
  * scoreboard. Replaces TSH's start.gg provider.
  *
  *   short link → this week's tournament → its singles/doubles event   (switchEvent)
+ *   or a pasted start.gg URL → that event                            (loadEventUrl)
  *   event → phases → phase groups → every set, as bracket graphs     (loadEvent, refresh)
  *   graphs → the picker, playable sets first                          (openSets)
  *   one set, re-read fresh → enriched from the player DB → the store  (loadSet)
@@ -105,24 +106,71 @@ class EventService extends EventEmitter {
     if (!spec) {
       return { ok: false, error: `Unknown bracket "${kind}" — configured: ${Object.keys(this._brackets.events).join(", ")}` };
     }
+    return this._exclusive(async () => {
+      const target = await this._resolveTarget(kind, spec);
+      return target.ok ? this._open(target, kind) : target;
+    });
+  }
+
+  /**
+   * The Bracket tab's URL box, as TSH's "Set tournament": load whatever event a
+   * pasted start.gg link names, for when the short link points elsewhere or the
+   * keywords can't pick it. An event URL loads that event; a tournament URL (or
+   * short link) loads its event only when it has exactly one — with several,
+   * picking one would be a guess, so they are listed instead.
+   *
+   * Shares switchEvent's one-at-a-time rule and its reply.
+   *
+   * @param {string} url
+   */
+  async loadEventUrl(url) {
+    const text = String(url ?? "").trim();
+    if (!text) return { ok: false, error: "Paste a start.gg event URL first" };
+    return this._exclusive(async () => {
+      const target = await this._targetFromUrl(text);
+      return target.ok ? this._open(target, null) : target;
+    });
+  }
+
+  /** Refuse a second switch while one is running (see switchEvent). */
+  async _exclusive(fn) {
     if (this._switching) return { ok: false, error: "Still switching brackets — wait for that to finish" };
     this._switching = true;
     try {
-      const target = await this._resolveTarget(kind, spec);
-      if (!target.ok) return target;
-
-      if (this._event && sameEvent(this._store.tournament().eventSlug, target.slug)) {
-        const r = await this.refresh();
-        if (!r.ok) return r;
-        return { ok: true, refreshed: true, ...this._names(), warning: target.warning };
-      }
-
-      const r = await this.loadEvent(target.slug, { kind });
-      if (!r.ok) return r;
-      return { ok: true, refreshed: false, ...this._names(), warning: target.warning };
+      return await fn();
     } finally {
       this._switching = false;
     }
+  }
+
+  /** Load the target event, or re-read it if it's the one already loaded. */
+  async _open(target, kind) {
+    if (this._event && sameEvent(this._store.tournament().eventSlug, target.slug)) {
+      const r = await this.refresh();
+      if (!r.ok) return r;
+      return { ok: true, refreshed: true, ...this._names(), warning: target.warning };
+    }
+    const r = await this.loadEvent(target.slug, { kind });
+    if (!r.ok) return r;
+    return { ok: true, refreshed: false, ...this._names(), warning: target.warning };
+  }
+
+  /** A pasted link → an event slug: directly, or via its tournament's one event. */
+  async _targetFromUrl(text) {
+    const slug = normalizeEventUrl(text);
+    if (slug) return { ok: true, slug };
+
+    const link = await this._startgg.resolveShortLink(text);
+    if (!link.ok) {
+      return { ok: false, error: `Couldn't find "${text}" on start.gg — paste an event URL like start.gg/tournament/<name>/event/<event>` };
+    }
+    const list = await this._startgg.listEvents(link.slug);
+    if (!list.ok) return list;
+    if (list.events.length === 1) return { ok: true, slug: list.events[0].slug };
+    return {
+      ok: false,
+      error: `${list.name} has ${list.events.length} events (${list.events.map((e) => e.name).join(", ")}) — paste the one event's URL`,
+    };
   }
 
   /** Short link → tournament → the one event matching the kind's keywords. */
@@ -148,7 +196,8 @@ class EventService extends EventEmitter {
    * Load an event by slug and read every phase group's sets. Leaves the
    * scoreboard alone (see store.setTournament).
    * @param {string} slug — "tournament/<t>/event/<e>" (a pasted URL is fine)
-   * @param {{ kind?: string|null }} [opts]
+   * @param {{ kind?: string|null }} [opts] — omitted keeps the saved kind; null
+   *   (a pasted URL) clears it
    */
   async loadEvent(slug, { kind } = {}) {
     const clean = normalizeEventUrl(slug) ?? String(slug);
@@ -164,7 +213,7 @@ class EventService extends EventEmitter {
       slug: ev.tournament?.slug ?? "",
       eventName: ev.name ?? "",
       eventSlug: normalizeEventUrl(ev.slug) ?? clean,
-      kind: kind ?? this._store.tournament().kind ?? null,
+      kind: kind === undefined ? this._store.tournament().kind ?? null : kind,
     });
     this._log(`Loaded ${this._names().tournamentName} — ${ev.name} (${this._groups.length} phase group${this._groups.length === 1 ? "" : "s"})`);
 

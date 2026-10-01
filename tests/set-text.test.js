@@ -64,6 +64,7 @@ test("best-of: override wins, and the thresholds/labels are configurable", () =>
   assert.strictEqual(bestOfLabel({ lPlacement: 13 }, { topN: 16 }), "Bo5");
   assert.strictEqual(bestOfLabel({ lPlacement: 13 }, { topN: undefined }), "Flex", "undefined option keeps the default");
   assert.strictEqual(bestOfLabel({ lPlacement: 3 }, { topLabel: "Best of 5" }), "Best of 5");
+  assert.strictEqual(bestOfLabel({ lPlacement: 3 }, { override: "None" }), "", "None: no label, so the overlays hide it");
 });
 
 test("[L]: grand final marks the losers-side player only; the reset marks both; other sets neither", () => {

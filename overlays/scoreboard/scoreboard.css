@@ -49,11 +49,18 @@ body {
   box-shadow: var(--shadow-raised);
 }
 
+/* A faint top-down shade over the card colour, and the gold strip along the
+   top (with the info cards, below). --score-inset is the gap round the
+   score well. */
 .player.container {
   width: 500px;
   height: 64px;
   top: 42px;
   padding: 0px 6px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.035), rgba(0,0,0,0.10)),
+    var(--bg-color);
+  --score-inset: 5px;
 }
 
 .fgc.thin .player.container {
@@ -88,6 +95,7 @@ body {
 
 .thin .player.container {
   padding: 0 8px;
+  --score-inset: 4px;
 }
 
 /* ── Player name ─────────────────────────────────────────────
@@ -201,30 +209,37 @@ body {
 }
 
 /* ── Match info container ────────────────────────────────────
-   Round name over the best-of label.
+   The round alone, centred and sized to fill the card: one line that
+   shrinks to fit (Overlay.fitText in scoreboard.js) rather than spilling
+   past it. The best-of is the pill between the players (index.html only).
    ─────────────────────────────────────────────────────────── */
 .info.container {
   left: 50%;
-  padding-left: 20px;
-  padding-right: 20px;
+  padding-left: 12px;
+  padding-right: 12px;
   text-transform: uppercase;
   box-sizing: border-box;
-  font-size: 20px;
 }
 
 .match {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   width: 100%;
-  font-size: 24px;
   letter-spacing: 0.10em;
   text-align: center;
+  --round-size: 32px;
 }
 
-.match .best-of {
-  font-size: 0.7em;
-  margin-top: 4px;
+.match .round {
+  display: block;
+  width: 100%;
+  font-size: var(--round-size);
+  line-height: 1.05;
+  /* Letter-spacing trails the last letter; this puts the ink back on centre. */
+  padding-left: 0.1em;
+  box-sizing: border-box;
 }
 
 .match .text.empty {
@@ -245,8 +260,7 @@ body {
   top: 8px;
   height: 34px;
   width: 290px;
-  font-size: 16px;
-  padding: 8px 16px;
+  padding: 4px 12px;
   border-radius: calc(var(--border-radius) / 2);
 }
 
@@ -254,6 +268,9 @@ body {
   top: 2px;
   height: 48px;
 }
+
+.fgc.thin .match { --round-size: 28px; }
+.fgc.thin .match .round { line-height: 1; }
 
 .meleePlayer .info.container.top {
   border-radius: var(--border-radius);
@@ -265,22 +282,22 @@ body {
   flex-direction: column;
   width: 280px;
   height: 64px;
-  font-size: 20px;
 }
 
 .melee .info.container.bottom {
   --base-transform: translateX(-50%);
   transform: var(--base-transform);
   bottom: -5px;
-  padding: 16px 24px;
+  padding: 6px 14px 10px;
   left: 660px;
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
 
-/* Gold accent line on the info cards only — not the player containers */
+/* Gold accent line along the top of the info and player cards */
 .meleePlayer .info.container.top::before,
-.info.container.bottom::before {
+.info.container.bottom::before,
+.player.container::before {
   content: "";
   position: absolute;
   top: 0; left: 15%; right: 15%;
@@ -296,6 +313,77 @@ body {
   opacity: 0.22;
   pointer-events: none;
   z-index: 10;
+}
+
+/* ── Best-of pill (index.html) ───────────────────────────────
+   A pill centred in the gap between the player cards (880 to 1040 in
+   melee_row coordinates) and on their midline (top 42 + half of 64). Styled
+   after the side panel's tournament-name header: the score colour, the gold
+   strip along the top and a glow beneath it, with a lighter shadow than the
+   cards so it doesn't haze the gap. .empty — the
+   dock's "None" — removes it.
+   ─────────────────────────────────────────────────────────── */
+.best-of-pill {
+  position: absolute;
+  left: 960px;
+  top: 74px;
+  /* Repeated for the entrance animation — see overlay.css. */
+  --base-transform: translate(-50%, -50%);
+  transform: var(--base-transform);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 96px;
+  max-width: 150px;
+  height: 40px;
+  padding: 0 18px 0 calc(18px + 0.16em); /* letter-spacing trails; re-centre */
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--score-bg-color);
+  box-shadow:
+    0 2px 6px rgba(0,0,0,0.40),
+    0 1px 2px rgba(0,0,0,0.30),
+    inset 0 -1px 0 rgba(0,0,0,0.35);
+  color: var(--text-color);
+  font-size: 24px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.best-of-pill::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 15%; right: 15%;
+  height: 1.5px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--darkened-text) 25%,
+    var(--text-color)    50%,
+    var(--darkened-text) 75%,
+    transparent
+  );
+  opacity: 0.22;
+}
+
+.best-of-pill::after {
+  content: "";
+  position: absolute;
+  top: -16px; left: 50%;
+  transform: translateX(-50%);
+  width: 120px; height: 40px;
+  background: radial-gradient(ellipse, rgba(var(--text-color-rgb), 0.055) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.best-of-pill .text {
+  position: relative;
+  z-index: 1;
+}
+
+.best-of-pill.empty {
+  display: none;
 }
 
 /* ── Character icon ──────────────────────────────────────────
@@ -379,12 +467,16 @@ body {
 }
 
 /* ── Score box ───────────────────────────────────────────────
-   Raised card treatment matching .container, flush to the card's
-   edge, with breathing room from the character icon.
+   A well set into the card's end: inset --score-inset from its edges, the
+   corners following the card's at that distance, and shaded from the top
+   as if recessed. Breathing room from the character icon.
    ─────────────────────────────────────────────────────────── */
 .score {
-  width: 64px;
-  height: 64px;
+  width: 58px;
+  height: calc(100% - 2 * var(--score-inset));
+  box-sizing: border-box;
+  border-radius: calc(var(--border-radius) - var(--score-inset));
+  border: 1px solid rgba(var(--text-color-rgb), 0.08);
   font-size: 50px;
   color: var(--bg-color);
   flex-grow: 1;
@@ -397,7 +489,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: var(--shadow-raised);
+  box-shadow:
+    inset 0 3px 6px  rgba(0,0,0,0.55),
+    inset 0 1px 2px  rgba(0,0,0,0.40),
+    0 1px 0 rgba(255,255,255,0.05);
 }
 
 /* Optical centring correction, per digit. Flex centres the line box, which the
@@ -425,7 +520,7 @@ body {
 
 .fgc.thin .score {
   font-size: 40px;
-  width: 50px;
+  width: 48px;
 }
 
 /* --score-box-bg is the score box ALONE, defaulting to the shared panel colour.
@@ -435,24 +530,24 @@ body {
 .p1 .score {
   color: var(--score-color);
   background: var(--score-box-bg, var(--score-bg-color));
-  margin-right: -6px;
+  margin-right: calc(var(--score-inset) - 6px);
   margin-left: 16px;
 }
 
 .thin .p1 .score {
-  margin-right: -8px;
+  margin-right: calc(var(--score-inset) - 8px);
   margin-left: -6px;
 }
 
 .p2 .score {
   color: var(--score-color);
   background: var(--score-box-bg, var(--score-bg-color));
-  margin-left: -6px;
+  margin-left: calc(var(--score-inset) - 6px);
   margin-right: 16px;
 }
 
 .thin .p2 .score {
-  margin-left: -8px;
+  margin-left: calc(var(--score-inset) - 8px);
   margin-right: -6px;
 }
 

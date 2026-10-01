@@ -1,7 +1,7 @@
 /**
  * Global hotkeys — the scoreboard's keys, reachable whichever window has focus
  * (OBS, Dolphin, a browser): swap the ports, switch sides, a game up or down
- * per side.
+ * per side, and the score back to 0–0.
  *
  * The chords come from config.HOTKEYS, merged per action over DEFAULTS, so a
  * machine-local override can move one key without restating the rest; null
@@ -29,6 +29,7 @@ const DEFAULTS = {
   rightPlus:   "Ctrl+Shift+2",
   leftMinus:   "Ctrl+Shift+Alt+1",
   rightMinus:  "Ctrl+Shift+Alt+2",
+  clearScore:  "Ctrl+Shift+0",
 };
 
 const LABELS = {
@@ -38,14 +39,17 @@ const LABELS = {
   rightPlus:   "Right +1",
   leftMinus:   "Left −1",
   rightMinus:  "Right −1",
+  clearScore:  "Clear score",
 };
 
 // The fallback when the global listener can't load: keys typed into the app's
-// own terminal window. 1/2 add a game, q/w (under them) take one away.
+// own terminal window. 1/2 add a game, q/w (under them) take one away, 0
+// clears the score.
 const TERMINAL_KEYS = {
   s: "swapPorts", x: "switchSides",
   1: "leftPlus", 2: "rightPlus",
   q: "leftMinus", w: "rightMinus",
+  0: "clearScore",
 };
 
 const MODIFIERS = {

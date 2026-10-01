@@ -9,7 +9,7 @@
  */
 
 const { characterByName } = require("../../char_map");
-const { characterList } = require("./scoreboard");
+const { characterList, sameName } = require("./scoreboard");
 
 const FIELD_MAX = 40;
 const LIST_ALL = 150; // an empty name field lists this many of the player list
@@ -156,10 +156,16 @@ function register(app, { store, playerDb, event = null, iconsDir, refreshControl
     const m = rec ? playerDb.preferredMain(rec) : null;
     const main = m ? characterByName(m.name, m.skin) : null;
     if (main) fields.main = main;
+    // Someone else in the slot: the scoreboard isn't the start.gg set any more
+    // (as a typed name, /api/player). The same player picked again changes nothing.
+    const before = store.scoreboard().sides[side].players[index] ?? {};
+    const other = (before.playerId ?? null) !== (fields.playerId ?? null) || !sameName(before.tag, fields.tag)
+      || !sameName(before.prefix, fields.prefix);
+    const detached = other && store.detachSet();
     store.setPlayer(side, index, fields);
     if (main && !gameLive()) store.setCharacter(side, index, main);
     refreshControlStatus();
-    res.json({ ok: true, tag: fields.tag });
+    res.json({ ok: true, tag: fields.tag, detached });
   });
 
   // { ref, tag, prefix?, pronoun?, twitter? }. A player on the scoreboard

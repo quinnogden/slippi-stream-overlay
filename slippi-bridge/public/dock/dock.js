@@ -30,6 +30,7 @@
 
   const TABS = ["set", "bracket", "casters", "players", "clips", "setup"];
   const TAB_KEY = "dock.tab";
+  const FOLD_KEY = "dock.stripFolded";
   const HOLD_MS = 450;        // a long-press on a character opens its costumes
   const SETS_POLL_MS = 90000; // the app re-reads start.gg every 90s; this only picks that up
   const STALE_MS = 12000;     // no status for this long = the app has stopped talking
@@ -304,7 +305,10 @@
     });
   }
 
-  /** A suggestion row for a player: main, prefix, tag, pronoun, and seed or team. */
+  /**
+   * A suggestion row for a player: main, prefix, tag, pronoun. No seed or
+   * team — at OBS-dock width they crowded the names out of the row.
+   */
   function playerItem(p) {
     const out = [];
     const url = p.main ? icon(p.main) : null;
@@ -321,13 +325,13 @@
     name.append(h("span", "ac-tag", p.tag || "?"));
     out.push(name);
     if (p.pronoun) out.push(h("span", "chip", p.pronoun));
-    const meta = [p.team, p.seed != null ? `Seed ${p.seed}` : ""].filter(Boolean).join(" · ");
-    if (meta) out.push(h("span", "ac-meta", meta));
     return out;
   }
 
   const playerName = (p) => [p.prefix, p.tag].filter(Boolean).join(" ");
-  const sideName = (side) => side.teamName || side.players.map(playerName).filter(Boolean).join(" / ");
+  // As the overlay names a side: doubles players by tag alone.
+  const sideName = (side) => side.teamName
+    || side.players.map((p) => (side.players.length > 1 ? p.tag : playerName(p))).filter(Boolean).join(" / ");
 
   // ── Live state ──────────────────────────────────────────────────────────────
 
@@ -339,8 +343,12 @@
 
   // ── The live strip ──────────────────────────────────────────────────────────
 
-  /** Per side: the nodes the strip updates in place. Rebuilt only when the player count changes. */
+  /** Per side: the nodes the strip updates in place. Rebuilt only when the player count or the mode changes. */
   const sides = [null, null];
+
+  // Melee's team colours, as the app stores them (modes/doubles.js TEAM_COLORS).
+  const TEAM_SWATCHES = [["red", "#D32F2F"], ["blue", "#1565C0"], ["green", "#2E7D32"]];
+  const sameHex = (a, b) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
 
   /**
    * A text field bound to the scoreboard. Commits on change (Enter or leaving
@@ -421,6 +429,17 @@
   }
 
   /**
+   * A name change on the strip. Changing a tag or prefix unlinks the
+   * scoreboard from its start.gg set (the app says `detached`), so say so —
+   * Report and the seed have just gone.
+   */
+  async function editPlayer(path, body) {
+    const r = await api(path, body);
+    if (r.ok && r.detached) toast("Name changed — unlinked from the start.gg set. Load it again from Up next to relink", true);
+    return r;
+  }
+
+  /**
    * A strip tag field's suggestions. A pick puts the whole player in that
    * slot — tag, prefix, pronoun, start.gg id and main — as a set load would.
    */
@@ -431,15 +450,23 @@
       caption: playerCaption,
       render: playerItem,
       pick: (p) => commitPick(input, p.tag, () => {
-        if (p.scope === "event" && p.startggPlayerId) return api("/api/players/assign", { side, index, playerId: p.startggPlayerId });
-        if (p.ref != null) return api("/api/players/assign", { side, index, ref: p.ref, tag: p.tag });
-        return api("/api/player", { side, index, tag: p.tag, prefix: p.prefix || "" });
+        if (p.scope === "event" && p.startggPlayerId) return editPlayer("/api/players/assign", { side, index, playerId: p.startggPlayerId });
+        if (p.ref != null) return editPlayer("/api/players/assign", { side, index, ref: p.ref, tag: p.tag });
+        return editPlayer("/api/player", { side, index, tag: p.tag, prefix: p.prefix || "" });
       }),
     });
   }
 
-  function buildSide(i, count) {
+  /**
+   * One side of the strip. Singles: a character per player. Doubles: the
+   * team's colour instead, as TSH has — the overlay shows the colour, not four
+   * characters. No prefix either: the overlay shows doubles players by tag
+   * alone. The colour dots go on a line under the players, with the seed and
+   * team name, so the tags get the column's whole width.
+   */
+  function buildSide(i, count, doubles) {
     const root = $("side-" + i);
+    root.classList.toggle("doubles", doubles);
     const lChip = h("button", "l-chip", "L");
     lChip.type = "button";
     lChip.title = "[L] on stream — the side that came from losers. Set automatically in grand finals";
@@ -447,39 +474,53 @@
 
     const who = h("div", "who");
     const players = [];
+    // Singles: seed and team name ride on the prefix line rather than a line
+    // of their own. Doubles has no prefix line, so they go on the colour line
+    // under both players.
+    const seedSub = h("span", "side-sub");
+    const teamSub = h("span", "side-sub");
     for (let n = 0; n < count; n++) {
       const row = h("div", "player");
       const charWrap = h("div", "char-wrap");
-      const charBtn = h("button", "char empty");
-      charBtn.type = "button";
-      charBtn.title = "Character";
-      const img = h("img");
-      img.alt = "";
-      charBtn.append(img);
-      charBtn.addEventListener("click", () => openPicker(i, n));
+      let charBtn = null;
+      let img = null;
+      if (!doubles) {
+        charBtn = h("button", "char empty");
+        charBtn.type = "button";
+        charBtn.title = "Character";
+        img = h("img");
+        img.alt = "";
+        charBtn.append(img);
+        charBtn.addEventListener("click", () => openPicker(i, n));
+        charWrap.append(charBtn);
+      }
       const port = h("span", "port");
-      const prefix = h("input", "prefix");
-      prefix.type = "text";
-      prefix.placeholder = "Team";
-      prefix.spellcheck = false;
       const tag = h("input", "tag");
       tag.type = "text";
       tag.placeholder = count > 1 ? `Player ${n + 1}` : "Player";
       tag.spellcheck = false;
       // The suggestions first: their Enter must run before the field's own.
-      prefixSuggest(prefix, (v) => commitPick(prefix, v, () => api("/api/player", { side: i, index: n, prefix: v })));
       tagSuggest(tag, i, n);
-      bindField(prefix, (v) => api("/api/player", { side: i, index: n, prefix: v }));
-      bindField(tag, (v) => api("/api/player", { side: i, index: n, tag: v }));
+      bindField(tag, (v) => editPlayer("/api/player", { side: i, index: n, tag: v }));
       const names = h("div", "names");
-      names.append(prefix, tag);
-      charWrap.append(charBtn, port);
+      let prefix = null;
+      if (!doubles) {
+        prefix = h("input", "prefix");
+        prefix.type = "text";
+        prefix.placeholder = "Team";
+        prefix.spellcheck = false;
+        prefixSuggest(prefix, (v) => commitPick(prefix, v, () => editPlayer("/api/player", { side: i, index: n, prefix: v })));
+        bindField(prefix, (v) => editPlayer("/api/player", { side: i, index: n, prefix: v }));
+        const preRow = h("div", "pre-row");
+        preRow.append(prefix, seedSub, teamSub);
+        names.append(preRow);
+      }
+      names.append(tag);
+      charWrap.append(port);
       row.append(charWrap, names);
       who.append(row);
       players.push({ charBtn, img, port, prefix, tag });
     }
-    const sub = h("div", "side-sub");
-    who.append(sub);
 
     const box = h("div", "score-box");
     const dec = h("button", "key", "−");
@@ -493,8 +534,26 @@
     inc.addEventListener("click", () => bump(i, 1));
     box.append(dec, score, inc);
 
+    let swatches = null;
+    if (doubles) {
+      const group = h("div", "team-colors");
+      group.setAttribute("role", "group");
+      group.setAttribute("aria-label", "Team colour");
+      swatches = TEAM_SWATCHES.map(([name, hex]) => {
+        const b = h("button", "swatch " + name);
+        b.type = "button";
+        b.title = `${name[0].toUpperCase()}${name.slice(1)} team`;
+        b.setAttribute("aria-label", b.title);
+        b.addEventListener("click", () => setTeamColor(i, name, hex));
+        group.append(b);
+        return { hex, b };
+      });
+      const subRow = h("div", "sub-row");
+      subRow.append(group, seedSub, teamSub);
+      who.append(subRow);
+    }
     root.replaceChildren(lChip, who, box);
-    sides[i] = { count, lChip, players, sub, score, dec, inc };
+    sides[i] = { count, doubles, lChip, players, seedSub, teamSub, score, dec, inc, swatches };
     applyKeyHints();
   }
 
@@ -519,34 +578,91 @@
     else ref.push(`Set ${sb.identifier || sb.setId}`);
     if (sb.isReset) ref.push("Reset");
     else if (sb.isGrandFinal) ref.push("Grand final");
-    if (sb.isDoubles) ref.push("Doubles");
     $("set-ref").textContent = ref.join(" · ");
 
+    const doubles = !!sb.isDoubles;
+    const mode = $("btn-doubles");
+    mode.classList.toggle("lit", doubles);
+    mode.setAttribute("aria-pressed", String(doubles));
+
     sb.sides.forEach((side, i) => {
-      if (!sides[i] || sides[i].count !== side.players.length) buildSide(i, side.players.length);
+      const count = doubles ? side.players.length : 1;
+      if (!sides[i] || sides[i].count !== count || sides[i].doubles !== doubles) buildSide(i, count, doubles);
       const s = sides[i];
       s.lChip.classList.toggle("on", !!side.losers);
       s.lChip.classList.toggle("pinned", (edited.losers || [])[i] != null);
-      side.players.forEach((p, n) => {
+      side.players.slice(0, count).forEach((p, n) => {
         const ui = s.players[n];
-        setField(ui.prefix, p.prefix || "");
+        if (ui.prefix) setField(ui.prefix, p.prefix || "");
         setField(ui.tag, p.tag || "");
+        if (!ui.charBtn) return;
         const url = icon(p.character);
         ui.charBtn.classList.toggle("empty", !url);
         if (url && ui.img.getAttribute("src") !== url) ui.img.src = url;
         ui.charBtn.title = p.character ? `${p.character.name} — change` : "Pick a character";
       });
-      const sub = [];
-      if (side.seed != null) sub.push(`Seed ${side.seed}`);
-      if (side.teamName) sub.push(side.teamName);
-      s.sub.textContent = sub.join(" · ");
+      (s.swatches || []).forEach((w) => {
+        const on = sameHex(side.color, w.hex);
+        w.b.classList.toggle("on", on);
+        w.b.setAttribute("aria-pressed", String(on));
+      });
+      s.seedSub.textContent = side.seed != null ? `Seed ${side.seed}` : "";
+      s.teamSub.textContent = side.teamName || "";
+      s.teamSub.title = side.teamName ? `Team name on stream: ${side.teamName}` : "";
       s.score.textContent = String(side.score);
       s.dec.disabled = side.score <= 0;
     });
 
+    $("btn-clear-score").disabled = !sb.sides.some((x) => x.score > 0);
+    renderSummary();
     renderPorts();
     renderActions();
     renderSetsMarks();
+  });
+
+  /** The folded strip's one line: both names and the score. */
+  function renderSummary() {
+    const [a, b] = sb.sides;
+    $("strip-summary").replaceChildren(
+      h("span", "sum-name", sideName(a) || "Left"),
+      h("span", "sum-score", `${a.score}–${b.score}`),
+      h("span", "sum-name", sideName(b) || "Right"),
+    );
+  }
+
+  function setFolded(folded) {
+    $("strip").classList.toggle("folded", folded);
+    const btn = $("btn-strip-fold");
+    btn.setAttribute("aria-expanded", String(!folded));
+    btn.title = folded ? "Open the scoreboard" : "Fold the scoreboard to one line";
+    store(FOLD_KEY, folded ? "1" : "0");
+  }
+  $("btn-strip-fold").addEventListener("click", () => setFolded(!$("strip").classList.contains("folded")));
+  setFolded(store(FOLD_KEY) === "1");
+
+  /** Tap a colour to set it; tap the lit one to clear it. */
+  function setTeamColor(i, name, hex) {
+    if (!sb) return;
+    const clear = sameHex(sb.sides[i].color, hex);
+    api("/api/side-color", { side: i, color: clear ? null : name }).then((r) => {
+      if (!r.ok) toast(`Colour change failed: ${r.error}`, false);
+    });
+  }
+
+  // Back to singles drops each side's second player, so it asks first if
+  // there's a name to lose.
+  $("btn-doubles").addEventListener("click", () => {
+    if (!sb) return;
+    const on = !sb.isDoubles;
+    const go = () => act("/api/doubles", { on }, on ? "Doubles — two players a side" : "Singles", "Couldn't switch");
+    const partners = on ? [] : sb.sides.map((x) => x.players[1]).filter((p) => p && p.tag).map(playerName);
+    if (!partners.length) return go();
+    if ($("strip").classList.contains("folded")) setFolded(false);
+    confirmIn($("clear-confirm"), {
+      html: rich("Back to singles? ", { b: partners.join(" and ") }, " come off the scoreboard."),
+      yes: "Singles",
+      onYes: go,
+    });
   });
 
   function bump(side, delta) {
@@ -644,19 +760,41 @@
 
   let startBusy = false;
 
+  // Start and Report exist only for a set loaded from start.gg: a manual set
+  // has nothing to report to. Start also only while start.gg has it waiting.
   const renderActions = guard("actions", () => {
     const cs = (status && status.currentSet) || {};
+    const fromStartgg = !!(sb && sb.setId);
     const start = $("btn-start");
     if (!startBusy) {
-      start.classList.toggle("gone", !cs.canStart);
+      start.classList.toggle("gone", !fromStartgg || !cs.canStart);
       start.disabled = !cs.canStart;
     }
-    start.parentElement.classList.toggle("no-start", !cs.canStart && !startBusy);
-    $("btn-report").disabled = !cs.canReport;
-    $("strip-hint").textContent = cs.canReport ? "" : (sb && sb.setId ? cs.reason || "" : "");
+    const report = $("btn-report");
+    report.classList.toggle("gone", !fromStartgg);
+    report.disabled = !fromStartgg || !cs.canReport;
+    if (!fromStartgg) $("report-confirm").replaceChildren();
+    $("strip-hint").textContent = fromStartgg && !cs.canReport ? cs.reason || "" : "";
   });
 
   $("btn-sides").addEventListener("click", () => act("/api/swap-sides", {}, "Sides switched", "Switch sides failed"));
+
+  // No confirm, as ± has none: it's a couple of + to put back.
+  $("btn-clear-score").addEventListener("click", () => {
+    const was = sb ? sb.sides.map((x) => x.score).join("–") : "";
+    act("/api/clear-score", {}, `Score cleared${was ? ` (was ${was})` : ""}`, "Couldn't clear the score");
+  });
+
+  $("btn-clear-set").addEventListener("click", () => {
+    const busy = sb && (sb.setId || sb.sides.some((s) => s.score > 0 || s.players.some((p) => p.tag)));
+    const clear = () => act("/api/clear-set", {}, "Scoreboard cleared", "Couldn't clear it");
+    if (!busy) return clear();
+    confirmIn($("clear-confirm"), {
+      html: rich("Clear ", { b: sb.sides.map(sideName).map((n) => n || "?").join(" vs ") }, " off the scoreboard? Nothing is reported."),
+      yes: "Clear it",
+      onYes: clear,
+    });
+  });
   $("btn-ports").addEventListener("click", () => act("/api/swap", {}, "Ports swapped", "Swap failed"));
   $("btn-redetect").addEventListener("click", () => act("/api/reresolve", {},
     (r) => `Detected (${r.method}): ${r.summary}` + (r.method === "positional" ? " — no character match, check it" : ""),
@@ -849,47 +987,55 @@
     fetchSets();
   });
 
-  $("btn-clear-set").addEventListener("click", () => {
-    const busy = sb && (sb.setId || sb.sides.some((s) => s.score > 0 || s.players.some((p) => p.tag)));
-    const clear = () => act("/api/clear-set", {}, "Scoreboard cleared", "Couldn't clear it");
-    if (!busy) return clear();
-    confirmIn($("clear-confirm"), {
-      html: rich("Clear ", { b: sb.sides.map(sideName).map((n) => n || "?").join(" vs ") }, " off the scoreboard? Nothing is reported."),
-      yes: "Clear it",
-      onYes: clear,
-    });
-  });
-
   // ── Bracket tab ─────────────────────────────────────────────────────────────
 
   // No confirm on the event switch: it keeps the set on the scoreboard, its
   // score and its set id, so a misclick costs one re-read of start.gg.
   let bracketBusy = false;
   let bracketMsg = null;
-  const BRACKET_KEYS = ["btn-bracket-singles", "btn-bracket-doubles"];
+  const BRACKET_KEYS = ["btn-bracket-singles", "btn-bracket-doubles", "btn-bracket-url"];
 
-  async function switchBracket(kind) {
+  /** Both ways of choosing the event: a Singles/Doubles key, or a pasted URL. */
+  async function switchBracket(route, body, busyText, fallbackName) {
     bracketMsg = null;
     bracketBusy = true;
     BRACKET_KEYS.forEach((id) => { $(id).disabled = true; });
-    $("bracket-hint").textContent = "Finding this week's tournament on start.gg…";
-    const r = await api("/api/bracket", { kind });
+    $("bracket-hint").textContent = busyText;
+    const r = await api(route, body);
     bracketBusy = false;
     BRACKET_KEYS.forEach((id) => { $(id).disabled = false; });
     if (!r.ok) {
-      bracketMsg = r.error; // stays up: it's usually a config fix
+      bracketMsg = r.error; // stays up: it's usually a config fix or a wrong link
       $("bracket-hint").textContent = r.error;
-      return toast(`Bracket switch failed: ${r.error}`, false);
+      toast(`Bracket switch failed: ${r.error}`, false);
+      return false;
     }
     if (r.warning) {
       bracketMsg = r.warning;
       $("bracket-hint").textContent = r.warning;
     }
-    const what = (r.tournamentName ? r.tournamentName + " — " : "") + (r.eventName || kind);
+    const what = (r.tournamentName ? r.tournamentName + " — " : "") + (r.eventName || fallbackName);
     toast(r.refreshed ? `${what} was already loaded — re-read it` : `Loaded ${what}`, true);
     fetchSets();
+    return true;
   }
-  BRACKET_KEYS.forEach((id) => $(id).addEventListener("click", () => switchBracket($(id).dataset.kind)));
+  ["btn-bracket-singles", "btn-bracket-doubles"].forEach((id) => $(id).addEventListener("click", () => {
+    const kind = $(id).dataset.kind;
+    switchBracket("/api/bracket", { kind }, "Finding this week's tournament on start.gg…", kind);
+  }));
+
+  async function loadBracketUrl() {
+    const input = $("bracket-url");
+    const url = input.value.trim();
+    if (!url) return input.focus();
+    if (await switchBracket("/api/bracket-url", { url }, "Loading that event from start.gg…", "event")) input.value = "";
+  }
+  $("btn-bracket-url").addEventListener("click", loadBracketUrl);
+  $("bracket-url").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.defaultPrevented || $("btn-bracket-url").disabled) return;
+    e.preventDefault();
+    loadBracketUrl();
+  });
 
   let view = null;
   let bracket = null;
@@ -1476,12 +1622,11 @@
   /** The bound chords, on the keys they press (titles only — the strip stays clean). */
   function applyKeyHints() {
     const hint = (base, action) => base + (chords[action] ? ` (${chords[action]})` : "");
-    const ports = $("btn-ports");
-    const sidesKey = $("btn-sides");
-    if (!ports.dataset.base) ports.dataset.base = ports.title;
-    if (!sidesKey.dataset.base) sidesKey.dataset.base = sidesKey.title;
-    ports.title = hint(ports.dataset.base, "swapPorts");
-    sidesKey.title = hint(sidesKey.dataset.base, "switchSides");
+    for (const [id, action] of [["btn-ports", "swapPorts"], ["btn-sides", "switchSides"], ["btn-clear-score", "clearScore"]]) {
+      const k = $(id);
+      if (!k.dataset.base) k.dataset.base = k.title;
+      k.title = hint(k.dataset.base, action);
+    }
     sides.forEach((s, i) => {
       if (!s) return;
       s.inc.title = hint("Give this side a game", i === 0 ? "leftPlus" : "rightPlus");

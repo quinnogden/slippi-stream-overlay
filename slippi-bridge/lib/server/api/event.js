@@ -50,6 +50,18 @@ function register(app, { store, event, refreshControlStatus }) {
     res.json(result);
   });
 
+  // Any event by a pasted start.gg URL (the Bracket tab's box, as TSH's
+  // "Set tournament"). Same reply as /api/bracket.
+  app.post("/api/bracket-url", async (req, res) => {
+    const url = req.body?.url;
+    if (typeof url !== "string" || !url.trim()) {
+      return res.status(400).json({ ok: false, error: "url required" });
+    }
+    const result = await event.loadEventUrl(url);
+    refreshControlStatus();
+    res.json(result);
+  });
+
   // What the bracket overlay shows: { view?, phaseGroupId? }. Every bracket
   // source not pinned with ?view= follows `view`; phaseGroupId null goes back
   // to following the set on the scoreboard.

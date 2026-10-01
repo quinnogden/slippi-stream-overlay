@@ -34,12 +34,13 @@ Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/si
   setId: "92837465",               // start.gg set id; null for a manual set; "preview_…" before the bracket starts
   phaseGroupId, identifier: "C",
   round: "Winners Semi-Final",     // the override if set, else start.gg's round name
-  bestOfLabel: "Flex",             // derived from lPlacement (config.SET_TEXT) unless overridden
-  isGrandFinal, isReset, isPreview, isDoubles,
+  bestOfLabel: "Flex",             // derived from lPlacement (config.SET_TEXT) unless overridden; "" = override "None"
+  isGrandFinal, isReset, isPreview,
+  isDoubles,                       // the set's shape on load; the dock's toggle; a doubles game with no set
   sides: [                         // [left, right] — switchSides() reverses the array
     { score: 2,                    // derived: the games this side has won
       losers: false,               // the [L] mark, derived in grand finals unless overridden
-      color: null,                 // doubles: the in-game team colour
+      color: null,                 // doubles: the team colour — Slippi's at each game start, or the dock's pick
       teamName: "", entrantId: "1234567", seed: 3, fromLosers: false,
       players: [ { playerId, tag, prefix, pronoun,
                    character: { codename: "fox", name: "Fox", skin: 2 } | null,  // what's shown
@@ -241,6 +242,7 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `GET` | `/api/sets[?finished=1][&refresh=1]` | The set picker, playable sets first: `{ ok, data: [{ setId, status, roundName, identifier, names, seeds, scores, preview, … }], status }`. Answered from the last read; `refresh=1` re-reads start.gg first (the dock's ↻) |
 | `POST` | `/api/load-set` | `{ setId }` → re-read that set from start.gg, fill pronouns and mains from the player DB, put it on the scoreboard. The outgoing set's mains are learned first |
 | `POST` | `/api/bracket` | `{ kind: "singles" \| "doubles" }` → load this week's event of that kind |
+| `POST` | `/api/bracket-url` | `{ url }` → load the event a pasted start.gg URL names. Same reply as `/api/bracket` |
 | `POST` | `/api/bracket-view` | `{ view?, phaseGroupId? }` — what every bracket source not pinned with `?view=` shows. `phaseGroupId: null` goes back to following the set on air. 400 for an unknown view or a group not in the loaded event |
 | `POST` | `/api/start-set` | Mark the loaded set in progress on start.gg (`markSetInProgress`). No body |
 | `POST` | `/api/report` | Report the loaded set to start.gg: winner plus every game's winner. Manual trigger only. A success also learns the players' mains and reloads the stats and the bracket |
@@ -249,16 +251,19 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `POST` | `/api/reresolve` | Throw the port map away and re-derive it from the players' mains. No body. Needs a live game |
 | `GET` | `/api/characters` | The picker's 26 characters in Melee's select-screen order: `[{ id, codename, name, skins }]`, `skins` counted from the icons on disk |
 | `POST` | `/api/score` | `{ side, delta: 1 \| -1 }` adds or removes one game; `{ side, score }` (0–9) sets it. The score is the game list, so ± is a game, not a number |
-| `POST` | `/api/player` | `{ side, index, tag?, prefix?, pronoun? }` — the names shown. The start.gg entrant behind the side is untouched, so a corrected tag still reports to the right one |
+| `POST` | `/api/player` | `{ side, index, tag?, prefix?, pronoun? }` — the names shown. **A changed tag or prefix unlinks the scoreboard from its start.gg set** (`store.detachSet()`: set id, entrants, seeds and team name go; names, score and round stay; nothing to report) and a changed tag clears that slot's `playerId`. Capitalisation alone is a correction and changes neither. Replies `{ ok, detached }` |
 | `POST` | `/api/character` | `{ side, index, codename, skin }`, or `codename: null` for none. Also becomes the player's `main` for the set, which the port map matches the next game's Slippi characters against |
-| `POST` | `/api/set-text` | `{ round?, bestOf?, losers?: [bool\|null, bool\|null] }` — overrides; `null` goes back to derived. Send **both** `losers` entries: JSON turns a missing one into `null`, which clears that side's override |
-| `POST` | `/api/clear-set` | An empty scoreboard, for a set that isn't on start.gg. The outgoing set's mains are learned first (as on any load) |
+| `POST` | `/api/set-text` | `{ round?, bestOf?, losers?: [bool\|null, bool\|null] }` — overrides; `null` goes back to derived. `bestOf: "None"` makes `bestOfLabel` `""`: the scoreboard hides its best-of pill. Send **both** `losers` entries: JSON turns a missing one into `null`, which clears that side's override |
+| `POST` | `/api/clear-set` | An empty scoreboard, for a set that isn't on start.gg. Always singles. The outgoing set's mains are learned first (as on any load) |
+| `POST` | `/api/clear-score` | Back to 0–0 on the loaded set: the game list is emptied, names and entrants stay. Same as the clear-score hotkey |
+| `POST` | `/api/doubles` | `{ on: boolean }` — singles or doubles by hand. On gives each side a second player; off **drops** the second player (the dock asks first when one has a name). A doubles game with no start.gg set loaded turns it on by itself |
+| `POST` | `/api/side-color` | `{ side, color: "red" \| "blue" \| "green" \| null }` — a doubles side's team colour (Melee's three, stored as the hex Slippi's would be). The next doubles game start sets it again from Slippi's teams |
 | `GET` / `POST` | `/api/casters` | `{ casters: [{ tag, prefix, pronoun, twitter }] }`, up to 4. An empty tag hides that caster's card |
 | `GET` | `/api/players[?q=]` | The player DB: tags starting with `q`, then containing it; no `q` = the scoreboard's players. Each `{ ref, tag, prefix, pronoun, twitter, startggPlayerId, main, pinnedMain, learnedMains, onAir }`, mains as `{ codename, name, skin }` |
 | `POST` | `/api/players/update` | `{ ref, tag, prefix?, pronoun?, twitter? }`. **`tag` must match the record at `ref`** (409 otherwise — a stale search can't edit someone else). A player on the scoreboard shows a prefix/pronoun change at once |
 | `POST` | `/api/players/pin` | `{ ref, tag, codename, skin }` pins the main a player's sets open on (beats learned); `codename: null` unpins. Doesn't change the set on air |
 | `GET` | `/api/players/suggest[?q=][&scope=list]` | The name fields' autocomplete. **While an event is loaded, only its entrants** (from the bracket graphs — everyone in a set read so far), filled in from the DB; with none, or `scope=list` (the casters), the DB (`playerDb.search`). `{ scope: "event"\|"list", total, players }`, each as `/api/players` plus `team` (doubles) and `seed`; `ref` is `null` for an entrant not in the DB. No `q` (the field was just clicked): every entrant by seed, or the DB A–Z capped at 150 — `total` is the uncapped count |
-| `POST` | `/api/players/assign` | Puts a suggested player in one slot, like a set load: tag, prefix, pronoun, `playerId` and the preferred main. `{ side, index, playerId }` for an entrant of the loaded event (upserted into the DB), `{ side, index, ref, tag }` for a DB record (409 rules as `update`). `playerId` is overwritten — `null` for a record with no start.gg id — so the side panel can't show the previous player's stats under the new name. The main also becomes the shown character **unless a game is running**; a player with no main leaves the character alone |
+| `POST` | `/api/players/assign` | Puts a suggested player in one slot, like a set load: tag, prefix, pronoun, `playerId` and the preferred main. `{ side, index, playerId }` for an entrant of the loaded event (upserted into the DB), `{ side, index, ref, tag }` for a DB record (409 rules as `update`). `playerId` is overwritten — `null` for a record with no start.gg id — so the side panel can't show the previous player's stats under the new name. A different player in the slot unlinks the start.gg set, as `/api/player` does; `{ ok, tag, detached }`. The main also becomes the shown character **unless a game is running**; a player with no main leaves the character alone |
 | `GET` | `/api/players/values` | `{ prefixes, pronouns }`: each distinct value in the DB, most used first — the prefix and pronoun suggestions |
 | `GET` | `/api/setup` | The Setup tab: `{ overlays: [{ name, path, size, note? }], base, lan: [{ url, name, tailscale }], hotkeys: { mode, bindings, errors }, players: { file, count }, slippiFolder, startgg: { token, shortLink }, theme }` |
 | `GET` | `/api/clipper` | `{ settings, obs, recentClips, clipsThisGame, supported }` |
@@ -305,6 +310,8 @@ For a set loaded after its game 1 had started, or ports the operator suspects. L
 - **`warning`** means the event list couldn't be read and the configured `fallbackSlug` was used — unverified. Surface it.
 - **Concurrent calls are refused, not queued** (`"Still switching brackets…"`): the dock can be open in OBS and on a phone at once.
 - **Switching doesn't touch the scoreboard.** The set on air, its score and its set id survive, so a pending report still targets the right set. That is why the dock asks for no confirmation.
+
+**`/api/bracket-url`** (`{ url }`, the Bracket tab's URL box — TSH's "Set tournament") loads any event by a pasted start.gg link, with the same reply and the same rules (concurrent calls refused, the scoreboard untouched). An event URL in any shape `normalizeEventUrl` accepts (`/events/` plural, `/overview`, a query string) loads directly; a tournament URL or short link loads its event only if it has exactly one, and otherwise errors with the event names. It clears the tournament's `kind`, since it isn't this week's Singles or Doubles.
 
 ### `/api/start-set` and `currentSet.canStart`
 

@@ -148,6 +148,11 @@ const hotkeys = installHotkeys(config.HOTKEYS, {
   rightPlus:  () => hotkeyScore(1, 1),
   leftMinus:  () => hotkeyScore(0, -1),
   rightMinus: () => hotkeyScore(1, -1),
+  clearScore: () => {
+    store.clearScore();
+    console.log(`[hotkey] Clear score → ${scoreLine()}`);
+    controlStatus.refresh();
+  },
 });
 for (const err of hotkeys.errors) console.warn(`[hotkey] ${err} — left unbound`);
 

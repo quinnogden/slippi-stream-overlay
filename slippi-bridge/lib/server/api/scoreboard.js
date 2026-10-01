@@ -11,6 +11,7 @@
 const fs   = require("fs");
 const path = require("path");
 const { CHAR_MAP, CSS_ORDER } = require("../../char_map");
+const { TEAM_COLORS } = require("../../modes/doubles");
 
 /** 400 with a message, for a body the dock should never have sent. */
 function bad(res, error) {
@@ -19,6 +20,9 @@ function bad(res, error) {
 
 const isSide = (v) => v === 0 || v === 1;
 const isIndex = (v) => Number.isInteger(v) && v >= 0 && v < 4;
+
+/** The same name, give or take capitalisation and spaces at the ends. */
+const sameName = (a, b) => String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
 
 /**
  * The picker's characters in Melee's character-select order, each with how
@@ -66,8 +70,13 @@ function register(app, deps) {
   });
 
   // A player's displayed name fields: { side, index, tag?, prefix?, pronoun? }.
-  // Only what the overlays show — the start.gg entrant behind the side is
-  // untouched, so a corrected tag still reports to the right entrant.
+  //
+  // A changed tag or prefix means the scoreboard isn't the start.gg set any
+  // more, so it's unlinked from it (store.detachSet: no report, no seed, no
+  // team name hiding the new tags). A changed tag is also a different person,
+  // so the start.gg player id goes too — the side panel can't show the old
+  // player's stats under the new name. Capitalisation alone is a correction,
+  // not a change. `detached` says it happened.
   app.post("/api/player", (req, res) => {
     const { side, index = 0, ...rest } = req.body ?? {};
     if (!isSide(side) || !isIndex(index)) return bad(res, "side (0|1) and index (0-3) required");
@@ -77,9 +86,13 @@ function register(app, deps) {
       if (typeof rest[k] !== "string") return bad(res, `${k} must be a string`);
       fields[k] = rest[k].trim().slice(0, 40);
     }
+    const before = store.scoreboard().sides[side].players[index] ?? {};
+    const changed = (k) => fields[k] !== undefined && !sameName(fields[k], before[k]);
+    if (changed("tag")) fields.playerId = null;
+    const detached = (changed("tag") || changed("prefix")) && store.detachSet();
     store.setPlayer(side, index, fields);
     refreshControlStatus();
-    res.json({ ok: true });
+    res.json({ ok: true, detached });
   });
 
   // The character shown for a player: { side, index, codename, skin } or
@@ -108,6 +121,7 @@ function register(app, deps) {
 
   // Overrides for the derived set text: { round?, bestOf?, losers?: [bool|null, bool|null] }.
   // null clears an override (back to start.gg's round, the Flex/Bo5 rule, the GF [L]).
+  // bestOf "None" shows no best-of at all (set-text.js NO_BEST_OF).
   app.post("/api/set-text", (req, res) => {
     const { round, bestOf, losers } = req.body ?? {};
     for (const [k, v] of [["round", round], ["bestOf", bestOf]]) {
@@ -122,6 +136,36 @@ function register(app, deps) {
       bestOf: typeof bestOf === "string" ? bestOf.trim().slice(0, 12) : bestOf,
       losers,
     });
+    res.json({ ok: true });
+  });
+
+  // Back to 0–0 on the set that's loaded (Ctrl+Shift+0 does the same).
+  app.post("/api/clear-score", (req, res) => {
+    store.clearScore();
+    refreshControlStatus();
+    res.json({ ok: true });
+  });
+
+  // Singles or doubles by hand: { on: boolean }. A doubles game with no
+  // start.gg set loaded turns it on by itself.
+  app.post("/api/doubles", (req, res) => {
+    const on = req.body?.on;
+    if (typeof on !== "boolean") return bad(res, "on must be true or false");
+    store.setDoubles(on);
+    refreshControlStatus();
+    res.json({ ok: true, doubles: on });
+  });
+
+  // A doubles side's team colour, as TSH's colour picker: { side, color:
+  // "red" | "blue" | "green" | null }. The next doubles game start sets it
+  // again from Slippi's teams.
+  app.post("/api/side-color", (req, res) => {
+    const { side, color } = req.body ?? {};
+    if (!isSide(side)) return bad(res, "side must be 0 or 1");
+    if (color !== null && !Object.hasOwn(TEAM_COLORS, color)) {
+      return bad(res, `color must be one of ${Object.keys(TEAM_COLORS).join(", ")}, or null`);
+    }
+    store.setSideColor(side, color === null ? null : TEAM_COLORS[color]);
     res.json({ ok: true });
   });
 
@@ -167,4 +211,4 @@ function register(app, deps) {
   });
 }
 
-module.exports = { register, characterList };
+module.exports = { register, characterList, sameName };

@@ -10,7 +10,7 @@
 (function () {
   "use strict";
 
-  const { h, text, swap, squeeze, icon } = Overlay;
+  const { h, text, swap, squeeze, fitText, icon } = Overlay;
   const ov = Overlay.connect({ tag: "scoreboard" });
 
   const sides = [0, 1].map((i) => ({
@@ -19,11 +19,26 @@
   }));
   const q = (root, sel) => (root ? root.querySelector(sel) : null);
 
+  const roundEl = document.querySelector(".match .round");
+  // Only index.html has the pill; players.html shows no best-of.
+  const bestOfPill = document.querySelector(".best-of-pill");
+  const ROUND_MIN_PX = 12; // below this the round stops being legible on stream
+
   ov.select("scoreboard", (sb) => {
     sb.sides.forEach((side, i) => drawSide(sides[i], side, sb.isDoubles));
-    text(document.querySelector(".match .round"), sb.round);
-    text(document.querySelector(".match .best-of"), sb.bestOfLabel);
+    drawRound(sb.round || "");
+    // The dock's "None" is an empty label, which hides the pill entirely.
+    text(q(bestOfPill, ".text"), sb.bestOfLabel || "", { emptyOn: bestOfPill });
   });
+
+  /** The round shrinks to fit the card instead of spilling past it. */
+  function drawRound(round) {
+    swap(roundEl, round, (node) => {
+      node.textContent = round;
+      node.classList.toggle("empty", !round);
+      fitText(node, ROUND_MIN_PX);
+    });
+  }
 
   function drawSide(el, side, isDoubles) {
     const p = side.players[0] ?? {};

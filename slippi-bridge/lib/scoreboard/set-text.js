@@ -18,12 +18,16 @@ const DEFAULTS = Object.freeze({
   defaultLabel: "Flex",
 });
 
+/** The override that shows no best-of at all: the overlays hide the label. */
+const NO_BEST_OF = "None";
+
 /**
  * @param {{ lPlacement?: number|null }} set
  * @param {{ topN?: number, topLabel?: string, defaultLabel?: string, override?: string|null }} [opts]
- * @returns {string}
+ * @returns {string} "" for the NO_BEST_OF override
  */
 function bestOfLabel(set, opts = {}) {
+  if (opts.override === NO_BEST_OF) return "";
   if (opts.override) return opts.override;
   const o = { ...DEFAULTS, ...stripUndefined(opts) };
   const lp = set?.lPlacement;
@@ -49,4 +53,4 @@ function stripUndefined(o) {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 }
 
-module.exports = { bestOfLabel, losersMarks, DEFAULTS };
+module.exports = { bestOfLabel, losersMarks, DEFAULTS, NO_BEST_OF };

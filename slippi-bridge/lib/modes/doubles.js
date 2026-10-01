@@ -9,12 +9,14 @@
 const { resolveCharacter } = require("../char_map");
 
 // ── Melee in-game team colors (red / blue / green) ──────────────────────────────
-// Each side shows the colour its players see in game.
+// Each side shows the colour its players see in game. Keyed by Slippi teamId;
+// TEAM_COLORS is the same three by name, for the dock's picker.
 const MELEE_TEAM_COLORS = {
   0: "#D32F2F", // Red team
   1: "#1565C0", // Blue team
   2: "#2E7D32", // Green team (rare in competitive)
 };
+const TEAM_COLORS = { red: MELEE_TEAM_COLORS[0], blue: MELEE_TEAM_COLORS[1], green: MELEE_TEAM_COLORS[2] };
 
 function createDoubles(ctx) {
   const { store, portMap, io, state } = ctx;
@@ -55,4 +57,4 @@ function createDoubles(ctx) {
   return { apply };
 }
 
-module.exports = { createDoubles, MELEE_TEAM_COLORS };
+module.exports = { createDoubles, MELEE_TEAM_COLORS, TEAM_COLORS };

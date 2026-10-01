@@ -36,7 +36,7 @@ function test(name, fn) {
 }
 
 // uiohook-napi's names, a few of its codes.
-const KEYS = { 1: 2, 2: 3, Q: 16, S: 31, X: 45, F9: 67, ArrowUp: 57416, Escape: 1 };
+const KEYS = { 0: 11, 1: 2, 2: 3, Q: 16, S: 31, X: 45, F9: 67, ArrowUp: 57416, Escape: 1 };
 
 /** A uiohook keyboard event. */
 const ev = (keycode, mods = "") => ({
@@ -53,7 +53,7 @@ function rig(overrides) {
 
 console.log("hotkey");
 
-test("the defaults bind all six actions", () => {
+test("the defaults bind every action", () => {
   const { bindings, errors } = rig();
   assert.deepStrictEqual(errors, []);
   assert.deepStrictEqual(bindings.map((b) => b.action).sort(), Object.keys(DEFAULTS).sort());

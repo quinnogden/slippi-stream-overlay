@@ -54,6 +54,9 @@ function emptySet() {
     isGrandFinal: false,
     isReset: false,
     isPreview: false,
+    // Singles or doubles. Set from the loaded set's shape, by the dock's toggle,
+    // or by a doubles game with no start.gg set loaded (modes/index.js).
+    doubles: false,
     overrides: { round: null, bestOf: null, losers: [null, null] },
     sides: [emptySide(), emptySide()],
     // { winnerSide: 0|1, characters: [[char…], [char…]] | null, manual: boolean }
@@ -99,7 +102,7 @@ class ScoreboardStore extends EventEmitter {
       isGrandFinal: s.isGrandFinal,
       isReset: s.isReset,
       isPreview: s.isPreview,
-      isDoubles: s.sides.some((x) => x.players.length > 1),
+      isDoubles: s.doubles,
       sides: s.sides.map((side, i) => ({ ...clone(side), score: scores[i], losers: losers[i] })),
       games: clone(s.games),
       overrides: clone(s.overrides),
@@ -185,6 +188,7 @@ class ScoreboardStore extends EventEmitter {
           players,
         };
       });
+      next.doubles = next.sides.some((x) => x.players.length > 1);
       for (const i of [0, 1]) {
         for (let n = 0; n < (payload.sides?.[i]?.score ?? 0); n++) {
           next.games.push({ winnerSide: i, characters: null, manual: true });
@@ -208,9 +212,30 @@ class ScoreboardStore extends EventEmitter {
     if (this.listenerCount("set-closing")) this.emit("set-closing", this.scoreboard());
   }
 
-  /** Back to an empty scoreboard (a manual set, typed by hand). */
+  /**
+   * Back to an empty scoreboard (a manual set, typed by hand), in singles: a
+   * doubles scoreboard left over would learn nothing from a singles friendly
+   * (mains-learning.js skips a side with two players). Doubles is one tap.
+   */
   clearSet() {
     this.loadSet(null);
+  }
+
+  /**
+   * The scoreboard no longer shows the start.gg set it was loaded from — a
+   * name was changed by hand — so drop the link: the set id, each side's
+   * entrant, seed and team name. What's shown otherwise stays (names, score,
+   * round), and it reports to nothing. Not a new set: no `set-loaded`, so a
+   * running game keeps its ports. Returns whether there was a link to drop.
+   */
+  detachSet() {
+    const s = this._set;
+    const linked = s.setId != null || s.sides.some((x) => x.entrantId != null || x.seed != null || x.teamName);
+    if (!linked) return false;
+    Object.assign(s, { setId: null, phaseGroupId: null, identifier: "", isPreview: false });
+    for (const side of s.sides) Object.assign(side, { entrantId: null, seed: null, teamName: "" });
+    this._changed(["scoreboard"]);
+    return true;
   }
 
   /**
@@ -248,6 +273,22 @@ class ScoreboardStore extends EventEmitter {
     if (changed) this._changed(["scoreboard"]);
   }
 
+  /**
+   * Singles or doubles, by hand (the dock's toggle). Doubles gives each side a
+   * second player; singles drops back to the first, so the scoreboard never
+   * holds a partner it isn't showing.
+   */
+  setDoubles(on) {
+    const next = !!on;
+    if (this._set.doubles === next) return;
+    this._set.doubles = next;
+    for (const side of this._set.sides) {
+      if (next) while (side.players.length < 2) side.players.push(emptyPlayer());
+      else side.players.length = 1;
+    }
+    this._changed(["scoreboard"]);
+  }
+
   /** A side's colour (doubles: Melee's in-game team colour), or null. */
   setSideColor(side, color) {
     this._side(side);
@@ -283,6 +324,13 @@ class ScoreboardStore extends EventEmitter {
       if (i < 0) return;
       games.splice(i, 1);
     }
+    this._changed(["scoreboard"]);
+  }
+
+  /** Back to 0–0 on the same set: every game goes, the names stay. */
+  clearScore() {
+    if (!this._set.games.length) return;
+    this._set.games = [];
     this._changed(["scoreboard"]);
   }
 
@@ -389,6 +437,10 @@ class ScoreboardStore extends EventEmitter {
   restore(saved) {
     if (!saved || saved.v !== STATE_VERSION || !saved.set) return false;
     this._set = { ...emptySet(), ...clone(saved.set) };
+    // A save from before the doubles flag: the sides' shape says which it was.
+    if (typeof saved.set.doubles !== "boolean") {
+      this._set.doubles = this._set.sides.some((x) => x.players.length > 1);
+    }
     this._tournament = { ...emptyTournament(), ...(saved.tournament ?? {}) };
     this._casters = Array.isArray(saved.casters) ? clone(saved.casters) : [];
     this._view = { ...this._view, ...(saved.view ?? {}) };

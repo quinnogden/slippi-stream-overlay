@@ -188,6 +188,73 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sb-store-"));
     }
   });
 
+  await test("doubles by hand: a second player a side; singles drops them; a pre-flag save stays doubles", async () => {
+    const store = freshStore();
+    const entrants = store.scoreboard().sides.map((s) => s.entrantId);
+    assert.strictEqual(store.scoreboard().isDoubles, false, "a singles set loads as singles");
+
+    store.setDoubles(true);
+    let sb = store.scoreboard();
+    assert.ok(sb.isDoubles);
+    assert.deepStrictEqual(sb.sides.map((s) => s.players.length), [2, 2]);
+    assert.deepStrictEqual(sb.sides.map((s) => s.entrantId), entrants, "the start.gg entrants stay");
+
+    store.setPlayer(0, 1, { tag: "Partner" });
+    store.setDoubles(false);
+    sb = store.scoreboard();
+    assert.ok(!sb.isDoubles);
+    assert.deepStrictEqual(sb.sides.map((s) => s.players.length), [1, 1], "no hidden partner is left behind");
+
+    store.setDoubles(true);
+    store.clearSet();
+    assert.ok(!store.scoreboard().isDoubles, "Clear set goes back to singles");
+
+    // A save written before the flag existed: the sides' shape says doubles.
+    store.setDoubles(true);
+    const old = store.toJSON();
+    delete old.set.doubles;
+    const back = new ScoreboardStore();
+    assert.ok(back.restore(old));
+    assert.ok(back.scoreboard().isDoubles);
+  });
+
+  await test("unlinking from start.gg: no set id, entrants, seeds or team name; what's shown stays", async () => {
+    const store = freshStore();
+    store.bump(0, 1);
+    const before = store.scoreboard();
+    let loaded = 0;
+    store.on("set-loaded", () => loaded++);
+    assert.strictEqual(store.detachSet(), true);
+    const sb = store.scoreboard();
+    assert.strictEqual(sb.setId, null);
+    assert.deepStrictEqual(sb.sides.map((s) => [s.entrantId, s.seed, s.teamName]), [[null, null, ""], [null, null, ""]]);
+    assert.deepStrictEqual(sb.sides.map((s) => s.players[0].tag), before.sides.map((s) => s.players[0].tag));
+    assert.deepStrictEqual(sb.sides.map((s) => s.score), [1, 0]);
+    assert.strictEqual(sb.round, before.round);
+    assert.strictEqual(loaded, 0, "not a new set: the port map keeps the running game");
+    assert.match(store.reportable().reason, /No start.gg set/, "and there's nothing to report");
+    const rev = store.rev;
+    assert.strictEqual(store.detachSet(), false, "a manual set has nothing to unlink");
+    assert.strictEqual(store.rev, rev);
+  });
+
+  await test("Clear score: 0–0 on the same set, the names and entrants kept", async () => {
+    const store = freshStore();
+    store.bump(0, 1);
+    store.recordGame({ winnerSide: 1, characters: null });
+    const before = store.scoreboard();
+    store.clearScore();
+    const sb = store.scoreboard();
+    assert.deepStrictEqual(sb.sides.map((s) => s.score), [0, 0]);
+    assert.deepStrictEqual(sb.games, []);
+    assert.strictEqual(sb.setId, before.setId);
+    assert.deepStrictEqual(sb.sides.map((s) => [s.entrantId, s.players[0].tag]),
+      before.sides.map((s) => [s.entrantId, s.players[0].tag]));
+    const rev = store.rev;
+    store.clearScore();
+    assert.strictEqual(store.rev, rev, "already 0–0: no change, no patch");
+  });
+
   fs.rmSync(tmpDir, { recursive: true, force: true });
   console.log(failed === 0 ? "scoreboard-store: all passed" : `scoreboard-store: ${failed} failed`);
   process.exit(failed === 0 ? 0 : 1);

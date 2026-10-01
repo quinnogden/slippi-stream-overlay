@@ -22,7 +22,9 @@
  *   - a player-list edit to someone on stream shows on stream; a pin lands in
  *     the DB through the same picker; a stale search can't edit someone else;
  *   - the Setup tab's urls are the full ones OBS needs, and the bound chords
- *     reach the strip's keys.
+ *     reach the strip's keys;
+ *   - Start and Report never show on a manual set; doubles swaps characters
+ *     for a team colour, and back to singles asks before dropping a partner.
  *
  * Usage: node tests/dock.test.js
  */
@@ -200,6 +202,11 @@ async function rig() {
       assert.deepStrictEqual([r.scoreText(0), r.scoreText(1)], ["0", "0"]);
       assert.match(texts(r.side(0).querySelector(".side-sub")).join(""), /Seed 1/);
 
+      r.page.$("#best-of").value = "None";
+      fire(r.page.$("#best-of"), "change");
+      await until(() => r.store.scoreboard().bestOfLabel === "", "None: no best-of for the overlays to show");
+      r.store.setOverrides({ bestOf: null });
+
       r.store.bump(1, 1);
       await until(() => r.scoreText(1) === "1", "the score follows a game recorded by Slippi");
 
@@ -242,8 +249,6 @@ async function rig() {
       fire(tag, "change");
       await until(() => r.store.scoreboard().sides[0].players[0].tag === "PlayerTwo", "the tag reached the scoreboard");
       tag.blur();
-      assert.strictEqual(r.store.scoreboard().sides[0].entrantId, LOSERS_FINAL.sides[0].entrantId,
-        "a corrected tag leaves the start.gg entrant alone");
 
       tag.focus();
       tag.value = "oops";
@@ -534,7 +539,9 @@ async function rig() {
       focusIn(tag);
       await until(() => menuRows(r).length === entrants.length, "every entrant, on focus");
       assert.strictEqual(texts(menu(r).querySelector(".ac-cap")).join(""), "Entered in this event");
-      assert.ok(texts(menuRows(r)[0]).join(" ").includes(`Seed ${bySeed[0].seed}`), "top seed first");
+      const top = texts(menuRows(r)[0]).join(" ");
+      assert.ok(top.includes(bySeed[0].tag), "top seed first");
+      assert.ok(!/Seed/.test(top), "no seed in the row: it crowded the names out at dock width");
 
       type(tag, "Comm");
       await sleep(200);
@@ -691,6 +698,152 @@ async function rig() {
       await until(() => /\(Ctrl\+Shift\+S\)$/.test(r.page.$("#btn-ports").title), "the swap key names its chord");
       assert.match(r.keys(0)[1].title, /\(Ctrl\+Shift\+1\)$/);
       assert.doesNotMatch(r.keys(1)[1].title, /Ctrl/, "an unbound action names none");
+    } finally { r.close(); }
+  });
+
+  await test("Start and Report only on a start.gg set; Clear score and Clear set are on the strip", async () => {
+    const r = await rig();
+    const gone = (id) => r.page.$(id).classList.contains("gone");
+    try {
+      r.store.clearSet();
+      r.status({ currentSet: { canReport: false, canStart: true, reason: "No start.gg set loaded" } });
+      await until(() => r.Dock.status && r.Dock.status.currentSet, "the status");
+      assert.ok(gone("#btn-report") && gone("#btn-start"), "a manual set has nothing to report or start");
+      assert.strictEqual(r.page.$("#strip-hint").textContent, "", "and no start.gg reason under it");
+
+      r.store.loadSet(fresh(LOSERS_FINAL));
+      await until(() => !gone("#btn-report"), "Report shows for a start.gg set");
+      assert.ok(!gone("#btn-start"), "Start too, while start.gg can start it");
+
+      r.store.bump(0, 1);
+      r.store.bump(1, 1);
+      await until(() => !r.page.$("#btn-clear-score").disabled, "Clear score is on once there's a score");
+      fire(r.page.$("#btn-clear-score"), "click");
+      await until(() => r.store.scoreboard().games.length === 0, "0–0");
+      assert.strictEqual(r.store.scoreboard().sides[0].players[0].tag, "Player2", "the names stay");
+      await until(() => r.page.$("#btn-clear-score").disabled, "and it's off again at 0–0");
+
+      fire(r.page.$("#btn-clear-set"), "click");
+      assert.match(texts(r.page.$("#clear-confirm")).join(""), /Player2.*Player3/, "a start.gg set asks first");
+      fire(r.button(r.page.$("#clear-confirm"), "Clear it"), "click");
+      await until(() => r.store.scoreboard().setId === null, "cleared");
+      await until(() => gone("#btn-report"), "and Report goes with it");
+    } finally { r.close(); }
+  });
+
+  await test("changing a name unlinks the start.gg set; capitalisation and the Players tab don't", async () => {
+    const r = await rig();
+    const gone = (id) => r.page.$(id).classList.contains("gone");
+    const commit = (input, v) => { input.focus(); input.value = v; fire(input, "input"); fire(input, "change"); input.blur(); };
+    try {
+      r.store.loadSet(fresh(LOSERS_FINAL));
+      r.store.bump(0, 1);
+      await until(() => r.tagInput(0).value === "Player2" && !gone("#btn-report"), "a start.gg set");
+
+      commit(r.tagInput(0), "PLAYER2");
+      await until(() => r.store.scoreboard().sides[0].players[0].tag === "PLAYER2", "the correction landed");
+      let sb = r.store.scoreboard();
+      assert.strictEqual(sb.setId, LOSERS_FINAL.setId, "capitalisation alone keeps the set");
+      assert.strictEqual(sb.sides[0].players[0].playerId, PLAYER2_ID, "and the player");
+
+      // The Players tab corrects the record, not the set: still linked.
+      const ref = (await (await fetch(r.base + "/api/players?q=Player2")).json()).players[0];
+      await fetch(r.base + "/api/players/update", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ref: ref.ref, tag: ref.tag, prefix: "NewTeam" }) });
+      await until(() => r.store.scoreboard().sides[0].players[0].prefix === "NewTeam", "the prefix on stream");
+      assert.strictEqual(r.store.scoreboard().setId, LOSERS_FINAL.setId, "a Players-tab edit doesn't unlink");
+
+      commit(r.tagInput(1), "Somebody Else");
+      await until(() => r.store.scoreboard().setId === null, "a different name unlinks the set");
+      sb = r.store.scoreboard();
+      assert.deepStrictEqual(sb.sides.map((s) => [s.entrantId, s.seed]), [[null, null], [null, null]], "no entrants or seeds");
+      assert.strictEqual(sb.sides[1].players[0].playerId, null, "the renamed slot is no longer the start.gg player");
+      assert.strictEqual(sb.sides[0].players[0].playerId, PLAYER2_ID, "the other side's player is untouched");
+      assert.deepStrictEqual(sb.sides.map((s) => s.score), [1, 0], "the score stays");
+      assert.strictEqual(sb.round, "Losers Final", "and the round");
+      await until(() => gone("#btn-report"), "Report goes");
+      assert.strictEqual(r.page.$(".side-sub").textContent, "", "the seed goes from the strip");
+      // The patch can beat the route's reply, which is what carries `detached`.
+      await until(() => /unlinked/i.test(r.page.$("#toast").textContent), "and the dock says why");
+      await until(() => !r.page.$$(".set-row").some((x) => x.classList.contains("air")), "nothing in Up next is on air");
+
+      r.store.loadSet(fresh(LOSERS_FINAL));
+      commit(r.side(0).querySelector(".prefix"), "Sponsor");
+      await until(() => r.store.scoreboard().setId === null, "a changed prefix unlinks too");
+
+      // A suggestion picked into the slot: the same player keeps the set, someone else unlinks it.
+      const pickInto = async (who) => {
+        const rec = (await (await fetch(r.base + "/api/players?q=" + who)).json()).players[0];
+        return (await fetch(r.base + "/api/players/assign", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ side: 0, index: 0, ref: rec.ref, tag: rec.tag }) })).json();
+      };
+      r.store.loadSet(fresh(LOSERS_FINAL));
+      r.store.setPlayer(0, 0, { prefix: "NewTeam" }); // as the Players tab left it
+      assert.strictEqual((await pickInto("Player2")).detached, false, "picking who's already there");
+      assert.strictEqual(r.store.scoreboard().setId, LOSERS_FINAL.setId);
+      assert.strictEqual((await pickInto("Commentator")).detached, true, "picking someone else");
+      assert.strictEqual(r.store.scoreboard().setId, null);
+    } finally { r.close(); }
+  });
+
+  await test("doubles: the toggle, a team colour instead of characters, back to singles asks", async () => {
+    const r = await rig();
+    try {
+      r.store.loadSet(fresh(LOSERS_FINAL));
+      await until(() => r.tagInput(0).value === "Player2", "the set");
+      assert.ok(r.side(0).querySelector(".char"), "singles: a character per player");
+      assert.strictEqual(r.side(0).querySelectorAll(".swatch").length, 0);
+
+      fire(r.page.$("#btn-doubles"), "click");
+      await until(() => r.store.scoreboard().isDoubles, "doubles on the scoreboard");
+      await until(() => r.side(1).querySelectorAll(".player").length === 2, "two players a side");
+      assert.ok(r.page.$("#btn-doubles").classList.contains("lit"));
+      assert.strictEqual(r.side(1).querySelectorAll(".char").length, 0, "no characters in doubles");
+      assert.strictEqual(r.side(1).querySelectorAll(".prefix").length, 0, "no prefixes: the overlay shows tags alone");
+      const swatches = () => r.side(1).querySelectorAll(".swatch");
+      assert.strictEqual(swatches().length, 3, "red, blue, green");
+
+      const blue = () => swatches().find((b) => b.classList.contains("blue"));
+      fire(blue(), "click");
+      await until(() => r.store.scoreboard().sides[1].color === "#1565C0", "the right side is blue");
+      await until(() => blue().classList.contains("on"), "and its swatch lit");
+      fire(blue(), "click");
+      await until(() => r.store.scoreboard().sides[1].color === null, "tapping it again clears it");
+
+      const bad = await fetch(r.base + "/api/side-color", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ side: 0, color: "purple" }),
+      });
+      assert.strictEqual(bad.status, 400, "only Melee's three");
+
+      r.store.setPlayer(0, 1, { tag: "Partner" });
+      await until(() => r.side(0).querySelectorAll(".tag")[1].value === "Partner", "the partner on the strip");
+      fire(r.page.$("#btn-doubles"), "click");
+      assert.match(texts(r.page.$("#clear-confirm")).join(""), /Partner/, "dropping a partner asks first");
+      fire(r.button(r.page.$("#clear-confirm"), "Cancel"), "click");
+      await sleep(20);
+      assert.ok(r.store.scoreboard().isDoubles, "Cancel keeps doubles");
+
+      fire(r.page.$("#btn-doubles"), "click");
+      fire(r.button(r.page.$("#clear-confirm"), "Singles"), "click");
+      await until(() => !r.store.scoreboard().isDoubles, "singles");
+      await until(() => r.side(0).querySelector(".char"), "the characters are back");
+    } finally { r.close(); }
+  });
+
+  await test("the strip folds to one line: names and score", async () => {
+    const r = await rig();
+    try {
+      r.store.loadSet(fresh(LOSERS_FINAL));
+      r.store.bump(0, 1);
+      await until(() => r.scoreText(0) === "1", "the set");
+      assert.ok(!r.page.$("#strip").classList.contains("folded"), "open by default");
+      fire(r.page.$("#btn-strip-fold"), "click");
+      assert.ok(r.page.$("#strip").classList.contains("folded"));
+      assert.strictEqual(r.page.$("#btn-strip-fold").getAttribute("aria-expanded"), "false");
+      assert.deepStrictEqual(texts(r.page.$("#strip-summary")), ["Team1 Player2", "1–0", "Player3"]);
+      assert.strictEqual(r.page.window.localStorage.getItem("dock.stripFolded"), "1", "remembered for the next load");
+      fire(r.page.$("#btn-strip-fold"), "click");
+      assert.ok(!r.page.$("#strip").classList.contains("folded"));
     } finally { r.close(); }
   });
 
