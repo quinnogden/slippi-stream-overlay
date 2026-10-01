@@ -34,16 +34,13 @@ const path = require("path");
 
 const config        = require("../config");
 const StartggClient = require("../lib/startgg-client");
+// The same fields the app reads, so fixtures can't drift from runtime shapes.
+const { SET_FIELDS } = require("../lib/event/queries");
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const OUT_DIR   = path.join(REPO_ROOT, "tests", "fixtures", "startgg");
 
 const MELEE_VIDEOGAME_ID = 1;
-
-// Per set: set + 2 slots + 2 seeds + 2 standings + 2 entrants + ~2–4 participants
-// + their players ≈ 15–20 objects. 40 a page stays well under the 1000 ceiling;
-// a refusal halves it.
-const PAGE_SIZES = [40, 20, 10];
 
 const TOURNAMENT_QUERY = `
 query capTournament($slug: String!) {
@@ -60,33 +57,6 @@ query capTournament($slug: String!) {
           nodes { id displayIdentifier bracketType state }
         }
       }
-    }
-  }
-}`.trim();
-
-const SET_FIELDS = `
-  id identifier round fullRoundText state winnerId displayScore
-  lPlacement wPlacement hasPlaceholder totalGames
-  startedAt completedAt
-  stream { streamName }
-  phaseGroup { id }
-  slots {
-    slotIndex prereqType prereqId prereqPlacement
-    seed { id seedNum }
-    standing { placement stats { score { value } } }
-    entrant {
-      id name initialSeedNum
-      participants { id gamerTag prefix player { id gamerTag prefix } }
-    }
-  }`;
-
-const PHASE_GROUP_SETS_QUERY = `
-query capPhaseGroupSets($id: ID!, $page: Int!, $perPage: Int!) {
-  phaseGroup(id: $id) {
-    id
-    sets(page: $page, perPage: $perPage, sortType: STANDARD) {
-      pageInfo { total totalPages }
-      nodes { ${SET_FIELDS} }
     }
   }
 }`.trim();
@@ -119,24 +89,12 @@ async function gql(gg, query, variables) {
   return res.data;
 }
 
+// The app's own paging (StartggClient.getPhaseGroupSets), so a capture goes
+// through exactly the code path the bracket will.
 async function fetchPhaseGroupSets(gg, phaseGroupId) {
-  for (const perPage of PAGE_SIZES) {
-    try {
-      const sets = [];
-      for (let page = 1; ; page++) {
-        const data = await gql(gg, PHASE_GROUP_SETS_QUERY, { id: phaseGroupId, page, perPage });
-        const conn = data?.phaseGroup?.sets;
-        sets.push(...(conn?.nodes ?? []));
-        if (page >= (conn?.pageInfo?.totalPages ?? 0)) break;
-      }
-      return sets;
-    } catch (err) {
-      // Offsets change with the page size, so a refusal restarts the group.
-      if (!err.complexity) throw err;
-      console.warn(`  phase group ${phaseGroupId}: refused at ${perPage}/page, retrying smaller`);
-    }
-  }
-  throw new Error(`phase group ${phaseGroupId}: refused even at ${PAGE_SIZES.at(-1)}/page`);
+  const res = await gg.getPhaseGroupSets(phaseGroupId);
+  if (!res.ok) throw new Error(res.error);
+  return res.sets;
 }
 
 async function captureTournament(gg, slug) {

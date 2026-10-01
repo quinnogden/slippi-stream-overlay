@@ -3,9 +3,13 @@
  *
  * This is the ONE place the bridge talks to an external service, and that is the
  * invariant worth keeping: two modules would mean two places handling token
- * expiry, rate limits and timeouts. Bracket/queue/set *reading* during a set
- * still goes through TSH's native integration (see tsh-client.js) — what lives
- * here is what TSH cannot do:
+ * expiry, rate limits and timeouts.
+ *
+ *   - getEvent(), getPhaseGroupSets() — the event and its bracket, which the
+ *     app reads itself now rather than through TSH. Both may fall back to
+ *     start.gg's keyless web endpoint (see _gql).
+ *
+ * The rest was added while TSH still did the reading — what TSH cannot do:
  *
  *   - reportSet()        — reportBracketSet; TSH has no reporting capability.
  *   - getSetEntrants()   — TSH's /get-match doesn't expose entrant ids.
@@ -39,8 +43,21 @@
 
 const axios = require("axios");
 
+const { EVENT_QUERY, PHASE_GROUP_SETS_QUERY, PAGE_SIZES } = require("./event/queries");
+
 const ENDPOINT = "https://api.start.gg/gql/alpha";
 const WEB_BASE = "https://www.start.gg";
+
+// start.gg's own website endpoint: keyless, and it accepts the official API's
+// queries unchanged (verified against a phase group's sets). Undocumented, so it
+// is a FALLBACK for reads only — never for a mutation, which must carry the
+// operator's token. Headers are the ones TSH's provider sends.
+const WEB_GQL_ENDPOINT = `${WEB_BASE}/api/-/gql`;
+const WEB_GQL_HEADERS = {
+  "client-version": "20",
+  "Content-Type": "application/json",
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+};
 
 // start.gg's edge serves the redirect either way, but a default axios UA on a
 // browser-facing route is the kind of thing that gets rate-limited first.
@@ -168,13 +185,25 @@ class StartggClient {
    * with an `errors` array on logical failures (set not in a reportable state,
    * insufficient permission). So the token gate lives here too, once.
    *
+   * **Read fallback.** A caller passing `{ fallback: true }` (reads only) gets
+   * the query re-sent to start.gg's keyless web endpoint when the official API
+   * can't answer: no token, the rate limit, a 5xx, or no response at all. A
+   * rejected token (401/403) does NOT fall back — that is a configuration
+   * problem the operator has to see, and hiding it would let the token lapse
+   * unnoticed until the first report fails.
+   *
    * @param {string} query
    * @param {object} variables
    * @param {string} [errorPrefix] — prepended to a GraphQL-level error message
-   * @returns {Promise<{ ok: boolean, data?: object, error?: string }>}
+   * @param {{ fallback?: boolean }} [opts]
+   * @returns {Promise<{ ok: boolean, data?: object, error?: string, viaFallback?: boolean }>}
    */
-  async _gql(query, variables, errorPrefix) {
-    if (!this.enabled) return { ok: false, error: "start.gg token not configured" };
+  async _gql(query, variables, errorPrefix, opts = {}) {
+    if (!this.enabled) {
+      return opts.fallback
+        ? this._gqlWeb(query, variables, errorPrefix)
+        : { ok: false, error: "start.gg token not configured" };
+    }
 
     this._sent.push(Date.now());
     let res;
@@ -196,13 +225,41 @@ class StartggClient {
       if (status === 401 || status === 403) {
         return { ok: false, error: "start.gg rejected the token (invalid or expired — they expire yearly). Regenerate it and update config.local.js." };
       }
+      let failure;
       if (status === 429) {
         this._coolUntil = Date.now() + RATE_LIMIT_COOLDOWN_MS;
-        return { ok: false, rateLimited: true, error: "start.gg rate limit hit (80 requests/60s). Wait a moment and try again." };
+        failure = { ok: false, rateLimited: true, error: "start.gg rate limit hit (80 requests/60s). Wait a moment and try again." };
+      } else {
+        failure = { ok: false, error: `Network error contacting start.gg: ${err.message}` };
       }
-      return { ok: false, error: `Network error contacting start.gg: ${err.message}` };
+      if (opts.fallback && (status === 429 || !status || status >= 500)) {
+        const web = await this._gqlWeb(query, variables, errorPrefix);
+        if (web.ok) return web;
+      }
+      return failure;
     }
 
+    return this._readGql(res, errorPrefix);
+  }
+
+  /**
+   * The keyless web endpoint — see WEB_GQL_ENDPOINT. Not counted against the
+   * token's rate window: it is a different endpoint with its own limits.
+   */
+  async _gqlWeb(query, variables, errorPrefix) {
+    let res;
+    try {
+      res = await axios.post(WEB_GQL_ENDPOINT, { query, variables },
+                             { headers: WEB_GQL_HEADERS, timeout: 15000 });
+    } catch (err) {
+      return { ok: false, error: `start.gg web fallback failed: ${err.response?.status ?? err.message}` };
+    }
+    const out = this._readGql(res, errorPrefix);
+    return out.ok ? { ...out, viaFallback: true } : out;
+  }
+
+  /** GraphQL's 200-with-errors convention, shared by both endpoints. */
+  _readGql(res, errorPrefix) {
     const gqlErrors = res.data?.errors;
     if (Array.isArray(gqlErrors) && gqlErrors.length > 0) {
       const msg = gqlErrors.map((e) => e.message).join("; ");
@@ -224,15 +281,26 @@ class StartggClient {
    * _gql() like everything else. Queued one at a time, so the wait is honest
    * under concurrency. Never throws.
    *
+   * With `{ fallback: true }` it goes straight to the web endpoint when there
+   * is no token, or while a 429 cooldown is running — the token's budget
+   * doesn't cover that endpoint, so there is nothing to wait for, and a paged
+   * read would otherwise stall 30s between pages.
+   *
    * @param {string} query
    * @param {object} [variables]
+   * @param {{ fallback?: boolean }} [opts]
    * @returns {Promise<{ ok: boolean, data?: object, error?: string, complexity?: boolean, rateLimited?: boolean }>}
    */
-  backgroundQuery(query, variables = {}) {
-    if (!this.enabled) return Promise.resolve({ ok: false, error: "start.gg token not configured" });
+  backgroundQuery(query, variables = {}, opts = {}) {
+    if (!this.enabled) {
+      return opts.fallback
+        ? this._gqlWeb(query, variables)
+        : Promise.resolve({ ok: false, error: "start.gg token not configured" });
+    }
+    if (opts.fallback && Date.now() < this._coolUntil) return this._gqlWeb(query, variables);
     const run = this._bgQueue.then(async () => {
       await this._waitForBackgroundRoom();
-      return this._gql(query, variables);
+      return this._gql(query, variables, undefined, opts);
     });
     // The queue must survive a failure, or one rejected request stalls stats forever.
     this._bgQueue = run.catch(() => {});
@@ -404,6 +472,56 @@ class StartggClient {
     }
 
     return { ok: true, name: t.name ?? tournamentSlug, events };
+  }
+
+  // ── Event reads (bracket, set picker) ───────────────────────────────────────
+
+  /**
+   * One event with its phases and phase groups — what the event service needs
+   * to know which brackets exist. Operator-initiated (a bracket switch), so not
+   * budgeted; falls back to the web endpoint.
+   *
+   * @param {string} eventSlug — "tournament/<t>/event/<e>"
+   * @returns {Promise<{ ok: boolean, event?: object, error?: string }>}
+   */
+  async getEvent(eventSlug) {
+    const res = await this._gql(EVENT_QUERY, { slug: String(eventSlug) },
+                                "start.gg couldn't load the event", { fallback: true });
+    if (!res.ok) return res;
+    const event = res.data?.event;
+    if (!event) return { ok: false, error: `start.gg doesn't recognise the event "${eventSlug}"` };
+    return { ok: true, event };
+  }
+
+  /**
+   * Every set in a phase group, paged under start.gg's 1000-object ceiling.
+   * Background: refreshed on a timer, so it shares the stats' budget and can
+   * never crowd out a report. Falls back to the web endpoint.
+   *
+   * A complexity refusal restarts the group at a smaller page size — offsets
+   * change with the page size, so pages already read can't be kept.
+   *
+   * @param {string|number} phaseGroupId
+   * @returns {Promise<{ ok: boolean, sets?: Array<object>, error?: string }>}
+   */
+  async getPhaseGroupSets(phaseGroupId) {
+    for (const perPage of PAGE_SIZES) {
+      const sets = [];
+      let refused = false;
+      for (let page = 1; ; page++) {
+        const res = await this.backgroundQuery(PHASE_GROUP_SETS_QUERY,
+          { id: String(phaseGroupId), page, perPage }, { fallback: true });
+        if (!res.ok) {
+          if (res.complexity) { refused = true; break; }
+          return res;
+        }
+        const conn = res.data?.phaseGroup?.sets;
+        sets.push(...(conn?.nodes ?? []));
+        if (page >= (conn?.pageInfo?.totalPages ?? 0)) break;
+      }
+      if (!refused) return { ok: true, sets };
+    }
+    return { ok: false, error: `start.gg refused phase group ${phaseGroupId} even at ${PAGE_SIZES.at(-1)} sets a page` };
   }
 }
 
