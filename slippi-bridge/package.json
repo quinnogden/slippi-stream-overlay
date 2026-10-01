@@ -1,12 +1,11 @@
 {
   "name": "slippi-bridge",
   "version": "1.0.0",
-  "description": "Bridges Slippi console mirror data into Tournament Stream Helper",
+  "description": "Melee stream app: live Slippi data, start.gg, the scoreboard, the overlays and the operator dock",
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "start-all": "node scripts/start-all.js",
     "preflight": "node scripts/preflight.js",
     "test": "node ../tests/run.js"
   },

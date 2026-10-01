@@ -4,7 +4,7 @@
  * Frees BRIDGE_PORT when a previous slippi-bridge is still holding it.
  *
  * The bridge gets restarted a lot mid-event — a closed console that left the
- * process alive, a crashed start-all, an editor still running the old copy —
+ * process alive, a start.bat window left open, an editor still running the old copy —
  * and the survivor keeps the port. Making the operator run netstat/taskkill
  * between sets is the wrong answer, so the new process reclaims it itself.
  *
@@ -117,7 +117,7 @@ function killPid(pid) {
     catch { return Promise.resolve(false); }
   }
   return new Promise((resolve) => {
-    // /T so a bridge started via start-all takes its children with it.
+    // /T so the whole process tree goes, whatever launched it.
     execFile("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true },
       (err) => resolve(!err));
   });

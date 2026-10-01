@@ -14,15 +14,15 @@ slippi-bridge/clipper-settings.json.tmp
 # is crawled once rather than every time they're on stream. Rebuilt on demand.
 slippi-bridge/stats-cache/
 
-# The live scoreboard (set, names, score, per-game list), saved on every change
-# so a restart mid-set restores it. Per-machine runtime state.
+# Per-machine runtime state: the live scoreboard (saved on every change so a
+# restart mid-set restores it) and, by default, the player DB
+# (local_players.json — this machine's players, never the repo's).
 slippi-bridge/data/
 
-# Exclude all of the third-party TSH app, but keep our custom layout.
-# Version-independent so a TSH update (new TournamentStreamHelper-X.YYY folder)
-# doesn't silently start tracking the whole vendored Python app.
-TournamentStreamHelper-*/*
-!TournamentStreamHelper-*/layout/
+# An old TSH install kept beside the repo as a rollback. The app doesn't use it;
+# the whole folder stays untracked (it is ~4000 vendored files and its own
+# user_data/ with a real player DB).
+TournamentStreamHelper-*/
 
 # Python bytecode from the OBS scripts (OBS compiles them on load)
 __pycache__/

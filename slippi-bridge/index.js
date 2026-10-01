@@ -15,12 +15,12 @@
  * Start:  node index.js
  */
 
+const fs   = require("fs");
 const path = require("path");
 
 const config                 = require("./config");
 const StartggClient          = require("./lib/startgg-client");
 const { createFolderSource } = require("./lib/game-source");
-const { resolveOrExit }      = require("./lib/tsh-root");
 const { ClipperSettings }    = require("./lib/clipper-settings");
 const { ComboDetector }      = require("./lib/combo-detector");
 const { ObsClient }          = require("./lib/obs-client");
@@ -62,10 +62,9 @@ const persist = createPersist(store, path.join(__dirname, "data", "live-state.js
 if (persist.restore()) console.log("[bridge] Restored the scoreboard from data/live-state.json");
 persist.start();
 
-// Until the TSH folder goes (M8) one thing still lives in it: the player DB
-// (TSH's local_players.json, the default when PLAYERS_FILE is unset).
-const TSH_ROOT    = resolveOrExit(path.resolve(__dirname, ".."), config.TSH_ROOT, "bridge");
-const playersFile = config.PLAYERS_FILE ?? path.join(TSH_ROOT, "user_data", "local_players.json");
+// The player DB: TSH's local_players.json format, in data/ unless configured.
+const playersFile = config.PLAYERS_FILE ?? path.join(__dirname, "data", "local_players.json");
+const playersMissing = !fs.existsSync(playersFile);
 
 // The overlays' and dock's live feed. The feature modules emit through it (as
 // ctx.io): it sends each event on the default namespace as before, and on
@@ -198,6 +197,12 @@ for (const url of lanControlUrls(config)) {
   console.log(`[bridge]   on phone:    ${url}`);
 }
 console.log(`[bridge] Players:        ${playersFile} (${ctx.playerDb.size} players)`);
+if (playersMissing) {
+  // Not fatal — new start.gg players are added as sets load — but every regular
+  // would open on no main and lose their pronoun until the file is copied over.
+  console.warn("[bridge]   ⚠ no player file there yet: copy local_players.json from your old TSH install's");
+  console.warn("[bridge]     user_data/ to that path, or set PLAYERS_FILE in config.local.js");
+}
 console.log(`[bridge] start.gg report: ${ctx.startgg.enabled ? "enabled" : "disabled (no token in config.local.js)"}`);
 console.log(`[bridge] Player stats:   ${ctx.startgg.enabled
   ? "from start.gg (histories saved in stats-cache/)"

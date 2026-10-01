@@ -1,31 +1,36 @@
 /**
  * preflight.js — pre-event health check.
  *
- *   node preflight.js              full run (file checks + live probes)
- *   node preflight.js --offline    skip anything that touches the network
- *   node preflight.js --json       machine-readable output
+ *   node scripts/preflight.js              full run (file checks + live probes)
+ *   node scripts/preflight.js --offline    skip anything that touches the network
+ *   node scripts/preflight.js --json       machine-readable output
  *
  * Automates the mechanical parts of docs/FRESH-INSTALL.md: the files a fresh
- * clone doesn't include, the TSH settings that silently fight the bridge, and the
- * HTTP probes that prove the chain is up. Read-only by design — it reports exact
- * commands to fix things rather than changing anything itself, because "the tool
- * quietly rewrote my tournament config" is a worse failure than a manual step.
+ * clone doesn't include (the token, the player DB), the ones that fail silently
+ * on stream (the theme pack, the icons, the overlay pages), and the probes that
+ * prove the chain is up (the app, start.gg, this week's events, OBS). Read-only
+ * by design — it prints the command that fixes each thing rather than changing
+ * anything, because "the tool quietly rewrote my config" is a worse failure
+ * than a manual step.
  *
- * IMPORTANT: only Node built-ins and dependency-free local modules may be
- * required at the top level. One of the things this script exists to diagnose is
- * a missing node_modules/, so it has to run before `npm install` does.
- * (config.js, tsh-root.js and clipper-settings.js are all fs/path only.)
+ * IMPORTANT: only Node built-ins may be required at the top level. One of the
+ * things this script exists to diagnose is a missing node_modules/, so it has
+ * to run before `npm install` does. Local modules are required inside the check
+ * that uses them, and only the dependency-free ones before the dependency check
+ * has passed (config.js, hotkey.js, char_map.js, api/setup.js and
+ * clipper-settings.js are fs/path only). tests/preflight.test.js runs this
+ * script, so a broken lazy require fails a test rather than a pre-event check.
  */
 
 const fs   = require("fs");
 const path = require("path");
 const http = require("http");
-const { execFileSync } = require("child_process");
 
-// This script lives in slippi-bridge/scripts/, so the bridge folder is one level
-// up and the repo root (holding the TournamentStreamHelper-* folder) is two.
-const BRIDGE_DIR = path.resolve(__dirname, "..");
-const REPO_ROOT  = path.resolve(__dirname, "..", "..");
+// This script lives in slippi-bridge/scripts/: the app is one level up, the
+// repo root (overlays/ beside it) two.
+const BRIDGE_DIR   = path.resolve(__dirname, "..");
+const REPO_ROOT    = path.resolve(__dirname, "..", "..");
+const OVERLAYS_DIR = path.join(REPO_ROOT, "overlays");
 
 const argv     = process.argv.slice(2);
 const OFFLINE  = argv.includes("--offline");
@@ -48,10 +53,6 @@ const info = (label, detail) => add("INFO", label, detail);
 // ── Small helpers ─────────────────────────────────────────────────────────────
 
 const exists = (p) => { try { return fs.existsSync(p); } catch { return false; } };
-
-function sizeOf(p) {
-  try { return fs.statSync(p).size; } catch { return -1; }
-}
 
 function countEntries(dir, filterExt) {
   try {
@@ -97,6 +98,16 @@ function httpGet(url, timeoutMs = 3000) {
 }
 
 const parseJson = (body) => { try { return JSON.parse(body); } catch { return null; } };
+const rel = (p) => path.relative(REPO_ROOT, p) || ".";
+
+/** Old TSH installs beside the repo — not used by the app, kept for rollback. */
+function tshFolders() {
+  try {
+    return fs.readdirSync(REPO_ROOT, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && /^TournamentStreamHelper/.test(d.name))
+      .map((d) => path.join(REPO_ROOT, d.name));
+  } catch { return []; }
+}
 
 // ── Checks: environment + dependencies ────────────────────────────────────────
 
@@ -104,19 +115,20 @@ function checkNode() {
   at("environment");
   const major = Number(process.versions.node.split(".")[0]);
   if (major >= 18) pass("Node.js", `v${process.versions.node}`);
-  else fail("Node.js", `v${process.versions.node} — the bridge needs 18+`, "Install Node 18 or newer from https://nodejs.org");
+  else fail("Node.js", `v${process.versions.node} — the app needs 18+`, "Install Node 18 or newer from https://nodejs.org");
 }
 
+/** @returns {boolean} whether every dependency resolves (uiohook-napi aside) */
 function checkDeps() {
   at("dependencies");
 
-  const pkgPath = path.join(BRIDGE_DIR, "package.json");
-  const pkg = parseJson(exists(pkgPath) ? fs.readFileSync(pkgPath, "utf8") : "");
-  if (!pkg) { fail("package.json", "missing or unparseable"); return; }
+  const pkg = parseJson(exists(path.join(BRIDGE_DIR, "package.json"))
+    ? fs.readFileSync(path.join(BRIDGE_DIR, "package.json"), "utf8") : "");
+  if (!pkg) { fail("package.json", "missing or unparseable"); return false; }
 
   if (!exists(path.join(BRIDGE_DIR, "node_modules"))) {
-    fail("node_modules", "not installed", "cd slippi-bridge && npm install");
-    return;
+    fail("node_modules", "not installed", "cd slippi-bridge && npm install   (start.bat does this on its first run)");
+    return false;
   }
 
   const missing = [];
@@ -127,20 +139,23 @@ function checkDeps() {
 
   if (missing.length === 0) {
     pass("Dependencies", `${Object.keys(pkg.dependencies).length} resolved`);
-  } else if (missing.length === 1 && missing[0] === "uiohook-napi") {
-    // Native module. Its absence costs the global hotkey and nothing else, so it
-    // must not read as a blocking failure the night before an event.
-    warn("uiohook-napi", "not resolvable — the global Ctrl+Shift+S hotkey degrades to pressing S in the terminal",
-         "cd slippi-bridge && npm install uiohook-napi");
-  } else {
-    fail("Dependencies", `not resolvable: ${missing.join(", ")}`, "cd slippi-bridge && npm install");
+    return true;
   }
+  if (missing.length === 1 && missing[0] === "uiohook-napi") {
+    // Native module. Its absence costs the global hotkeys and nothing else, so
+    // it must not read as a blocking failure the night before an event.
+    warn("uiohook-napi", "not resolvable — the global hotkeys fall back to keys typed into the app's own window",
+         "cd slippi-bridge && npm install uiohook-napi");
+    return true;
+  }
+  fail("Dependencies", `not resolvable: ${missing.join(", ")}`, "cd slippi-bridge && npm install");
+  return false;
 }
 
-// ── Checks: bridge config ─────────────────────────────────────────────────────
+// ── Checks: config ────────────────────────────────────────────────────────────
 
-function checkBridgeConfig() {
-  at("bridge config");
+function checkConfig() {
+  at("config");
 
   let config;
   try {
@@ -155,14 +170,14 @@ function checkBridgeConfig() {
   if (exists(path.join(BRIDGE_DIR, "config.local.js"))) {
     pass("config.local.js", "present");
   } else {
-    warn("config.local.js", "absent — start.gg reporting stays disabled and machine-specific paths fall back to committed defaults",
-         "cd slippi-bridge && cp config.local.example.js config.local.js");
+    warn("config.local.js", "absent — no start.gg token (no Start/Report) and the committed SLP_FOLDER, which is another machine's",
+         "cd slippi-bridge && copy config.local.example.js config.local.js");
   }
 
   // Never print the token itself; length is enough to tell "set" from "pasted wrong".
   const token = config.STARTGG_TOKEN ?? "";
   if (token) pass("start.gg token", `set (${token.length} chars)`);
-  else warn("start.gg token", "not set — the Report to start.gg button will stay disabled");
+  else warn("start.gg token", "not set — Start and Report stay off and the side panel has no stats; brackets still load (keyless)");
 
   if (!config.SLP_FOLDER) {
     fail("SLP_FOLDER", "not configured");
@@ -176,242 +191,179 @@ function checkBridgeConfig() {
     else pass("SLP_FOLDER", `readable, ${slp} existing .slp file(s) (ignored at startup)`);
   }
 
-  info("Ports", `TSH ${config.TSH_URL}, bridge ${config.BRIDGE_PORT}, scoreboard ${config.SCOREBOARD_NUM}`);
+  const port = Number(config.BRIDGE_PORT);
+  if (Number.isInteger(port) && port > 0 && port < 65536) {
+    info("Port", `${port} — the dock is http://localhost:${port}/dock and every OBS source is http://localhost:${port}/o/…`);
+  } else {
+    fail("BRIDGE_PORT", `${config.BRIDGE_PORT} is not a port number`);
+  }
+
+  checkHotkeys(config);
   return config;
 }
 
-// ── Checks: TSH install ───────────────────────────────────────────────────────
-
-function checkTshInstall(config) {
-  at("TSH install");
-
-  let tshRoot;
+/**
+ * The global hotkeys change the live score from any window, so a chord that
+ * silently didn't bind is found mid-set. The app logs the same errors at
+ * startup; here they are found before the event.
+ */
+function checkHotkeys(config) {
+  let keyTable;
   try {
-    const { resolveTshRoot } = require("../lib/tsh-root");
-    tshRoot = resolveTshRoot(REPO_ROOT, config?.TSH_ROOT ?? null);
-    pass("TSH root", path.basename(tshRoot));
+    keyTable = require(require.resolve("uiohook-napi", { paths: [BRIDGE_DIR] })).UiohookKey;
+  } catch {
+    skip("Hotkeys", "uiohook-napi not loadable — the app falls back to keys typed into its own window");
+    return;
+  }
+  let compiled;
+  try {
+    compiled = require("../lib/hotkey").compileHotkeys(config.HOTKEYS, keyTable);
   } catch (e) {
-    fail("TSH root", e.message);
-    return null;
+    fail("Hotkeys", `could not check: ${e.message}`);
+    return;
+  }
+  const list = compiled.bindings.map((b) => `${b.chord} ${b.label.toLowerCase()}`).join(" · ");
+  if (compiled.errors.length) {
+    fail("Hotkeys", compiled.errors.join("; "), "Fix HOTKEYS in config.local.js (or config.js) — the rest still bind");
+  } else {
+    pass("Hotkeys", list || "none bound (every HOTKEYS entry is null)");
+  }
+}
+
+// ── Checks: the player DB ─────────────────────────────────────────────────────
+
+/**
+ * The player DB is per machine and gitignored, so a fresh clone has none — and
+ * the app runs without it, so nothing else says so: every regular just opens
+ * on no main and loses their pronoun.
+ */
+function checkPlayers(config) {
+  at("player DB");
+  const file = config.PLAYERS_FILE ?? path.join(BRIDGE_DIR, "data", "local_players.json");
+  const where = config.PLAYERS_FILE ? file : `${rel(file)} (the default; PLAYERS_FILE unset)`;
+
+  // The copy an old TSH install holds, for the fix line.
+  const tshCopy = tshFolders()
+    .map((d) => path.join(d, "user_data", "local_players.json"))
+    .find((p) => { try { return fs.statSync(p).size > 2; } catch { return false; } });
+  const mkdir = exists(path.dirname(file)) ? "" : `mkdir "${path.dirname(file)}" & `;
+  const copyFix = tshCopy
+    ? `${mkdir}copy "${tshCopy}" "${file}"`
+    : `Copy local_players.json from your old TSH install's user_data/ to ${file}, or set PLAYERS_FILE in config.local.js`;
+
+  if (!exists(file)) {
+    warn("Player file", `${where} doesn't exist — the app starts with an empty DB and adds start.gg players as sets load`, copyFix);
+    return;
   }
 
-  const launcher = ["TSH.exe", "TSH_bat.bat", "main.py"].find((f) => exists(path.join(tshRoot, f)));
-  if (launcher) pass("Launcher", launcher);
-  else fail("Launcher", "none of TSH.exe / TSH_bat.bat / main.py found");
+  const data = parseJson(fs.readFileSync(file, "utf8"));
+  if (data == null) {
+    fail("Player file", `${where} is not valid JSON — the app would start with an empty DB and overwrite it on the first save`,
+         "Restore it from a backup or the old TSH install");
+    return;
+  }
+  // A fresh TSH ships the file as {} — existence proves nothing.
+  const count = Array.isArray(data) ? data.length : 0;
+  if (count === 0) warn("Player file", `${where} is empty`, copyFix);
+  else pass("Player file", `${where} — ${count} players`);
 
-  // ── The custom layouts. A TSH release zip also ships a layout/ folder, so
-  // extracting a release over the repo replaces these with TSH's stock ones and
-  // OBS shows the wrong overlay with no error anywhere.
-  const required = [
-    "theme.css", "main.css",
-    // shared/ is loaded by the scoreboard, side panel and bracket alike; without
-    // it the character icons and the bridge connection both silently vanish.
-    "shared/tsh-assets.js", "shared/slippi-bridge-client.js", "shared/atmosphere.css",
-    "scoreboard/melee.html", "scoreboard/meleePlayers.html", "scoreboard/index.js", "scoreboard/index.css",
-    "side-panel/side-panel.html", "side-panel/side-panel.js", "side-panel/side-panel.css",
-    "bracket/index.html", "bracket/index.js", "bracket/index.css",
-    "highlights/highlights.html", "highlights/highlights.js", "highlights/highlights.css",
-  ];
-  const missingLayout = required.filter((rel) => !exists(path.join(tshRoot, "layout", rel)));
-  if (missingLayout.length === 0) pass("Custom layouts", `all ${required.length} present`);
-  else fail("Custom layouts", `missing: ${missingLayout.join(", ")}`,
-            'git checkout -- "TournamentStreamHelper-*/layout/"');
+  if (/[\\/]TournamentStreamHelper[^\\/]*[\\/]/i.test(path.resolve(file))) {
+    warn("Player file", "is inside a TSH install — TSH rewrites the whole file on save, so never run TSH while the app is up",
+         "Copy it into slippi-bridge/data/ and unset PLAYERS_FILE");
+  }
+}
 
-  checkThemePack(tshRoot);
-  checkLayoutNotClobbered(tshRoot);
-  checkUserData(tshRoot);
-  return tshRoot;
+// ── Checks: what OBS loads ────────────────────────────────────────────────────
+
+/** Every character Slippi can report has a stock icon in every costume. */
+function checkIcons() {
+  at("overlays");
+  const dir = path.join(OVERLAYS_DIR, "assets", "icons");
+  let files;
+  try {
+    files = fs.readdirSync(dir).filter((f) => f.endsWith(".png"));
+  } catch {
+    fail("Character icons", `${rel(dir)} is missing`, "git checkout -- overlays/assets/icons");
+    return;
+  }
+  let CHAR_MAP;
+  try {
+    ({ CHAR_MAP } = require("../lib/char_map"));
+  } catch (e) {
+    fail("Character icons", `could not check: ${e.message}`);
+    return;
+  }
+  const have = new Set(files);
+  const gaps = Object.values(CHAR_MAP)
+    .filter(({ codename }) => [0, 1, 2, 3].some((n) => !have.has(`chara_2_${codename}_${String(n).padStart(2, "0")}.png`)))
+    .map((c) => c.codename);
+  if (gaps.length) fail("Character icons", `missing for ${gaps.join(", ")}`, "git checkout -- overlays/assets/icons");
+  else pass("Character icons", `${files.length} PNGs, every character covered`);
+}
+
+/** The pages every OBS browser source names, and the scripts they all load. */
+function checkPages(depsOk) {
+  if (!depsOk) { skip("Overlay pages", "dependencies missing"); return; }
+  let resolveOverlayPath, OVERLAYS;
+  try {
+    ({ resolveOverlayPath } = require("../lib/server/overlays"));
+    ({ OVERLAYS } = require("../lib/server/api/setup"));
+  } catch (e) {
+    fail("Overlay pages", `could not check: ${e.message}`);
+    return;
+  }
+  const urls = [...OVERLAYS.map((o) => o.path), "/o/theme.css", "/o/shared/overlay.css", "/o/shared/overlay-client.js"];
+  const missing = urls.filter((u) => !resolveOverlayPath(u, { overlaysDir: OVERLAYS_DIR }));
+  if (missing.length) fail("Overlay pages", `nothing to serve for ${missing.join(", ")}`, "git checkout -- overlays");
+  else pass("Overlay pages", `${OVERLAYS.length} pages + the shared runtime`);
 }
 
 /**
- * layout/theme.css is a switch: one @import naming the active theme pack under
- * layout/themes/. Every colour, the brand font and both logos live in that
+ * overlays/theme.css is a switch: one @import naming the active pack under
+ * overlays/themes/. Every colour, the brand font and both logos live in that
  * folder, so a missing or misnamed pack means an unstyled broadcast — and
  * because CSS fails silently, nothing else would report it.
  */
-function checkThemePack(tshRoot) {
-  const layout = path.join(tshRoot, "layout");
-  let css;
+function checkThemePack() {
+  let pack;
   try {
-    css = fs.readFileSync(path.join(layout, "theme.css"), "utf8");
-  } catch {
-    fail("Theme pack", "layout/theme.css is unreadable",
-         'git checkout -- "TournamentStreamHelper-*/layout/"');
+    pack = require("../lib/server/api/setup").activeThemePack(OVERLAYS_DIR);
+  } catch (e) {
+    fail("Theme pack", `could not check: ${e.message}`);
+    return;
+  }
+  if (!pack) {
+    fail("Theme pack", "overlays/theme.css has no ./themes/<pack>/theme.css @import — the active pack can't be determined",
+         "git checkout -- overlays/theme.css");
     return;
   }
 
-  const m = css.match(/@import\s+url\(\s*["']?\.\/themes\/([^/"')]+)\/theme\.css["']?\s*\)/);
-  if (!m) {
-    fail("Theme pack", "layout/theme.css has no ./themes/<pack>/theme.css @import — the active pack can't be determined",
-         'git checkout -- "TournamentStreamHelper-*/layout/theme.css"');
-    return;
-  }
-
-  const pack = m[1];
-  const packDir = path.join(layout, "themes", pack);
-  const missing = ["theme.css", "logo.png", "sponsor.png"]
-    .filter((f) => !exists(path.join(packDir, f)));
-
+  const packDir = path.join(OVERLAYS_DIR, "themes", pack);
+  const missing = ["theme.css", "logo.png", "sponsor.png"].filter((f) => !exists(path.join(packDir, f)));
   if (missing.length) {
     fail("Theme pack", `themes/${pack} is missing: ${missing.join(", ")}`,
-         "Restore it, or point layout/theme.css at a pack that exists");
+         "Restore it, or point overlays/theme.css at a pack that exists");
     return;
   }
-  pass("Theme pack", `${pack} (theme.css, logo.png, sponsor.png)`);
+  pass("Theme pack", `${pack} (switch it in overlays/theme.css)`);
 
-  checkThemeImagePaths(packDir, pack, layout);
-}
-
-/**
- * The pack's --logo-url / --sponsor-url must be written relative to the
- * CONSUMING layout, not to the pack — Chrome resolves a url() inside a custom
- * property against the stylesheet that uses the var(), not the one that
- * declares it. Copying a pack and leaving the old pack name in these two paths
- * is therefore an easy mistake that shows up only as a missing logo on stream.
- * Consumers all sit one level under layout/, so resolve from there.
- */
-function checkThemeImagePaths(packDir, pack, layout) {
-  let css;
-  try {
-    css = fs.readFileSync(path.join(packDir, "theme.css"), "utf8");
-  } catch {
-    fail("Theme logos", `themes/${pack}/theme.css is unreadable`);
-    return;
-  }
-
+  // --logo-url / --sponsor-url are written relative to the CONSUMING overlay
+  // (Chrome resolves a url() in a custom property where the var() is used), and
+  // every overlay stylesheet sits one level under overlays/. A pack copied
+  // without renaming these shows up only as a missing logo on stream.
+  const css = fs.readFileSync(path.join(packDir, "theme.css"), "utf8");
   const broken = [];
   for (const token of ["--logo-url", "--sponsor-url"]) {
     const hit = css.match(new RegExp(`${token}\\s*:\\s*url\\(\\s*["']?([^"')]+)["']?\\s*\\)`));
     if (!hit) { broken.push(`${token} not declared`); continue; }
-    // "scoreboard" stands in for any consumer — they are all one level deep.
-    if (!exists(path.resolve(layout, "scoreboard", hit[1]))) {
-      broken.push(`${token} → ${hit[1]} (no such file)`);
-    }
+    if (!exists(path.resolve(OVERLAYS_DIR, "scoreboard", hit[1]))) broken.push(`${token} → ${hit[1]} (no such file)`);
   }
-
   if (broken.length === 0) pass("Theme logos", "--logo-url and --sponsor-url both resolve");
   else fail("Theme logos", broken.join("; "),
-            `Paths are relative to a consuming layout, so they read "../themes/${pack}/<file>.png"`);
+            `Paths are relative to an overlay, so they read "../themes/${pack}/<file>.png"`);
 }
 
-/**
- * Detect stock TSH layouts having landed on top of the tracked custom ones.
- * The files all still *exist* in that case, so only git can tell.
- */
-function checkLayoutNotClobbered(tshRoot) {
-  const rel = `${path.basename(tshRoot)}/layout`;
-  let out;
-  try {
-    out = execFileSync("git", ["status", "--porcelain", "--", rel],
-                       { cwd: REPO_ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
-  } catch {
-    skip("Layout integrity", "git not available or not a repo — cannot compare against the tracked layouts");
-    return;
-  }
-
-  const lines = out.split("\n").map((l) => l.trim()).filter(Boolean);
-  if (lines.length === 0) {
-    pass("Layout integrity", "matches the committed custom layouts");
-    return;
-  }
-
-  const changed = lines.filter((l) => /^(M|D| M| D|MM)/.test(l));
-  if (changed.length) {
-    warn("Layout integrity", `${changed.length} tracked layout file(s) modified or deleted — a TSH release may have overwritten them`,
-         'Review with: git diff -- "TournamentStreamHelper-*/layout/"   then restore with: git checkout -- "TournamentStreamHelper-*/layout/"');
-  } else {
-    info("Layout integrity", `${lines.length} untracked file(s) under layout/ (harmless)`);
-  }
-}
-
-/** user_data/ is gitignored, so a fresh clone has none of it. */
-function checkUserData(tshRoot) {
-  at("TSH user_data");
-  const ud = path.join(tshRoot, "user_data");
-
-  if (!exists(ud)) {
-    fail("user_data/", "missing — copy it from your previous TSH install");
-    return;
-  }
-
-  const icons = path.join(ud, "games", "ssbm", "base_files", "icon");
-  const iconCount = countEntries(icons, ".png");
-  if (iconCount > 0) pass("Character icons", `${iconCount} PNGs in games/ssbm/base_files/icon`);
-  else fail("Character icons", "games/ssbm/base_files/icon is missing or empty — no character icons will render",
-            "Copy user_data/games/ from the previous TSH install");
-
-  const stages = countEntries(path.join(ud, "games", "ssbm", "stage_icon"), ".png");
-  if (stages > 0) pass("Stage icons", `${stages} PNGs`);
-  else warn("Stage icons", "games/ssbm/stage_icon is missing or empty — per-game stage reporting will log warnings and skip (cosmetic)");
-
-  // A fresh extract *creates* these as empty stubs, so existence proves nothing.
-  const players = sizeOf(path.join(ud, "local_players.json"));
-  if (players > 2) pass("local_players.json", `${(players / 1024).toFixed(1)} KB`);
-  else if (players >= 0) warn("local_players.json", "empty stub ({}) — the player database wasn't copied across",
-                              "Copy user_data/local_players.json from the previous TSH install");
-  else warn("local_players.json", "missing");
-
-  if (exists(path.join(ud, "pronouns_list.txt"))) pass("pronouns_list.txt", "present");
-  else warn("pronouns_list.txt", "missing");
-}
-
-// ── Checks: TSH settings.json ─────────────────────────────────────────────────
-
-/**
- * The four `general` keys that decide whether TSH cooperates with the bridge or
- * fights it. See docs/FRESH-INSTALL.md Phase 4 for why each one matters.
- */
-function checkTshSettings(tshRoot, config) {
-  at("TSH settings");
-  if (!tshRoot) { skip("settings.json", "TSH root unresolved"); return; }
-
-  const file = path.join(tshRoot, "user_data", "settings.json");
-  if (!exists(file)) {
-    fail("settings.json", "missing — TSH will start on its own defaults (web server port 5500, auto-update on)");
-    return;
-  }
-
-  const s = parseJson(fs.readFileSync(file, "utf8"));
-  if (!s) { fail("settings.json", "present but not valid JSON"); return; }
-
-  const g = s.general ?? {};
-
-  // Cross-check the port against what the bridge and the OBS sources expect,
-  // rather than hardcoding 5000 here.
-  const expectedPort = Number(new URL(config?.TSH_URL ?? "http://localhost:5000").port || 80);
-  const actualPort   = g.webserver_port;
-  if (actualPort === expectedPort) {
-    pass("webserver_port", `${actualPort} — matches TSH_URL`);
-  } else if (actualPort == null) {
-    fail("webserver_port", `not set — TSH 5.972 defaults to 5500, but this setup expects ${expectedPort}`,
-         `Set general.webserver_port to ${expectedPort} (TSH → Settings → General), or point TSH_URL at the port TSH is really using`);
-  } else {
-    fail("webserver_port", `${actualPort}, but TSH_URL expects ${expectedPort} — start-all will time out while TSH runs fine on the other port`,
-         `Set general.webserver_port to ${expectedPort} (TSH → Settings → General)`);
-  }
-
-  if (g.disable_scoreupdate === true) {
-    pass("disable_scoreupdate", "true");
-  } else {
-    fail("disable_scoreupdate", "not true — TSH's auto-update will write start.gg's scores over the ones the bridge is driving from live games",
-         "Enable 'Disable automatic score updating for the scoreboard' in TSH → Settings → General");
-  }
-
-  if (g.disable_autoupdate === true) {
-    pass("disable_autoupdate", "true");
-  } else {
-    warn("disable_autoupdate", "not true — TSH re-pulls the selected set from start.gg every 5s",
-         "Enable 'Disable automatic set updating for the scoreboard' in TSH → Settings → General");
-  }
-
-  if (g.hide_track_player === true) pass("hide_track_player", "true");
-  else info("hide_track_player", "not set — start.gg player tracking UI stays visible (cosmetic)");
-
-  if (s.TOURNAMENT_URL) pass("TOURNAMENT_URL", String(s.TOURNAMENT_URL));
-  else warn("TOURNAMENT_URL", "not set — no bracket, stream queue, or side-panel tournament data");
-}
-
-// ── Checks: clipper + OBS-side settings ───────────────────────────────────────
+// ── Checks: clipper ───────────────────────────────────────────────────────────
 
 function checkClipper(config) {
   at("combo clipper");
@@ -428,10 +380,10 @@ function checkClipper(config) {
   const file = path.join(BRIDGE_DIR, "clipper-settings.json");
   if (exists(file)) {
     if (parseJson(fs.readFileSync(file, "utf8"))) pass("clipper-settings.json", "present and valid");
-    else warn("clipper-settings.json", "not valid JSON — the bridge falls back to committed defaults and logs it",
-              "Delete it and re-save from the control panel");
+    else warn("clipper-settings.json", "not valid JSON — the app falls back to committed defaults and logs it",
+              "Delete it and re-save from the dock's Clips tab");
   } else {
-    info("clipper-settings.json", "absent (normal first run) — using config.CLIPPER defaults; the control panel writes it on first save");
+    info("clipper-settings.json", "absent (normal first run) — using config.CLIPPER defaults; the Clips tab writes it on first save");
   }
 
   if (!settings.enabled) {
@@ -443,7 +395,7 @@ function checkClipper(config) {
     info("OBS target", `${settings.obsUrl} (password ${settings.obsPassword ? "set" : "not set"})`);
 
     if (!settings.clipFolder) {
-      warn("Clip folder", "not set — the control panel shows nothing and the OBS playlist script has no folder to watch");
+      warn("Clip folder", "not set — the Clips tab shows nothing and the OBS playlist script has no folder to watch");
     } else if (!exists(settings.clipFolder)) {
       warn("Clip folder", `does not exist: ${settings.clipFolder}`);
     } else {
@@ -454,84 +406,119 @@ function checkClipper(config) {
   return settings;
 }
 
-// ── Live probes ───────────────────────────────────────────────────────────────
-
-async function probeTsh(config, tshRoot) {
-  at("TSH (live)");
-
-  const res = await httpGet(`${config.TSH_URL}/`);
-  // Any HTTP response means the server is up — TSH answers / with a 404.
-  if (res.ok) pass("TSH web server", `HTTP ${res.status} from ${config.TSH_URL}`);
-  else {
-    fail("TSH web server", `${config.TSH_URL} — ${res.error}`,
-         "Start TSH (or slippi-bridge/start-all.bat). If TSH is already open, check general.webserver_port.");
-    return;
-  }
-
-  if (!tshRoot) return;
-
-  const stateFile = path.join(tshRoot, "out", "program_state.json");
-  if (!exists(stateFile)) {
-    warn("program_state.json", "not written yet — TSH creates it once it has finished loading");
-  } else {
-    const state = parseJson(fs.readFileSync(stateFile, "utf8"));
-    const num = String(config.SCOREBOARD_NUM);
-    if (!state) warn("program_state.json", "present but not parseable this instant (TSH may be mid-write)");
-    else if (!state.score?.[num]) fail("program_state.json", `has no score["${num}"] — SCOREBOARD_NUM ${num} does not exist in TSH`);
-    else {
-      const t = state.score[num].team ?? {};
-      const names = ["1", "2"].map((k) => t[k]?.player?.["1"]?.name || "—");
-      pass("program_state.json", `scoreboard ${num}: ${names[0]} vs ${names[1]}`);
-    }
-  }
-
-  const nameFile = path.join(tshRoot, "out", "tournamentInfo", "tournamentName.txt");
-  if (exists(nameFile)) pass("Tournament name", fs.readFileSync(nameFile, "utf8").trim() || "(blank)");
-  else warn("Tournament name", "out/tournamentInfo/tournamentName.txt absent — the side panel header will be empty");
+/** An old TSH install is only a rollback now; say so, so nobody starts it by habit. */
+function checkLeftovers() {
+  const old = tshFolders();
+  if (!old.length) return;
+  at("leftovers");
+  info("Old TSH install", `${old.map(rel).join(", ")} — the app doesn't use it. Keep it as a rollback for a couple of events, `
+    + "then delete it; never run it against the app's player file");
 }
 
-async function probeBridge(config) {
-  at("bridge (live)");
+// ── Live probes ───────────────────────────────────────────────────────────────
+
+async function probeApp(config) {
+  at("app (live)");
   const base = `http://localhost:${config.BRIDGE_PORT}`;
 
   const id = await httpGet(`${base}/api/identity`);
   if (!id.ok) {
-    warn("Bridge", `not running on ${base} — ${id.error}`, "Start it with slippi-bridge/start-bridge.bat (or node index.js)");
+    warn("App", `not running on ${base} — ${id.error}`, "Start it with start.bat (or node index.js in slippi-bridge/)");
     return;
   }
   const idJson = parseJson(id.body);
-  if (idJson?.app === "slippi-bridge") pass("Bridge", `running (pid ${idJson.pid})`);
-  else fail("Bridge", `something else is serving port ${config.BRIDGE_PORT} — it did not identify as slippi-bridge`,
-            "Free the port, or move the bridge with BRIDGE_PORT in config.local.js");
+  if (idJson?.app !== "slippi-bridge") {
+    fail("App", `something else is serving port ${config.BRIDGE_PORT} — it did not identify as this app`,
+         "Free the port, or move the app with BRIDGE_PORT in config.local.js (and every OBS source with it)");
+    return;
+  }
+  pass("App", `running (pid ${idJson.pid})`);
 
   const st = await httpGet(`${base}/api/status`);
   const s = st.ok ? parseJson(st.body) : null;
   if (!s) { warn("/api/status", st.ok ? "unparseable response" : st.error); return; }
 
-  s.tsh    ? pass("Health: TSH",    "up")   : fail("Health: TSH",    "the bridge cannot reach TSH");
-  s.slippi ? pass("Health: Slippi", "up")   : fail("Health: Slippi", `SLP_FOLDER unreadable: ${s.slippiDetail?.detail ?? ""}`);
+  const ev = s.startgg ?? {};
+  const name = [s.tournament?.name, s.tournament?.eventName].filter(Boolean).join(" — ");
+  if (ev.ok) pass("Event", name || "loaded");
+  else if (ev.error) fail("Event", ev.error, "Press Singles or Doubles in the dock's Bracket tab once start.gg is reachable");
+  else warn("Event", "none loaded yet", "Press Singles or Doubles in the dock's Bracket tab");
 
-  if (s.portMapping) {
-    const m = s.portMapping.method ?? "unknown";
-    if (m === "positional") warn("Port → Team", "decided positionally — a low-confidence guess; verify sides before game 1");
-    else info("Port → Team", `decided by ${m}`);
-  }
-  if (s.tshSwapped != null) info("TSH swap state", String(s.tshSwapped));
+  s.slippi ? pass("Slippi folder", "watched")
+           : fail("Slippi folder", `not readable: ${s.slippiDetail?.detail ?? ""}`);
   info("start.gg reporting", s.startggEnabled ? "enabled" : "disabled (no token)");
+
+  const setup = parseJson((await httpGet(`${base}/api/setup`)).body ?? "");
+  const hk = setup?.hotkeys;
+  if (hk?.mode === "global") pass("Hotkeys", `global — ${hk.bindings.map((b) => b.chord).join(", ") || "none bound"}`);
+  else if (hk?.mode) warn("Hotkeys", `${hk.mode} — uiohook-napi didn't load in the running app, so they only work in its window`);
 
   const obs = s.clipper?.obs;
   if (obs?.enabled) {
     obs.connected ? pass("Clipper → OBS", `connected to ${obs.url}`)
                   : warn("Clipper → OBS", obs.lastError || "not connected");
-    if (obs.bufferActive === false) warn("Replay buffer", "not running in OBS — nothing to save until it is");
-    else if (obs.bufferActive === true) pass("Replay buffer", "running");
   }
 }
 
 /**
- * Direct OBS probe — independent of whether the bridge is up, and the only way
- * to check the buffer *length*, which is the setting that quietly truncates
- * clips (conversions run 6-9s and the clipper waits saveDelayMs on top).
+ * The token is checked against start.gg itself (a pasted token can be expired
+ * or truncated), and the short link is followed to this week's tournament and
+ * its two events — exactly what the Singles / Doubles buttons will do, so a
+ * short link the TO forgot to re-point shows up here instead of on stream.
+ */
+async function probeStartgg(config, depsOk) {
+  at("start.gg (live)");
+
+  const token = config.STARTGG_TOKEN ?? "";
+  if (!token) {
+    skip("Token", "not set");
+  } else {
+    try {
+      const res = await fetch("https://api.start.gg/gql/alpha", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ query: "{ currentUser { id slug } }" }),
+        signal: AbortSignal.timeout(10000),
+      });
+      const body = parseJson(await res.text());
+      const user = body?.data?.currentUser;
+      if (res.ok && user) pass("Token", `accepted (${user.slug ?? `user ${user.id}`})`);
+      else if (res.status === 401 || res.status === 403) fail("Token", `rejected (HTTP ${res.status}) — expired or pasted wrong`,
+        "Make a new one at https://start.gg/admin/profile/developer and put it in config.local.js");
+      else warn("Token", `unexpected answer (HTTP ${res.status}): ${body?.message ?? body?.errors?.[0]?.message ?? "no user"}`);
+    } catch (e) {
+      warn("Token", `couldn't reach start.gg — ${errText(e)}`);
+    }
+  }
+
+  if (!depsOk) { skip("Short link", "dependencies missing"); return; }
+  let StartggClient, normalizeBrackets, pickEvent;
+  try {
+    StartggClient = require("../lib/startgg-client");
+    ({ normalizeBrackets, pickEvent } = require("../lib/event/event-target"));
+  } catch (e) {
+    fail("Short link", `could not check: ${e.message}`);
+    return;
+  }
+  const brackets = normalizeBrackets(config);
+  const client = new StartggClient(config);
+  const link = await client.resolveShortLink(brackets.shortLink);
+  if (!link.ok) { fail("Short link", link.error); return; }
+
+  const events = await client.listEvents(link.slug);
+  if (!events.ok) { warn("Short link", `start.gg/${brackets.shortLink} → ${link.slug}, but its events couldn't be read: ${events.error}`); return; }
+  pass("Short link", `start.gg/${brackets.shortLink} → ${events.name || link.slug}`);
+  for (const [kind, spec] of Object.entries(brackets.events)) {
+    const pick = pickEvent(events.events, spec, kind);
+    if (pick.ok) pass(`${kind[0].toUpperCase()}${kind.slice(1)} button`, pick.event.name);
+    else warn(`${kind[0].toUpperCase()}${kind.slice(1)} button`, pick.error);
+  }
+}
+
+/**
+ * Direct OBS probe — independent of whether the app is up, and the only way to
+ * check the replay buffer's *length*, which is the setting that quietly
+ * truncates clips (conversions run 6-9s and the clipper waits saveDelayMs on top).
  */
 async function probeObs(settings) {
   at("OBS (live)");
@@ -539,13 +526,13 @@ async function probeObs(settings) {
 
   let OBSWebSocket;
   try {
-    ({ OBSWebSocket } = require("obs-websocket-js"));
+    ({ OBSWebSocket } = require(require.resolve("obs-websocket-js", { paths: [BRIDGE_DIR] })));
   } catch {
     skip("OBS", "obs-websocket-js not installed");
     return;
   }
 
-  // With the clipper off, nothing in the bridge touches OBS — an unreachable OBS
+  // With the clipper off, nothing in the app touches OBS — an unreachable OBS
   // is then just information, not a warning about a broken setup. Still probed,
   // so the chain can be proven before the clipper is switched on.
   const unreachable = settings.enabled ? warn : info;
@@ -565,7 +552,7 @@ async function probeObs(settings) {
   try {
     const { outputActive } = await obs.call("GetReplayBufferStatus");
     outputActive ? pass("Replay buffer", "running")
-                 : warn("Replay buffer", "not running", "Start it in OBS, or leave 'Auto-start OBS buffer' on in the dock (the first combo is still lost)");
+                 : warn("Replay buffer", "not running", "Start it in OBS, or leave 'Auto-start OBS buffer' on in the Clips tab (the first combo is still lost)");
 
     // Best-effort: the buffer length lives in the profile config, and which key
     // holds it depends on Simple vs Advanced output mode. Reported raw so a
@@ -623,21 +610,24 @@ function report() {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 (async () => {
-  if (!AS_JSON) console.log("slippi-bridge preflight" + (OFFLINE ? " (offline)" : ""));
+  if (!AS_JSON) console.log("preflight" + (OFFLINE ? " (offline)" : ""));
 
   checkNode();
-  checkDeps();
-  const config   = checkBridgeConfig();
-  const tshRoot  = config ? checkTshInstall(config) : null;
-  if (config) checkTshSettings(tshRoot, config);
-  const clipper  = config ? checkClipper(config) : null;
+  const depsOk = checkDeps();
+  const config = checkConfig();
+  if (config) checkPlayers(config);
+  checkIcons();
+  checkPages(depsOk);
+  checkThemePack();
+  const clipper = config ? checkClipper(config) : null;
+  checkLeftovers();
 
   if (OFFLINE) {
     at("live probes");
     skip("Live probes", "--offline");
   } else if (config) {
-    await probeTsh(config, tshRoot);
-    await probeBridge(config);
+    await probeApp(config);
+    await probeStartgg(config, depsOk);
     await probeObs(clipper);
   }
 

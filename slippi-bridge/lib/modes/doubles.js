@@ -39,7 +39,7 @@ function createDoubles(ctx) {
         playerIndex: raw.playerIndex,
         side,
         slot,
-        teamNum: side + 1, // TSH-era field (its scoreboard read it); goes with the default namespace
+        teamNum: side + 1, // 1 = left: the payload's long-standing name for the side
         costumeIndex: skin,
         codename: ch?.codename ?? null,
         display: ch?.display ?? null,

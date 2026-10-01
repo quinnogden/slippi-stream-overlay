@@ -1,560 +1,296 @@
 # CLAUDE.md
 
-> **Branch `tsh-replacement`:** this file still describes master (TSH + bridge). The branch is replacing TSH milestone by milestone (plan: `~/.claude/plans/i-want-to-start-abundant-walrus.md`). Already superseded here: `PortMapper`, `swap.js`, TSH-side swap detection, the 0-0 late-bind, stage reporting and `entrantSlot` — the scoreboard is `lib/scoreboard/store.js` (+ `persist.js`), ports are `lib/ports/port-map.js`, players are `lib/players/player-db.js`, icons are `overlays/assets/icons/`. And since M3 the app never talks to TSH: `tsh-client.js`, `bracket-switch.js`, Pull Stream, `start-all.js`/`.bat` and the stream-queue prefetch are gone; the event, set picker, set loads and Singles/Doubles are `lib/event/event-service.js` (+ `event-target.js`), stats read the store, and `control_status.tsh` is now `startgg`. Since M4 the scoreboard, its players bar and the casters are the app's own overlays — `overlays/` served at `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, fed by `lib/overlay/channel.js` (`/overlay` + `/dock` namespaces, `state:full`/`state:patch`) through `overlays/shared/overlay-client.js`; the TSH `layout/scoreboard/` and `commentators/` are no longer driven on this branch. Since M5 every overlay is the app's: the side panel (`/o/side-panel`, stats from the app only — the TSH fallback, the Queue panel and the singles-by-event-name filter are gone), the highlights frame (`/o/highlights`) and a new bracket (`/o/bracket`: Winners · Losers · Top 8 · Top 16 · Full, laid out by `overlays/bracket/layout.js` from start.gg's edges, fit to a legibility floor then panned, the view switched from the control panel via `POST /api/bracket-view`, fed by `lib/event/bracket-feed.js` into the state's `bracket` section). The theme switch and packs moved to `overlays/theme.css` + `overlays/themes/`, `atmosphere.css` to `overlays/shared/`, and the TSH-era `layout/{scoreboard,side-panel,bracket,highlights,shared,themes}` and `theme.css` are deleted on this branch (master still has them); the side panel's Just Finished comes from the event service's reads, not a poll of its own. Since M6 the operator UI is the dock at `/dock` (`slippi-bridge/public/dock/`; `/` and `/control` redirect there): a pinned live strip (score ±, names, characters via a select-screen picker, round/best-of/[L] overrides, Sides · Ports · Detect · Start · Report) over Set · Bracket · Clips tabs, fed by the `/dock` namespace's state + `status`. `public/control-panel.html` is gone, nothing is sent on the default Socket.io namespace, there is no CORS, `control_status` goes out on change plus a 5s heartbeat, and the routes are split into `lib/server/api/{status,scoreboard,event,casters,clipper}.js` (new: `/api/score`, `/api/player`, `/api/character`, `/api/characters`, `/api/set-text`, `/api/clear-set`). Since M7 the dock also has Casters (a draft until Put on stream), Players (the player DB: search, correct prefix/pronoun/twitter, pin a main) and Setup (OBS urls, phone urls, the bound hotkeys) tabs; `lib/hotkey.js` binds `config.HOTKEYS` globally (swap ports, switch sides, ± per side; exact modifiers, one fire per press, no chord without Ctrl/Alt/Win); and `lib/players/mains-learning.js` learns each singles player's characters from the set's game list when the set is reported or replaced (`store.closeSet()` / `set-closing`, called by the event service before it reads the next set's mains). `scripts/preflight.js` is still TSH-era until M8 (its theme-pack check looks in the old place). Trust the code and `tests/README.md` over the sections below until the M8 rewrite.
-
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+> **Branch `tsh-replacement`** is the Melee-only replacement for TournamentStreamHelper (plan: `~/.claude/plans/i-want-to-start-abundant-walrus.md`, milestones M0–M8). This file describes it as of the M8 cutover. `master` still runs TSH + the old bridge until this branch merges; a leftover `TournamentStreamHelper-*/` folder beside the repo is a rollback only — gitignored, unused by the app.
 
 ## What This Repo Is
 
-A custom streaming overlay for Melee tournaments that bridges live Slippi game data into [Tournament Stream Helper (TSH)](https://github.com/nicholasgasior/TournamentStreamHelper). Two coupled parts:
+One Node app that runs a Melee tournament stream: it reads live Slippi games, owns the scoreboard, runs the event from start.gg, keeps the player DB, serves every OBS overlay, and gives the operator one dock to drive it from.
 
-1. **`slippi-bridge/`** — a Node.js backend that reads live `.slp` files, drives TSH via its HTTP API, emits Socket.io events to the OBS browser sources, and serves an operator control panel.
-2. **`TournamentStreamHelper-5.972/layout/`** — customized TSH layouts (scoreboard, side panel, bracket) that consume both TSH state and slippi-bridge events, plus `highlights/`, a decoration-only frame for the replay scene that consumes neither.
-3. **`obs-scripts/`** — Python scripts that run *inside* OBS (Tools → Scripts). Currently just `auto_replays.py`, the break-scene highlight playlist. Not part of the bridge and not required by it.
-4. **`tests/`** — `node tests/run.js`. No framework and no dependency to install; each `*.test.js` is a plain Node script that exits non-zero. Deliberately narrow: only the failures that are invisible until they are on stream, where the manual reproduction step is "run a tournament". Everything else is verified by hand — [docs/TESTING.md](docs/TESTING.md) is still the primary document. See [tests/README.md](tests/README.md) before adding one; the sandbox has four non-obvious gotchas and hand-written TSH state produces tests that pass without exercising anything.
-
-TSH itself (`TournamentStreamHelper-5.972/`) is a third-party Python app run as a local web server on port 5000. **Only edit files under `layout/`** — everything else in that folder is vendored and can be read for reference but not modified.
+1. **`slippi-bridge/`** — the app (the folder kept its old name). `index.js` is the composition root; everything else is in `lib/`. The dock is `public/dock/`.
+2. **`overlays/`** — every OBS browser source, the shared overlay runtime, the theme packs and the stock character icons. Served at `/o/` and `/assets/`.
+3. **`start.bat`** — the launcher (installs dependencies on first run).
+4. **`obs-scripts/`** — Python scripts that run *inside* OBS (Tools → Scripts). Just `auto_replays.py`, the break-scene clip playlist. Not required by the app.
+5. **`tests/`** — `node tests/run.js`. No framework; each `*.test.js` is a plain Node script that exits non-zero. Deliberately narrow: only failures that are invisible until they are on stream. Read [tests/README.md](tests/README.md) before adding one — the sandbox has gotchas, and hand-written state produces tests that pass without exercising anything.
 
 ### Companion docs — read the relevant one before working, don't re-derive it
 
-- **[docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md)** — setting up on a new machine, a fresh TSH extract, or a fresh OBS profile. Phase-by-phase, marking which steps you can do and which need the operator (GUI, credentials). Front-loads the two silent failures: TSH's `webserver_port` defaulting to 5500, and a TSH release zip overwriting the tracked `layout/`. **When the user says "run the fresh-install checklist", work that document.** Start by running `node slippi-bridge/scripts/preflight.js`, which automates its mechanical half (deps, config, TSH install + `user_data`, layout integrity, the four `general` settings, then live TSH/bridge/OBS probes). It is read-only and exits non-zero on any failure.
-- **[docs/TESTING.md](docs/TESTING.md)** — how to verify a change with no bracket running: the automated checks in `tests/`, replaying `.slp` files *faithfully* (a finished replay does **not** reproduce live conditions — see the `rawDataLength` note there), driving the layouts from a stub Socket.io server on 5001, and the regression checklist for the paths that only fail on stream.
-- **[docs/BRIDGE-API.md](docs/BRIDGE-API.md)** — the Socket.io event payloads and `/api/*` routes, with the traps in each. Consult it before changing anything a browser consumes; nothing on either side validates, so a shape change fails silently in a browser source.
+- **[docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md)** — setting up a machine, a fresh OBS profile, or moving one over from TSH. **When the user says "run the fresh-install checklist", work that document.** Start with `node slippi-bridge/scripts/preflight.js`, which automates its mechanical half (deps, config, hotkeys, the player file, icons, overlay pages, theme pack, then live probes of the app, start.gg and OBS). Read-only; exits non-zero on any failure.
+- **[docs/TESTING.md](docs/TESTING.md)** — verifying a change with no bracket running: the automated checks, replaying `.slp` files *faithfully* (a finished replay does **not** reproduce live conditions — see the `rawDataLength` note there), booting the app against a past event, screenshotting overlays, and the regression checklist.
+- **[docs/BRIDGE-API.md](docs/BRIDGE-API.md)** — the state sections, event payloads and `/api/*` routes, with the traps in each. Consult it before changing anything a browser consumes; nothing on either side validates, so a shape change fails silently in a browser source.
 
 ---
 
-## Running the Bridge
+## Running
 
-```bash
-cd slippi-bridge
-npm install       # first time only
-node index.js
-```
+`start.bat` at the repo root, or `cd slippi-bridge && node index.js`. One port (default **5001**) serves the dock (`/dock`; `/` and `/control` redirect there), every overlay (`/o/…`), the icons (`/assets/icons/`), the API and Socket.io.
 
-Launch options:
-- **`start-bridge.bat`** — starts just the bridge (TSH must already be running). Uses `%~dp0` so it works regardless of clone location.
-- **`start-all.bat` → `scripts/start-all.js`** — one-shot launcher: starts TSH (`TSH.exe`, falling back to `TSH_bat.bat`), polls `TSH_URL` until its HTTP API responds (60s timeout with a friendly failure message), then spawns the bridge with inherited stdio. Does **not** launch OBS and does **not** kill TSH on exit.
+Config is [slippi-bridge/config.js](slippi-bridge/config.js) (committed defaults), with the gitignored `slippi-bridge/config.local.js` merged over it by a **shallow** `Object.assign`:
 
-Config is in [slippi-bridge/config.js](slippi-bridge/config.js):
-- `SLP_FOLDER`: path to the Slippi Spectate folder the live `.slp` is written into
-- `TSH_URL`: TSH web server, default `http://localhost:5000`
-- `SCOREBOARD_NUM`: TSH scoreboard to control (default `1`)
-- `TSH_ROOT`: absolute path to the TSH install. Default `null` = auto-detect (see below).
-- `BRIDGE_PORT`: Socket.io + control-panel port (default `5001`)
-- `STARTGG_TOKEN`: start.gg personal access token for result reporting. **Never put the real value in config.js (git-tracked).** Set it in `slippi-bridge/config.local.js` (gitignored, copied from `config.local.example.js`); `config.js` merges it over itself at load via `Object.assign` in a try/catch. Missing token → reporting disables itself, the rest of the bridge runs normally.
-- `BRACKETS`: the control panel's Singles/Doubles buttons — `shortLink` (the series' stable start.gg short link, **hyphenated**) plus a `match` keyword list and a `fallbackSlug` per format. Nothing here changes week to week; the TO re-points the short link at each new tournament. See [Bracket switcher](#bracket-switcher).
-- `CLIPPER`: starting values for the combo clipper. Only defaults — the control panel writes operator edits to the gitignored `clipper-settings.json`, which wins. See [Combo Clipper](#combo-clipper--obs-replay-buffer).
+- `SLP_FOLDER` — the Slippi spectate folder. The app exits at startup if it doesn't exist.
+- `BRIDGE_PORT` — every OBS source names it.
+- `HOTKEYS` — global chords per action, merged **per action** over `lib/hotkey.js`'s defaults.
+- `CLIPPER` — starting values only; the dock's Clips tab writes the gitignored `clipper-settings.json`, which wins.
+- `BRACKETS` — the series' start.gg short link (**hyphenated**) and keyword `match` + `fallbackSlug` per kind.
+- `PLAYERS_FILE` — the player DB; `null` = `slippi-bridge/data/local_players.json`.
+- `SET_TEXT` — `{ topN, topLabel, defaultLabel }`: "Bo5" once the set's loser is guaranteed top 8, "Flex" before.
+- `STARTGG_TOKEN` — **never in `config.js`**. Missing token: brackets still load (keyless fallback), Start/Report/stats are off.
 
-**Locating TSH (`slippi-bridge/lib/tsh-root.js`):** TSH ships as a versioned folder, so the path is resolved at startup rather than hardcoded — `resolveTshRoot(baseDir, override)` scans the repo root for `TournamentStreamHelper*` directories, keeps only those that look like a real install (a `layout/` subfolder **plus** one of `TSH.exe` / `TSH_bat.bat` / `main.py`), and picks the highest version by **numeric** component-wise comparison (so `5.1001` > `5.972` > `5.99`). `config.TSH_ROOT` short-circuits the scan. Both `index.js` and `scripts/start-all.js` call it via `resolveOrExit()` and log the resolved root; failure exits with an actionable message. **Updating TSH is therefore: extract the new folder, copy `layout/` back, copy `user_data/` across — no code edits.**
-
-**Keyboard shortcut:** `Ctrl+Shift+S` (global, via `uiohook-napi`) manually swaps the port→team assignment. Falls back to pressing `S` in the terminal if `uiohook-napi` fails to load.
-
-**Operator control panel:** `http://localhost:5001/control`, served by the bridge from `slippi-bridge/public/control-panel.html`. Intended as an OBS Custom Browser Dock — an internal operator tool, not part of the broadcast. See [Control Panel](#control-panel--startgg-reporting).
+`CLIPPER` and `BRACKETS` overridden in `config.local.js` replace the whole object; their readers (`clipper-settings.js`, `event-target.js`'s `normalizeBrackets`) fill missing keys from their own defaults for that reason.
 
 ---
 
 ## Architecture
 
-### Data Flow
-
 ```
-Slippi Desktop App → live .slp file in SLP_FOLDER
-        ↓
-slippi-bridge/index.js   (Node.js, port 5001)
-  ├─ reads the live game file via @slippi/slippi-js
-  ├─ pushes character+costume → TSH HTTP API  (POST /scoreboard1-update-team-N-1)
-  ├─ pushes score increments  → TSH HTTP API  (GET /scoreboard1-teamN-scoreup)
-  ├─ saves OBS replay clips   → obs-websocket v5 (combo clipper)
-  ├─ emits Socket.io events   → layout browser sources
-  └─ serves /control + /api/* → operator control panel (OBS dock)
-        ↓
-TournamentStreamHelper-5.972/  (Python app, port 5000)
-  ├─ out/program_state.json    (live state — read by bridge and layouts)
-  └─ layout/                   (OBS browser sources: scoreboard, side-panel, bracket)
+Slippi Desktop App → live .slp in SLP_FOLDER
+        ↓  (polled every 500ms — game-source.js)
+modes/ ─ port-map ─→ ScoreboardStore ←── dock commands (/api/*), hotkeys, event service (loadSet)
+                          │  change
+          ┌───────────────┼──────────────────┬───────────────┐
+   overlay channel     persist.js        stats/          mains-learning
+   (/overlay, /dock)   data/live-state   (player_stats)  (player DB, at set end)
+          ↓
+   overlays/ (OBS)  +  the dock
+start.gg ←→ startgg-client.js  (event service reads, stats, Start, Report)
+OBS      ←→ obs-client.js      (replay buffer saves)
 ```
 
-### slippi-bridge layout
+### `slippi-bridge/`
 
 ```
-slippi-bridge/
-  index.js                  composition root
-  config.js                 committed defaults    config.local.js  gitignored, holds the token
-  clipper-settings.json     gitignored, written by the control panel — must stay at this path
-  stats-cache/              gitignored, one start.gg set history per player (see Side panel stats)
-  public/control-panel.html the operator dock
-  lib/                      every module below
-    modes/                  singles.js  doubles.js  game-end.js  index.js (dispatcher)
-    server/                 app.js  routes.js  control-status.js  report-set.js  start-set.js
-                            set-gate.js  bracket-switch.js
-    stats/                  index.js  set-history.js  normalize.js  queries.js
-  scripts/                  preflight.js  start-all.js
+index.js                   composition root
+config.js                  committed defaults     config.local.js  gitignored (token, per-machine paths)
+clipper-settings.json      gitignored, written by the Clips tab — must stay at this path
+data/                      gitignored: live-state.json, and local_players.json by default
+stats-cache/               gitignored, one start.gg set history per player
+public/dock/               the operator dock (index.html, dock.js, dock.css, fonts/)
+scripts/                   preflight.js  capture-startgg.js
+lib/
+  scoreboard/              store.js  persist.js  set-text.js
+  ports/                   port-map.js
+  players/                 player-db.js  mains-learning.js
+  event/                   event-service.js  event-target.js  bracket-model.js  bracket-feed.js
+                           set-model.js  queries.js
+  overlay/                 channel.js
+  modes/                   index.js  singles.js  doubles.js  game-end.js
+  server/                  app.js  routes.js  overlays.js  control-status.js  report-set.js
+                           start-set.js  set-gate.js
+    api/                   status  scoreboard  event  players  casters  clipper  setup
+  stats/                   index.js  set-history.js  normalize.js  queries.js
+  game-source.js  combo-detector.js  clip-recorder.js  obs-client.js  clipper-settings.js
+  startgg-client.js  hotkey.js  lan-urls.js  port-guard.js  handwarmer.js  char_map.js
+  players.js  state.js
 ```
 
-**`index.js` is a composition root, not a god object.** It resolves the TSH root, builds the
-services, and passes a single `ctx` to each feature factory. Everything else lives in `lib/`.
-`ctx` is `{ config, TSH_ROOT, io, state, portMapper, tsh, startgg, clipperSettings, comboDetector,
-obs }`; the wiring order is a DAG — modes → control-status → clip-recorder → player-stats → report-set → routes —
-so nothing needs a late binding. **`modes` is built first** because control-status hands
-`modes.reresolvePorts` its swap reaction, and `createModes(ctx)` depends on nothing the other
-factories build; the alternative was a setter called after the fact.
+**`index.js` is a composition root, not a god object.** It builds the services and hands a single `ctx` to each feature factory: `{ config, io, state, store, portMap, playerDb, startgg, clipperSettings, comboDetector, obs, event }`, where `io` is the overlay channel's `emit()`. Wiring is a DAG — store (+persist) → channel → event service → bracket feed, mains learning → modes → control status → clip recorder → stats → report/start → hotkeys → routes — so nothing needs a late binding. `modes` subscribes to the store's events, which is why it comes before anything that shows its port map.
 
-**`lib/state.js`** — `createState()`. The shared mutable state that used to be a dozen
-module-level `let`s in `index.js`: `currentGameState`, `currentSetId`/`currentSetGames`,
-the clipper's rate-limit counters, `lastControlStatus`, `tshSwapped`, `source`.
-Reached as `ctx.state`. **The file documents which module writes which field — keep that current.**
+**`lib/state.js`** holds what isn't the scoreboard: the live game (`currentGameState`, `currentRawPlayers`), the clipper's counters, `lastControlStatus`, `source`. **The file documents which module writes which field — keep that current.**
 
-#### Game modes (`lib/modes/`)
+### The scoreboard — `lib/scoreboard/`
 
-- **`index.js`** — `createModes(ctx)`. Reads TSH once per game start, decides singles / doubles,
-  hands off. Also owns `syncSetTracking()` and `reportStage()`.
-- **`singles.js`** — singles game start.
-- **`doubles.js`** — doubles game start and `MELEE_TEAM_COLORS`.
-- **`game-end.js`** — `onGameEnd()`, shared by both modes (they differ only at game start).
-  Contains the 0-0 late-bind.
+**`store.js` (`ScoreboardStore`) is the one owner of live state**: the set on the scoreboard, the loaded tournament, the casters, the overlays' view settings (`bracketView`, `bracketPhaseGroupId`) and the bracket section. Every change is a command (`loadSet`, `closeSet`, `clearSet`, `recordGame`, `bump`, `setScore`, `setPlayer`, `setCharacter`, `setSideColor`, `switchSides`, `setOverrides`, `setTournament`, `setCasters`, `setBracketView`, `setBracketPhaseGroup`, `setBracket`) that bumps `rev` and emits `change` with the sections it touched. Nothing outside the file mutates state.
 
-#### Services (`lib/`)
+Two decisions remove whole classes of TSH-era bugs:
 
-- **`port-mapper.js`** — `PortMapper` class. Owns all port→team tracking state (`_portToTeam`, `_portToName`, `_portScore`). Never reads files or makes HTTP calls — all data is passed in. `getResolutionInfo()` reports the current mapping plus which heuristic set it (`_resolutionMethod`: name / score / character / positional / manual).
-- **`tsh-client.js`** — `TshClient` class; all I/O with TSH. Reads `program_state.json` (`readState()` + pure accessors), calls the TSH HTTP API, and returns typed `{ ok, error?, data? }` results. Every HTTP method goes through one private `_call()`; every state accessor through `_team()`, so the `score.<sb>.team.<n>` dig exists once. Includes bracket-action fronts (`pullStreamSet`, `getOpenSets`, `loadSet`), state accessors (`getSetId`, `getLiveScores`, `getTeamInfos`, `teamOfName`), and a `ping(timeout?)` health probe that `scripts/start-all.js` reuses. `tryReadState()` is `readState()` in the `{ ok, state?, error? }` shape, for callers that report a failure rather than propagate it; it calls `readState()` so tests that stub that one method stub both.
-- **`startgg-client.js`** — `StartggClient` class. The **only** module that talks to an external service, which is the invariant worth keeping: two would mean two places handling token expiry, rate limits and timeouts. Five GraphQL methods (`https://api.start.gg/gql/alpha`, all through one private `_gql()`): `reportSet()` runs the `reportBracketSet` mutation, `getSetEntrants()` fetches per-team entrant ids (TSH's `/get-match` does *not* expose them), `listEvents()` fetches a tournament's event list for the bracket switcher, and `getSetState()` / `startSet()` back the Start Set button (`markSetInProgress`). `resolveShortLink()` is the odd one out — deliberately **not** GraphQL (the API returns `null` for a short slug; only start.gg's web redirect resolves one) and deliberately **not** gated on `enabled`, since it needs no token. `enabled` is false when no token is configured; the gate is in `_gql()`, once, so a new GraphQL method inherits it. Bracket *reading during a set* still goes through TSH's native integration. **`backgroundQuery()`** is how `lib/stats/` reaches start.gg with its own queries: it waits until the last 60s hold fewer than `BACKGROUND_BUDGET` (50) requests, and stands down 30s after a 429. The operator's calls (report, start, bracket switch) are never delayed, so stats can slow each other down but can't make a report fail. `_gql()` flags start.gg's 1000-object refusal as `complexity: true` so a batching caller can split instead of reading it as empty.
-- **`game-source.js`** — `createFolderSource(config, detector?)`. Polls `SLP_FOLDER` and returns a Node `EventEmitter` firing `game-start` (`rawPlayers, stageId`), `game-end` (`{ winnerPlayerIndex, isHandwarmer }`) and `highlight` (one detected combo). Which port won is the pure `pickWinner()`, pinned by `tests/game-winner.test.js`. Also exposes `getStatus()` (`{ connected, detail }`) for the control-panel health dot. The mode handlers bind to these events rather than reading `.slp` files, which keeps them testable against a mock emitter.
-- **`combo-detector.js`** — `ComboDetector`. Pure: given a live `SlippiGame`, returns the conversions that just finished and clear the operator's thresholds. No I/O, no timers — all rate limiting lives in `lib/clip-recorder.js`. See [Combo Clipper](#combo-clipper--obs-replay-buffer).
-- **`clip-recorder.js`** — `createClipRecorder(ctx, refresh)`. The clipper's time-based half: cooldown, per-game cap, save delay, and the `recentClips` ring.
-- **`obs-client.js`** — `ObsClient`. The only module that talks to OBS (obs-websocket v5, via `obs-websocket-js`). Lazily connects with backoff, saves the replay buffer, and reports `getStatus()` synchronously for the control panel. Never throws upward — OBS being closed is a normal state.
-- **`clipper-settings.js`** — `ClipperSettings`. Three layers merged per-key: module `DEFAULTS` → `config.CLIPPER` → the gitignored `clipper-settings.json`. Validates and clamps every field (values arrive from a browser form) and writes atomically. Reaches **up one level** for the JSON, which stays at the `slippi-bridge/` root because `.gitignore` pins that exact path.
-- **`players.js`** — pure per-player record building (`activePlayers`, `buildPlayersSingles`, `buildPlayersDoubles`, `isDoubles`, `groupByTeamId`) plus the steps several modules run identically: resolve, `pushCharacters` / `pushTeamColors`, `syncNames`, `teamOfPort` (the live game's team for a port, falling back to the mapper) and `reapplyMapping`.
-- **`char_map.js`** — `resolveCharacter(charId, costume)` and `resolveStage(stageId)`. Pure mapping, no I/O. Deliberately returns **no icon path** — the layouts build that themselves; see `layout/shared/tsh-assets.js`. `STAGE_MAP` covers all 30 Slippi stage ids TSH ships an icon for; unmapped ids (target-test stages 33+) return `null`.
-- **`swap.js`**, **`hotkey.js`**, **`lan-urls.js`**, **`log.js`** — the manual swap, the `Ctrl+Shift+S` listener (native module, required lazily), the startup LAN URL list, and `warnIfFailed()`.
-- **`port-guard.js`** — `reclaimPort(port, log)`. Called from the `httpServer` `EADDRINUSE` handler so a stale bridge holding `BRIDGE_PORT` is stopped automatically instead of sending the operator to `netstat`/`taskkill` mid-event. See [Port Reclaim](#port-reclaim).
-- **`stats/`** — the side panel's player stats, fetched from start.gg by the bridge instead of by TSH. See [Side panel stats](#side-panel-stats--libstats).
-- **`tsh-root.js`** — `resolveTshRoot(baseDir, override)` plus `resolveOrExit(baseDir, override, tag)` for the two entry points. Finds the versioned TSH install folder so no path hardcodes a version. Only filesystem probing, no config or network.
-- **`handwarmer.js`** — `wasHandwarmer(game)`. Weighted heuristic over a slippi-js game object; see [Handwarmer Detection](#handwarmer-detection).
+- **A side carries its start.gg entrant id.** `sides[0]` is the left column; `switchSides()` reverses the array, so the entrant id travels with the name. Reporting reads `sides[w].entrantId` — no "which slot is column 1 while swapped" inversion, nothing to poll.
+- **The score is derived from the game list.** A Slippi game end appends a game (with the characters each side played); ± appends or removes a manual one. The per-game list a report sends can never disagree with the scoreboard, and Switch Sides flips both at once by construction.
 
-#### Server (`lib/server/`)
+Store events besides `change`: **`set-closing`** (the outgoing set, before anything replaces it — `closeSet()`, which `loadSet`/`clearSet` call), **`set-loaded`**, **`sides-switched`**. `reportable()` answers whether the loaded set can be reported and with what.
 
-- **`app.js`** — Express + Socket.io + the `EADDRINUSE` reclaim dance.
-- **`routes.js`** — `registerRoutes(app, deps)`. Receives `publicDir` from `index.js` rather than
-  computing a `../..` hop of its own.
-- **`control-status.js`** — the 2s snapshot, TSH-side swap detection, and liveness. **One TSH
-  round-trip per tick:** a successful `getSwapState()` already proves the web server is up, so
-  `ping()` runs only as a fallback (`/get-swap` is 5.972+). Concurrent `refresh()` callers share one
-  in-flight rebuild — many call sites invoke it, several in bursts when the operator clicks around.
-  `refresh()` **never rejects** (a failed rebuild resolves to the last status), so callers don't
-  need a `.catch`. The status object is written in one place, `compose()`, used for both the
-  startup seed and every rebuild — a new field goes there and nowhere else.
-- **`report-set.js`** — `reportCurrentSet()`, `evaluateReportability()`, `entrantSlot()`.
-- **`start-set.js`** — `startCurrentSet()` (start.gg's `markSetInProgress`) and `evaluateStartability()`. See [Start Set](#start-set).
-- **`set-gate.js`** — `startggSetGate()` (no token / no set / preview set) and `loadedSetId()`, the checks reporting and starting share, so the two buttons can't disagree about what counts as a real set.
-- **`bracket-switch.js`** — the Singles/Doubles buttons. Pure helpers (`normalizeBrackets`, `normalizeEventUrl`, `sameEvent`, `pickEvent`) plus `createBracketSwitch(ctx, refresh)`. See [Bracket switcher](#bracket-switcher).
+- **`persist.js`** — every `change` schedules a debounced, atomic write (temp + rename) to `data/live-state.json`; `restore()` on boot. A missing, corrupt or other-version save leaves the store empty — a stale shape is worse than a blank scoreboard. The `bracket` section is never saved (re-read on boot), so a bracket refresh never writes the file. `index.js` flushes pending writes on `exit`.
+- **`set-text.js`** — pure. `bestOfLabel` from `lPlacement` (works on preview sets and whether top 8 is its own phase or not); `losersMarks`: [L] on the grand-finals player from losers, both in the reset. Operator overrides always win.
 
-### Port→Team Assignment (`PortMapper`)
+### Ports — `lib/ports/port-map.js` + `lib/modes/`
 
-The bridge maintains a **port-persistent, swap-aware** mapping of Slippi player ports (0-based) to TSH teams (1-based). This survives TSH's "Swap Teams" button (which swaps names *and* scores) — see [TSH-Side Swap Detection](#tsh-side-swap-detection) for the immediate path, with name-based re-derivation on the next game start as the fallback.
+`PortMap` says which side (0 left, 1 right) — and in doubles which slot — each Slippi port plays for. One chain, at each game start:
 
-Assignment priority on each game start (singles):
-1. **`resolve(t1, t2)`** — name-based matching (mid-set). Fallback: score-based matching (`_portScore` vs TSH scores). Resets to null on 0-0.
-2. **`tryCharacterBased()`** — at 0-0, reads TSH's preloaded character history (`program_state.json → team.player["1"].character["1"]`). Matches on `name`; also checks `skin` (costume index) when both players use the same character.
-3. **Positional default** — lower port index → team 1.
+1. **Continuity** — the same ports as the last game of this set keep their mapping *and* the method that chose it. This is what makes a manual swap stick for the rest of the set.
+2. **Characters** — each port's character against a reference per side: the last recorded game's characters when the ports moved mid-set, the players' DB mains at the start of a set or on a re-detect. Costume only breaks a tie between identical characters; in doubles the assignment with more hits across both sides wins.
+3. **Positional** — lower port (doubles: the group holding the lowest port) on the left. Flagged amber in the dock.
 
-**0-0 late-bind (game end):** when a singles game started at 0-0, `onGameEnd` re-reads TSH state *after* the game finishes, looks up the winner's name (via `getPortName()`) in the current TSH team assignments, and uses that as the authoritative team for `incrementScore`. This lets the TO finish entering names / correcting sides during game 1 without the score going to the wrong player. Falls back silently to the game-start assignment if names are blank or TSH is unreachable. Game 2+ is unaffected (`resolve()` at 1-0 already name-matches live TSH state).
+`portMap.method` is `character | positional | manual`. Pure apart from logging; the caller passes the reference characters in.
 
-**Manual re-resolve (`reresolvePorts()` in `lib/modes/index.js`, the panel's ↻ Re-detect Players):** the late-bind above only helps a game that *started* at 0-0 with the winner's name findable in TSH. When a new set is loaded and game 1 is already running with the previous set's names still on the scoreboard, every port fact the bridge holds — `_portToName`, and a `_portToTeam` guessed against the *previous* set's characters — belongs to the old set, and the late-bind's name lookup finds nothing. This button clears the mapper and re-runs the game-start path with the name/score step skipped, so the chain reduces to character history → positional: exactly the 0-0 route, and the right one, because TSH now holds the correct registered characters for the names the TO just entered. Names cannot match across a set change, which is why character history is the signal.
+**`lib/modes/index.js`** dispatches singles/doubles (`players.js#isDoubles`: 4 active players with Slippi team ids), runs the chain, and writes live characters into the store. It also reacts to the store: **`set-loaded`** clears the map and, if a game is running, re-detects at once (this replaced the old 0-0 late-bind and most uses of the Re-detect button); **`sides-switched`** flips the map and re-emits the live game. `swapPorts()` (⇄ / `Ctrl+Shift+S`) flips the map with method `manual` and re-applies the live characters; `reresolvePorts()` (↻) re-runs the chain against mains only and needs a live game.
 
-- **It reuses the mode handlers** rather than reimplementing resolution, so the TSH character push, `syncNames`, the doubles team colours and the `slippi_game_start` re-emit come along and cannot drift. `dispatchGameStart()` exists so the singles/doubles decision is made in exactly one place.
-- **It requires a live game** (`state.currentRawPlayers` + `currentGameState`). With no live game there is nothing to re-push or re-emit, and fabricating one would resurrect a dead game for the layouts; between games the next game start re-derives on its own anyway.
-- **`fromScratch` skips `resolve`/`resolveDoubles` outright rather than relying on their 0-0 reset.** In doubles this is load-bearing: off 0-0, `resolveDoubles` finds no names and no matching win sums, falls through to `applyDoublesPositional()` and thereby *sets* `_portToTeam` — which makes the `!hasMapping()` guard in `doubles.js` skip `tryCharacterBasedDoubles`, i.e. skip the one heuristic the button exists to run.
-- **`seedScores()` reseeds the tallies from TSH's live score.** `reset()` drops them and `syncNames()` only re-seeds zeros, which would leave the score fallback comparing 0-0 against a mid-set scoreboard on the *next* game start. Each team's whole score goes on its lowest port, matching how `recordWin()` accumulates.
-- **It does not flip `state.currentSetGames`**, unlike `handleTshSwap()`. Those entries are TSH column numbers and the columns have not moved — only the bridge's read of which port sits in them.
-- **Button only, no auto-trigger.** The 2s tick cannot tell a corrected name from a half-typed one. `tests/port-reresolve.test.js` pins both guards.
+**`game-end.js` reads the winner's side from the port map at game end**, not game start, so anything corrected during the game decides who gets the point. A handwarmer records nothing; an unmapped winner records nothing and says so. Doubles team colours (`MELEE_TEAM_COLORS` in `doubles.js`) go onto the sides as `color`.
 
-### Doubles
+### Players — `lib/players/`
 
-Auto-detected when a game has 4 active players with `teamId` assigned in the `.slp` **and** TSH team 1 has more than one player slot. Same scoreboard, same bridge port — no extra config. `onGameStart` routes to `onGameStartDoubles`.
+- **`player-db.js` (`PlayerDb`)** — TSH's `local_players.json` format, edited in place, so it can always be handed back. Unknown fields round-trip; the app's additions are keys TSH ignores (`startggPlayerId`, `learnedMains`, `pinnedMain`); the `{}` stub and TSH's odd shapes (`mains: "{}"`, null prefix) are tolerated, not fixed. Writes are debounced, atomic, and **byte-identical to TSH's own** for unchanged records (Python's `ensure_ascii` `\uXXXX` escapes, the file's CRLF) — checked against the real 208-player file. Mains are `[displayName, skin]` (display names from `char_map`). `search` / `refOf` / `at` back the dock's Players tab: a record is addressed by `ref` (its index, stable for the process) **plus its tag**, and a mismatch is a 409, so a stale search can't edit someone else.
+- **`mains-learning.js`** — what each singles player played, from the set's game list, into the DB **when the set is over**: on a successful report, and on `set-closing`. Least-played first into `learnMain`, so the most-played ends up first. Committing the same set twice is skipped (report-then-load learns once). Never learned: handwarmers and manual games (no characters), doubles (which player of a side a port is is a guess), a typed name with no DB record. start.gg players are upserted; typed names are only found. A pinned main always wins on load.
+- **Order matters in the event service:** `loadSet` calls `store.closeSet()` *before* it reads the incoming players' mains, so back-to-back players open on what they just played. `tests/event-service.test.js` pins it.
 
-- **PortMapper (doubles):** `resolveDoubles()` (name → score → positional), `tryCharacterBasedDoubles()` (bidirectional scoring vs both TSH teams — breaks ties where only one team has a unique char), `applyDoublesPositional()` (group-based: lower min-port Slippi group → TSH team 1). `applyDoublesPositional()` is called explicitly after `resolveDoubles` + `tryCharacterBasedDoubles` at 0-0 so `_portToTeam` is always set — this fixes the index-based positional fallback that was wrong for non-consecutive groups (e.g. ports {0,3} vs {1,2}).
-- **Team colors:** `MELEE_TEAM_COLORS = { 0: '#D32F2F', 1: '#1565C0', 2: '#2E7D32' }` mapped from Slippi `teamId`; overrides whatever color the TO configured in TSH. `teamColorMap` uses min-port-per-group when `_portToTeam` is set, group min-port ranking otherwise.
-- **Score tracking:** `onGameEnd` reads the winner team from `currentGameState.players[winnerPlayerIndex].teamNum` before falling back to `portMapper.getTeam()` — fixes a null winner when `_portToTeam` is unset at 0-0.
-- **Game end:** RESOLVED end method (the normal doubles win in Slippi) plus a last-frame stock-count fallback when placements are missing.
+### The event — `lib/event/`
 
-### Per-Game Stage Reporting (TSH 5.972+)
-
-TSH 5.972 added the **Individual Game Tracker**, which records stage / characters / winner per game under `score.<N>.stages.<i>`. The bridge already parses the stage from every `.slp` and now pushes it.
-
-- `game-source.js` emits `game-start` as `(rawPlayers, stageId)`, taken from `settings.stageId` (`null` when unavailable).
-- `onGameStart` calls `reportStage(stageId)` → `resolveStage()` → `tsh.setCurrentStage(codename)`.
-- **Best-effort by design:** unmapped stage ids log a warning and skip; the HTTP call is fire-and-forget with `.catch(() => {})`. Stage reporting is cosmetic and must never block scoring.
-- Per-game *characters* need no bridge work: TSH's `_CopySetLevelCharactersToGame` copies the set-level selection (already pushed via `update-team`) into the game slot automatically.
-
-Codenames are the basenames of `user_data/games/ssbm/stage_icon/*.png`. Watch the spellings that don't match the Slippi enum: `HYRULE_TEMPLE`→`temple`, `POKE_FLOATS`→`pokefloats`, `DREAMLAND`→`dream_land`, `KONGO_JUNGLE_N64`→`kong_jungle_64` (**"kong"**, not "kongo"). `ICETOP` (26) maps to `icicle_mountain` — TSH ships no separate asset.
-
-### Port Reclaim
-
-`EADDRINUSE` on `BRIDGE_PORT` is the normal restart case (closed console, crashed `start-all`, editor still running the old copy), not an operator error, so the new process takes the port back itself — `lib/port-guard.js`, wired in `lib/server/app.js`.
-
-- **Identity gate.** It only kills a process that answers `GET /api/identity` with `{ app: "slippi-bridge", pid }`. That response supplies the pid directly, so no `netstat` parsing in the normal path. Killing an unrelated program that happened to pick 5001 would be far worse than refusing to start, so an unidentified occupant is reported and left running.
-- **Legacy fallback.** A bridge from before `/api/identity` existed still answers `/api/status` with a shape (`tsh` + `portMapping` keys) nothing else serves; that identifies it, and the pid then comes from `netstat -ano` (`lsof -t` off Windows). One-time path — remove it whenever pre-identity builds stop being in play.
-- **Retry is bind-driven.** Windows releases a killed process's socket asynchronously, so `waitForPortFree()` polls by actually binding a throwaway server rather than sleeping a fixed delay.
-- `portReclaimTried` allows exactly one attempt — a second `EADDRINUSE` exits.
-- The `Socket.io server listening` log is a `httpServer.once("listening")` handler, **not** a `listen()` callback: a `listen()` that fails with `EADDRINUSE` leaves its one-shot callback attached, so the retry fires both and logs twice.
-
-### TSH-Side Swap Detection
-
-`GET /scoreboard<N>-get-swap` returns TSH's own `teamsSwapped` flag as the Python string `"True"`/`"False"` (**not** JSON). Polled in the existing 2s `refreshControlStatus` loop.
-
-- `tshSwapState` starts `null` so the first poll only seeds a baseline — no phantom swap on startup.
-- **On a change, `handleTshSwap(state)` runs the full re-detect** — `modes.reresolvePorts(reason, state)` (handed the state the tick just read, so no second read), the same path as the panel's ↻ Re-detect Players — rather than the name match it used to. Name matching only carries the *previous* belief across: `_portToName` records which TSH name sat in each port's column, so following those names to their new columns reproduces whatever mapping was already there, including the wrong one that is usually the reason the sides are being switched. And at 0-0 — game 1, the common case — `resolve()` takes its new-set reset branch and throws `_portToName` away entirely, leaving a bare positional guess with no names in the panel at all. Re-running the game-start path re-derives from TSH's character history, re-binds the names TSH shows now, and re-pushes the characters so the columns stop showing crossed icons.
-- **The name match survives as the fallback for between games.** `reresolvePorts()` requires a live game (nothing to re-push or re-emit otherwise) and declines; `handleTshSwap` then runs the old `resolve()`, which keeps the mapping meaningful for the next game start. There is no live game to update in that branch, by construction.
-- **Flipping `currentSetGames` happens either way**, ahead of the branch — those are TSH column numbers and the columns moved regardless of how the mapping is re-derived.
-- The bridge's own `swapTeams()` never calls TSH's swap endpoint (it only flips the internal map), so any change in this flag means the scoreboard's sides really moved — either from TSH's UI or from the control panel's **Switch Sides** (`POST /api/swap-sides` → `tsh.swapSides()`). The reaction is identical either way, so no origin bookkeeping is needed.
-- **`/swap-teams` is fire-and-forget on TSH's side** — `swap_teams()` emits a Qt signal and returns `"OK"` before the flag flips or `program_state.json` is rewritten. So the route's immediate `refreshControlStatus()` usually reads the *pre*-swap flag; a second refresh 400ms later is what actually catches it, and without it the operator waits out the 2s tick. Don't delete it as redundant.
-- `tests/swap-reresolve.test.js` pins the re-detect, the 0-0 name-map survival, the `currentSetGames` flip and the between-games fallback.
-- Exposed as `tshSwapped` on `control_status` / `/api/status` and rendered in the control panel. `getSwapState()` deliberately does not log failures — it is polled every 2s and would flood the console while TSH restarts.
-
-`PortMapper` remains the scoring authority; this only *detects divergence* rather than delegating the mapping to a single boolean.
-
-### Handwarmer Detection
-
-`slippi-bridge/lib/handwarmer.js` scores each game to detect practice/warm-up games. Weighted score ≥ 2 = handwarmer: each player's `totalDamage < 150` (+1/−1), LRAS end method 7 (+1/−1), both players have > 1 stock in the last frame (+2), duration < 60s (+1). Guard: if `stats.overall` is empty/missing, returns `false` (prevents vacuous-truth false positives).
-
-- **Score-only suppression:** on a handwarmer, `slippi_game_start` still fires (characters update) but the score increment is skipped.
-- **Rage-quit handling:** LRAS + not a handwarmer + valid `lrasInitiatorIndex` → awards the point to the other player. In doubles, the point goes to someone on the *other* team by `teamId`, not the quitter's partner.
-- Every game end prints a single `[handwarmer]` line with the mode, per-check deltas, raw values, and the verdict.
-
-**Non-obvious gotchas** (do not regress these):
-- Use `totalDamage`, not `totalDamageDealt`.
-- Read stocks from `getLatestFrame()`, not `stats.stocks` (empty on LRAS).
-- Doubles: do **not** `filter(Boolean)` on `lastFrame.players` — that drops null dead-player entries and leaves only the winning team (always > 1 stock), falsely flagging every doubles game. Use `p?.post?.stocksRemaining ?? 0` so null entries count as 0.
-- `killCount` from slippi-js is unreliable for 4-player stat computation, so the `killCount <= 1` check is guarded with `!isDoublesGame`.
-
-### `program_state.json` — Key Paths
-
-All keys are **strings**, 1-indexed. Scoreboard number is `config.SCOREBOARD_NUM` (default `"1"`):
+**`event-service.js` (`EventService`)** owns the loaded start.gg event and replaced TSH's provider:
 
 ```
-state.score["1"].team["1"].score                            → team 1 score
-state.score["1"].team["1"].player["1"].name                 → team 1 player name
-state.score["1"].team["1"].player["1"].character["1"].name  → preloaded character name
-state.score["1"].team["1"].player["1"].character["1"].skin  → preloaded costume index (0-based)
-state.score["1"].set_id                                     → start.gg set id (null if manual set)
+short link → this week's tournament → its singles/doubles event   switchEvent(kind)
+event → phases → phase groups → every set, as bracket graphs     loadEvent / refresh
+graphs → the picker, playable sets first                          openSets()
+one set, re-read fresh → enriched from the player DB → the store  loadSet(setId)
 ```
 
-### TSH HTTP API (used by bridge)
+- **Reads only, budgeted in the background.** The graphs refresh every 90s through `startgg.backgroundQuery()`; a completed phase group is read once. What the operator presses (a switch, ↻, a load) goes straight out. A generation counter drops a refresh still in flight for the previous event.
+- **Every read falls back to start.gg's keyless web endpoint**, so the dock works without a token.
+- **The loaded event is part of the store** (`tournament`), so it survives a restart and reloads on boot.
+- **`loadSet`** re-reads the set (and still loads, with a warning, when it can't), fills pronoun and main from the DB (pinned → learned → stored mains), and upserts new start.gg players.
+- **No stream queue.** The series picks whatever set is playable, so the picker sorts playable (both entrants known, not started) first, then live, then waiting; and the stats pre-fetch the next playable sets' players.
 
-```
-GET  /scoreboard1-teamN-scoreup           → increment team N score by 1
-GET  /scoreboard1-teamN-color-<hex>       → set team color (hex without #)
-POST /scoreboard1-update-team-N-1         → set character/costume
-     body: { mains: { ssbm: [[charDisplayName, costumeIndex]] } }
-POST /score                               → set both scores { team1score, team2score, scoreboard }
-POST /scoreboard1-set-current-stage       → set the current game's stage (TSH 5.972+)
-     body: { codename: "battlefield" }
-GET  /scoreboard1-swap-teams              → press TSH's Swap Teams (moves names+scores across sides)
-GET  /scoreboard1-get-swap                → TSH's own teamsSwapped flag; returns "True"/"False" as text
-GET  /scoreboard1-pull-stream             → pull the next queued stream set onto the scoreboard
-GET  /get-sets[?getFinished=1]            → list open (or finished) sets from the bracket provider
-GET  /scoreboard1-load-set?set=<id>       → load a specific set by id
-GET  /scoreboard1-get-set                 → id of the currently-selected set
-GET  /set-tournament?url=<event URL>      → point TSH at a tournament event (writes TOURNAMENT_URL,
-                                            signals the provider to re-pull). Returns "OK" as text
-GET  /update-bracket                      → re-pull the loaded bracket; 500s when nothing is loaded
-```
+**`event-target.js`** — pure: `normalizeBrackets`, `pickEvent` (exactly one event must contain all of a kind's keywords — **ambiguity is refused, never guessed**), `sameEvent`, `normalizeEventUrl`. The short link is resolved by `startgg.resolveShortLink()` through start.gg's **web redirect**, by hand (`maxRedirects: 0`), because the API returns `null` for a short slug. The event is looked up, not appended: a renamed event under a stale slug loads as an empty bracket with no error anywhere, so `fallbackSlug` is used only when the lookup can't run, and that sets a `warning`.
 
-TSH ships a **complete native start.gg integration** (`src/TournamentDataProvider/StartGGDataProvider.py`) driven by `user_data/settings.json → TOURNAMENT_URL`. It fetches brackets/queue/sets and writes them into `program_state.json` (`score.<N>.set_id`, `bracket.*`, `streamQueue`, `completed_sets`, `recent_sets`, etc.). The bridge *reads* bracket data through TSH and never re-implements bracket fetching. TSH has **no** result-reporting capability, which `startgg-client.js` adds. The one thing re-fetched is the side panel's *player stats*, because TSH's were wrong — see [Side panel stats](#side-panel-stats--libstats).
+**`bracket-model.js`** — pure: a phase group's sets → a graph built from start.gg's own edges (`slots.prereqType/prereqId/prereqPlacement`), never from seed math. Losers rounds are negative and need not start at -1; **a bye is an edge to a set that isn't in the list**; the reset is the set whose two slots both come from the GF (start.gg deletes it once GF 1 is won from winners); preview (unstarted) sets carry edges and `lPlacement` too. `selectView(graph, view)` for `winners | losers | top8 | top16 | full` — Top N is the sets whose `lPlacement ≤ N−1`, plus GF.
 
-### Control Panel + start.gg reporting
+**`bracket-feed.js`** publishes one phase group into the store's `bracket` section — the dock's pick, else the on-air set's group, else the furthest running — with all five views precomputed, the live score on the on-air set, and a character per singles entrant (Slippi's for the two on air, the DB main otherwise). **`set-model.js`** — pure: `loadPayload` (what loading a set puts on the scoreboard; the [L] fact comes from the graph) and `pickerList`. **`queries.js`** — the GraphQL, shared with `scripts/capture-startgg.js` so fixtures carry exactly the fields the app reads; sized against the 1000-object ceiling with `PAGE_SIZES = [40, 20, 10]`.
 
-The bridge serves these on its own Express app (port 5001). Browser JS is normally same-origin with the bridge, and the bridge makes all TSH/start.gg calls server-side, so there is no browser-CORS surface against TSH. A permissive CORS middleware sits in front of the routes anyway: an OBS dock pointed at `public/control-panel.html` as a *file* runs on a `file://` origin, where the panel's `API_BASE` falls back to `http://localhost:5001` and needs CORS to reach `/api/*`.
+### start.gg — `lib/startgg-client.js`
 
-```
-GET  /control            → the operator panel HTML (public/control-panel.html)
-GET  /api/identity       → { app: "slippi-bridge", pid } — how a starting bridge recognises a stale one (see Port Reclaim)
-GET  /api/status         → { tsh, slippi, slippiDetail, portMapping, tshSwapped, currentSet, tournament, shortLink, startggEnabled, clipper }
-POST /api/swap           → same as Ctrl+Shift+S (calls swapTeams()) — flips the internal port→team map only
-POST /api/swap-sides     → tsh.swapSides() — presses TSH's own Swap Teams, moving names+scores across sides
-POST /api/reresolve      → reresolvePorts() — clear the port→team map and re-derive it from TSH's current names + characters
-POST /api/pull-stream    → tsh.pullStreamSet()
-GET  /api/sets[?finished=1] → tsh.getOpenSets(includeFinished)
-POST /api/load-set       → tsh.loadSet(body.setId), then refreshControlStatus()
-POST /api/bracket        → { kind: "singles" | "doubles" } — point TSH at this week's event for that format
-POST /api/start-set      → startCurrentSet() (start.gg markSetInProgress) — no body
-POST /api/report         → reportCurrentSet() (start.gg reportBracketSet)
-GET  /api/clipper        → { settings, obs, recentClips, clipsThisGame, supported }
-POST /api/clipper/settings → validate + persist + apply (clipper-settings.json)
-POST /api/clipper/toggle → { enabled } — the master switch, applied immediately
-POST /api/clipper/test   → save the replay buffer now (proves the OBS chain)
-```
-`control_status` is also pushed over Socket.io every 2s and on connect. The panel shows TSH/Slippi/OBS health, the current set + its start/report buttons, the upcoming-sets picker, the combo clipper, and the port→team guess with the heuristic that decided it (a positional guess is flagged as low-confidence) plus TSH's own swap state (`tshSwapped`), a swap button and **↻ Re-detect Players** (see *Manual re-resolve* under [Port→Team Assignment](#portteam-assignment-portmapper)).
+**The only module that talks to start.gg**, which is the invariant worth keeping: two would mean two places handling token expiry, rate limits and timeouts. All GraphQL goes through one `_gql()`:
 
-**Every section collapses**, so the dock survives being squeezed next to the OBS preview. Each `.card` carries a `data-section` key, splits into `.card-head` + `.card-body`, and toggles `.collapsed` (`display: none` on the body — *not* an animated `max-height`, which would fight `.sets-list`'s own `overflow-y` scroller). The toggle is its own `<button class="head-toggle">` rather than the whole header row, because two headers already carry a control (the method badge, the sets refresh) and a button can't nest a button. Collapsed keys persist in `localStorage` under `streamControl.collapsed` — an OBS dock reloads every time it's reopened, so the layout choice has to survive that.
+- **Reads marked `fallback: true` re-post to `www.start.gg/api/-/gql`** (keyless, TSH's headers) on no token, 429, 5xx or a network error. **Mutations never fall back** — they must carry the operator's token.
+- **`backgroundQuery()`** — the budget: waits while the last 60s hold `BACKGROUND_BUDGET` (50) requests, and stands down 30s after a 429. The operator's calls (report, start, switch, load) are never delayed, so stats and refreshes can slow each other down but can't make a report fail.
+- start.gg's 1000-object refusal is flagged `complexity: true` so a caller splits instead of reading it as empty.
+- `resolveShortLink()` is deliberately neither GraphQL nor gated on the token.
 
-The ≥760px layout is **CSS multicolumn**, not a grid. It used to be `grid-template-columns: 1fr 1fr` with `.card-tall` pinned to `grid-column: 2; grid-row: 1 / span 2`; a fixed placement leaves holes the moment cards change height, which is exactly what collapsing does.
+### Reporting and starting — `lib/server/`
 
-**Clipper inputs and the 2s tick.** `render()` runs every 2s and blind-repaints. A `clipDirty` flag latches on the first keystroke so a status push can't overwrite a half-typed threshold; saving clears it and the next tick resyncs from the bridge. Same discipline as the sets list's `setId` guard — and note `render()` has no try/catch, so a missing element id throws and silently freezes the whole panel. It is responsive — one column in an OBS dock, two columns from 760px — so it also works from a phone or tablet at `http://<lan-ip>:5001/control`. `lanControlUrls()` prints those addresses at startup (Tailscale `100.64/10` first, since it survives a venue network change and guest-Wi-Fi client isolation; Hyper-V switches and disconnected `169.254` adapters are filtered out) so the operator never has to run `ipconfig` at a venue.
+- **`report-set.js`** — `store.reportable()` → the winner's `entrantId` plus every game's winner as `gameData` (winners only — no stages or characters; start.gg has no score field without game data). Refuses with no token, no set, a preview set, or a tie. Manual only; the dock confirms first. A success (in `index.js`) learns mains, reloads stats, and refreshes the event 3s later.
+- **`start-set.js`** — start.gg's `markSetInProgress`. `canStart` only for states **1** (created) / **6** (called). **`evaluateStartability()` is synchronous by contract**: it answers from a per-set-id cache and schedules the one lookup in the background — a query per 2s tick would spend 30 of start.gg's 80-per-60s on a value that changes twice a set, and reporting would be the first thing to break. The first tick after a load reads "Checking start.gg…". Not auto-fired from game 1: a handwarmer or a mis-loaded set would mark the wrong set. `tests/start-set.test.js` pins the caching.
+- **`set-gate.js`** — the refusals both share (no token / no set / preview set), so the two buttons can't disagree about what a real set is.
+- **Preview sets** (`preview_<phase>_<round>_<n>`) are what an unstarted event's sets are; they can be loaded and shown but never started or reported. Load the set again after the TO starts the bracket.
 
-**Upcoming-sets picker.** The panel is meant to be the only page open during a set, so it renders TSH's bracket data itself rather than sending the TO to `:5000/scoreboard` (a compiled React SPA in the vendored, gitignored `stage_strike_app/build/` — not extensible from this repo). Per-player editing (names, pronouns, country, skins) is deliberately *not* reimplemented; that still happens in TSH.
+### The overlay channel and runtime
 
-- Fields consumed from `/get-sets`: `id`, `round_name`, `tournament_phase`, `p1_name`/`p2_name`, `p1_seed`/`p2_seed`, `team1score`/`team2score`, `station`, `stream`. Seeds, station, stream and score render only when populated.
-- **One tap loads a set.** The only guard is an inline confirm when the currently-loaded set has a non-zero score, since that is the one case where loading discards operator work. The loaded set is matched on `String(set.id) === String(currentSet.setId)` — TSH reports `set_id` as a string but `/get-sets` uses numbers — and is marked `ON AIR` and made unclickable.
-- **Refresh is deliberately slow.** TSH's `get_sets` calls `provider.GetMatches()`, an uncached paginated GraphQL query against start.gg on every call. The panel refreshes on open, on the manual `↻`, after a successful load/pull/report, and on a 90s timer that pauses while `document.visibilityState !== "visible"`. Do not turn this into a fast poll.
-- An **empty list is normal** — `get_sets` returns start.gg states 1/6/2 (not started, called, in progress), so a finished bracket legitimately returns 0. The empty state says so and points at the `show finished` toggle (`?finished=1`, which adds state 3); that is distinct from the fetch-failed state.
+**`lib/overlay/channel.js`** — Socket.io namespaces `/overlay` and `/dock`. `state:full` on connect and on request; after that one `state:patch { from, rev, ops }` per tick (whole top-level sections), however many commands ran in it. **A patch carries the rev it was diffed from**: a client whose rev is behind `from` missed one and sends `state:resync` rather than keep drawing a score that has stopped changing; a patch it already has is ignored; `state:full` is always taken (the app may have restarted). The feature modules emit their own event names through `ctx.io`; `RELAY` maps each to `game:start`, `game:end`, `clip:saved`, `stats`, `status`, `clip:error` per namespace, and an event with no entry goes nowhere. Nothing is sent on the default namespace. `game:start` is sticky until `game:end`; the last `stats` and `status` are replayed to a new connection.
 
-**Reporting flow (`reportCurrentSet` in `lib/server/report-set.js`):** reads `score.<N>.set_id` + live scores from TSH → refuses if no set_id / `preview` set / tied score → derives the winner *column* from the higher live score → `entrantSlot(column, swapped)` converts that to a start.gg slot → `startgg.getSetEntrants(setId)` maps slot → entrant id (start.gg slot 0 = slot 1) → `startgg.reportSet(setId, winnerEntrantId, gameData)`.
+**`overlays/shared/overlay-client.js`** replaces TSH's `globals.js` (and jQuery, lodash, kuroshiro, the 30fps state poll): `Overlay.connect({ tag })` → `ov.select(path, (now, prev) => …)` (runs only when that path's JSON changed, so a casters edit can't re-animate the scoreboard), `ov.on(event)`, `ov.ready`. Plus `Overlay.h()` (node building), `Overlay.icon({ codename, skin })`, `Overlay.fitText()`, `Overlay.param()`, `Overlay.reveal()`. **The page fades in by itself**: `overlay.css` holds `body` at opacity 0 and `.ready` (first state drawn, fonts in) reveals it — `highlights.js`, which never connects, calls `Overlay.reveal()` itself. `?animate=false` adds `body.no-animate`. The state mirror has no DOM, so `tests/overlay-patch.test.js` runs the same file under Node.
 
-**Swap state is load-bearing for reporting.** TSH's Swap Teams moves each team to the other column *and keeps that orientation for every set loaded afterwards* — `TSHScoreboardWidget.ChangeSetData` does `scoreContainers.reverse()` / `losersContainers.reverse()` / `teamInstances.reverse()` when `teamsSwapped`, so while swapped, TSH column 1 holds start.gg's slot-2 entrant. `entrantSlot()` applies that inversion; without it the report publishes the loser as the winner. `reportCurrentSet` re-reads `getSwapState()` at report time rather than trusting the 2s poll, falls back to the last polled `tshSwapState`, and **refuses** if neither is available — guessing is worse than not reporting. `handleTshSwap()` also flips the recorded `winnerTeam` of every entry in `currentSetGames`, since those are column numbers and the columns just changed hands (mirrors TSH's own `individualGameTracker.SwapStageResults()`). Per-game `gameData` is accumulated in `currentSetGames` (one `{ gameNum, winnerTeam }` per singles/doubles game end; reset in `syncSetTracking()` when `set_id` changes) and is optional — a mismatch falls back to reporting set winner + score only. Manual trigger only; the panel two-step-confirms before POSTing.
+**`lib/server/overlays.js`** — `PAGES` (url → file) and the `/o/` + `/assets/` mounts; `resolveOverlayPath()` is the same table the tests resolve through. **Every url a page uses is absolute** (`/o/shared/overlay.css`), so a source works with or without a trailing slash. **Every overlay stylesheet sits exactly one level under `/o/`**, because a theme pack's `--logo-url` is resolved against the stylesheet that uses the `var()` (see Theme packs).
 
-### Start Set
+### The dock — `slippi-bridge/public/dock/`
 
-`lib/server/start-set.js` — the **Start Set on start.gg** button in the Current Set card, which runs start.gg's `markSetInProgress` (the API behind its own "Start match"). It saves the TO opening the bracket page just to start a set they have already loaded on the stream scoreboard.
+A pinned **live strip** (both sides' names, characters via a select-screen picker — tap sets, hold/right-click opens costumes — score ±, round / best-of / [L] overrides with Auto text, and ⇆ Sides · ⇄ Ports · ↻ Detect · Start · Report) over six tabs: **Set · Bracket · Casters · Players · Clips · Setup**. Fed by the `/dock` namespace's state plus `status`. Fonts (Saira, Martian Mono) are self-hosted — venue Wi-Fi is unreliable.
 
-- **The button only exists while it applies.** `currentSet.canStart` is true only for start.gg states **1** (created) and **6** (called); the panel hides the button otherwise rather than showing a permanently-disabled control on its busiest card. `startReason` carries the refusal.
-- **The state is cached per set id, never polled.** `evaluateStartability()` is called from the 2s tick and is **synchronous by contract**: it answers from the cache and schedules the one lookup in the background. A query per tick would spend 30 of start.gg's 80-per-60s on a value that changes twice a set, and the first thing to break would be *reporting* — far from the cause. `tests/start-set.test.js` pins this.
-- **The first tick after a set loads reads "Checking start.gg…"** — that's the lookup in flight, not a failure.
-- **Preview set ids are never startable.** An event start.gg hasn't started yet has no real sets, so TSH reports `preview_<phase>_<round>_<n>` and there is nothing to mark in progress. Every set in a `CREATED` event looks like this, so the button legitimately stays hidden until the TO starts the bracket — the same reason reporting is blocked there.
-- **No confirm, and no automatic trigger.** Starting is non-destructive and start.gg rejects it for any other state, so a misclick costs nothing. It is deliberately *not* fired from the first game start: a handwarmer, a restart, or a set loaded by mistake would each mark the wrong set.
-- The route re-evaluates server-side, so a stale panel can't start a finished set.
+- **No `innerHTML`**: nodes are built with `Overlay.h()`. **Every renderer is wrapped in `guard()`**, so one that throws shows in the dock instead of freezing it. `tests/dock-static.test.js` checks every id the script looks up exists and every route it calls exists with that method.
+- **Input survives pushes.** A name being typed isn't overwritten mid-word (commits on change; Escape sends nothing); the casters are a **draft until Put on stream**, kept across pushes unless unchanged and nobody is typing; the clipper form is generated from one `CLIP_FIELDS` spec and latches dirty.
+- **Health:** `control_status` is sent on change plus a **5s heartbeat**; no status for ~12s dims the lights.
+- Report and a load over a set with games ask first. The active tab persists in `localStorage` (wrapped — it can throw).
+- Layout: one column in an OBS dock, more from ~760px; usable from a phone. `lan-urls.js` lists the dock's url on every reachable address, **Tailscale (`100.64/10`) first** — it survives a venue network change and guest Wi-Fi client isolation; Hyper-V switches and `169.254` adapters are filtered out.
 
-### Bracket switcher
+### Hotkeys — `lib/hotkey.js`
 
-The panel's **Singles Bracket** / **Doubles Bracket** buttons (`lib/server/bracket-switch.js`). A stream alternates formats, and pointing TSH at the other event otherwise means leaving the dock, opening start.gg, and pasting a link. One press does the chain:
+Global via `uiohook-napi` (native, required lazily). Defaults: `Ctrl+Shift+S` swap ports, `Ctrl+Shift+X` switch sides, `Ctrl+Shift+1`/`2` a game to left/right, `+Alt` takes one away. Three rules, each a way a global key goes wrong at a desk: **modifiers match exactly** (`Ctrl+Shift+Alt+1` isn't also `Ctrl+Shift+1`); **a held key fires once** (Windows auto-repeats keydown with no keyup); **no chord without Ctrl, Alt or Win** (the hook sees every keystroke on the machine and still passes it to the focused app). A bad or clashing `HOTKEYS` entry is reported and left unbound, never thrown. If the module won't load, single keys in the app's own terminal (`s x 1 2 q w`). Each press logs `[hotkey] …` with the resulting score — the operator is looking at OBS, not the dock. `installHotkeys` returns `{ mode, bindings, errors }` for the Setup tab and the dock's key hints.
 
-```
-config.BRACKETS.shortLink  "100-acres"
-  → startgg.resolveShortLink()   web redirect → this week's tournament slug
-  → startgg.listEvents()         that tournament's real events
-  → pickEvent()                  keyword match → one event
-  → tsh.setTournament(url)       TSH re-pulls the bracket
-```
+### Control status — `lib/server/control-status.js`
 
-- **The short link is why nothing changes week to week.** The TO re-points `start.gg/100-acres` at each new tournament; the bridge follows it. `resolveShortLink()` follows the redirects **by hand** (`maxRedirects: 0`) because the final *URL* is the answer, not the body — axios would otherwise fetch the heavy details page and expose it only via the undocumented `res.request.res.responseUrl`.
-- **The event is looked up, not appended.** TSH validates nothing about the URL it accepts, so appending a remembered slug that has since been renamed toasts green and leaves an empty bracket with no error anywhere. `fallbackSlug` is used only when the lookup itself can't run (no token, start.gg unreachable), and that path sets a `warning` the panel latches into the hint.
-- **Ambiguity is refused, never guessed.** `pickEvent()` requires exactly one event whose name+slug contains all of the kind's `match` keywords. A tournament with both "Melee Singles" and "Melee Singles Amateur" errors and names the candidates. Picking wrong is silent and puts the wrong bracket on the broadcast.
-- **A second press re-pulls rather than no-ops.** `sameEvent(tsh.readTournamentUrl(), url)` compares against `user_data/settings.json`, and a match routes to `/update-bracket` instead — because `/set-tournament` silently does nothing when the URL already matches.
-- **No confirmation, by design.** TSH wires `tournament_changed` only to its button-state updaters, so the loaded set's names, scores and `set_id` all survive a switch and a pending report still targets the right set. A misclick costs a bracket re-pull.
-- **Concurrent presses are refused, not shared** — the panel can be open in an OBS dock and on a phone at once, and a `doubles` press must not be answered with the `singles` result. This is the opposite of `control-status.js`'s shared-promise dedupe, where every caller wants the same answer.
-- `control_status.tournament` (`{ name, eventName }`) comes from `program_state.json → tournamentInfo` and is the **real** confirmation the switch landed — `/set-tournament` returns before TSH's thread pool finishes loading. It reuses the state the tick already reads, so it costs no extra round-trip. The panel refetches the sets list when `eventName` changes.
+The dock's status: health (`startgg` from the event service's last read, `slippi`), the port map and how it was chosen, the Current Set card (report/start gating), the tournament, the bracket overlay's view, the clipper. Everything is local — **no network call in a rebuild**. Rebuilt every 2s and on demand; concurrent `refresh()` callers share one in-flight rebuild, and `refresh()` never rejects. The object's shape is written once, in `compose()`, used for both the startup seed and every rebuild — a new field goes there and nowhere else (`tests/control-status-shape.test.js`).
 
-`tests/bracket-target.test.js` pins the event matching.
+### Port reclaim — `lib/port-guard.js`
 
-### Combo Clipper — OBS replay buffer
+`EADDRINUSE` on `BRIDGE_PORT` is the normal restart case (a window left open, a crash that left node running), so the new process takes the port back itself — wired in `lib/server/app.js`.
 
-Detects notable combos **live, mid-game** and asks OBS to save its replay buffer, so the clip exists by the time the point is over. `obs-scripts/auto_replays.py` then collects those clips into a break-scene playlist.
+- **Identity gate.** It only kills a process that answers `GET /api/identity` with `{ app: "slippi-bridge", pid }` (the identity string is kept from the bridge era on purpose). An unidentified occupant is reported and left running — killing an unrelated program would be far worse than refusing to start.
+- A legacy fallback recognises a pre-identity bridge by its `/api/status` shape and finds the pid with `netstat -ano`; remove it whenever those builds are gone.
+- **Retry is bind-driven**: Windows releases a killed process's socket asynchronously, so `waitForPortFree()` polls by binding a throwaway server. One attempt only.
+- The `listening` log is a `httpServer.once("listening")` handler, **not** a `listen()` callback: a failed `listen()` leaves its callback attached, and the retry would log twice.
 
-Detection is deliberately live rather than the post-game scan issue #7 originally described: the replay buffer only holds the last N seconds, so a scan at game end is far too late to capture anything.
+### Handwarmer detection — `lib/handwarmer.js`
 
-**Pipeline:** `game-source.js` (poll tick) → `combo-detector.js` (qualify) → `clip-recorder.js#onHighlight` (rate limit + delay) → `obs-client.js` (`SaveReplayBuffer`) → `slippi_clip_saved` → control panel + side-panel toast.
+A weighted score ≥ 2 = handwarmer: each player's `totalDamage < 150` (+1/−1), LRAS end method 7 (+1/−1), both players > 1 stock in the last frame (+2), duration < 60s (+1). If `stats.overall` is empty, returns `false` (no vacuous-truth positives).
 
-- **One `SlippiGame` per file, not per tick.** Folder mode used to rebuild the parser on every 500ms tick; `getStats()` on that is a full re-parse. The instance now lives for the whole game so `processOnTheFly` parses only newly-appended bytes — measured ~4× cheaper across a game, which is what makes a 500ms conversion scan affordable.
-- **The parser can be poisoned, and it's guarded.** A live `.slp` carries `rawDataLength = 0` in its header until Slippi closes it, so the parser stops at the last complete command. A file whose header already declares the *full* length while its bytes are still arriving — a finished replay landing in `SLP_FOLDER` via OneDrive sync — makes `iterateEvents` run off the end and leave `readPosition` past EOF, permanently. Nothing recovers: `game-end` would never fire and the rest of the set would go unscored. `game-source.js` compares `readPosition` against the file size each tick and rebuilds the parser when it's past EOF, which degrades to exactly the old fresh-parse behaviour. There is also an `errorStreak` rebuild after ~5s of continuous read failures.
-- **Rate limiting is in `lib/clip-recorder.js`, not the detector,** so `combo-detector.js` has no notion of wall-clock time and stays testable against a saved `.slp`. `cooldownSec` stops one exchange banking near-identical clips; `maxClipsPerGame` caps a blowout; `saveDelayMs` waits *after* detection so the kill animation and reaction land in the buffer (the combo itself is already in it).
-- **`slippi_clip_saved` carries the attacker's name.** `conversion.playerIndex` in slippi-js is the player who *got hit* — `lastHitBy` is the attacker. Getting this backwards names the victim on the broadcast.
-- **Buffer length matters.** Conversions routinely run 6–9s, and `saveDelayMs` adds ~2.5s on top, so OBS's replay buffer wants to be ≥20s or the start of the combo falls out of it.
-- **`comboWindowSec` is anchored at the END of the conversion, and that is the whole point.** A conversion does not close when the pressure stops — slippi-js keeps it open until the victim regains neutral or dies — so an offstage chase is *one* conversion running 30s+, mostly dead air. Judged whole, it clips on the strength of an opening burst that, by the time `saveDelayMs` elapses, has already fallen out of the replay buffer: the clip does not contain the thing that qualified it. With a window set, `minMoves`/`minDamage` are measured over the last N seconds instead, so what qualifies and what is captured are the same footage. The window is a subset, so this is strictly stricter than the unwindowed check — it can never let *more* through. Keep it comfortably under the buffer length. **This is not `maxComboDurationSec`**, which caps the total span and so throws away a great punish that happened to begin with a stray poke fifteen seconds earlier; once a window is set, leave that at `0`.
-- **Window damage is the sum of in-window `moves[].damage`**, the only per-move figure slippi-js exposes — it undercounts non-move damage, which keeps the filter conservative. No move array (rare, but possible) falls back to whole-conversion judging rather than rejecting: clipping one loose combo is recoverable, clipping nothing for a whole night is not.
-- The highlight reports whole-conversion `moveCount`/`damage`/`durationSec` (the panel and toast describe the *combo*) plus a `window: { moveCount, damage, durationSec }` when one applied. `clip-recorder.js` appends it to the `[clipper] Combo by …` line — that log is the operator's only feedback while tuning, and without it a too-tight window looks exactly like a broken OBS chain.
+- **Score-only suppression:** characters still update; no game is recorded.
+- **Rage quit:** LRAS + not a handwarmer + a valid `lrasInitiatorIndex` → the point goes to the other side (in doubles, someone on the other team by `teamId`, not the quitter's partner).
+- Every game end prints one `[handwarmer]` line with the per-check deltas and the verdict.
 
-**Hard limit, upstream in slippi-js and not fixable here — singles only.** `ConversionComputer.setup` calls `getSinglesPlayerPermutationsFromSettings`, which returns `[]` unless `players.length === 2`, so `stats.conversions` is *permanently empty in doubles*. The control panel says so rather than leaving the operator waiting for clips that structurally cannot arrive.
+Gotchas (do not regress): use `totalDamage`, not `totalDamageDealt`; read stocks from `getLatestFrame()`, not `stats.stocks` (empty on LRAS); in doubles **don't `filter(Boolean)` `lastFrame.players`** — that drops null dead-player entries and leaves only the winners, falsely flagging every doubles game (use `p?.post?.stocksRemaining ?? 0`); `killCount` is unreliable in 4-player games, so that check is singles only.
 
-**Settings** (`config.CLIPPER` defaults → `clipper-settings.json` overrides, all live-editable from the dock with no restart):
+### Reading the live game — `lib/game-source.js`
 
-| Key | Default | Meaning |
-|---|---|---|
-| `enabled` | `false` | Master toggle; off means no extra work per tick and no OBS socket |
-| `obsUrl` / `obsPassword` | `ws://127.0.0.1:4455` / `""` | obs-websocket v5 |
-| `autoStartBuffer` | `true` | Start OBS's replay buffer if it's idle |
-| `minMoves` / `minDamage` | `4` / `30` | Hit-count and damage thresholds — over the whole conversion, or over `comboWindowSec` when it's set |
-| `requireKill` | `true` | Only clip conversions that took a stock |
-| `comboWindowSec` | `0` | `0` = judge the whole conversion; else the closing N seconds only |
-| `maxComboDurationSec` | `0` | `0` = no cap on the conversion's total span |
-| `cooldownSec` / `saveDelayMs` | `8` / `2500` | See rate limiting above |
-| `maxClipsPerGame` | `0` | `0` = unlimited |
-| `clipFolder` | `""` | OBS replay output folder (display + the OBS script) |
-| `notifySidePanel` | `true` | Emit the overlay toast |
+`createFolderSource(config, detector?)` polls `SLP_FOLDER` every 500ms (a `knownFiles` set ignores files present at startup — **`fs.watch` is not used**, it misses new files on Windows/OneDrive paths) and emits `game-start` (`rawPlayers, stageId`), `game-end` (`{ winnerPlayerIndex, isHandwarmer }`) and `highlight`. Which port won is the pure `pickWinner()` (GAME!, RESOLVED — how most doubles games end — then a last-frame stock fallback), pinned by `tests/game-winner.test.js`.
 
-**OBS setup:** enable the replay buffer (Settings → Output → Replay Buffer, ≥20s); enable obs-websocket (Tools → WebSocket Server Settings) and put its address/password in the dock; press **Test clip now** to prove the chain before a bracket starts. For playback, add a **VLC Video Source** to the break scene and load `obs-scripts/auto_replays.py` (Tools → Scripts), pointing it at the replay folder and that source.
+- **One `SlippiGame` per file, not per tick**, so `processOnTheFly` parses only appended bytes (~4× cheaper across a game) — what makes a 500ms conversion scan affordable.
+- **The parser can be poisoned, and it's guarded.** A live `.slp` has `rawDataLength = 0` in its header until Slippi closes it. A file whose header already declares its full length while bytes are still arriving (a finished replay landing via OneDrive sync) makes `iterateEvents` leave `readPosition` past EOF permanently: no `game-end`, the rest of the set unscored. `game-source.js` compares `readPosition` with the file size each tick and rebuilds the parser when it's past EOF; there's also an `errorStreak` rebuild after ~5s of read failures.
 
-`auto_replays.py` is descended from Melee-Ghost-Streamer's script of the same name and keeps its behaviour, but is driven by `OBS_FRONTEND_EVENT_REPLAY_BUFFER_SAVED` + `obs_frontend_get_last_replay()` instead of diffing a directory listing every second — instant, and it can't grab a file OBS is still writing. Folder polling remains as an opt-in fallback for clips from another source. It also handles `ffmpeg_source` (the original only ever built playlists for `vlc_source`) and releases every `obs_data` handle (the original leaked one per playlist entry). **Its interpreter is whatever OBS's Tools → Scripts → Python Settings points at** — check that tab before assuming a given Python version loads.
+### Combo clipper — OBS replay buffer
 
-### Layout — `shared/`
+Detects notable combos **live, mid-game** and asks OBS to save its replay buffer, so the clip exists by the time the point is over (the buffer only holds the last N seconds, so a scan at game end is too late). `obs-scripts/auto_replays.py` collects the clips into a break-scene playlist.
 
-`layout/shared/` holds what more than one custom layout needs. It is a **custom** folder, not
-part of TSH: `layout/include/` is vendored and a TSH update overwrites it, whereas `layout/` is what
-gets copied back across an update (see [docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md)). Every layout
-is one level under `layout/`, so `../shared/x.js` resolves from all of them.
+**Pipeline:** `game-source.js` (tick) → `combo-detector.js` (qualify; pure, no clock) → `clip-recorder.js` (cooldown, per-game cap, save delay, the recent-clips ring) → `obs-client.js` (`SaveReplayBuffer`; the only module that talks to OBS; lazy connect with backoff, never throws upward, `getStatus()` synchronous) → `slippi_clip_saved` → the dock and the side panel's toast. Clip errors go to the dock only, never the broadcast.
 
-- **`tsh-assets.js`** — `charIconSrc(codename, skin, game?)` and `charIconFile(codename, skin)`.
-  The one place `chara_2_{codename}_{skin}.png` is built. The scoreboard and bracket each used to
-  hardcode it, including the `ssbm` game id.
-- **`slippi-bridge-client.js`** — `connectBridge(handlers, { tag })`. Injects the bridge's
-  `socket.io.js` once, polls up to ~3s for `io` to appear, connects, binds the handler map, and
-  swallows `connect_error` so a layout keeps working on TSH data alone when the bridge is down.
-- **`atmosphere.css`** — the title-bar light / grain / vignette layers, the `.title-orb` base and
-  the `torb1-3` keyframes, used by the bracket and highlights title bars. Orb *geometry* stays in
-  each layout. Link it after `main.css` and before the layout's own stylesheet.
+- **`slippi_clip_saved` carries the attacker.** slippi-js's `conversion.playerIndex` is the player who got **hit**; the attacker is `lastHitBy`.
+- **Buffer ≥ 20s.** Conversions run 6–9s and `saveDelayMs` adds ~2.5s.
+- **`comboWindowSec` is anchored at the END of the conversion, and that is the whole point.** A conversion stays open until the victim regains neutral or dies, so an offstage chase is one 30s+ conversion that qualifies on an opening burst which, by the time `saveDelayMs` elapses, has left the buffer. With a window, `minMoves`/`minDamage` are measured over the last N seconds — what qualifies and what's captured are the same footage. Strictly stricter than unwindowed. **Not `maxComboDurationSec`**, which caps total span; leave that `0` once a window is set. Window damage is the sum of in-window `moves[].damage` (undercounts, so conservative); no move array falls back to whole-conversion judging rather than rejecting.
+- The `[clipper] Combo by …` log includes the window figures — the operator's only feedback while tuning; without it a too-tight window looks like a broken OBS chain.
+- **Singles only, upstream and unfixable:** `getSinglesPlayerPermutationsFromSettings` returns `[]` unless 2 players, so `stats.conversions` is permanently empty in doubles. The dock says so.
+- **Settings** — `DEFAULTS` → `config.CLIPPER` → `clipper-settings.json`, merged per key, validated and clamped (values come from a browser form), written atomically. Keys: `enabled`, `obsUrl`, `obsPassword`, `autoStartBuffer`, `minMoves` (4), `minDamage` (30), `requireKill`, `comboWindowSec` (0 = whole conversion), `maxComboDurationSec` (0), `cooldownSec` (8), `saveDelayMs` (2500), `maxClipsPerGame` (0), `clipFolder`, `notifySidePanel`.
 
-`main.css` also defines `--shadow-raised`, the four-layer raised-card shadow the scoreboard, side
-panel and highlights plate share. It isn't pack-specific, so it isn't in a theme pack.
-
-All three are in `preflight.js`'s required-layout list — a TSH release zip that overwrites `layout/`
-takes them with it, and their absence silently kills character icons, the bridge connection, or
-the title bars' depth.
-
-### Theme / design tokens — theme packs
-
-The repo runs more than one tournament, so a theme is a **self-contained folder**, not a set of edits scattered across the layout tree:
-
-```
-layout/theme.css                  ← a SWITCH: one @import naming the active pack
-layout/themes/hundred-acres/
-  theme.css                       ← every token, the @font-face, the two logo urls
-  logo.png                        ← tournament logo
-  sponsor.png                     ← sponsor/venue logo
-  fonts/Baby-Doll.ttf             ← the brand font, self-hosted
-```
-
-`main.css:1` `@import`s `theme.css`, which `@import`s the pack, and every layout links `main.css` — so all 16 TSH layouts inherit the active pack automatically.
-
-- **Two different url-resolution rules apply inside a pack, and getting them confused is the trap.** A *normal* `url()` — the `@font-face src` — resolves against the file that declares it, so `./fonts/Baby-Doll.ttf` is correct. A `url()` inside a **custom property** does not: Chrome resolves it at substitution time, against the stylesheet that *uses* the `var()`. So `--logo-url` must be written relative to the consuming layout, hence `url("../themes/<pack>/logo.png")`. Writing `./logo.png` there silently 404s against `layout/side-panel/logo.png`. Every consumer sits exactly one level under `layout/`, so the one `../themes/<pack>/` prefix works from all of them.
-- **Copying a pack means editing the pack name inside its own `theme.css`** (those two urls). `preflight.js` resolves both and fails if they don't point at real files, because a missing logo is otherwise invisible until it's on stream.
-- **`--logo-filter` / `--sponsor-filter`** are prepended to each logo's filter chain so a pack can recolour artwork it didn't commission — a black-ink transparent PNG needs `invert(1)` to survive a dark overlay. They default to `none`. The side panel applies them via a per-element `--brand-filter`, so both logos keep the shared drop-shadow treatment.
-- **All packs live on master; the switch is the one `@import`.** A new event = a new pack folder, committed to master alongside the others, plus a one-line change to `layout/theme.css` when it's that event's turn. Re-skinning the broadcast is editing that line and refreshing the OBS browser sources — OBS reads the working tree, so nothing else moves.
-  - **This replaced a branch-per-event model** (`event/<slug>`, master pinned to the default pack). It worked, but every event branch had to be kept merged with master forever to receive bridge and layout fixes, and each merge re-litigated the `theme.css` line. A yearly event is not worth a permanent branch. If you find a stale `event/*` branch, check `git log master..event/<slug>` is empty and delete it.
-  - **Master's `theme.css` names the pack that's on air most of the time** — currently `hundred-acres`. Switching it is a normal commit, not a branch operation, and switching it *back* afterwards is the step that's easy to forget.
-- **`layout/logo.png` and `layout/ThePark.png` still exist and are deliberately not deleted.** TSH's own `user_data/settings.json → main_icon_path` points at the former (gitignored, so a branch can't carry it), and five vendored overlays we don't broadcast reference it. Nothing in our four layouts reads them any more.
-- **Brand imagery is CSS-only**, via `--logo-url` / `--sponsor-url`. `scoreboard/index.css` `.logo` uses `background-image: var(--logo-url)`; the side panel's `.logo-primary` / `.logo-sponsor` are **`<div>`s with a background-image**, not `<img>`s. That is deliberate: `getComputedStyle` returns a custom property's url *verbatim* (`url("../themes/…")`), so JS would have to redo the resolution CSS already does correctly. `side-panel.js` no longer has `LOGO_PATH` / `SPONSOR_PATH` — do not reintroduce them.
-- **Link `main.css` only.** It `@import`s `theme.css`; adding a second `<link>` to `theme.css` just refetches the tokens and the BabyDoll TTF. Same for redeclaring `@font-face` or `--font` in a layout stylesheet — `bracket/index.css` used to, and its bare `--font: "BabyDoll"` silently dropped the Fredoka fallback.
-- **`@import` must precede every other rule in a file.** The pre-pack `theme.css` put its `@font-face` above the Google Fonts `@import`, which made that `@import` invalid and silently dropped — Fredoka never actually loaded. The pack has the order right.
-- **Font:** BabyDoll primary, Fredoka fallback (Google Fonts — a network request, so it fails on venue wifi; prefer self-hosting a TTF in the pack's `fonts/`). The BabyDoll `@font-face` lives in the pack so no layout repeats it. `--font`. (Both packs also define `--score-font` and `--accent-color`; nothing reads either yet.) `layout/include/Baby-Doll.ttf` is still there for four vendored overlays that declare their own `@font-face` against it.
-- **`preflight.js` verifies the pack** (`checkThemePack`): it parses the `@import` out of `theme.css` and requires `themes/<pack>/{theme.css,logo.png,sponsor.png}`. CSS fails silently, so without this an unstyled broadcast has no other alarm.
-- **Colors:** `--bg-color` `#2a3d23` (deep forest green), `--score-bg-color` `#071820` (dark teal), `--text-color` `#f9d697` (warm gold), `--darkened-text` `#aa8e5b` (muted gold). Semantic: `--icon-bg-color`, `--win-color` `#29b548`, `--loss-color` `#ff3837`, `--p2-team-color` `#308aff`, `--set-score-color`, `--score-color`. RGB triplets for `rgba()`: `--bg-color-rgb`, `--bg-color-light-rgb`, `--text-color-rgb`, `--score-bg-color-rgb`.
-- **`--score-bg-color` is three surfaces, not one** — the scoreboard's score boxes, the side panel's entire bottom card, and the bracket title bar. A pack that wants a loud score box would flood the other two, so the scoreboard reads `var(--score-box-bg, var(--score-bg-color))`: set the optional `--score-box-bg` to diverge, leave it unset to keep them together. Hundred Acres leaves it unset; Salty Suite sets it to its corner-post red.
-
-### Layout — scoreboard (`melee.html` / `meleePlayers.html`)
-
-- **Use `melee.html`** as the OBS browser source — there is no `index.html` in `scoreboard/`. It loads `../shared/slippi-bridge-client.js`, which pulls `socket.io.js` off the bridge and no-ops when the bridge is down. `meleePlayers.html` is a standalone player-name list (body class: `fgc thin meleePlayer`); it shares `index.js` but deliberately does **not** load the shared bridge client, which is why the `connectBridge` call is guarded.
-- **`index.css`** contains only rules for `melee.html` / `meleePlayers.html`. Everything else — other game variants, flag country/state, `.icon`, `.tsh_character`, `.name_twitter`, `.extra`, skewed bg panels, `.sponsor_icon`, `.twitter_logo`, `.phase`, `.tournament_name`, and three never-applied `@font-face` blocks — has been removed. Active classes: `fgc`, `thin`, `meleePlayer`, and the core layout/character/score/chip selectors. The matching JS was deleted too: `index.js` no longer writes into markup that isn't there.
-- **Visual treatment:** raised card depth (`box-shadow`) on all `.container` elements; gold accent line on `.info.container.bottom` and the `meleePlayers` center card only (not player containers); character icons float with a drop-shadow on the image (no box); score box flush to the container edge with breathing room from icons; `meleePlayers` logo repositioned above the center card (742px, 260×260).
-- The layout implements TSH's `Start()` and `Update(event)` hooks (`layout/include/globals.js`). The Slippi-bridge integration lives at the bottom of `index.js`, via `SlippiBridge.connectBridge()`:
-  - On `slippi_game_start`: stores game data. In singles, patches character `<img>` src after each `tsh_update` (TSH defaults to costume 0), using `TshAssets.charIconSrc`. In doubles, clears leftover character icons.
-  - On `tsh_update` (DOM event, dispatched by TSH's `globals.js` whenever `program_state.json` changes): calls `applySlippiCostumes()` with a 150ms delay to let TSH finish rendering. Detects doubles from the DOM (`character_container.team-color`) rather than stale bridge data, so icons clear immediately when TSH switches singles→doubles.
-  - In doubles, TSH injects a `div.text.text_empty` placeholder inside `.character_container` even after it's cleared — hidden via `.character_container.team-color .text.text_empty { display: none }`.
-
-### Layout — `side-panel/`
-
-`layout/side-panel/side-panel.html`, a 611×1080 browser source designed to sit beside the webcam.
-
-- **Structure:** four positioned divs (`.bg-top/.bg-bottom/.bg-left/.bg-right`) fill the canvas with forest green; two floating rounded cards (`.header-card`, `.bottom-card`) sit on top with drop shadows + inner edge lighting. The cam cutout (587×330, true 16:9) is a transparent gap between them — the OBS cam source shows through. `.cam-overlay` rounds the cam corners via an outward green spread shadow (`box-shadow: 0 0 0 14px var(--bg-color)`).
-- **Header card:** tournament name fetched from `../../out/tournamentInfo/tournamentName.txt` (polled every 30s, mostly for cold start) + the `Update()` hook. 32px BabyDoll, uppercase, wide letter-spacing.
-- **Bottom card:** dark teal with a 5-orb CSS ambient animation (`@keyframes drift1-5`) plus grain/light/vignette layers. Hosts the rotating info-panel system. `?animate=false` disables the ambient animation.
-- **Spotlights (opt-in, per pack).** Two beams rise from the bottom edge of `.bottom-card` and sway out↔in — fight-night flair for Salty Suite. The markup (`.spotlight-1/2`) and all the CSS live in the shared layout, but the rule is `display: var(--spotlight-display, none)`, so a pack that doesn't set the token renders nothing and runs no animation. Salty Suite sets `--spotlight-display`, `--spotlight-rgb` (a hotter gold than `--text-color-rgb`, which goes muddy through a screen blend on oxblood) and `--spotlight-strength` (scales all four gradient stops at once — the dial to reach for, not the gradient). **Three effects make the beam, and dropping any one puts a flat wedge on the broadcast:** `clip-path` shapes the cone, the background gradient fades it along its length, and a horizontal `mask-image` fades it *across* — the clip's straight sides otherwise survive the blur. The mask is written prefixed *and* unprefixed for OBS's CEF. `body.no-animate` freezes the sway but leaves the beams lit; they're part of the look, not just motion.
-- **Rotating info panels** (each slot `PANEL_INTERVAL`, default 20s; GSAP stagger on entrance): `logo-primary`, `player-1`, `player-2`, `recent-sets`, `logo-sponsor`, `completed-sets`, `queue`. Every content item is a `.panel-pill`. Player cards show placement history + current-run results; Recent Sets shows a head-to-head record; Completed Sets shows recently-finished sets; Queue shows the stream queue.
-- **Two stats sources, never mixed.** The player cards, head-to-head and Just Finished read from the bridge's `player_stats` whenever the bridge is up with a start.gg token, and from TSH's `history_sets` / `last_sets` / `recent_sets` / `/get-sets` otherwise. Each panel reads a *view* (`historyView`, `runView`, `h2hView`, `completedView`) built from whichever is live, so renderers, slot predicates and `renderIfChanged` don't care which. While the bridge is live it is the **only** source: a pair it hasn't finished shows nothing rather than TSH's head-to-head, which was wrong in ways that changed set to set. `disconnect` drops back to TSH. Bridge records are keyed by **start.gg player id** and oriented against the ids TSH shows in each column now (`teamPlayerId`, which takes TSH's `[playerId, userId]`), so Swap Teams needs no refetch and a late snapshot for the previous pair fails to match instead of labelling the old record with the new names. `tests/side-panel-bridge-stats.test.js` pins all of that.
-- **Winner-only results** (a set reported without game counts) always render as W/L derived from the winner, via `scoreLabels()` — TSH's recent sets can hand over `"L"`/`"W"` on the wrong sides.
-- **Skip logic:** `hasPlayerCardContent()` requires actual history/run data (not just a name); logos always show; Just Finished excludes null-score sets, capped at 8. **Doubles** suppresses `player-1`, `player-2`, `recent-sets`.
-- **Stream queue — TSH's real shape** is `streamQueue[<stream>]["1"|"2"…].team["1"|"2"].player["1"…]`, objects keyed by position (`StartGGDataProvider.ProcessFutureSet`). The panel used to read `.sets[]` / `.teams[]` / `.players[]`, which existed only in the hand-written test fixture, so on a real bracket the queue never rotated in. `queueView()` reads the real shape, picks the queue matching TSH's `currentStream` (case-insensitive, else the first), and drops the set that's on air (`score.<N>.set_id`), which start.gg keeps at the head of the queue.
-- **Singles-only filter (`isSinglesEvent`) — TSH fallback only.** The bridge decides singles per set (one participant per side) and per event type, so this applies only when TSH is the source. The doubles suppression above only covers *the loaded set being doubles*; it does nothing about doubles sets arriving **inside** singles data. TSH's recent-sets and tournament-history payloads are filtered by player id and videogame, never by event — and `GetRecentSetsWorker` only compares `participants[0]` of each entrant — so a doubles set the two players also played lands in `recent_sets.sets` shaped exactly like a singles one. Judged on the event name (`event` on a recent set, `event_name` on a history entry), the only format signal either payload carries: a doubles marker (`doubles|dubs|teams|2v2|crew`) rejects, then the name must contain `single`. That second half is strict on purpose — an event called "Melee Bracket" is dropped too — because a short H2H record is invisible on stream and a doubles set on the singles card is not. `recentSinglesSets()` exists so `hasRecentSets()` and `renderRecentSets()` cannot disagree; if they did, the panel would rotate in blank. The filter also governs the **H2H win tally**, which is the part that reads as wrong rather than merely extra. `tests/side-panel-singles-filter.test.js` pins it.
-- **Rotation safety:** `Rotator._tl` stores the active GSAP timeline and `_transitionTo()` kills it before starting a new one (prevents stale `onComplete` callbacks spawning duplicate timer chains). `_advance()` calls `clearTimeout` defensively.
-- **`buildSlots()` restarts only when the *visible* panel leaves the slot list** — never on a slot-list change alone. Loading a set is not one TSH state push but six or more: `ChangeSetData` clears the names, then `last_sets.1`, `history_sets.1`, `last_sets.2`, `history_sets.2` and `recent_sets` each land as a separate async provider reply, and each is its own `StateManager` write, so each dispatches its own `tsh_update`. Every push that flips a slot predicate changes the list. `restart()` rotates from the top and slot 0 is *always* `logo-primary` (first in `PANEL_ORDER`, predicate `return true`), so restarting per change flashed the logo 3–5× on every set load and 2× on every Swap Teams. When the visible panel survives the rebuild, `_index` is re-aimed at whatever now follows it and the running timer is left alone; only a panel that has genuinely dropped out triggers the restart (which is what stops it being stranded on screen — panels are absolutely stacked and only opacity separates them). Both halves are pinned by `tests/side-panel-rotation.test.js` — run it after touching `Rotator`.
-- **Clip-saved toast** (`.clip-toast`): a pill that slides in over the **bottom edge** of `.bottom-card` when the bridge emits `slippi_clip_saved`, holds ~3.2s, and slides back out. At rest it sits at `translateY(160%)` and is hidden by the card's `overflow: hidden`. Absolutely positioned so it never disturbs the rotating panels. Toasts are **queued, not concurrent** — restarting the tween on a visible pill reads as a flicker on stream — and the queue keeps only the newest clip, since a backlog of stale pills is worse than a gap. Only *successful* saves reach the overlay; clip errors go to the operator's control panel (`slippi_clip_error`), never the broadcast.
-- **Render only what changed.** `Update()` and every `player_stats` snapshot go through `renderPanels()`, which re-renders a panel only when its view (the player's name/character + history + run, the head-to-head, Just Finished, the queue) differs from what it last drew. A set load is six-plus pushes; rebuilding everything on each re-ran `fitText`'s layout loop and swapped the visible panel's pills with no animation.
-- **Long text shrinks, it doesn't truncate.** Every single-line text element (tournament name, player tag, pill names, round labels, sub-lines, the toast detail) goes through `fitText(node, minPx)`, which scales the font by the overflow ratio in one measure. The CSS `text-overflow: ellipsis` is kept only as the fallback once `minPx` is reached. It is **synchronous** — call it after the node is in the document; it used to defer to `requestAnimationFrame`, which never fires in a source that isn't painting. Fitted nodes carry `data-fit-min`, and `refitAllText()` redoes them all when a web font finishes loading (`document.fonts` `loadingdone` / `ready`, registered at top level) — text measured against the Fredoka fallback is the wrong size once BabyDoll lands. A new text element that can overflow needs a `fitText` call, not just the ellipsis rule.
-- **Completed sets without the bridge are polled** from TSH's `/get-sets?getFinished=1` every 90s (`COMPLETED_SETS_POLL`) — an uncached paginated start.gg query per call, so keep it slow. TSH only fills `completed_sets` in state when the TO presses its "Pull Completed Sets" button, which is why this polls at all. That endpoint also returns open sets and carries no state field, so a partially-reported set with scores can show under "Just Finished". With the bridge up the poll is skipped: `player_stats` carries finished sets filtered to state 3.
+`auto_replays.py` is descended from Melee-Ghost-Streamer's script, driven by `OBS_FRONTEND_EVENT_REPLAY_BUFFER_SAVED` + `obs_frontend_get_last_replay()` (folder polling is opt-in), handles `ffmpeg_source` as well as `vlc_source`, and releases every `obs_data` handle. **Its interpreter is whatever OBS's Tools → Scripts → Python Settings points at.**
 
 ### Side panel stats — `lib/stats/`
 
-The side panel's player cards, head-to-head and Just Finished, fetched from start.gg by the bridge. They used to come from TSH's own stats, and TSH's head-to-head was wrong in ways that changed from set to set. Three causes, all in vendored code:
+The side panel's player cards, head-to-head and Just Finished. TSH's own stats were wrong in ways that changed set to set: start.gg refused most of its requests for exceeding **1000 objects per response** and it read each refusal as "no sets"; `workers = []` inside its loop discarded half its results; and it only read `user.events` (the account's own events: ZODD-01's reaches 276 events back to 2023, against 2,275 sets back to 2015).
 
-1. **start.gg refused most of its requests.** `GetRecentSetsWorker` asks for 10 events with up to 100 sets each, which usually exceeds start.gg's hard ceiling of **1000 objects per response**. A refused response is refused *whole*, and TSH reads the refusal as "no sets". One pair measured 7 of 10 pages refused.
-2. **It threw away half its own results** — `workers = []` sits inside the loop in `GetRecentSets`, so only the second (right-hand player's) pass is ever collected. Which is why a Swap Teams could change the record.
-3. **It only looked at `user.events`**, which covers the user account's own events: ZODD-01's reaches 276 events back to 2023, against 2,275 sets back to 2015.
+- **`queries.js`** — sized against the ceiling (per-node counts noted); ids interpolated into aliased batches, `idList()` refuses anything that isn't a positive integer.
+- **`set-history.js`** — `SetHistoryStore`: every set a player has played, from `Player.sets`, saved to `stats-cache/player-<id>.json`. Pages are newest first, so a **top-up** stops at the first page it already holds unchanged (normally one request); a copy older than 30 days is fully re-crawled (start.gg edits old sets). A refused page is re-read at half size (60 → 30 → 15), never counted as empty. Syncs per player are deduped.
+- **`normalize.js`** — pure; the head-to-head rules, each checked against a hand-verified record (NAV 69–25, Yung John 29–3, Redd 22–8): **find the opponent by id, the other side is the player** (old-tag sets carry the *old* player id); **read both histories, union by set id**; **Melee only**, **singles only** (one participant per side), **finished, not DQ'd, with a winner**.
+- **`index.js`** — `createPlayerStats(ctx)`, driven by the store: a new pair is acted on at once (a set load is one command, so no half-loaded pair). One request for both cards, then both histories and the five recent pills; a generation counter drops late answers. Just Finished comes from the event service's reads (no request, no token needed). Players in the next playable sets are pre-fetched while idle. Doubles: no cards or head-to-head. No token: `enabled: false`.
+- **Costs, measured:** a pair with neither history saved is ~57 requests / ~70s for two long-time regulars; after that, 2 requests / ~1.5s.
 
-**This is the one place the bridge re-implements something TSH does**, and it goes through `startgg.backgroundQuery()`, so `startgg-client.js` stays the only module talking to start.gg.
+### Overlays — `overlays/`
 
-- **`queries.js`** — every query, sized against the 1000-object ceiling (per-node counts are noted beside each). Ids are interpolated into aliased batches, and `idList()` refuses anything that isn't a positive integer.
-- **`set-history.js`** — `SetHistoryStore`: every set a player has played, crawled from `Player.sets` and saved to `slippi-bridge/stats-cache/player-<id>.json` (gitignored; ~170 bytes a set, ZODD-01's 2,275 sets are ~370 KB). Pages are newest first, so a **top-up** walks from page 1 and stops at the first page it already holds unchanged — normally one request. A copy older than 30 days is **fully re-crawled**, which is what picks up start.gg editing old sets. A refused page is re-read at half the size (60 → 30 → 15; each divides the last, so offsets map exactly), never counted as empty. Syncs per player are deduped.
-- **`normalize.js`** — pure shaping, and the head-to-head rules. Each was found by checking against a hand-verified record (NAV 69–25, Yung John 29–3 and Redd 22–8 all match exactly):
-  - **Find the opponent by id; the other side is the player.** start.gg's merged player record keeps sets played under old tags, but those slots carry the *old* player id (ZODD-01's two wins over Redd as "CG | JI" are under 5297839).
-  - **Read both players' histories, union by set id.** A's catches A-under-an-old-id vs B; B's catches the reverse. Aliases on both sides at once can't be resolved.
-  - **Melee only** — `Player.sets` spans every game (a Project M set at Tiger Smash 4 was in ZODD-01 vs Redd). **Singles only**, decided per set by one participant per side. **Finished, not DQ'd, with a winner.**
-- **`index.js`** — `createPlayerStats(ctx)`. Reads `program_state.json` every 1s (a file read, not a TSH round-trip); a changed pair must hold for 1.5s before anything is fetched, because a set load's first write pairs the new player 1 with the old player 2. Then: one request for both players' cards (`recentStandings(onlySinglesEvents)` + their completed sets in the loaded event), then both histories and a set-detail request for the five pills. Every step checks a generation counter so a late answer for the previous pair is dropped. The loaded event's finished sets and stream queue come from one request every 90s; the queue's player ids are **pre-fetched** while idle, so a first-timer's history is usually saved before their set is on air. A successful report reloads everything 4s later.
-- **Costs, measured:** a pair where neither history is saved is ~57 requests and ~70s for two long-time regulars; the same pair after that is 2 requests and ~1.5s, and the card is on screen ~3.7s after the pair loads.
-- **Doubles:** no cards or head-to-head (the panel hides them anyway); Just Finished still updates. **No token:** `player_stats` is `{ enabled: false }` and the panel stays on TSH.
-- **Config constants** at the top of `side-panel.js`: `PANEL_INTERVAL`, `SCOREBOARD_NUM` (from `?scoreboardNumber=`, default 1 — same as the scoreboard), `COMPLETED_SETS_URL` / `COMPLETED_SETS_POLL`, `TOURNAMENT_NAME_URL` / `NAME_POLL_INTERVAL`, the `ANIM_*` GSAP timing values, and `DEBUG_PANEL` (set `null` in production; otherwise locks rotation to one panel). Logos are CSS-only — see the theme section.
+All pages load `/o/shared/overlay.css` and `/o/shared/overlay-client.js`; OBS's browser is **Chromium 103** (OBS < 31), so no `:has()`, `color-mix()` or container queries, and entrances animate `transform`, not the individual `translate` property (an element that already has a transform sets `--base-transform`).
 
-### Layout — `bracket/`
+- **Scoreboard** (`/o/scoreboard`, `/o/scoreboard/players`) — names, prefixes, pronouns, live characters, scores, round, best-of, [L]. The store holds the live character, so TSH's costume-patch hack is gone.
+- **Casters** (`/o/casters[?i=N]`) — the port of TSH's `commentators/tag.html` (mic, prefix, tag, pronouns), restyled to the pack.
+- **Bracket** (`/o/bracket[?view=]`) — laid out in the page by `bracket/layout.js` (pure: a column per round, each set centred on its feeders, SVG connectors, the winner's path in the accent, losers drop-ins tagged "from W-R2" instead of drawn), because positions depend on measured card size and the fit scale. Each view **scales to fit down to a legibility floor (~22px names), then pans** slowly from the live or latest round, holding at each end. The view comes from the store (`POST /api/bracket-view`) unless `?view=` pins it; a switch crossfades.
+- **Highlights** (`/o/highlights`) — the replay-scene frame, **decoration only** (nothing knows which clip VLC is playing). Never connects; reveals itself. Each frame is one div whose **`border` is the plate** (`box-sizing: border-box`, so the padding box is the window and the footage shows through; `mask-composite` isn't safe in OBS). Geometry is `:root` variables that must equal the OBS source transforms, settable from the url: `?clip=x,y,w,h`, `?cam=y,w,h` (the cams share it — their centres must sit on the clip's line), `?camx=leftX,rightX`, `?pad=`; blank components are skipped. Cams flush to the canvas edge **bleed** off it (squared corners; the border stays declared — zeroing it would slide the hole by `--pad`). Each cam plate is open toward the clip and extends to meet it (`--join-l/-r`, derived with `max(0px, …)`); on the open side the border goes to 0, the corners square and all three shadow layers drop to three sides, or a gold hairline appears where the rail was. **`?guides=1`** outlines each hole with its *measured* rect (minus the overhang), which is the alignment check. The scrim is four edge bands, never a full-canvas wash (a browser source paints over every source beneath it). Keep `--title-gap` non-zero. The sheen is behind `@supports (background-clip: text)`.
+- **Side panel** (`/o/side-panel[?panel=<id>]`) — 611×1080 beside the cam: four background bands, two floating cards, a transparent 587×330 cam cutout (`.cam-overlay` rounds it with an outward spread shadow). The header shows the tournament name from the store. The bottom card rotates (`PANEL_INTERVAL` 20s) through `logo-primary`, `player-1`, `player-2`, `recent-sets`, `logo-sponsor`, `completed-sets`; doubles drops the player cards and head-to-head.
+  - **Stats from the app only, oriented by start.gg player id** against the ids in each column *now*, so Switch Sides needs no refetch and a late snapshot for the previous pair fails to match instead of labelling the old record with the new names. A pair still loading shows nothing. Winner-only sets render W/L from the winner.
+  - **Rotation:** `Rotator._tl` holds the active timeline and `_transitionTo()` kills it first (stale `onComplete`s spawned duplicate timer chains). **A slot-list change restarts the rotation only when the visible panel left the list** — `restart()` rotates from the top and slot 0 is always the logo, so restarting per change flashed the logo on every set load. `tests/side-panel.test.js` pins both halves.
+  - **Render only what changed** (per-panel view comparison), so a burst of pushes doesn't swap the visible panel's pills with no animation.
+  - **Long text shrinks** (`fitText(node, minPx)`, synchronous — call it after the node is in the document; `rAF` never fires in a source that isn't painting), refit when web fonts land; ellipsis is only the fallback.
+  - **Clip toast** slides over the bottom card's bottom edge; toasts queue (restarting a visible pill flickers on stream) and keep only the newest.
+  - **Spotlights** are opt-in per pack (`--spotlight-display`, `--spotlight-rgb`, `--spotlight-strength`); clip-path + gradient + a horizontal mask (prefixed too) make the beam — drop any one and a flat wedge goes on stream.
 
-Four HTML variants sharing one `index.css` / `index.js`: `index.html` (default), `index_expanded.html`, `losers_only.html`, `winners_only.html`. All four have identical title markup; the variants differ by a `<body class>` and/or a `window.*` flag (`index.html` has neither). They are kept as four files on purpose — collapsing them into one `?mode=` page would change URLs already configured as OBS browser sources.
+### Theme packs
 
-- Each player row emits only `.name_twitter > .name`, `.char_icon` and `.score` (`buildSlotHtml()`). The avatar / sponsor / flag / `character_container` divs it used to emit were never populated.
-
-- **Title bar** (`--title-size: 68px`): `width: fit-content; min-width: 560px; margin: 0 auto` — centered, shrinks to content. Dark teal (`--score-bg-color`) base with atmospheric layers (`.title-atm` grain/light/vignette) and three ambient green orbs (`torb1-3` keyframes) matching the side-panel bottom-card aesthetic. Graduated gold accent line via `.container::after`.
-- **Player rows:** each `.player.container` includes a `.char_icon` div populated by `index.js` with the character icon PNG (`chara_2_{codename}_{skin}.png`) for singles; cleared for doubles. `index.js#markResult` dims the loser of a completed set with an inline `filter: brightness(0.6)` and adds `.winner`/`.loser` classes, which no stylesheet uses yet — they are hooks for a pack.
-- **Sizing variables are unitless, inherited from stock TSH.** `index.js` sets `--player-height` / `--name-size` / `--score-size` as bare numbers, so `height: var(--player-height)` and the two `font-size`s are invalid and fall back; only `.char_icon`, which uses `calc(var(--player-height) * 1px)`, actually scales. Adding units would visibly change the bracket's row heights and fonts — check it in OBS before "fixing" it.
-- **Containers:** `padding-bottom: 20px` on `.winners_container`, `30px` on `.losers_container` to keep slots off the screen edge.
-
-### Layout — `highlights/`
-
-`layout/highlights/highlights.html`, a 1920×1080 browser source for the **replay / break scene** — the one where `obs-scripts/auto_replays.py` plays back the combo clipper's saved clips. It frames the clip window and the two player cams and titles the scene.
-
-**It is decoration only, and that is a decision rather than an omission.** Nothing in the system knows which clip VLC is currently playing: `auto_replays.py` has no network output at all, and the bridge subscribes to no OBS media events. Any on-screen combo credit would therefore be wrong as often as right, so the layout reads no TSH state and no bridge events. It has no runtime failure modes.
-
-- **`../include/globals.js` is deliberately not loaded**, nor are the two `shared/` scripts — with no `Start()` / `Update()` to implement, `LoadEverything()` would pull jQuery, GSAP, lodash, kuroshiro and socket.io for nothing. **Consequence: never copy `opacity: 0` from `scoreboard/index.css` onto this body.** That rule relies on `globals.js`'s `UpdateWrapper` calling `$("body").fadeTo(...)` on TSH's first state push; with no globals.js nothing fades it back in and the overlay is permanently invisible — a failure that only surfaces on stream.
-- **`border` is the plate.** Each of the three frames is *one* div sized to the plate rect with `box-sizing: border-box`, so its padding box lands exactly on the window and the OBS source below shows through. A child div cannot punch a hole in its parent's background, and `mask-composite` is not safe to rely on in OBS's CEF; `border` gives the ring, the transparent centre, the outer radius **and** a derived inner radius that rounds the footage, with no feature detection. This is *not* the side panel's four-band + `.cam-overlay` spread-shadow approach — that exists because the side panel also has to fill the rest of its canvas opaquely. Radius is `calc(pad + var(--border-radius))` so the ring stays uniform and the footage corners land on exactly the theme radius.
-- **Geometry is nine `:root` variables and they must equal the OBS source transforms** — a mismatch is the one visible failure this layout has, and it shows up as a gap of background between plate and footage. Defaults match the replay scene: clip `480,140 960×800`; cams `0,288` and `1520,288`, each `400×504`. Both cam centres and the clip centre sit at y=540; keep that when retuning.
-- **Alignment is settable from the browser source URL** so a retune is not a CSS edit: `?clip=x,y,w,h`, `?cam=y,w,h`, `?camx=leftX,rightX`, `?pad=clipPad,camPad`. Numbers are plain pixels in 1920×1080 space, copied out of OBS's Edit Transform. Blank components are skipped rather than zeroed (`?clip=,,960` sets width alone). The two cams deliberately **share** `--cam-y/-w/-h` — only their x is independent — because the row only reads level while their centres sit on the clip's line.
-- **The cams run flush to the canvas edges, and the plates bleed off rather than pretend otherwise.** `highlights.js` measures each frame's padding box and adds `bleed-l/r/t/b` when it reaches a canvas edge; the CSS squares the corners on that side. Squaring is the whole fix — the border stays declared, so the hole stays on the source rect. **Zeroing the border width instead would slide the hole over by `--pad`**, which is the bug this prevents. Moving the two OBS sources inboard and passing `?camx=40,1480` restores fully floating cam cards.
-- **Each cam plate is open on the side facing the clip and runs on to meet it — there are no joining elements.** The clip frame's outer edge closes the cam window, so the two read as one bay rather than two windows separated by a rail, and the connection is just the plate itself: a border draws down the element's full width, so extending the cam by `--join-l` / `--join-r` carries its top and bottom bands across the gap while the padding box between them stays transparent and leaves the middle of the gap open. The joins are derived from the geometry (`max(0px, …)`, so cams pushed past the clip collapse the overhang instead of inverting it). Filling the middle would wall off the blurred background and read as a slab. Three things move together on the open side: the border width goes to `0`, that side's corners square off, and **all three shadow layers drop to three sides** via `--edge-inner` / `--edge-outer` / `--depth` — left whole, the hairlines draw a gold line exactly where the removed rail was and the depth adds a soft vertical smudge beside it, which defeats the whole change. `--depth` becomes three directional casts where **blur/2 equals the spread**, the trick that makes reach on the two perpendicular sides exactly zero, so a shadow travels only the way it is offset and nothing leaks into the bay.
-- **Consequence for `?guides=1`: a cam's padding box is no longer its OBS rect.** `highlights.js` recomputes the overhang and subtracts it before printing the label, so the numbers still name the window — it recomputes rather than reading `--join-*` back, because those hold a `max()` expression `parseFloat` cannot read. The magenta *outline* still traces the hole and so runs into the bay; that is correct, and there is no source edge in there to check it against anyway.
-- **`?guides=1`** outlines each frame's transparent hole and labels it with its *measured* rect — `getBoundingClientRect()` minus the border width, not a read-back of the CSS variables, so a bad `calc()` (or a mistyped override) shows up there instead of on stream. That is the alignment tool; check it against OBS before a bracket.
-- **`?animate=false`** freezes the title orbs and the sheen sweep, same convention as the side panel.
-- **The scrim is four edge bands, not a full-canvas wash.** A browser source paints over every OBS source beneath it regardless of z-index, so a full-canvas scrim would tint the footage. Each band stops at the nearest window edge and fades inward; `--scrim-strength` scales all four, `0` turns them off. The side bands are `max(0px, …)` — with the cams flush to the canvas they collapse to nothing, and a negative width would be an invalid declaration that silently falls back to auto sizing.
-- **`--title-gap` must stay non-zero.** The title plate and the frames share `--score-bg-color`, so at zero they fuse into one shape and the plate stops reading as a separate card. `--title-y` derives from the clip geometry, so the plate tracks the clip frame automatically.
-- The **sheen sweep** across the word is gated behind `@supports (background-clip: text)`: the failure mode of an unsupported `background-clip` is `color: transparent` over a painted rect — i.e. the word disappears behind a bar. The solid gold text underneath is what actually reads; the sheen only ever adds.
-- Verified against both theme packs. Nothing hardcodes a pack colour.
-
-### Character Map — `slippi-bridge/lib/char_map.js`
-
-Maps Slippi character IDs (0–25) to TSH codenames and display names. Icon files:
 ```
-TournamentStreamHelper-5.972/user_data/games/ssbm/base_files/icon/chara_2_{codename}_{costume:02d}.png
+overlays/theme.css                   a SWITCH: one @import naming the active pack
+overlays/themes/<pack>/theme.css     every token, the @font-face, the two logo urls
+overlays/themes/<pack>/{logo,sponsor}.png, fonts/
 ```
-Costume index comes from `player.characterColor` in `getSettings()`.
 
----
+Every overlay links `overlay.css`, which imports the switch. All packs live in the repo at once (`hundred-acres` — the default, on air most of the time — and `salty-suite`); re-skinning is the one `@import` line and a source refresh, and **switching it back afterwards is the step that's easy to forget**.
 
-## Reading the Live Game
+- **Two url rules in a pack.** A normal `url()` (the `@font-face src`) resolves against the pack file, so `./fonts/…`. A `url()` **inside a custom property** resolves where the `var()` is used, so `--logo-url` is written relative to an overlay stylesheet: `url("../themes/<pack>/logo.png")`. Copying a pack means editing those two paths; preflight and `tests/overlays-static.test.js` resolve them.
+- `--logo-filter` / `--sponsor-filter` let a pack recolour artwork (`invert(1)` for black ink on a dark card). Logos are CSS-only (`background-image: var(--logo-url)`), never `<img>` — `getComputedStyle` returns the custom property's url verbatim.
+- **`@import` must precede every other rule** in a file, or it is silently dropped.
+- Fonts: the pack's brand font self-hosted; any Google Fonts fallback is a network request that fails on venue Wi-Fi.
+- `--score-bg-color` is three surfaces (score boxes, the side panel's bottom card, the bracket title); `--score-box-bg` lets a pack diverge the score box alone.
 
-The bridge polls `SLP_FOLDER` every 500ms, using a `knownFiles` Set to ignore pre-existing files. `fs.watch` is intentionally **not** used — it misses new files on Windows/OneDrive paths.
+### Character map — `lib/char_map.js`
 
-There used to be a second path (`CONNECTION_MODE: "tcp"`, connecting to the Wii's LAN IP via `@vinceau/slp-realtime`). It was removed along with that dependency: it was unused, and having no `SlippiGame` object meant it silently couldn't support handwarmer detection or the combo clipper. Reading the live `.slp` is now the only path, so there is no `CONNECTION_MODE` and no mode-specific branching anywhere.
+Slippi character ids (0–25) → `{ codename, display }`; `CSS_ORDER` is Melee's select-screen order (the dock's picker); `characterByName` maps the DB's display names back. Icons are `overlays/assets/icons/chara_2_{codename}_{costume:02d}.png` — TSH's 123 stock icons, committed (Game & Watch's file is `game_and_watch`, matching the codename). No icon path is sent anywhere; pages build it with `Overlay.icon()`. `tests/icons.test.js` checks every character and costume has one.
 
 ---
 
 ## Known Gotchas
 
-- `fs.watch` is intentionally not used (misses new files on Windows/OneDrive) — always poll.
-- TSH's "Swap Teams" button swaps names AND scores. The bridge now polls `/scoreboard{N}-get-swap` every 2s and re-derives immediately; name-based detection on the next game start remains the fallback.
-- `uiohook-napi` provides the global `Ctrl+Shift+S` hotkey; if it fails to load, the fallback is pressing `S` in the terminal.
-- The `tsh_update` DOM event fires whenever `program_state.json` changes; the layout listens to it to time its costume patch.
 - `config.js` is git-tracked — never put secrets there. The start.gg token goes in the gitignored `config.local.js`.
-- **Re-sending the loaded url to `/set-tournament` is a silent no-op** — `SetTournamentSignal` early-returns when `provider.url` matches, and the route still answers `"OK"`. Send the same **scheme-less** form TSH stores (`start.gg/tournament/<t>/event/<e>`) so that comparison stays predictable, and use `/update-bracket` when a real re-pull is what's wanted. The url must also be a full `.../tournament/<t>/event/<e>`: TSH's provider does `url.split("start.gg/")[1]` at ~11 query sites, so anything trailing the event slug corrupts every bracket request afterwards.
-- **Never *write* `user_data/settings.json` from the bridge.** TSH's `SettingsManager` owns it, rewrites the whole file on every `Set()`, and never re-reads it at runtime — a bridge-side write would be both ineffective and clobbered. *Reading* `TOURNAMENT_URL` is fine and is how the no-op above is detected (`tsh.readTournamentUrl()`).
-- **start.gg's GraphQL API cannot resolve a short link** — `tournament(slug: "100-acres")` returns `null`. Following the web redirect is the only path. The link is also **hyphenated**: `start.gg/100acres` is a hard 404 with no redirect at all.
-- **Switching the tournament does not clear the scoreboard.** TSH wires `tournament_changed` only to `UpdateUserSetButton` / `UpdateBottomButtons`, so the loaded set's names, scores and `set_id` survive — which is what makes the bracket buttons safe without a confirm, and means a pending report still targets the right set.
-- **`/update-bracket` 500s when no tournament is loaded** — `update_bracket()` dereferences its provider with no null check. Only call it once something is loaded.
-- TSH's `/get-match` does **not** expose start.gg entrant ids; `startgg-client.js` queries start.gg directly for them when reporting.
-- **start.gg refuses any response over 1000 objects — the whole response, not the excess.** Size page lengths against it (the counts are noted in `lib/stats/queries.js`) and treat a refusal as "split and retry", never as "no results".
-- **`Player.sets(filters: …)` is broken**: any filter at all, even `entrantSize`, returns zero sets. Fetch unfiltered and filter locally. `event.sets(filters: { playerIds: [a, b] })` is **OR**, not AND.
-- **`user.events` is not a player's history** — only the user account's own events. `Player.sets` is the source that reaches back through merged player records.
-- **TSH's default web server port changed from 5000 (5.967) to 5500 (5.972)** — `TSHWebServer.py` reads `SettingsManager.Get("general.webserver_port", 5500)`. This repo pins it back to **5000** via `user_data/settings.json → general.webserver_port`, because every OBS browser source and `config.TSH_URL` references 5000. A fresh `settings.json` omits the key and silently lands on 5500, which looks exactly like "TSH won't start" — `scripts/start-all.js` just times out waiting on 5000. Check the listening port before debugging anything else.
-- Never hardcode the TSH folder name — it carries the version (`TournamentStreamHelper-5.972`) and changes on every update. Use `resolveTshRoot()` / `resolveOrExit()` from `lib/tsh-root.js`.
-- `.gitignore` uses the version-independent glob `TournamentStreamHelper-*/*` with a `!TournamentStreamHelper-*/layout/` negation. Pinning an exact version there means the next TSH update silently untracks nothing and starts tracking ~4000 vendored files.
-- A fresh TSH extract ships **empty stub** config, not missing files — `local_players.json` is `{}` and `settings.json` has no `TOURNAMENT_URL`. After updating, copy `user_data/games/`, `local_players.json`, `settings.json`, and `pronouns_list.txt` from the previous install.
-- `stats.conversions` is **empty in doubles** — slippi-js only computes conversions for 2-player games. Nothing in this repo can work around it; the combo clipper is singles only.
-- A slippi-js conversion's `playerIndex` is the player who **got hit**. The attacker is `lastHitBy`.
-- The folder-mode parser is now **persistent per file**. Anything added to that poll loop must tolerate a live file, and must not assume a fresh parse each tick — see the poisoned-parser guard in [Combo Clipper](#combo-clipper--obs-replay-buffer).
-- `clipper-settings.json` is gitignored and written by the control panel. Don't add clipper tunables to `config.js` expecting them to be authoritative — `config.CLIPPER` is only the default layer.
-- **`config.local.js` and `clipper-settings.json` stay at the `slippi-bridge/` root**, even though the code that reads them lives in `lib/`. `.gitignore` pins those exact paths, and moving either one would start tracking the start.gg token or the OBS password. `lib/clipper-settings.js` reaches up a level on purpose.
-- **`scripts/` is one level deeper than the bridge root.** `preflight.js` and `start-all.js` resolve the repo root at `../..` and the bridge dir at `..`; `start-all.js` spawns `index.js` with `cwd: BRIDGE_DIR`, not `__dirname`. All three are silent failures — the spawn one only shows up when launching via `start-all.bat`.
-- **`preflight.js` has two lazy `require`s** (`../lib/tsh-root`, `../lib/clipper-settings`) that only run inside their check functions, and `lib/hotkey.js` requires `uiohook-napi` inside a `try` whose `catch` degrades silently. A broken path in any of them produces no startup error — run `node scripts/preflight.js` (not just `--offline`) and confirm the hotkey after touching them.
-- The control panel's `render()` has **no try/catch**, so a `$("id")` that returns null throws and freezes the whole dock on the next 2s tick. The clipper form is generated from the single `CLIP_FIELDS` spec specifically so its ids can't drift from the JS that reads them.
-- `layout/scoreboard/index.js` is shared by `melee.html` **and** `meleePlayers.html`, and only the former loads `shared/slippi-bridge-client.js` — hence the `typeof SlippiBridge !== "undefined"` guard. Anything else added to that file must tolerate the shared scripts being absent.
+- **`config.local.js` and `clipper-settings.json` stay at the `slippi-bridge/` root**, even though the code that reads them lives in `lib/`: `.gitignore` pins those exact paths, and moving either would start tracking the token or the OBS password.
+- **`slippi-bridge/data/` holds the player DB by default** as well as `live-state.json`. When cleaning up after a test boot, delete `live-state.json`, never the folder.
+- **Never run TSH against the app's player file.** TSH rewrites the whole file on save and never re-reads it. Copy the file, don't share it.
+- `fs.watch` is intentionally not used — always poll.
+- The parser is **persistent per file**: anything added to the poll loop must tolerate a live file and must not assume a fresh parse each tick.
+- `stats.conversions` is **empty in doubles**, and a conversion's `playerIndex` is the player who was **hit**.
+- **start.gg:** a response over 1000 objects is refused *whole* — split and retry, never "no results". `Player.sets(filters: …)` returns zero sets with any filter at all; fetch unfiltered and filter locally. `event.sets(filters: { playerIds: [a, b] })` is **OR**. `user.events` is not a player's history. The API returns `null` for a short slug — only the web redirect resolves it, and the link is **hyphenated** (`start.gg/100acres` is a hard 404).
+- **Preview sets** (`preview_…`) exist until the TO starts the bracket: loadable, never startable or reportable.
+- **A browser source whose page failed to load doesn't retry.** Start the app before OBS, or refresh the sources. A loaded page survives app restarts (socket.io reconnects and gets `state:full`).
+- **OBS's CEF is Chromium 103.** Check any new CSS feature against it; headless Chrome being newer hides the failure.
+- **Headless Chrome `--virtual-time-budget` screenshots run ahead of real time** — they miss a change made after load. Use the DevTools protocol for live-update checks.
+- **Don't synthesise global keypresses to test the hotkeys** — they also type into whatever window has focus. Press them by hand.
+- **`scripts/` is one level deeper than the app.** `preflight.js` resolves the app at `..` and the repo at `../..`, and requires most of what it checks **lazily** (it has to run before `npm install`). `tests/preflight.test.js` runs it offline so a moved module fails a test rather than a pre-event check.
+- `slippi_game_start` / `slippi_clip_saved` keep a `teamNum` field (`side + 1`) — the payload's long-standing name for the side, not a TSH team.
+- `TournamentStreamHelper-*/` beside the repo is gitignored wholesale: a rollback install, with its own `user_data/` (a real player DB). The app reads nothing from it; preflight only mentions it.

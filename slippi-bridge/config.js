@@ -4,19 +4,9 @@ const config = {
   // (usually the "CurrentGame" or Spectate subfolder of your replays folder).
   SLP_FOLDER: "C:/Users/ogden/OneDrive/Documents/Slippi/Spectate/quinn",
 
-  // ── TSH (until cutover) ────────────────────────────────────────────────────
-  // The app no longer talks to TSH. TSH_URL and SCOREBOARD_NUM are read only by
-  // scripts/preflight.js, which is rewritten at cutover (M8).
-  TSH_URL: "http://localhost:5000",
-  SCOREBOARD_NUM: 1,
-
-  // Absolute path to the TSH install directory — where PLAYERS_FILE defaults to
-  // when it is null. Leave null to auto-detect the newest
-  // TournamentStreamHelper-* folder sitting next to slippi-bridge/.
-  TSH_ROOT: null,
-
-  // ── Bridge Server ──────────────────────────────────────────────────────────
-  // Port the bridge's Socket.io server listens on for layout connections
+  // ── Server ─────────────────────────────────────────────────────────────────
+  // The one port: the dock (/dock), every overlay (/o/…), the API and Socket.io.
+  // Every OBS browser source names it, so change it only with them.
   BRIDGE_PORT: 5001,
 
   // Port→side assignment has no config: lib/ports/port-map.js derives it per
@@ -83,9 +73,11 @@ const config = {
 
   // ── Player database ──────────────────────────────────────────────────────────
   // TSH-format local_players.json, read and updated in place (new start.gg
-  // players, learned mains). null = the one in the TSH install, until cutover.
-  // Each machine has its own file, so set an absolute path in config.local.js
-  // rather than here. Never run TSH and this app against the same file at once.
+  // players, learned mains, the dock's Players tab). null = data/local_players.json
+  // beside this file (gitignored) — copy the one from your old TSH install's
+  // user_data/ there. Each machine has its own file, so a different path goes
+  // in config.local.js rather than here. Never point TSH and this app at the
+  // same file while both run.
   PLAYERS_FILE: null,
 
   // ── Scoreboard set text ──────────────────────────────────────────────────────

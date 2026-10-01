@@ -1,10 +1,10 @@
-// Maps Slippi ids to TSH codenames — characters and stages.
-// IDs match the @slippi/slippi-js Character and Stage enums exactly.
+// Maps Slippi character ids to codenames and display names.
+// IDs match the @slippi/slippi-js Character enum exactly.
 //
-// Icon files live at (relative to TSH root):
-//   user_data/games/ssbm/base_files/icon/chara_2_{codename}_{costume:02d}.png
-//   user_data/games/ssbm/stage_icon/{codename}.png
-// Costume index comes from player.costumeIndex in getSettings().
+// Icon files (TSH's stock icons, kept under TSH's names):
+//   overlays/assets/icons/chara_2_{codename}_{costume:02d}.png
+// Costume index comes from player.characterColor in getSettings(). Display
+// names are what the player DB records mains as (TSH's `mains.ssbm`).
 
 const CHAR_MAP = {
   0:  { codename: "captain_falcon", display: "Captain Falcon"  },
@@ -47,11 +47,10 @@ const CSS_ORDER = [
 ];
 
 /**
- * Resolves a Slippi character ID + costume to TSH display info.
+ * Resolves a Slippi character ID + costume to display info.
  *
- * Deliberately returns no icon path: the layouts build `chara_2_{codename}_{skin}.png`
- * themselves from a browser-relative base, so a bridge-side absolute path was
- * emitted on every game start and read by nothing.
+ * Deliberately returns no icon path: the overlays build `chara_2_{codename}_{skin}.png`
+ * themselves (Overlay.icon()), so a path here would be read by nothing.
  *
  * @param {number} charId       - Slippi character ID (0–25)
  * @param {number} costumeIndex - Slippi characterColor field (0-based)
@@ -83,53 +82,4 @@ function characterByName(name, skin = 0) {
   return char ? { codename: char.codename, name: char.display, skin: Number(skin) || 0 } : null;
 }
 
-// Slippi stage ID → TSH stage codename. Codenames are the basenames of
-// user_data/games/ssbm/stage_icon/*.png, which is also what TSH's
-// /scoreboard{N}-set-current-stage endpoint expects.
-//
-// Covers every stage TSH ships an icon for. Target-test stages (33+) and any
-// unknown id resolve to null — the caller skips reporting rather than guessing.
-// Note ICETOP (26) shares icicle_mountain: TSH has no separate icetop asset.
-const STAGE_MAP = {
-  2:  "fountain_of_dreams",
-  3:  "pokemon_stadium",
-  4:  "peachs_castle",
-  5:  "kongo_jungle",
-  6:  "brinstar",
-  7:  "corneria",
-  8:  "yoshis_story",
-  9:  "onett",
-  10: "mute_city",
-  11: "rainbow_cruise",
-  12: "jungle_japes",
-  13: "great_bay",
-  14: "temple",              // Slippi HYRULE_TEMPLE
-  15: "brinstar_depths",
-  16: "yoshis_island",
-  17: "green_greens",
-  18: "fourside",
-  19: "mushroom_kingdom",
-  20: "mushroom_kingdom_ii",
-  22: "venom",
-  23: "pokefloats",          // Slippi POKE_FLOATS
-  24: "big_blue",
-  25: "icicle_mountain",
-  26: "icicle_mountain",     // Slippi ICETOP — no separate TSH asset
-  27: "flat_zone",
-  28: "dream_land",          // Slippi DREAMLAND
-  29: "yoshis_island_64",
-  30: "kong_jungle_64",      // note: TSH spells this "kong", not "kongo"
-  31: "battlefield",
-  32: "final_destination",
-};
-
-/**
- * Resolves a Slippi stage ID to the TSH stage codename.
- * @param {number} stageId — Slippi stage ID from getSettings().stageId
- * @returns {string|null} codename, or null when unmapped
- */
-function resolveStage(stageId) {
-  return STAGE_MAP[stageId] ?? null;
-}
-
-module.exports = { CHAR_MAP, CSS_ORDER, resolveCharacter, characterByName, STAGE_MAP, resolveStage };
+module.exports = { CHAR_MAP, CSS_ORDER, resolveCharacter, characterByName };
