@@ -95,6 +95,6 @@ What the set covers, and what it doesn't yet:
 | Grand Final with no reset | `hundred-acres-47.json`, `-48.json` |
 | DQs | `-47`, `-49` |
 | Doubles; single-elimination (redemption) | all; `-47` |
-| **Set in progress, non-empty stream queue** | **missing** — only exists during an event; capture mid-event |
+| **Set in progress** | **missing** — only exists during an event; capture mid-event with `--label live` |
 
-Finished sets come back with `stream: null` even when they were on stream, so the stream queue can only be captured while sets are assigned to it.
+The stream queue is captured too, but it is normally empty: this series picks whichever set is playable rather than assigning sets to the stream on start.gg, so nothing downstream should depend on it.
