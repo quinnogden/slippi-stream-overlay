@@ -28,7 +28,7 @@
   const { h, icon } = window.Overlay;
   const $ = (id) => document.getElementById(id);
 
-  const TABS = ["set", "bracket", "clips"];
+  const TABS = ["set", "bracket", "casters", "players", "clips", "setup"];
   const TAB_KEY = "dock.tab";
   const HOLD_MS = 450;        // a long-press on a character opens its costumes
   const SETS_POLL_MS = 90000; // the app re-reads start.gg every 90s; this only picks that up
@@ -117,6 +117,13 @@
   /** Text, with <b> around the parts in `bold` — for confirm messages. */
   function rich(...parts) {
     return parts.map((p) => (typeof p === "string" ? document.createTextNode(p) : h("b", "", p.b)));
+  }
+
+  /** A hardware key, built rather than written as markup. */
+  function key(label, cls) {
+    const b = h("button", "key" + (cls ? " " + cls : ""), label);
+    b.type = "button";
+    return b;
   }
 
   const playerName = (p) => [p.prefix, p.tag].filter(Boolean).join(" ");
@@ -225,7 +232,8 @@
     box.append(dec, score, inc);
 
     root.replaceChildren(lChip, who, box);
-    sides[i] = { count, lChip, players, sub, score, dec };
+    sides[i] = { count, lChip, players, sub, score, dec, inc };
+    applyKeyHints();
   }
 
   const renderStrip = guard("strip", () => {
@@ -429,9 +437,11 @@
     document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.tab === name));
     TABS.forEach((t) => $("panel-" + t).classList.toggle("on", t === name));
     store(TAB_KEY, name);
+    // Read when looked at: neither changes on its own mid-set.
+    if (name === "players" && !playersFetched) fetchPlayers();
+    if (name === "setup") fetchSetup();
   }
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
-  showTab(store(TAB_KEY));
 
   // ── Set tab: the picker ─────────────────────────────────────────────────────
 
@@ -631,6 +641,312 @@
       if (!r.ok) toast(`Group switch failed: ${r.error}`, false);
     }));
 
+  // ── Casters tab ─────────────────────────────────────────────────────────────
+
+  // Edited as a draft and sent whole with Put on stream: the casters' cards
+  // are on the broadcast, so a half-typed tag must never reach them, and a
+  // push (another dock, a restart) must never undo what's being typed.
+  const MAX_CASTERS = 4;
+  const CASTER_FIELDS = [
+    { key: "tag",     placeholder: "Tag" },
+    { key: "prefix",  placeholder: "Team" },
+    { key: "pronoun", placeholder: "Pronouns" },
+    { key: "twitter", placeholder: "@handle" },
+  ];
+  let casters = [];       // what's on stream (state.casters)
+  let casterDraft = null; // the form's rows once touched; null = showing what's on stream
+
+  const blankCaster = () => ({ tag: "", prefix: "", pronoun: "", twitter: "" });
+  const casterList = (list) => (list || []).map((c) => ({ ...blankCaster(), ...c }));
+  const sameCasters = (a, b) => JSON.stringify(casterList(a)) === JSON.stringify(casterList(b));
+
+  function draft() {
+    if (!casterDraft) casterDraft = casterList(casters);
+    return casterDraft;
+  }
+
+  /** Whether the operator is in one of the caster fields right now. */
+  function typingCaster() {
+    const a = document.activeElement;
+    return !!(a && a.parentElement && a.parentElement.classList.contains("c-fields"));
+  }
+
+  const renderCasters = guard("casters", () => {
+    const rows = casterDraft || casters;
+    $("casters-list").replaceChildren(...(rows.length
+      ? rows.map(casterRow)
+      : [h("div", "empty-note", "Nobody on the mic. Add a caster.")]));
+    $("btn-caster-add").disabled = rows.length >= MAX_CASTERS;
+    renderCastersDirty();
+  });
+
+  function renderCastersDirty() {
+    const dirty = !!casterDraft && !sameCasters(casterDraft, casters);
+    $("casters-card").classList.toggle("dirty", dirty);
+    $("btn-casters-save").disabled = !dirty;
+    $("btn-casters-revert").disabled = !dirty;
+    const live = casters.filter((c) => c.tag).length;
+    $("casters-stamp").textContent = dirty ? "Not on stream yet" : live ? `${live} on stream` : "";
+  }
+
+  function casterRow(c, i) {
+    const row = h("div", "caster-row");
+    const fields = h("div", "c-fields");
+    for (const f of CASTER_FIELDS) {
+      const input = h("input", "c-" + f.key);
+      input.type = "text";
+      input.placeholder = f.placeholder;
+      input.spellcheck = false;
+      input.value = c[f.key] || "";
+      input.addEventListener("input", () => {
+        draft()[i][f.key] = input.value;
+        renderCastersDirty();
+        if (f.key === "tag") suggestCasters(input.value);
+      });
+      if (f.key === "tag") {
+        input.setAttribute("list", "caster-suggest");
+        input.addEventListener("change", () => fillCaster(i));
+      }
+      fields.append(input);
+    }
+    const ops = h("div", "c-ops");
+    const up = key("↑", "mini");
+    up.title = "Up a seat — caster 1 is ?i=0";
+    up.disabled = i === 0;
+    up.addEventListener("click", () => {
+      const d = draft();
+      [d[i - 1], d[i]] = [d[i], d[i - 1]];
+      renderCasters();
+    });
+    const del = key("✕", "mini");
+    del.title = "Take this caster off";
+    del.addEventListener("click", () => {
+      draft().splice(i, 1);
+      renderCasters();
+    });
+    ops.append(up, del);
+    row.append(h("span", "c-num", String(i + 1)), fields, ops);
+    return row;
+  }
+
+  let suggestReq = 0;
+  /** The player list's matching tags, offered as the tag field's autocomplete. */
+  function suggestCasters(text) {
+    clearTimeout(suggestCasters.timer);
+    const q = text.trim();
+    if (!q) return;
+    suggestCasters.timer = setTimeout(async () => {
+      const req = ++suggestReq;
+      const r = await api("/api/players?q=" + encodeURIComponent(q));
+      if (req !== suggestReq || !r.ok) return;
+      $("caster-suggest").replaceChildren(...(r.players || []).map((p) => {
+        const o = h("option");
+        o.value = p.tag;
+        if (p.prefix) o.label = `${p.prefix} ${p.tag}`;
+        return o;
+      }));
+    }, 150);
+  }
+
+  /** A tag that's in the player list fills the fields left blank. */
+  async function fillCaster(i) {
+    const c = casterDraft && casterDraft[i];
+    const tag = c ? c.tag.trim() : "";
+    if (!tag) return;
+    const r = await api("/api/players?q=" + encodeURIComponent(tag));
+    const hit = r.ok && (r.players || []).find((p) => p.tag.toLowerCase() === tag.toLowerCase());
+    if (!hit || !casterDraft || casterDraft[i] !== c) return; // saved, reverted or moved meanwhile
+    c.tag = hit.tag;
+    for (const k of ["prefix", "pronoun", "twitter"]) {
+      if (!c[k] && hit[k]) c[k] = hit[k];
+    }
+    // Into that row's fields in place: a redraw would take the focus, and
+    // Enter commits a tag without leaving the field.
+    const row = $("casters-list").querySelectorAll(".caster-row")[i];
+    for (const f of CASTER_FIELDS) {
+      const input = row && row.querySelector(".c-" + f.key);
+      if (input && input.value !== c[f.key]) input.value = c[f.key];
+    }
+    renderCastersDirty();
+  }
+
+  $("btn-caster-add").addEventListener("click", () => {
+    const d = draft();
+    if (d.length >= MAX_CASTERS) return;
+    d.push(blankCaster());
+    renderCasters();
+    const tags = $("casters-list").querySelectorAll(".c-tag");
+    if (tags.length) tags[tags.length - 1].focus();
+  });
+
+  $("btn-casters-save").addEventListener("click", async () => {
+    const list = casterList(casterDraft || casters).map((c) => ({
+      tag: c.tag.trim(), prefix: c.prefix.trim(), pronoun: c.pronoun.trim(), twitter: c.twitter.trim(),
+    }));
+    const r = await act("/api/casters", { casters: list }, "Casters on stream", "Couldn't update the casters");
+    if (!r.ok) return;
+    casters = r.casters || list;
+    casterDraft = null;
+    renderCasters();
+  });
+
+  $("btn-casters-revert").addEventListener("click", () => {
+    casterDraft = null;
+    renderCasters();
+  });
+
+  /** state.casters arrived: drawn unless the operator has edits of their own. */
+  function onCasters(list) {
+    const prev = casters;
+    casters = Array.isArray(list) ? list : [];
+    // A draft that was never really changed follows the push.
+    if (casterDraft && sameCasters(casterDraft, prev) && !typingCaster()) casterDraft = null;
+    if (casterDraft) renderCastersDirty();
+    else renderCasters();
+  }
+
+  // ── Players tab ─────────────────────────────────────────────────────────────
+
+  let players = [];          // the last /api/players answer
+  let playersMeta = null;    // { total, file }
+  let playersError = null;
+  let playersFetched = false;
+  let playersReq = 0;
+  let editingRef = null;     // the player whose editor is open
+
+  /** The search's matches, or with no search the players on the scoreboard. */
+  async function fetchPlayers() {
+    const req = ++playersReq;
+    const q = $("player-search").value.trim();
+    const r = await api("/api/players" + (q ? "?q=" + encodeURIComponent(q) : ""));
+    if (req !== playersReq) return;
+    playersFetched = true;
+    playersError = r.ok ? null : (r.error || "no answer from the app");
+    if (r.ok) {
+      players = r.players || [];
+      playersMeta = { total: r.total, file: r.file };
+    }
+    renderPlayers();
+  }
+
+  const renderPlayers = guard("players", () => {
+    const list = $("players-list");
+    const q = $("player-search").value.trim();
+    $("players-stamp").textContent = playersMeta ? `${playersMeta.total} in the list` : "";
+    if (playersError) return list.replaceChildren(h("div", "empty-note", `Couldn't read the player list: ${playersError}`));
+    if (!players.length) {
+      return list.replaceChildren(h("div", "empty-note", q
+        ? `Nobody in the list matches “${q}”.`
+        : "Search by tag. Everyone in a set loaded from start.gg is added automatically."));
+    }
+    const rows = players.map(playerRow);
+    if (!q) rows.unshift(h("div", "list-cap", "On the scoreboard"));
+    list.replaceChildren(...rows);
+  });
+
+  function playerRow(p) {
+    const open = editingRef === p.ref;
+    const row = h("div", "pl-row" + (p.onAir ? " air" : "") + (open ? " open" : ""));
+
+    const shown = p.pinnedMain || p.main;
+    const charBtn = h("button", "char" + (shown ? "" : " empty") + (p.pinnedMain ? " pinned" : ""));
+    charBtn.type = "button";
+    charBtn.title = p.pinnedMain ? `Pinned: ${p.pinnedMain.name} — change` : "Pin the main their sets open on";
+    const img = h("img");
+    img.alt = "";
+    if (shown) img.src = icon(shown);
+    charBtn.append(img);
+    charBtn.addEventListener("click", () => openPinPicker(p));
+
+    const name = h("button", "pl-name");
+    name.type = "button";
+    name.title = open ? "Close" : "Edit";
+    if (p.prefix) name.append(h("span", "pl-prefix", p.prefix));
+    name.append(h("span", "pl-tag", p.tag || "?"));
+    if (p.pronoun) name.append(h("span", "chip", p.pronoun));
+    if (p.onAir) name.append(h("span", "chip air", "On stream"));
+    if (p.pinnedMain) name.append(h("span", "chip pin", "Pinned"));
+    name.addEventListener("click", () => {
+      editingRef = open ? null : p.ref;
+      renderPlayers();
+    });
+
+    const learned = h("div", "pl-learned");
+    learned.title = "Learned from Slippi, most recent first";
+    (p.learnedMains || []).forEach((c) => {
+      const i = h("img");
+      i.alt = c.name;
+      i.title = `${c.name} (learned)`;
+      i.src = icon(c);
+      learned.append(i);
+    });
+
+    row.append(charBtn, name, learned);
+    if (open) row.append(playerEditor(p));
+    return row;
+  }
+
+  function playerEditor(p) {
+    const box = h("div", "pl-edit");
+    const fields = {};
+    for (const [k, label, placeholder] of [["prefix", "Team", ""], ["pronoun", "Pronouns", "they/them"], ["twitter", "Twitter", "@handle"]]) {
+      const f = h("label", "field");
+      const input = h("input");
+      input.type = "text";
+      input.spellcheck = false;
+      input.placeholder = placeholder;
+      input.value = p[k] || "";
+      input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
+      fields[k] = input;
+      f.append(h("span", "", label), input);
+      box.append(f);
+    }
+    async function save() {
+      const body = { ref: p.ref, tag: p.tag };
+      for (const k of Object.keys(fields)) body[k] = fields[k].value.trim();
+      const r = await act("/api/players/update", body,
+        `${p.tag} saved` + (p.onAir ? " — on stream now" : ""), "Couldn't save");
+      if (!r.ok) return;
+      editingRef = null;
+      replacePlayer(r.player);
+    }
+    const keys = h("div", "key-row");
+    const ok = key("Save", "go");
+    ok.addEventListener("click", save);
+    const cancel = key("Cancel");
+    cancel.addEventListener("click", () => { editingRef = null; renderPlayers(); });
+    keys.append(ok, cancel);
+    if (p.pinnedMain) {
+      const unpin = key("Unpin main");
+      unpin.addEventListener("click", () => pinMain(p, null));
+      keys.append(unpin);
+    }
+    box.append(keys);
+    return box;
+  }
+
+  function replacePlayer(entry) {
+    if (!entry) return;
+    players = players.map((x) => (x.ref === entry.ref ? entry : x));
+    renderPlayers();
+  }
+
+  async function pinMain(p, codename, skin) {
+    const r = await api("/api/players/pin", { ref: p.ref, tag: p.tag, codename, skin });
+    if (!r.ok) {
+      toast(`Couldn't pin that: ${r.error}`, false);
+      return r;
+    }
+    toast(r.player.pinnedMain ? `${p.tag}'s sets open on ${r.player.pinnedMain.name}` : `${p.tag}: back to learned mains`, true);
+    replacePlayer(r.player);
+    return r;
+  }
+
+  $("player-search").addEventListener("input", () => {
+    clearTimeout(fetchPlayers.timer);
+    fetchPlayers.timer = setTimeout(fetchPlayers, 150);
+  });
+
   // ── Clips tab ───────────────────────────────────────────────────────────────
 
   // The form is built from this list, so its ids can't drift from the code
@@ -746,13 +1062,139 @@
     toast(r.ok ? "Test clip saved" : `Test clip failed: ${r.error}`, r.ok);
   });
 
+  // ── Setup tab ───────────────────────────────────────────────────────────────
+
+  let setup = null; // /api/setup
+  let chords = {};  // action → chord, while the hotkeys are global
+
+  async function fetchSetup() {
+    const r = await api("/api/setup");
+    if (!r.ok) {
+      $("setup-overlays").replaceChildren(h("div", "empty-note", `Couldn't read the setup: ${r.error}`));
+      return;
+    }
+    setup = r;
+    renderSetup();
+  }
+
+  /** A url to paste somewhere else, with a Copy key. */
+  function copyRow(name, url, meta, note) {
+    const row = h("div", "url-row");
+    const head = h("div", "u-head");
+    head.append(h("span", "u-name", name));
+    if (meta) head.append(h("span", "u-meta", meta));
+    const line = h("div", "u-line");
+    const input = h("input", "u-url");
+    input.type = "text";
+    input.readOnly = true;
+    input.value = url;
+    const btn = key("Copy", "mini");
+    btn.addEventListener("click", () => copy(input));
+    line.append(input, btn);
+    row.append(head, line);
+    if (note) row.append(h("div", "u-note", note));
+    return row;
+  }
+
+  /** The clipboard API needs a secure origin, which a phone on the LAN isn't. */
+  function copy(input) {
+    const fallback = () => {
+      input.focus();
+      input.select();
+      let ok = false;
+      try { ok = document.execCommand("copy"); } catch (_) { /* unsupported */ }
+      toast(ok ? "Copied" : "Selected — press Ctrl+C", true);
+    };
+    const clip = typeof navigator !== "undefined" && navigator.clipboard;
+    if (clip && window.isSecureContext) clip.writeText(input.value).then(() => toast("Copied", true), fallback);
+    else fallback();
+  }
+
+  function keycaps(chord) {
+    const caps = h("span", "keycaps");
+    chord.split("+").forEach((k) => caps.append(h("kbd", "", k)));
+    return caps;
+  }
+
+  const HOTKEY_HINTS = {
+    global: "Work from any window — and still reach it, so Dolphin and OBS see the keys too. A held key fires once. Change them in config.HOTKEYS.",
+    terminal: "The global listener (uiohook-napi) didn't load: these keys only work typed into the app's own console window.",
+    none: "The global listener (uiohook-napi) didn't load and the app has no console: use the strip's keys.",
+  };
+
+  const renderSetup = guard("setup", () => {
+    if (!setup) return;
+    $("setup-theme").textContent = setup.theme ? `Theme: ${setup.theme}` : "";
+    $("setup-overlays").replaceChildren(...(setup.overlays || []).map((o) =>
+      copyRow(o.name, (setup.base || "") + o.path, o.size, o.note)));
+
+    const hk = setup.hotkeys || {};
+    const mode = hk.mode || "none";
+    $("hotkeys-mode").textContent = mode === "global" ? "Global" : mode === "terminal" ? "Console only" : "Off";
+    $("hotkeys-mode").className = "badge " + (mode === "global" ? "ok" : "warn");
+    const bindings = hk.bindings || [];
+    $("setup-hotkeys").replaceChildren(...(bindings.length ? bindings.map((b) => {
+      const row = h("div", "hk-row");
+      row.append(h("span", "hk-label", b.label), keycaps(b.chord));
+      return row;
+    }) : [h("div", "empty-note", "No hotkeys bound.")]));
+    $("hotkeys-hint").replaceChildren(document.createTextNode(HOTKEY_HINTS[mode] || ""),
+      ...(hk.errors || []).map((e) => h("div", "hk-err", e)));
+    chords = {};
+    if (mode === "global") for (const b of bindings) chords[b.action] = b.chord;
+    applyKeyHints();
+
+    const lan = setup.lan || [];
+    $("setup-lan").replaceChildren(...(lan.length
+      ? lan.map((a) => copyRow(a.name + (a.tailscale ? " · Tailscale" : ""), a.url))
+      : [h("div", "empty-note", "No network address — this machine isn't on a network.")]));
+
+    const fact = (k, v) => {
+      const row = h("div", "fact");
+      row.append(h("span", "k", k), h("span", "v", v));
+      return row;
+    };
+    const gg = setup.startgg || {};
+    const pl = setup.players || {};
+    $("setup-files").replaceChildren(
+      fact("Players", `${pl.file || "?"} · ${pl.count == null ? "?" : pl.count} players`),
+      fact("Slippi", setup.slippiFolder || "not set (config.SLP_FOLDER)"),
+      fact("start.gg", (gg.token ? "Token set — Start and Report work" : "No token — reads only (config.local.js)")
+        + (gg.shortLink ? ` · start.gg/${gg.shortLink}` : "")),
+    );
+  });
+
+  /** The bound chords, on the keys they press (titles only — the strip stays clean). */
+  function applyKeyHints() {
+    const hint = (base, action) => base + (chords[action] ? ` (${chords[action]})` : "");
+    const ports = $("btn-ports");
+    const sidesKey = $("btn-sides");
+    if (!ports.dataset.base) ports.dataset.base = ports.title;
+    if (!sidesKey.dataset.base) sidesKey.dataset.base = sidesKey.title;
+    ports.title = hint(ports.dataset.base, "swapPorts");
+    sidesKey.title = hint(sidesKey.dataset.base, "switchSides");
+    sides.forEach((s, i) => {
+      if (!s) return;
+      s.inc.title = hint("Give this side a game", i === 0 ? "leftPlus" : "rightPlus");
+      s.dec.title = hint("Take a game away", i === 0 ? "leftMinus" : "rightMinus");
+    });
+  }
+
   // ── The character picker ────────────────────────────────────────────────────
 
-  /** Who the picker is choosing for, and which character's costumes it shows. */
-  let picking = null; // { side, index, costumesFor: codename|null }
+  /**
+   * Who the picker is choosing for, and which character's costumes it shows:
+   * a player on the strip ({ side, index }), or a player-list entry whose main
+   * is being pinned ({ pin: entry }).
+   */
+  let picking = null; // { side, index, pin, costumesFor: codename|null }
 
-  function pickingPlayer() {
-    return picking && sb ? sb.sides[picking.side].players[picking.index] : null;
+  /** The character the picker marks as current. */
+  function pickingCurrent() {
+    if (!picking) return null;
+    if (picking.pin) return picking.pin.pinnedMain || null;
+    const p = sb ? sb.sides[picking.side].players[picking.index] : null;
+    return (p && p.character) || null;
   }
 
   /**
@@ -801,7 +1243,7 @@
       b.dataset.codename = c.codename;
       bindPress(b,
         () => {
-          const cur = pickingPlayer() && pickingPlayer().character;
+          const cur = pickingCurrent();
           pick(c.codename, cur && cur.codename === c.codename ? cur.skin : 0);
         },
         () => { picking.costumesFor = c.codename; renderPicker(); });
@@ -811,10 +1253,18 @@
 
   const renderPicker = guard("picker", () => {
     if (!picking) return;
-    const p = pickingPlayer();
-    const cur = p && p.character;
-    const where = `${picking.side === 0 ? "Left" : "Right"}${sb && sb.isDoubles ? ` · player ${picking.index + 1}` : ""}`;
-    $("picker-who").textContent = `${(p && playerName(p)) || "Unnamed player"} — ${where}`;
+    if (picking.pin) {
+      $("picker-title").textContent = "Pinned main";
+      $("picker-who").textContent = `${playerName(picking.pin) || "?"} — their sets open on this`;
+      $("picker-none").textContent = "Unpin";
+    } else {
+      const p = sb ? sb.sides[picking.side].players[picking.index] : null;
+      const where = `${picking.side === 0 ? "Left" : "Right"}${sb && sb.isDoubles ? ` · player ${picking.index + 1}` : ""}`;
+      $("picker-title").textContent = "Character";
+      $("picker-who").textContent = `${(p && playerName(p)) || "Unnamed player"} — ${where}`;
+      $("picker-none").textContent = "No character";
+    }
+    const cur = pickingCurrent();
 
     document.querySelectorAll("#picker-grid .tile").forEach((b) =>
       b.classList.toggle("current", !!cur && b.dataset.codename === cur.codename));
@@ -835,7 +1285,14 @@
 
   function openPicker(side, index, opts = {}) {
     if (!sb) return;
-    picking = { side, index, costumesFor: opts.costumesFor || null };
+    picking = { side, index, pin: null, costumesFor: opts.costumesFor || null };
+    renderPicker();
+    $("picker").classList.add("open");
+  }
+
+  /** The picker, choosing a player-list entry's pinned main. */
+  function openPinPicker(entry) {
+    picking = { pin: entry, costumesFor: null };
     renderPicker();
     $("picker").classList.add("open");
   }
@@ -845,9 +1302,14 @@
     $("picker").classList.remove("open");
   }
 
-  /** Set the character (null = none) and close. */
+  /** Set the character (null = none, or unpin) and close. */
   async function pick(codename, skin) {
     if (!picking) return;
+    if (picking.pin) {
+      const r = await pinMain(picking.pin, codename, skin);
+      if (r.ok) closePicker();
+      return;
+    }
     const { side, index } = picking;
     const r = await api("/api/character", { side, index, codename, skin });
     if (!r.ok) return toast(`Couldn't set the character: ${r.error}`, false);
@@ -870,11 +1332,21 @@
 
   const ov = window.Overlay.connect({ tag: "dock", namespace: "/dock" });
 
+  let onAirKey = null;
   ov.select("scoreboard", (now) => {
     sb = now;
     renderStrip();
     renderPicker();
+    // The Players tab with no search lists who's on the scoreboard; it follows
+    // a new set, unless a player is open in the editor.
+    const who = sb ? sb.sides.map((s) => s.players.map((p) => `${p.playerId}:${p.tag}`).join(",")).join("|") : "";
+    if (who !== onAirKey) {
+      onAirKey = who;
+      if (playersFetched && editingRef == null && !$("player-search").value.trim()) fetchPlayers();
+    }
   });
+
+  ov.select("casters", onCasters);
 
   let eventSlug;
   ov.select("tournament", (t) => {
@@ -918,6 +1390,10 @@
     if (statusAt && Date.now() - statusAt > STALE_MS) document.body.classList.add("stale");
   }, 3000);
 
+  renderCasters();
+  showTab(store(TAB_KEY));
+  // The strip's keys carry the bound chords in their titles.
+  if (!$("panel-setup").classList.contains("on")) fetchSetup();
   fetchSets();
   setInterval(() => { if (document.visibilityState === "visible") fetchSets(); }, SETS_POLL_MS);
 
@@ -928,6 +1404,9 @@
     get gameLive() { return gameLive; },
     get picking() { return picking; },
     get sets() { return sets; },
-    openPicker, closePicker, pick, fetchSets, showTab, CLIP_FIELDS,
+    get players() { return players; },
+    get casterDraft() { return casterDraft; },
+    get setup() { return setup; },
+    openPicker, openPinPicker, closePicker, pick, fetchSets, fetchPlayers, fetchSetup, showTab, CLIP_FIELDS,
   };
 })();

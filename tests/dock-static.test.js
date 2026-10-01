@@ -10,7 +10,8 @@
  *     back as a toast at best, and as nothing at all from a fire-and-forget);
  *   - it loads nothing from off the app, and every file it loads is there
  *     (the fonts are self-hosted so venue wifi can't restyle the console);
- *   - every tab has a panel, and the clipper form covers every setting.
+ *   - every tab has a panel, and the clipper form covers every setting;
+ *   - every overlay url the Setup tab hands out for OBS is served.
  *
  * Usage: node tests/dock-static.test.js
  */
@@ -21,6 +22,7 @@ const path   = require("path");
 
 const { resolveOverlayPath } = require("../slippi-bridge/lib/server/overlays");
 const { FIELDS: CLIPPER_FIELDS } = require("../slippi-bridge/lib/clipper-settings");
+const { OVERLAYS: SETUP_OVERLAYS } = require("../slippi-bridge/lib/server/api/setup");
 
 const ROOT = path.resolve(__dirname, "..");
 const DOCK = path.join(ROOT, "slippi-bridge", "public", "dock");
@@ -69,7 +71,7 @@ test("every /api route the dock calls exists, with the method it uses", () => {
   }
   // api(path) is a GET, api(path, body) a POST; act() always posts.
   const calls = new Set();
-  for (const m of js.matchAll(/\b(api|act)\(\s*"(\/api\/[^"?]+)"([^;]*)/g)) {
+  for (const m of js.matchAll(/\b(api|act)\(\s*"(\/api\/[^"?]+)(?:\?[^"]*)?"([^;]*)/g)) {
     const post = m[1] === "act" || /^\s*(\+[^,]*\))?\s*,/.test(m[3]) || /^\s*,/.test(m[3]);
     calls.add(`${post ? "POST" : "GET"} ${m[2]}`);
   }
@@ -99,12 +101,21 @@ test("the page loads nothing from off the app, and every file it loads is there"
 });
 
 test("the clipper form covers every setting but the master switch", () => {
-  const keys = [...js.matchAll(/\{ key: "([^"]+)"/g)].map((m) => m[1]).sort();
+  const block = /const CLIP_FIELDS = \[([\s\S]*?)\n  \];/.exec(js)[1];
+  const keys = [...block.matchAll(/\{ key: "([^"]+)"/g)].map((m) => m[1]).sort();
   const settings = Object.keys(CLIPPER_FIELDS).filter((k) => k !== "enabled").sort();
   assert.deepStrictEqual(keys, settings);
   assert.ok(declared.has("clip-enabled") && declared.has("clip-fields"));
   const dup = keys.filter((k) => declared.has(`clip-${k}`));
   assert.deepStrictEqual(dup, [], `generated AND hand-written: ${dup.join(", ")}`);
+});
+
+test("every overlay the Setup tab offers for OBS is a page the app serves", () => {
+  // A url pasted from there into a browser source is the one that goes on air.
+  assert.ok(SETUP_OVERLAYS.length >= 6);
+  for (const o of SETUP_OVERLAYS) {
+    assert.ok(resolveOverlayPath(o.path, { overlaysDir: path.join(ROOT, "overlays") }), `${o.name}: ${o.path} isn't served`);
+  }
 });
 
 test("no innerHTML anywhere in the script", () => {

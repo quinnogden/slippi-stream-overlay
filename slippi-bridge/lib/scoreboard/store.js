@@ -27,6 +27,8 @@
  * overlays get one state with one rev.
  *
  * Events (beyond `change`), for the modules that react to the scoreboard:
+ *   `set-closing`    (scoreboard) the set about to be replaced, as it ended —
+ *                    mains learning commits it (lib/players/mains-learning.js)
  *   `set-loaded`     a different set (or a cleared one) is now on the scoreboard
  *   `sides-switched` the two sides traded columns
  */
@@ -189,9 +191,21 @@ class ScoreboardStore extends EventEmitter {
         }
       }
     }
+    this.closeSet();
     this._set = next;
     this._changed(["scoreboard"]);
     this.emit("set-loaded", { setId: next.setId });
+  }
+
+  /**
+   * The set on the scoreboard is over: announce it as it ended (`set-closing`),
+   * so what it taught is saved before anything is read for the next one.
+   * loadSet() does this itself; event-service.js calls it earlier, before it
+   * reads the incoming players' mains from the DB. Saying it twice is harmless
+   * — mains learning skips a set it has already committed.
+   */
+  closeSet() {
+    if (this.listenerCount("set-closing")) this.emit("set-closing", this.scoreboard());
   }
 
   /** Back to an empty scoreboard (a manual set, typed by hand). */

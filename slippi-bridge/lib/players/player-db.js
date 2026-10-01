@@ -87,26 +87,46 @@ class PlayerDb {
       ?? null;
   }
 
-  /** Tags starting with `text` (case-insensitive), for the dock's autocomplete. */
-  search(text, limit = 10) {
+  /**
+   * Records whose tag (or "prefix tag") matches `text`, case-insensitively:
+   * tags starting with it first, then ones containing it — the dock's search.
+   * @returns {object[]} live records — read only
+   */
+  search(text, limit = 25) {
     const q = String(text ?? "").trim().toLowerCase();
     if (!q) return [];
-    return this._records
-      .filter((r) => String(r.gamerTag ?? "").toLowerCase().startsWith(q))
-      .slice(0, limit)
-      .map((r) => this.describe(r));
+    const tag = (r) => String(r.gamerTag ?? "").toLowerCase();
+    const starts = this._records.filter((r) => tag(r).startsWith(q));
+    const contains = this._records.filter((r) => !tag(r).startsWith(q)
+      && (tag(r).includes(q) || keyOf(r.prefix, r.gamerTag).includes(q)));
+    return [...starts, ...contains].slice(0, limit);
   }
+
+  /**
+   * A record's handle for the dock: its position in the file. Stable for the
+   * life of the process — records are only ever appended, and the file is
+   * read once — and the dock sends the tag back with it, so a stale handle is
+   * refused rather than editing someone else.
+   */
+  refOf(rec) { return this._records.indexOf(rec); }
+
+  /** The record for a handle from refOf(), or null. */
+  at(ref) { return Number.isInteger(ref) ? this._records[ref] ?? null : null; }
 
   /** The fields the app shows, from a record. */
   describe(rec) {
     if (!rec) return null;
+    const pick = (e) => (Array.isArray(e) && e[0] ? { name: String(e[0]), skin: Number(e[1]) || 0 } : null);
     return {
+      ref: this.refOf(rec),
       tag: rec.gamerTag ?? "",
       prefix: rec.prefix ?? "",
       pronoun: rec.pronoun ?? "",
       twitter: rec.twitter ?? "",
       startggPlayerId: rec.startggPlayerId ?? null,
       main: this.preferredMain(rec),
+      pinnedMain: pick(rec.pinnedMain),
+      learnedMains: (Array.isArray(rec.learnedMains) ? rec.learnedMains : []).map(pick).filter(Boolean),
     };
   }
 
@@ -179,7 +199,7 @@ class PlayerDb {
   /**
    * Record that a player used a character, most recent first, de-duplicated by
    * character (the latest skin wins). Called once per set with the set's final
-   * port mapping — see the learning buffer in the store.
+   * port mapping, by lib/players/mains-learning.js.
    * @param {object} rec
    * @param {{ name: string, skin: number }} main
    */

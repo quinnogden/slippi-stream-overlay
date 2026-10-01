@@ -47,7 +47,7 @@
 
       <div class="strip-actions">
         <button class="key" id="btn-sides" type="button" title="Move both sides across the scoreboard — names, scores, games. The ports follow">⇆ Sides</button>
-        <button class="key" id="btn-ports" type="button" title="The ports are the wrong way round: flip them (Ctrl+Shift+S). The scoreboard stays put">⇄ Ports</button>
+        <button class="key" id="btn-ports" type="button" title="The ports are the wrong way round: flip them. The scoreboard stays put">⇄ Ports</button>
         <button class="key" id="btn-redetect" type="button" title="Re-match the ports against the players' characters">↻ Detect</button>
         <button class="key go" id="btn-start" type="button" title="Mark this set in progress on start.gg">Start</button>
         <button class="key arm" id="btn-report" type="button" title="Report the result to start.gg (asks first)">Report</button>
@@ -60,7 +60,10 @@
       <nav class="tabs" role="tablist">
         <button class="tab" type="button" data-tab="set">Set</button>
         <button class="tab" type="button" data-tab="bracket">Bracket</button>
+        <button class="tab" type="button" data-tab="casters">Casters</button>
+        <button class="tab" type="button" data-tab="players">Players</button>
         <button class="tab" type="button" data-tab="clips">Clips</button>
+        <button class="tab" type="button" data-tab="setup">Setup</button>
       </nav>
 
       <!-- ── Set ── -->
@@ -123,6 +126,39 @@
         </div>
       </div>
 
+      <!-- ── Casters ── -->
+      <div class="panel" id="panel-casters">
+        <div class="card" id="casters-card">
+          <div class="card-head">
+            <span class="label">On the mic</span>
+            <span class="card-meta" id="casters-stamp"></span>
+          </div>
+          <!-- Edits stay here until Put on stream: a half-typed tag never
+               reaches the broadcast, and a push can't undo one. -->
+          <div class="caster-list" id="casters-list"></div>
+          <button class="key ghost wide" id="btn-caster-add" type="button">+ Caster</button>
+          <div class="key-row">
+            <button class="key go" id="btn-casters-save" type="button">Put on stream</button>
+            <button class="key" id="btn-casters-revert" type="button">Revert</button>
+          </div>
+          <div class="hint">Caster 1 is <b>/o/casters?i=0</b>, caster 2 <b>?i=1</b> — keep each under their own cam. A blank tag hides that card. Tags from the player list fill in the rest.</div>
+        </div>
+        <datalist id="caster-suggest"></datalist>
+      </div>
+
+      <!-- ── Players ── -->
+      <div class="panel" id="panel-players">
+        <div class="card">
+          <div class="card-head">
+            <span class="label">Player list</span>
+            <span class="card-meta" id="players-stamp"></span>
+          </div>
+          <input class="filter" id="player-search" type="search" placeholder="Find a player by tag…" spellcheck="false" />
+          <div class="player-list" id="players-list"></div>
+          <div class="hint">The icon is the main a player's sets open on: <b>pinned</b> (tap it to pin one) beats what Slippi has <b>learned</b>, which is updated when each set is reported or replaced.</div>
+        </div>
+      </div>
+
       <!-- ── Clips ── -->
       <div class="panel" id="panel-clips">
         <div class="card">
@@ -147,6 +183,35 @@
           <div class="clip-list" id="clip-list"></div>
         </div>
       </div>
+
+      <!-- ── Setup ── -->
+      <div class="panel" id="panel-setup">
+        <div class="card">
+          <div class="card-head">
+            <span class="label">OBS browser sources</span>
+            <span class="card-meta" id="setup-theme"></span>
+          </div>
+          <div id="setup-overlays"></div>
+          <div class="hint">Add each as a Browser source at its size. The theme pack is the one <b>@import</b> in overlays/theme.css.</div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <span class="label">Hotkeys</span>
+            <span class="badge" id="hotkeys-mode">—</span>
+          </div>
+          <div id="setup-hotkeys"></div>
+          <div class="hint" id="hotkeys-hint"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="label">This dock on a phone</span></div>
+          <div id="setup-lan"></div>
+          <div class="hint">Any device on the same network. Tailscale addresses survive a venue's network and its guest Wi-Fi.</div>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="label">This machine</span></div>
+          <div class="facts" id="setup-files"></div>
+        </div>
+      </div>
     </section>
   </div>
 
@@ -155,7 +220,7 @@
     <div class="sheet-card" role="dialog" aria-label="Character">
       <div class="sheet-head">
         <div>
-          <div class="label">Character</div>
+          <div class="label" id="picker-title">Character</div>
           <div class="sheet-who" id="picker-who"></div>
         </div>
         <button class="key mini" id="picker-close" type="button">Close</button>

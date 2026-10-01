@@ -356,6 +356,9 @@ class EventService extends EventEmitter {
       }
     }
 
+    // The outgoing set's mains are learned first, so a player who was just in
+    // it opens this one on what they played.
+    this._store.closeSet();
     const payload = loadPayload(group.graph, id);
     this._enrich(payload);
     this._store.loadSet(payload);

@@ -22,6 +22,21 @@ const config = {
   // Port→side assignment has no config: lib/ports/port-map.js derives it per
   // game from the last game's characters or the players' mains, then port order.
 
+  // ── Global hotkeys ─────────────────────────────────────────────────────────
+  // Work whichever window has focus — and still reach that window too, so pick
+  // chords nothing on the stream PC uses. Each needs Ctrl, Alt or Win; null
+  // turns one off. Merged per key over these defaults (lib/hotkey.js), so a
+  // config.local.js HOTKEYS can move one key without restating the rest. The
+  // dock's Setup tab lists what actually got bound.
+  HOTKEYS: {
+    swapPorts:   "Ctrl+Shift+S",      // the ports are the wrong way round
+    switchSides: "Ctrl+Shift+X",      // the two sides trade columns on stream
+    leftPlus:    "Ctrl+Shift+1",      // a game to the left side
+    rightPlus:   "Ctrl+Shift+2",
+    leftMinus:   "Ctrl+Shift+Alt+1",  // take the left side's last game away
+    rightMinus:  "Ctrl+Shift+Alt+2",
+  },
+
   // ── Combo Clipper ──────────────────────────────────────────────────────────
   // Starting values for live combo detection → OBS replay-buffer saves. These
   // are only DEFAULTS: the control panel writes operator edits to the gitignored

@@ -150,6 +150,20 @@ const called = (gg, method) => gg.calls.filter((c) => c.method === method);
     assert.strictEqual(other.players[0].main, null, "and no invented main");
   });
 
+  await test("the outgoing set is closed before the incoming players' mains are read", async () => {
+    // Mains learning commits on set-closing; a player in back-to-back sets
+    // must open the second on what they played in the first.
+    const { svc, store, playerDb: db } = setup("hundred-acres-51", { records: [
+      { prefix: "Team1", gamerTag: "Player1", name: "", mains: { ssbm: [["Captain Falcon", 3, ""]] } },
+    ] });
+    store.on("set-closing", () => db.learnMain(db.find({ tag: "Player1" }), { name: "Fox", skin: 1 }));
+    await svc.switchEvent("singles");
+    const row = svc.openSets().find((s) => s.names.includes("Player1"));
+    await svc.loadSet(row.setId);
+    const p = store.scoreboard().sides.map((s) => s.players[0]).find((x) => x.tag === "Player1");
+    assert.deepStrictEqual(p.main, { codename: "fox", name: "Fox", skin: 1 });
+  });
+
   await test("a real set is re-read before it loads; a failed re-read still loads, with a warning", async () => {
     const startgg = fakeStartgg("hundred-acres-49");
     const { svc, store } = setup("hundred-acres-49", { startgg });

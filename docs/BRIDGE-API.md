@@ -216,14 +216,14 @@ Two consumer rules learned the hard way:
 
 All under `http://localhost:5001`. Responses are `{ ok, error?, data? }` — the same convention as `lib/tsh-client.js` and `lib/startgg-client.js` — with the exception of `/api/status`, which returns the status object directly.
 
-On this branch the routes live in `lib/server/api/` by what they act on (`status`, `scoreboard`, `event`, `casters`, `clipper`), and there is **no CORS**: the dock and every overlay are served from the app's own origin. (Master's permissive CORS existed for the control panel opened as a `file://` page.)
+On this branch the routes live in `lib/server/api/` by what they act on (`status`, `scoreboard`, `event`, `players`, `casters`, `clipper`, `setup`), and there is **no CORS**: the dock and every overlay are served from the app's own origin. (Master's permissive CORS existed for the control panel opened as a `file://` page.)
 
 | Method | Route | Purpose |
 |---|---|---|
 | `GET` | `/dock` | The operator's dock (`public/dock/`). `/` and `/control` redirect here |
 | `GET` | `/api/identity` | `{ app: "slippi-bridge", pid }` — how a starting bridge recognises a stale one before killing it (see Port Reclaim in [CLAUDE.md](../CLAUDE.md)) |
 | `GET` | `/api/status` | The `control_status` object above |
-| `POST` | `/api/swap` | Flip the internal port→team map. Same as `Ctrl+Shift+S`. Does **not** touch TSH |
+| `POST` | `/api/swap` | Flip the internal port→team map. Same as the swap-ports hotkey (`Ctrl+Shift+S` by default). Does **not** touch TSH |
 | `POST` | `/api/swap-sides` | Press TSH's own Swap Teams — moves names **and scores** across columns |
 | `POST` | `/api/reresolve` | Throw the port→team mapping away and re-derive it from TSH's current names and characters. No body. Needs a live game |
 | `POST` | `/api/pull-stream` | Pull the next queued stream set onto the scoreboard |
@@ -240,7 +240,11 @@ On this branch the routes live in `lib/server/api/` by what they act on (`status
 | `POST` | `/api/player` | `{ side, index, tag?, prefix?, pronoun? }` — the names shown. The start.gg entrant behind the side is untouched, so a corrected tag still reports to the right one |
 | `POST` | `/api/character` | `{ side, index, codename, skin }`, or `codename: null` for none. Also becomes the player's `main` for the set, which the port map matches the next game's Slippi characters against |
 | `POST` | `/api/set-text` | `{ round?, bestOf?, losers?: [bool\|null, bool\|null] }` — overrides; `null` goes back to derived. Send **both** `losers` entries: JSON turns a missing one into `null`, which clears that side's override |
-| `POST` | `/api/clear-set` | An empty scoreboard, for a set that isn't on start.gg |
+| `POST` | `/api/clear-set` | An empty scoreboard, for a set that isn't on start.gg. The outgoing set's mains are learned first (as on any load) |
+| `GET` | `/api/players[?q=]` | The player DB: tags starting with `q`, then containing it; no `q` = the scoreboard's players. Each `{ ref, tag, prefix, pronoun, twitter, startggPlayerId, main, pinnedMain, learnedMains, onAir }`, mains as `{ codename, name, skin }` |
+| `POST` | `/api/players/update` | `{ ref, tag, prefix?, pronoun?, twitter? }`. **`tag` must match the record at `ref`** (409 otherwise — a stale search can't edit someone else). A player on the scoreboard shows a prefix/pronoun change at once |
+| `POST` | `/api/players/pin` | `{ ref, tag, codename, skin }` pins the main a player's sets open on (beats learned); `codename: null` unpins. Doesn't change the set on air |
+| `GET` | `/api/setup` | The Setup tab: `{ overlays: [{ name, path, size, note? }], base, lan: [{ url, name, tailscale }], hotkeys: { mode, bindings, errors }, players: { file, count }, slippiFolder, startgg: { token, shortLink }, theme }` |
 | `POST` | `/api/bracket-view` | `{ view?, phaseGroupId? }` — what every bracket source not pinned with `?view=` shows. `phaseGroupId: null` goes back to following the set on air. 400 for an unknown view or a group not in the loaded event |
 | `GET` | `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters[?i=N]` | The OBS browser sources. `?animate=false` skips the entrances |
 | `GET` | `/o/side-panel[?panel=<id>]` | The 611×1080 panel beside the cam. `?panel=` holds one panel (for styling) |

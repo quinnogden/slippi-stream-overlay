@@ -12,13 +12,14 @@ const isTailscale = (ip) => /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(ip);
 
 /**
  * @param {{ BRIDGE_PORT: number }} config
- * @returns {string[]} one console-ready line per reachable address
+ * @returns {Array<{ url: string, name: string, tailscale: boolean }>} the dock's
+ *   url on each reachable address
  *
  * Tailscale addresses sort first: they don't change with the network and tunnel
  * through the client isolation that most guest Wi-Fi runs, which plain LAN
  * addresses can't.
  */
-function lanControlUrls(config) {
+function lanDockUrls(config) {
   const addrs = [];
 
   for (const [name, list] of Object.entries(os.networkInterfaces())) {
@@ -34,7 +35,16 @@ function lanControlUrls(config) {
   }
 
   addrs.sort((a, b) => Number(isTailscale(b.address)) - Number(isTailscale(a.address)));
-  return addrs.map((a) => `http://${a.address}:${config.BRIDGE_PORT}/dock  (${a.name})`);
+  return addrs.map((a) => ({
+    url: `http://${a.address}:${config.BRIDGE_PORT}/dock`,
+    name: a.name,
+    tailscale: isTailscale(a.address),
+  }));
 }
 
-module.exports = { lanControlUrls };
+/** lanDockUrls() as console-ready lines. */
+function lanControlUrls(config) {
+  return lanDockUrls(config).map((a) => `${a.url}  (${a.name})`);
+}
+
+module.exports = { lanControlUrls, lanDockUrls };

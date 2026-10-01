@@ -35,8 +35,10 @@ const { createOverlayChannel } = require("./lib/overlay/channel");
 const { createState }        = require("./lib/state");
 const { createModes }        = require("./lib/modes");
 const { createClipRecorder } = require("./lib/clip-recorder");
-const { installHotkey }      = require("./lib/hotkey");
-const { lanControlUrls }     = require("./lib/lan-urls");
+const { installHotkeys }     = require("./lib/hotkey");
+const { lanControlUrls, lanDockUrls } = require("./lib/lan-urls");
+const { createMainsLearning } = require("./lib/players/mains-learning");
+const { activeThemePack }     = require("./lib/server/api/setup");
 const { createServer }        = require("./lib/server/app");
 const { createControlStatus } = require("./lib/server/control-status");
 const { createReportSet }     = require("./lib/server/report-set");
@@ -91,6 +93,8 @@ const ctx = {
 ctx.event = new EventService(ctx);
 // …and the bracket overlay's slice of it, published into the store.
 const bracketFeed = createBracketFeed({ event: ctx.event, store, playerDb: ctx.playerDb });
+// What each player played, into the player DB once their set is over.
+const mainsLearning = createMainsLearning({ store, playerDb: ctx.playerDb });
 
 // ── Features ──────────────────────────────────────────────────────────────────
 // Ordered so each only depends on what is already built.
@@ -105,10 +109,12 @@ const { startCurrentSet }  = createStartSet(ctx, controlStatus.refresh);
 
 // A reported set changes the bracket (the picker, the next sets' entrants) and
 // the side panel's stats (both players' runs, their head-to-head, the event's
-// finished sets), so both reload after it — once start.gg has caught up.
+// finished sets), so both reload after it — once start.gg has caught up. And
+// the set is over, so what its players played is learned.
 async function reportCurrentSet() {
   const result = await reportSet.reportCurrentSet();
   if (result.ok) {
+    mainsLearning.commit(undefined, "reported");
     playerStats.onSetReported();
     setTimeout(() => ctx.event.refresh({ background: true }), 3000).unref?.();
   }
@@ -121,6 +127,31 @@ function swapPorts() {
   return result;
 }
 
+// The global hotkeys (config.HOTKEYS). They land blind — the operator is
+// looking at OBS or the game — so each one says what it did in the console.
+const scoreLine = () => store.scoreboard().sides.map((s) => s.score).join("–");
+function hotkeyScore(side, delta) {
+  store.bump(side, delta);
+  console.log(`[hotkey] ${side === 0 ? "Left" : "Right"} ${delta > 0 ? "+1" : "−1"} → ${scoreLine()}`);
+  controlStatus.refresh();
+}
+const hotkeys = installHotkeys(config.HOTKEYS, {
+  swapPorts: () => {
+    const r = swapPorts();
+    console.log(`[hotkey] Swap ports${r.ok ? "" : ` — ${r.error}`}`);
+  },
+  switchSides: () => {
+    store.switchSides();
+    console.log(`[hotkey] Switch sides → ${scoreLine()}`);
+    controlStatus.refresh();
+  },
+  leftPlus:   () => hotkeyScore(0, 1),
+  rightPlus:  () => hotkeyScore(1, 1),
+  leftMinus:  () => hotkeyScore(0, -1),
+  rightMinus: () => hotkeyScore(1, -1),
+});
+for (const err of hotkeys.errors) console.warn(`[hotkey] ${err} — left unbound`);
+
 const overlaysDir = path.resolve(__dirname, "..", "overlays");
 registerOverlays(app, { overlaysDir });
 
@@ -129,6 +160,7 @@ registerRoutes(app, {
   iconsDir: path.join(overlaysDir, "assets", "icons"),
   store,
   event: ctx.event,
+  playerDb: ctx.playerDb,
   clipperSettings,
   obs: ctx.obs,
   refreshControlStatus: controlStatus.refresh,
@@ -140,13 +172,20 @@ registerRoutes(app, {
   reresolvePorts: modes.reresolvePorts,
   recordClip: clipRecorder.recordClip,
   playerStatsSnapshot: playerStats.snapshot,
+  setupInfo: () => ({
+    base: `http://localhost:${config.BRIDGE_PORT}`,
+    lan: lanDockUrls(config),
+    hotkeys,
+    players: { file: playersFile, count: ctx.playerDb.size },
+    slippiFolder: config.SLP_FOLDER,
+    startgg: { token: ctx.startgg.enabled, shortLink: ctx.event.shortLink ?? null },
+    theme: activeThemePack(overlaysDir),
+  }),
 });
 
 // Rebuild the dock's status every 2s; it goes out when it changed, and every
 // 5s regardless (control-status.js).
 setInterval(controlStatus.refresh, 2000);
-
-const hotkeyMode = installHotkey(swapPorts);
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 const clipper = clipperSettings.get();
@@ -173,11 +212,12 @@ console.log(`[bridge] Event:          ${loadedEvent.eventSlug
 console.log(`[bridge] Combo clipper:  ${clipper.enabled
   ? `enabled → OBS at ${clipper.obsUrl}`
   : "disabled (turn it on in the dock's Clips tab)"}`);
-console.log(`[bridge] Keyboard:       ${hotkeyMode === "global"
-  ? "Ctrl+Shift+S = swap ports"
-  : hotkeyMode === "terminal"
-    ? "press S in this terminal = swap ports (uiohook-napi unavailable)"
-    : "no swap hotkey available (uiohook-napi unavailable, not a TTY)"}`);
+const keyList = hotkeys.bindings.map((b) => `${b.chord} ${b.label.toLowerCase()}`).join(" · ");
+console.log(`[bridge] Keyboard:       ${hotkeys.mode === "global"
+  ? keyList || "no hotkeys bound (config.HOTKEYS)"
+  : hotkeys.mode === "terminal"
+    ? `keys in this terminal (uiohook-napi unavailable): ${keyList}`
+    : "no hotkeys (uiohook-napi unavailable, not a TTY)"}`);
 console.log();
 
 ctx.state.source = createFolderSource(config, ctx.comboDetector);

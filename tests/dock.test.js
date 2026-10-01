@@ -17,16 +17,24 @@
  *     entry into null and null clears the other side's override;
  *   - Report and a load over a set in progress ask first, and Cancel really
  *     cancels (the old confirm came back on the next redraw);
- *   - a malformed status never freezes the dock.
+ *   - a malformed status never freezes the dock;
+ *   - the casters are a draft until Put on stream, and a push doesn't undo it;
+ *   - a player-list edit to someone on stream shows on stream; a pin lands in
+ *     the DB through the same picker; a stale search can't edit someone else;
+ *   - the Setup tab's urls are the full ones OBS needs, and the bound chords
+ *     reach the strip's keys.
  *
  * Usage: node tests/dock.test.js
  */
 
 const assert  = require("assert");
+const fs      = require("fs");
+const os      = require("os");
 const path    = require("path");
 const express = require("../slippi-bridge/node_modules/express");
 
 const { ScoreboardStore } = require("../slippi-bridge/lib/scoreboard/store");
+const { PlayerDb } = require("../slippi-bridge/lib/players/player-db");
 const { createOverlayChannel } = require("../slippi-bridge/lib/overlay/channel");
 const { registerRoutes } = require("../slippi-bridge/lib/server/routes");
 const { resolveOverlayPath } = require("../slippi-bridge/lib/server/overlays");
@@ -63,6 +71,39 @@ const fresh = (payload) => ({ ...payload, sides: payload.sides.map((s) => ({ ...
 const preview = eventFrom("hundred-acres-51", "singles");
 const pgraph = buildBracket(preview.sets, { phaseGroupId: preview.phaseGroup.id });
 
+const PLAYER2_ID = LOSERS_FINAL.sides[0].players[0].playerId;
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "dock-"));
+let dbNo = 0;
+
+/** The player list: Player2 (on the Losers Final's left) and a caster. */
+function playerDb() {
+  const file = path.join(TMP, `players-${++dbNo}.json`);
+  fs.writeFileSync(file, JSON.stringify([
+    { prefix: "Team1", gamerTag: "Player2", name: "", pronoun: "", startggPlayerId: PLAYER2_ID,
+      mains: { ssbm: [] }, learnedMains: [["Fox", 2], ["Falco", 0]] },
+    { prefix: "", gamerTag: "Commentator", name: "", pronoun: "he/him", twitter: "@comms", mains: { ssbm: [] } },
+    { prefix: "", gamerTag: "xPlayer", name: "", mains: { ssbm: [] } },
+  ]));
+  return new PlayerDb(file, { debounceMs: 60000 });
+}
+
+const SETUP = {
+  base: "http://localhost:5001",
+  lan: [{ url: "http://100.70.1.2:5001/dock", name: "Tailscale", tailscale: true }],
+  hotkeys: {
+    mode: "global",
+    bindings: [
+      { action: "swapPorts", label: "Swap ports", chord: "Ctrl+Shift+S" },
+      { action: "leftPlus", label: "Left +1", chord: "Ctrl+Shift+1" },
+    ],
+    errors: ['HOTKEYS.switchSides "Shift+X": needs Ctrl, Alt or Win'],
+  },
+  players: { file: "C:/stream/local_players.json", count: 3 },
+  slippiFolder: "C:/Slippi/Spectate",
+  startgg: { token: false, shortLink: "100-acres" },
+  theme: "hundred-acres",
+};
+
 /** Wait until `cond()` holds (a request, a patch and a redraw take a few ms). */
 async function until(cond, what, ms = 1000) {
   const end = Date.now() + ms;
@@ -95,6 +136,7 @@ async function rig() {
     },
   };
 
+  const db = playerDb();
   const app = express();
   app.use(express.json());
   registerRoutes(app, {
@@ -102,6 +144,8 @@ async function rig() {
     iconsDir: path.join(OVERLAYS, "assets", "icons"),
     store,
     event,
+    playerDb: db,
+    setupInfo: () => SETUP,
     clipperSettings: { save: () => ({ ok: true }), get: () => ({}) },
     obs: { applySettings() {}, saveReplayBuffer: async () => ({ ok: false, error: "no OBS here" }) },
     refreshControlStatus: async () => ({}),
@@ -133,7 +177,7 @@ async function rig() {
   const button = (root, label) => root.querySelectorAll("button").find((b) => b.textContent === label);
   const status = (s) => channel.emit("control_status", s);
 
-  return { store, channel, page, Dock, calls, side, tagInput, scoreText, keys, button, status, close: () => server.close() };
+  return { store, db, base, channel, page, Dock, calls, side, tagInput, scoreText, keys, button, status, close: () => server.close() };
 }
 
 (async () => {
@@ -381,6 +425,116 @@ async function rig() {
     } finally { r.close(); }
   });
 
+  await test("casters: a draft until Put on stream; a push doesn't undo it; the player list fills it in", async () => {
+    const r = await rig();
+    try {
+      r.store.setCasters([{ tag: "Caster A" }]);
+      const tagAt = (n) => r.page.$$("#casters-list .c-tag")[n];
+      await until(() => tagAt(0) && tagAt(0).value === "Caster A", "the caster on stream");
+      assert.strictEqual(r.page.$("#btn-casters-save").disabled, true, "nothing to put on stream yet");
+
+      tagAt(0).focus();
+      tagAt(0).value = "Caster B";
+      fire(tagAt(0), "input");
+      assert.strictEqual(r.page.$("#casters-stamp").textContent, "Not on stream yet");
+      assert.strictEqual(r.store.casters()[0].tag, "Caster A", "typing reaches nothing");
+
+      r.store.setCasters([{ tag: "Caster A", pronoun: "she/her" }]); // another dock, mid-word
+      await until(() => r.Dock.casterDraft && r.page.$("#btn-casters-save").disabled === false, "still a draft");
+      await sleep(20);
+      assert.strictEqual(tagAt(0).value, "Caster B", "the push didn't undo the edit");
+      tagAt(0).blur();
+
+      fire(r.page.$("#btn-caster-add"), "click");
+      await until(() => r.page.$$("#casters-list .c-tag").length === 2, "a second seat");
+      tagAt(1).value = "commentator";
+      fire(tagAt(1), "input");
+      fire(tagAt(1), "change");
+      await until(() => r.page.$$("#casters-list .c-pronoun")[1].value === "he/him", "filled from the player list");
+      assert.strictEqual(tagAt(1).value, "Commentator", "with the list's spelling");
+
+      fire(r.page.$("#btn-casters-save"), "click");
+      await until(() => r.store.casters().length === 2, "on stream");
+      assert.deepStrictEqual(r.store.casters().map((c) => [c.tag, c.pronoun, c.twitter]),
+        [["Caster B", "", ""], ["Commentator", "he/him", "@comms"]]);
+      await until(() => r.page.$("#btn-casters-save").disabled, "nothing left to send");
+
+      fire(r.page.$$("#casters-list .c-ops .key")[2], "click"); // caster 2: up a seat
+      assert.strictEqual(tagAt(0).value, "Commentator");
+      fire(r.page.$("#btn-casters-revert"), "click");
+      assert.strictEqual(tagAt(0).value, "Caster B", "Revert drops the draft");
+      assert.strictEqual(r.store.casters()[0].tag, "Caster B");
+    } finally { r.close(); }
+  });
+
+  await test("players: an edit to someone on stream shows on stream; a pin goes through the picker", async () => {
+    const r = await rig();
+    try {
+      r.store.loadSet(fresh(LOSERS_FINAL));
+      r.Dock.showTab("players");
+      const rows = () => r.page.$$("#players-list .pl-row");
+      await until(() => rows().length === 1, "the scoreboard's player who's in the list");
+      const row = () => rows()[0];
+      assert.match(texts(row().querySelector(".pl-name")).join(" "), /Player2.*On stream/);
+      assert.strictEqual(row().querySelector(".char img").src, "/assets/icons/chara_2_fox_02.png", "the learned main");
+      assert.strictEqual(row().querySelectorAll(".pl-learned img").length, 2);
+
+      fire(row().querySelector(".pl-name"), "click");
+      const inputs = row().querySelectorAll(".pl-edit input"); // team, pronouns, twitter
+      inputs[1].value = "she/her";
+      fire(r.button(row(), "Save"), "click");
+      await until(() => r.store.scoreboard().sides[0].players[0].pronoun === "she/her", "on stream at once");
+      assert.strictEqual(r.db.find({ tag: "Player2" }).pronoun, "she/her", "and in the player list");
+      await until(() => !row().querySelector(".pl-edit"), "the editor closes");
+
+      fire(row().querySelector(".char"), "click");
+      assert.strictEqual(r.page.$("#picker-title").textContent, "Pinned main");
+      const marth = r.page.$$("#picker-grid .tile").find((t) => t.dataset.codename === "marth");
+      fire(marth, "click");
+      await until(() => r.db.find({ tag: "Player2" }).pinnedMain, "pinned in the DB");
+      assert.deepStrictEqual(r.db.find({ tag: "Player2" }).pinnedMain, ["Marth", 0]);
+      await until(() => !r.page.$("#picker").classList.contains("open"), "the picker closes");
+      assert.ok(row().querySelector(".char").classList.contains("pinned"));
+      assert.deepStrictEqual(r.store.scoreboard().sides[0].players[0].character, null,
+        "pinning is for the next set — the one on stream keeps its character");
+
+      r.page.$("#player-search").value = "play";
+      fire(r.page.$("#player-search"), "input");
+      await until(() => rows().length === 2, "a search");
+      assert.deepStrictEqual(rows().map((x) => x.querySelector(".pl-tag").textContent), ["Player2", "xPlayer"],
+        "tags starting with it, then containing it");
+
+      // A ref from a search that no longer means that player.
+      const stale = await fetch(`${r.base}/api/players/update`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ref: 1, tag: "Player2", pronoun: "x" }),
+      });
+      assert.strictEqual(stale.status, 409);
+      assert.strictEqual(r.db.find({ tag: "Commentator" }).pronoun, "he/him");
+    } finally { r.close(); }
+  });
+
+  await test("setup: full overlay urls, the bound hotkeys, and their chords on the strip's keys", async () => {
+    const r = await rig();
+    try {
+      r.store.loadSet(fresh(LOSERS_FINAL));
+      r.Dock.showTab("setup");
+      await until(() => r.page.$$("#setup-overlays .u-url").length >= 6, "the overlays");
+      assert.strictEqual(r.page.$$("#setup-overlays .u-url")[0].value, "http://localhost:5001/o/scoreboard");
+      assert.strictEqual(r.page.$("#setup-theme").textContent, "Theme: hundred-acres");
+      assert.deepStrictEqual(r.page.$$("#setup-hotkeys .hk-row").map((x) => texts(x).join("")),
+        ["Swap portsCtrlShiftS", "Left +1CtrlShift1"]);
+      assert.match(texts(r.page.$("#hotkeys-hint")).join(""), /Shift\+X.*needs Ctrl/, "a chord that didn't bind says why");
+      assert.strictEqual(r.page.$$("#setup-lan .u-url")[0].value, "http://100.70.1.2:5001/dock");
+      assert.match(texts(r.page.$("#setup-files")).join(" "), /No token/);
+
+      await until(() => /\(Ctrl\+Shift\+S\)$/.test(r.page.$("#btn-ports").title), "the swap key names its chord");
+      assert.match(r.keys(0)[1].title, /\(Ctrl\+Shift\+1\)$/);
+      assert.doesNotMatch(r.keys(1)[1].title, /Ctrl/, "an unbound action names none");
+    } finally { r.close(); }
+  });
+
+  fs.rmSync(TMP, { recursive: true, force: true });
   console.log(failed === 0 ? "dock: all passed" : `dock: ${failed} failed`);
   // The dock's polls would keep Node alive.
   process.exit(failed === 0 ? 0 : 1);
