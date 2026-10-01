@@ -7,17 +7,19 @@
 
 const path = require("path");
 
+const MAX_CASTERS = 4;
+
 /**
  * @param {import("express").Express} app
  * @param {object} deps — {
- *   publicDir, event, clipperSettings, obs,
+ *   publicDir, store, event, clipperSettings, obs,
  *   refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet,
  *   swapPorts, switchSides, reresolvePorts, recordClip, playerStatsSnapshot
  * }
  */
 function registerRoutes(app, deps) {
   const {
-    publicDir, event, clipperSettings, obs,
+    publicDir, store, event, clipperSettings, obs,
     refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet, swapPorts,
     switchSides, reresolvePorts, recordClip, playerStatsSnapshot,
   } = deps;
@@ -108,6 +110,26 @@ function registerRoutes(app, deps) {
 
   app.post("/api/report", async (req, res) => {
     res.json(await reportCurrentSet());
+  });
+
+  // Everything the overlays are drawing — the same object `state:full` sends.
+  app.get("/api/state", (req, res) => {
+    res.json(store.snapshot());
+  });
+
+  // The caster name tags (the dock's Casters tab, M7). Each caster is
+  // { tag, prefix, pronoun, twitter }; an empty tag hides that caster's card.
+  app.get("/api/casters", (req, res) => {
+    res.json({ ok: true, casters: store.casters() });
+  });
+
+  app.post("/api/casters", (req, res) => {
+    const list = req.body?.casters;
+    if (!Array.isArray(list) || list.length > MAX_CASTERS || list.some((c) => !c || typeof c !== "object")) {
+      return res.status(400).json({ ok: false, error: `casters must be an array of up to ${MAX_CASTERS} objects` });
+    }
+    store.setCasters(list);
+    res.json({ ok: true, casters: store.casters() });
   });
 
   // The side panel's stats snapshot — the same object `player_stats` pushes.

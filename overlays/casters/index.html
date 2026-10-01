@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Casters</title>
+    <link rel="stylesheet" href="/o/shared/overlay.css" />
+    <link rel="stylesheet" href="/o/casters/casters.css" />
+  </head>
+  <!-- Caster name tags: mic, prefix, tag, pronouns. Every caster in a row,
+       or one per source with ?i=0, ?i=1 … so each can sit under its own cam.
+       A caster with no tag is hidden. -->
+  <body>
+    <div class="casters fade"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/o/shared/overlay-client.js"></script>
+    <script src="/o/casters/casters.js"></script>
+  </body>
+</html>

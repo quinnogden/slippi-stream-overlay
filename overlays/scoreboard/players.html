@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Scoreboard — players</title>
+    <link rel="stylesheet" href="/o/shared/overlay.css" />
+    <link rel="stylesheet" href="/o/scoreboard/scoreboard.css" />
+  </head>
+  <!-- The thin name-and-score bar along the bottom, with the round card
+       between the names and the tournament logo above. 1920×1080. -->
+  <body class="fgc thin meleePlayer">
+    <div class="logo fade"></div>
+
+    <div class="stage">
+      <div class="player_row">
+        <div class="info top container fade_down">
+          <div class="match">
+            <span class="text round"></span>
+            <span class="text best-of"></span>
+          </div>
+        </div>
+
+        <div class="p1 player container fade_right" data-side="0">
+          <div class="name"><span class="text"></span></div>
+          <div class="score"><span class="text"></span></div>
+        </div>
+        <div class="p2 player container fade_left" data-side="1">
+          <div class="name"><span class="text"></span></div>
+          <div class="score"><span class="text"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/o/shared/overlay-client.js"></script>
+    <script src="/o/scoreboard/scoreboard.js"></script>
+  </body>
+</html>

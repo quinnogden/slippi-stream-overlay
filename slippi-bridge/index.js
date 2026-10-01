@@ -29,6 +29,7 @@ const { createPersist }      = require("./lib/scoreboard/persist");
 const { PortMap }            = require("./lib/ports/port-map");
 const { PlayerDb }           = require("./lib/players/player-db");
 const { EventService }       = require("./lib/event/event-service");
+const { createOverlayChannel } = require("./lib/overlay/channel");
 
 const { createState }        = require("./lib/state");
 const { createModes }        = require("./lib/modes");
@@ -40,6 +41,7 @@ const { createControlStatus } = require("./lib/server/control-status");
 const { createReportSet }     = require("./lib/server/report-set");
 const { createStartSet }      = require("./lib/server/start-set");
 const { registerRoutes }      = require("./lib/server/routes");
+const { registerOverlays }    = require("./lib/server/overlays");
 const { createPlayerStats }   = require("./lib/stats");
 
 // ── Server ────────────────────────────────────────────────────────────────────
@@ -57,11 +59,16 @@ const persist = createPersist(store, path.join(__dirname, "data", "live-state.js
 if (persist.restore()) console.log("[bridge] Restored the scoreboard from data/live-state.json");
 persist.start();
 
-// The player DB is TSH's local_players.json. Until the TSH folder goes (M8),
-// an unset PLAYERS_FILE means the one in the TSH install next to this repo.
-const playersFile = config.PLAYERS_FILE ?? path.join(
-  resolveOrExit(path.resolve(__dirname, ".."), config.TSH_ROOT, "bridge"),
-  "user_data", "local_players.json");
+// Until the TSH folder goes (M8) two things still live in it: the player DB
+// (TSH's local_players.json, the default when PLAYERS_FILE is unset) and the
+// theme packs, which the TSH-era side panel, bracket and highlights read too.
+const TSH_ROOT    = resolveOrExit(path.resolve(__dirname, ".."), config.TSH_ROOT, "bridge");
+const playersFile = config.PLAYERS_FILE ?? path.join(TSH_ROOT, "user_data", "local_players.json");
+
+// The overlays' and dock's live feed. The feature modules emit through it (as
+// ctx.io): it sends each event on the default namespace as before, and on
+// /overlay and /dock under the channel's names.
+const channel = createOverlayChannel({ io, store });
 
 /**
  * Everything the feature modules need, in one object. Each lib/ module takes
@@ -69,7 +76,7 @@ const playersFile = config.PLAYERS_FILE ?? path.join(
  */
 const ctx = {
   config,
-  io,
+  io:              channel,
   state:           createState(),
   store,
   portMap:         new PortMap(),
@@ -112,8 +119,14 @@ function swapPorts() {
   return result;
 }
 
+registerOverlays(app, {
+  overlaysDir: path.resolve(__dirname, "..", "overlays"),
+  themeRoot:   path.join(TSH_ROOT, "layout"),
+});
+
 registerRoutes(app, {
   publicDir: path.join(__dirname, "public"),
+  store,
   event: ctx.event,
   clipperSettings,
   obs: ctx.obs,
@@ -128,6 +141,8 @@ registerRoutes(app, {
   playerStatsSnapshot: playerStats.snapshot,
 });
 
+// The default namespace: the control panel and the TSH-era side panel, until
+// they move onto the channel (M5/M6). /overlay and /dock replay their own.
 io.on("connection", (socket) => {
   console.log(`[bridge] Layout connected: ${socket.id}`);
   if (ctx.state.currentGameState) {
@@ -150,6 +165,7 @@ const clipper = clipperSettings.get();
 console.log("[bridge] Starting slippi-bridge...");
 console.log(`[bridge] Bridge port:    ${config.BRIDGE_PORT}`);
 console.log(`[bridge] Control panel:  http://localhost:${config.BRIDGE_PORT}/control`);
+console.log(`[bridge] Overlays:       http://localhost:${config.BRIDGE_PORT}/o/scoreboard  (also /o/scoreboard/players, /o/casters)`);
 for (const url of lanControlUrls(config)) {
   console.log(`[bridge]   on phone:    ${url}`);
 }

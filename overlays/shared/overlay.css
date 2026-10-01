@@ -1,0 +1,69 @@
+/* ============================================================
+   Base for every overlay page: the active theme pack, the shared
+   tokens, the page fade-in, and the entrance animations.
+
+   Link this one file; it @imports the theme switch, which @imports
+   the pack. Must sit one level under /o/ (see lib/server/overlays.js:
+   a pack's --logo-url resolves against the stylesheet using it).
+   ============================================================ */
+
+@import url("/o/theme.css");
+
+:root {
+  /* Raised-card depth: an outer drop shadow plus inner edge lighting.
+     Same stack as the TSH-era main.css, which the side panel and
+     highlights still read until they move here. */
+  --shadow-raised:
+    0 8px 32px rgba(0,0,0,0.60),
+    0 3px 8px  rgba(0,0,0,0.45),
+    inset 0  1px 0 rgba(255,255,255,0.07),
+    inset 0 -1px 0 rgba(0,0,0,0.35);
+
+  /* The entrance: TSH layouts ran GSAP's power2.out over 2s. */
+  --enter-time: 2s;
+  --enter-ease: cubic-bezier(0.5, 1, 0.89, 1);
+}
+
+/* Hidden until overlay-client.js has drawn the first state and the
+   fonts are in, so a source never flashes empty boxes or a fallback face. */
+body {
+  opacity: 0;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+body.ready { opacity: 1; }
+
+/* Text lift — TSH's `.text` shadow, which every name and score had. */
+.text {
+  white-space: nowrap;
+  text-shadow:
+    0 2px 4px  rgba(0,0,0,0.85),
+    0 4px 12px rgba(0,0,0,0.50);
+}
+
+/* ── Entrances ────────────────────────────────────────────────
+   Played once, when body becomes .ready. Classes kept from the
+   TSH layouts so the markup reads the same.
+
+   Offsets are `transform`, not the `translate` property: OBS before
+   31 ships Chromium 103, which predates `translate`. An element that
+   already has a transform (a translateX(-50%) centring) must repeat
+   it as --base-transform, or the entrance would drop it for 2s.
+   ─────────────────────────────────────────────────────────── */
+@keyframes ov-fade  { from { opacity: 0; } }
+@keyframes ov-right { from { opacity: 0; transform: var(--base-transform, translate(0)) translateX(-20px); } }
+@keyframes ov-left  { from { opacity: 0; transform: var(--base-transform, translate(0)) translateX(20px); } }
+@keyframes ov-down  { from { opacity: 0; transform: var(--base-transform, translate(0)) translateY(-20px); } }
+@keyframes ov-up    { from { opacity: 0; transform: var(--base-transform, translate(0)) translateY(20px); } }
+
+.ready .fade       { animation: ov-fade  var(--enter-time) var(--enter-ease) both; }
+.ready .fade_right { animation: ov-right var(--enter-time) var(--enter-ease) both; }
+.ready .fade_left  { animation: ov-left  var(--enter-time) var(--enter-ease) both; }
+.ready .fade_down  { animation: ov-down  var(--enter-time) var(--enter-ease) both; }
+.ready .fade_up    { animation: ov-up    var(--enter-time) var(--enter-ease) both; }
+
+.no-animate *, .no-animate *::before, .no-animate *::after {
+  animation: none !important;
+  transition: none !important;
+}

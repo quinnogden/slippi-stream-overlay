@@ -29,7 +29,7 @@ function createSingles(ctx) {
         playerIndex: raw.playerIndex,
         side,
         slot: 0,
-        teamNum: side + 1, // legacy Socket.io field, until the overlay channel (M4)
+        teamNum: side + 1, // TSH-era field (its scoreboard read it); goes with the default namespace
         costumeIndex: skin,
         codename: ch.codename,
         display: ch.display,

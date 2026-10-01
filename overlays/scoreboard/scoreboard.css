@@ -1,0 +1,471 @@
+/* The scoreboard overlays: index.html (body.melee) and players.html
+   (body.fgc.thin.meleePlayer). Ported from the TSH layout's index.css with
+   the same geometry — the only selectors that changed are the ones that
+   matched TSH's generated markup (.text_empty, the character wrappers). */
+
+body {
+  font-family: var(--font);
+  font-weight: bold;
+  width: 1920px;
+  height: 1080px;
+  filter:
+    drop-shadow(0 4px 8px  rgba(0,0,0,0.35))
+    drop-shadow(0 2px 3px  rgba(0,0,0,0.25))
+    drop-shadow(0 1px 1px  rgba(0,0,0,0.20));
+}
+
+.stage {
+  position: absolute;
+  overflow: hidden;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1920px;
+  height: 1080px;
+}
+
+.player_row {
+  position: relative;
+  top: 1000px;
+}
+
+.melee_row {
+  position: relative;
+  top: -25px;
+  left: -305px;
+}
+
+/* ── Base container ───────────────────────────────────────────
+   Raised card: outer drop shadows + inner edge lighting.
+   ─────────────────────────────────────────────────────────── */
+.container {
+  position: absolute;
+  color: var(--text-color);
+  overflow: hidden;
+  display: flex;
+  box-sizing: border-box;
+  border-radius: var(--border-radius);
+  background: var(--bg-color);
+  align-items: center;
+  box-shadow: var(--shadow-raised);
+}
+
+.player.container {
+  width: 500px;
+  height: 64px;
+  top: 42px;
+  padding: 0px 6px;
+}
+
+.fgc.thin .player.container {
+  top: 2px;
+  height: 48px;
+  width: 640px;
+}
+
+.fgc.thin.meleePlayer .player.container {
+  top: 2px;
+  height: 48px;
+  width: 550px;
+}
+
+.p1.container {
+  left: 380px;
+  flex-direction: row;
+}
+
+.fgc.thin .p1.container {
+  left: 164px;
+}
+
+.p2.container {
+  right: 380px;
+  flex-direction: row-reverse;
+}
+
+.fgc.thin .p2.container {
+  right: 164px;
+}
+
+.thin .player.container {
+  padding: 0 8px;
+}
+
+/* ── Player name ─────────────────────────────────────────────
+   Layered dark drop shadows for lift (.text, overlay.css), wider
+   letter-spacing. No uppercase — names stay as typed. A name too
+   long for its card is squeezed horizontally (Overlay.squeeze).
+   ─────────────────────────────────────────────────────────── */
+.name {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  justify-content: center;
+  padding: 5px 8px 5px 8px;
+  box-sizing: border-box;
+  max-width: 100%;
+  font-size: 35px;
+  letter-spacing: 0.06em;
+}
+
+.name > .text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100%;
+  width: fit-content;
+  transform-origin: left;
+}
+
+.name > .text:not(.empty) {
+  margin-left: 4px;
+  margin-right: 4px;
+}
+
+.sponsor {
+  margin-right: 6px;
+  color: var(--sponsor-color);
+}
+
+/* ── Chip badges ─────────────────────────────────────────────
+   Small raised pill: shadow + gold rim scaled to chip size.
+   ─────────────────────────────────────────────────────────── */
+.chips {
+  display: flex;
+  position: absolute;
+  top: 112px;
+  width: 500px;
+  height: 24px;
+  justify-content: right;
+  align-content: center;
+  overflow: hidden;
+}
+
+.chip {
+  overflow: hidden;
+  border-radius: calc(var(--border-radius) / 2);
+}
+
+.chip.empty {
+  visibility: hidden;
+}
+
+.p1.chips {
+  left: 380px;
+  justify-content: left;
+}
+
+.p2.chips {
+  flex-direction: row-reverse;
+  left: 1040px;
+}
+
+.chip .text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  margin-right: 4px;
+  height: 24px;
+  font-size: 18px;
+  background: var(--bg-color);
+  color: var(--darkened-text);
+  border-radius: calc(var(--border-radius) / 4);
+  padding-left: 8px;
+  padding-right: 8px;
+  letter-spacing: 0.06em;
+  box-shadow:
+    0 2px 8px  rgba(0,0,0,0.50),
+    0 1px 3px  rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+/* ── Logo (players.html) ─────────────────────────────────── */
+.logo {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  background-image: var(--logo-url);          /* from the active theme pack */
+  filter:           var(--logo-filter, none); /* packs recolour their own artwork */
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  border-radius: var(--border-radius);
+  z-index: 9;
+}
+
+.fgc.thin.meleePlayer .logo {
+  top: 742px;
+  width: 260px;
+  height: 260px;
+}
+
+/* ── Match info container ────────────────────────────────────
+   Round name over the best-of label.
+   ─────────────────────────────────────────────────────────── */
+.info.container {
+  left: 50%;
+  padding-left: 20px;
+  padding-right: 20px;
+  text-transform: uppercase;
+  box-sizing: border-box;
+  font-size: 20px;
+}
+
+.match {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  font-size: 24px;
+  letter-spacing: 0.10em;
+  text-align: center;
+}
+
+.match .best-of {
+  font-size: 0.7em;
+  margin-top: 4px;
+}
+
+.match .text.empty {
+  display: none;
+}
+
+.info.container.top {
+  /* Repeated for the entrance animation — see overlay.css. */
+  --base-transform: translateX(-50%);
+  transform: var(--base-transform);
+  justify-content: center;
+  flex-direction: column;
+  height: 36px;
+  padding: 8px 16px;
+}
+
+.fgc .info.container.top {
+  top: 8px;
+  height: 34px;
+  width: 290px;
+  font-size: 16px;
+  padding: 8px 16px;
+  border-radius: calc(var(--border-radius) / 2);
+}
+
+.fgc.thin .info.container.top {
+  top: 2px;
+  height: 48px;
+}
+
+.meleePlayer .info.container.top {
+  border-radius: var(--border-radius);
+  background: var(--score-bg-color);
+}
+
+.info.container.bottom {
+  justify-content: center;
+  flex-direction: column;
+  width: 280px;
+  height: 64px;
+  font-size: 20px;
+}
+
+.melee .info.container.bottom {
+  --base-transform: translateX(-50%);
+  transform: var(--base-transform);
+  bottom: -5px;
+  padding: 16px 24px;
+  left: 660px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Gold accent line on the info cards only — not the player containers */
+.meleePlayer .info.container.top::before,
+.info.container.bottom::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 15%; right: 15%;
+  height: 1.5px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--darkened-text) 25%,
+    var(--text-color)    50%,
+    var(--darkened-text) 75%,
+    transparent
+  );
+  opacity: 0.22;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* ── Character icon ──────────────────────────────────────────
+   The icon floats: a drop shadow on the image, no box.
+   ─────────────────────────────────────────────────────────── */
+.character_container {
+  display: flex;
+  position: relative;
+  height: 100%;
+  flex-shrink: 0;
+  width: auto;
+  align-items: center;
+  gap: 4px;
+  --team-swatch-size: 48px;
+}
+
+.character_container .char {
+  height: 48px;
+  width: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 3px 3px rgba(0,0,0,0.60));
+}
+
+.character_container .char img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* ── Doubles team swatch ──────────────────────────────────────
+   Stronger border, inset highlight for a physical chip feel.
+   ─────────────────────────────────────────────────────────── */
+.character_container.team-color {
+  width: calc(var(--team-swatch-size) + 16px);
+}
+
+.character_container.team-color::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  transform: translateY(-50%);
+  width: var(--team-swatch-size);
+  height: var(--team-swatch-size);
+  background: var(--team-color);
+  border-radius: calc(var(--border-radius) / 3);
+  z-index: 0;
+  border: 1px solid rgba(0,0,0,0.35);
+  box-shadow:
+    0 4px 12px rgba(0,0,0,0.55),
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -1px 0 rgba(0,0,0,0.25);
+}
+
+/* Gradient highlight overlay on the swatch */
+.character_container.team-color::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  transform: translateY(-50%);
+  width: var(--team-swatch-size);
+  height: var(--team-swatch-size);
+  border-radius: calc(var(--border-radius) / 3);
+  background: linear-gradient(
+    rgba(255,255,255,0.14) 0%,
+    rgba(255,255,255,0.04) 45%,
+    rgba(0,0,0,0.08) 100%
+  );
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* p2 (row-reverse) places the swatch on the right */
+.p2 .character_container.team-color::before,
+.p2 .character_container.team-color::after {
+  left: auto;
+  right: 8px;
+}
+
+/* ── Score box ───────────────────────────────────────────────
+   Raised card treatment matching .container, flush to the card's
+   edge, with breathing room from the character icon.
+   ─────────────────────────────────────────────────────────── */
+.score {
+  width: 64px;
+  height: 64px;
+  font-size: 50px;
+  color: var(--bg-color);
+  flex-grow: 1;
+  flex-shrink: 0;
+  overflow: hidden;
+
+  /* Flex centring is the only version that survives a theme change: the
+     optical offset a padding would need depends on the face's vertical
+     metrics. The per-digit nudge below handles the rest. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-raised);
+}
+
+/* Optical centring correction, per digit. Flex centres the line box, which the
+   font's ascent/descent need not centre on the digits' ink — see
+   calibrateScoreDigits() in scoreboard.js, which measures the gap and
+   publishes --score-nudge-0..9 on :root. Unmeasured falls back to 0, i.e.
+   plain flex centring. inline-block because transforms don't apply to a
+   non-replaced inline; the advance width is untouched, so nothing moves
+   horizontally. */
+.score .digit {
+  display: inline-block;
+  transform: translateY(var(--score-nudge, 0));
+}
+
+.score .digit[data-d="0"] { --score-nudge: var(--score-nudge-0, 0); }
+.score .digit[data-d="1"] { --score-nudge: var(--score-nudge-1, 0); }
+.score .digit[data-d="2"] { --score-nudge: var(--score-nudge-2, 0); }
+.score .digit[data-d="3"] { --score-nudge: var(--score-nudge-3, 0); }
+.score .digit[data-d="4"] { --score-nudge: var(--score-nudge-4, 0); }
+.score .digit[data-d="5"] { --score-nudge: var(--score-nudge-5, 0); }
+.score .digit[data-d="6"] { --score-nudge: var(--score-nudge-6, 0); }
+.score .digit[data-d="7"] { --score-nudge: var(--score-nudge-7, 0); }
+.score .digit[data-d="8"] { --score-nudge: var(--score-nudge-8, 0); }
+.score .digit[data-d="9"] { --score-nudge: var(--score-nudge-9, 0); }
+
+.fgc.thin .score {
+  font-size: 40px;
+  width: 50px;
+}
+
+/* --score-box-bg is the score box ALONE, defaulting to the shared panel colour.
+   --score-bg-color is also the side panel's whole bottom card and the bracket's
+   title bar, so a pack that wants a loud score box (a boxing corner post, say)
+   cannot simply brighten that token without flooding those surfaces too. */
+.p1 .score {
+  color: var(--score-color);
+  background: var(--score-box-bg, var(--score-bg-color));
+  margin-right: -6px;
+  margin-left: 16px;
+}
+
+.thin .p1 .score {
+  margin-right: -8px;
+  margin-left: -6px;
+}
+
+.p2 .score {
+  color: var(--score-color);
+  background: var(--score-box-bg, var(--score-bg-color));
+  margin-left: -6px;
+  margin-right: 16px;
+}
+
+.thin .p2 .score {
+  margin-left: -8px;
+  margin-right: -6px;
+}
+
+/* ── Losers badge ─────────────────────────────────────────── */
+.losers {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  font-size: 18px;
+  border-radius: 100%;
+  text-align: center;
+  align-items: center;
+  justify-content: center;
+  margin: 0 6px;
+  background: rgba(0, 0, 0, 0.75);
+}

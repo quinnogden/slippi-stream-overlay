@@ -1,0 +1,125 @@
+/* Caster name tags. The scoreboard's language: a raised card in the pack's
+   panel colour, the mic in a dark box flush to the card's edge the way the
+   score sits in a player card, and the info card's gold hairline on top. */
+
+body {
+  font-family: var(--font);
+  font-weight: bold;
+  color: var(--text-color);
+}
+
+/* Padding keeps the cards' shadows inside the source. */
+.casters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 24px 32px 40px;
+}
+
+.caster {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 56px;
+  padding-right: 22px;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--bg-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-raised);
+}
+
+/* No tag = no card. Re-shown cards replay the entrance. */
+.caster:not(.on) {
+  display: none;
+}
+
+@keyframes caster-in {
+  from { opacity: 0; transform: translateY(14px); }
+}
+.caster.on {
+  animation: caster-in 0.6s var(--enter-ease) both;
+}
+
+.caster::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 15%; right: 15%;
+  height: 1.5px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--darkened-text) 25%,
+    var(--text-color)    50%,
+    var(--darkened-text) 75%,
+    transparent
+  );
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+/* ── Mic box ──────────────────────────────────────────────── */
+.mic {
+  align-self: stretch;
+  width: 56px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--score-box-bg, var(--score-bg-color));
+  box-shadow: var(--shadow-raised);
+}
+
+.mic-icon {
+  width: 28px;
+  height: 28px;
+  background: var(--text-color);
+  -webkit-mask: url("/o/casters/mic.svg") center / contain no-repeat;
+          mask: url("/o/casters/mic.svg") center / contain no-repeat;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.6));
+}
+
+/* ── Name ─────────────────────────────────────────────────── */
+.name {
+  display: flex;
+  max-width: 560px;
+  overflow: hidden;
+  font-size: 30px;
+  letter-spacing: 0.06em;
+}
+
+.name .text {
+  display: inline-flex;
+  align-items: baseline;
+  transform-origin: left;
+}
+
+.sponsor {
+  margin-right: 8px;
+  color: var(--sponsor-color);
+}
+
+/* ── Pronoun chip ─────────────────────────────────────────── */
+.pronoun.empty {
+  display: none;
+}
+
+.pronoun .text {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--darkened-text);
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: calc(var(--border-radius) / 4);
+  box-shadow:
+    inset 0 1px 2px rgba(0,0,0,0.45),
+    0 1px 0 rgba(255,255,255,0.05);
+  text-shadow: none;
+}

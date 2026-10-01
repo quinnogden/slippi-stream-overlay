@@ -8,6 +8,29 @@ For what TSH exposes *to* the bridge, see the TSH HTTP API section of [CLAUDE.md
 
 ---
 
+## Overlay channel — `/overlay` and `/dock` (branch `tsh-replacement`)
+
+The overlays the app serves itself (`/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`) connect to the `/overlay` namespace through [overlays/shared/overlay-client.js](../overlays/shared/overlay-client.js); the dock will use `/dock` (M6). Built in [lib/overlay/channel.js](../slippi-bridge/lib/overlay/channel.js).
+
+| Event | Direction | Payload |
+|---|---|---|
+| `state:full` | app → page | The store's snapshot: `{ v, rev, tournament, scoreboard, casters, view }`. Sent on connect and on request |
+| `state:patch` | app → page | `{ from, rev, ops: [{ path, value }] }` — whole top-level sections. One per tick, however many store commands ran in it |
+| `state:resync` | page → app | No payload. Asks for `state:full` |
+| `game:start` / `game:end` | app → both | The `slippi_game_start` / `slippi_game_end` payloads below |
+| `clip:saved` | app → both | The `slippi_clip_saved` payload |
+| `stats` | app → overlay | The `player_stats` payload |
+| `status` / `clip:error` | app → dock | The `control_status` / `slippi_clip_error` payloads |
+
+- **`from` is what keeps a source honest.** A page applies a patch only when `from` ≤ its own rev. A larger `from` means it missed one, and it must send `state:resync` rather than apply it: every later patch carries only the sections that changed, so a source that missed one would otherwise show the old score indefinitely while looking healthy. A patch whose `rev` it already has (it connected mid-burst, and its `state:full` was newer) is ignored. `state:full` is always taken, even at a lower rev — the app may have restarted. `tests/overlay-patch.test.js` pins all three.
+- **Selectors run on change only.** `ov.select(path, fn)` compares the JSON at `path`, so a casters edit doesn't re-run, and re-animate, the scoreboard.
+- **Sticky events.** A page that connects mid-game gets `game:start` (dropped at `game:end`, a handwarmer's included) and the last `stats`; the dock also gets the last `status`.
+- **The feature modules don't know about the channel.** They still emit their original names through `ctx.io`, which is the channel's `emit()`. It sends each on the default namespace too, for the control panel and the TSH-era side panel, which haven't moved yet.
+- **Overlay urls are absolute** (`/o/shared/overlay.css`), so a source works with or without a trailing slash. Every stylesheet sits one level under `/o/`, because a theme pack's `--logo-url` resolves against the stylesheet that uses it. The theme switch and packs are served from the TSH `layout/` folder until M5. `tests/overlays-static.test.js` resolves every page's urls through the server's own tables.
+- **Start the app before OBS**, or refresh the sources: a browser source whose page failed to load doesn't retry. Once a page has loaded, it survives app restarts, because socket.io reconnects and is sent `state:full`.
+
+---
+
 ## Socket.io events (bridge → browser)
 
 Clients connect to `http://localhost:5001`. On connect, the bridge immediately replays `slippi_game_start` (if a game is live), `control_status` and `player_stats`, so a browser source that loads mid-set is never blank waiting for the next event.
@@ -182,6 +205,9 @@ A permissive CORS middleware fronts every route. It exists for exactly one case:
 | `POST` | `/api/start-set` | Mark the loaded set in progress on start.gg (`markSetInProgress`). No body |
 | `POST` | `/api/report` | Report the current set to start.gg. Manual trigger only. A success also reloads the side panel's stats ~4s later |
 | `GET` | `/api/player-stats` | The `player_stats` snapshot above — for checking what the side panel is being fed |
+| `GET` | `/api/state` | The overlays' state — the same object `state:full` sends |
+| `GET` / `POST` | `/api/casters` | `{ casters: [{ tag, prefix, pronoun, twitter }] }`, up to 4. An empty tag hides that caster's card |
+| `GET` | `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters[?i=N]` | The OBS browser sources. `?animate=false` skips the entrances |
 | `GET` | `/api/clipper` | `{ settings, obs, recentClips, clipsThisGame, supported }` |
 | `POST` | `/api/clipper/settings` | Validate, clamp, persist to `clipper-settings.json`, apply live |
 | `POST` | `/api/clipper/toggle` | `{ enabled }` — master switch, applied immediately |

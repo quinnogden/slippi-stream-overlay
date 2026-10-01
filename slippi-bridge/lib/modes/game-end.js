@@ -34,6 +34,9 @@ function createGameEnd(ctx) {
 
     if (isHandwarmer) {
       console.log("[bridge] Handwarmer detected — no game recorded.");
+      // Still announced: the game is over, and the overlay channel stops
+      // replaying it to sources that connect later.
+      io.emit("slippi_game_end", { winner: null, handwarmer: true });
       return;
     }
     if (winnerPlayerIndex == null || winnerPlayerIndex < 0) {
