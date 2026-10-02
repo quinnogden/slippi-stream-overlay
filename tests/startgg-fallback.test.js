@@ -19,8 +19,8 @@
 const assert = require("assert");
 const path   = require("path");
 
-const axios = require(require.resolve("axios", { paths: [path.join(__dirname, "..", "slippi-bridge", "lib")] }));
-const StartggClient = require("../slippi-bridge/lib/startgg-client");
+const axios = require(require.resolve("axios", { paths: [path.join(__dirname, "..", "app", "lib")] }));
+const StartggClient = require("../app/lib/startgg-client");
 
 const OFFICIAL = "https://api.start.gg/gql/alpha";
 const WEB      = "https://www.start.gg/api/-/gql";

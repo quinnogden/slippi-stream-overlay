@@ -15,10 +15,10 @@
 
 const assert = require("assert");
 
-const { ScoreboardStore } = require("../slippi-bridge/lib/scoreboard/store");
-const StartggClient   = require("../slippi-bridge/lib/startgg-client");
-const { createState } = require("../slippi-bridge/lib/state");
-const { createControlStatus, HEARTBEAT_MS } = require("../slippi-bridge/lib/server/control-status");
+const { ScoreboardStore } = require("../app/lib/scoreboard/store");
+const StartggClient   = require("../app/lib/startgg-client");
+const { createState } = require("../app/lib/state");
+const { createControlStatus, HEARTBEAT_MS } = require("../app/lib/server/control-status");
 
 let failed = 0;
 async function test(name, fn) {

@@ -21,7 +21,7 @@ const fs     = require("fs");
 const os     = require("os");
 const path   = require("path");
 
-const { PlayerDb, serialize } = require("../slippi-bridge/lib/players/player-db");
+const { PlayerDb, serialize } = require("../app/lib/players/player-db");
 
 let failed = 0;
 function test(name, fn) {

@@ -2,13 +2,13 @@
 
 Everything the app exposes on `BRIDGE_PORT` (default 5001): the HTTP routes the operator's dock drives, the Socket.io namespaces the dock and the OBS sources listen on, and the pages themselves.
 
-This is the contract between `slippi-bridge/` and its clients — the dock ([public/dock/](../slippi-bridge/public/dock/)) and the overlays under [overlays/](../overlays/). Change a payload shape here and something in a browser stops updating **silently**, because nothing on either side validates. Keep this file in step with the code.
+This is the contract between `app/` and its clients — the dock ([public/dock/](../app/public/dock/)) and the overlays under [overlays/](../overlays/). Change a payload shape here and something in a browser stops updating **silently**, because nothing on either side validates. Keep this file in step with the code.
 
 ---
 
 ## Overlay channel — `/overlay` and `/dock`
 
-Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/side-panel`, `/o/bracket`, `/o/highlights` — uses the `/overlay` namespace (highlights only for `theme`) through [overlays/shared/overlay-client.js](../overlays/shared/overlay-client.js); the dock uses `/dock` through the same client. Built in [lib/overlay/channel.js](../slippi-bridge/lib/overlay/channel.js).
+Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/side-panel`, `/o/bracket`, `/o/highlights` — uses the `/overlay` namespace (highlights only for `theme`) through [overlays/shared/overlay-client.js](../overlays/shared/overlay-client.js); the dock uses `/dock` through the same client. Built in [lib/overlay/channel.js](../app/lib/overlay/channel.js).
 
 | Event | Direction | Payload |
 |---|---|---|
@@ -53,11 +53,11 @@ Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/si
 }
 ```
 
-Built by `scoreboard()` in [lib/scoreboard/store.js](../slippi-bridge/lib/scoreboard/store.js); every write is a store command. The other sections: `tournament` `{ name, slug, eventName, eventSlug, kind }`, `casters` `[{ tag, prefix, pronoun, twitter }]`, `view` `{ bracketView, bracketPhaseGroupId }`.
+Built by `scoreboard()` in [lib/scoreboard/store.js](../app/lib/scoreboard/store.js); every write is a store command. The other sections: `tournament` `{ name, slug, eventName, eventSlug, kind }`, `casters` `[{ tag, prefix, pronoun, twitter }]`, `view` `{ bracketView, bracketPhaseGroupId }`.
 
 ### The `bracket` section
 
-What the bracket overlay draws, published by [lib/event/bracket-feed.js](../slippi-bridge/lib/event/bracket-feed.js) from the event service's reads. `null` with no event loaded. **Not saved** with the rest of the state — it is re-read from start.gg on boot — so a bracket refresh never writes `live-state.json`.
+What the bracket overlay draws, published by [lib/event/bracket-feed.js](../app/lib/event/bracket-feed.js) from the event service's reads. `null` with no event loaded. **Not saved** with the rest of the state — it is re-read from start.gg on boot — so a bracket refresh never writes `live-state.json`.
 
 ```js
 {
@@ -305,7 +305,7 @@ For a set loaded after its game 1 had started, or ports the operator suspects. L
 
 ### `/api/bracket` — Singles / Doubles
 
-`kind` indexes `config.BRACKETS.events`, so the two shipped values are `singles` and `doubles`. The app resolves the series' short link through start.gg's **web redirect** (the GraphQL API returns `null` for a short slug), reads that tournament's event list, matches by keyword ([lib/event/event-target.js](../slippi-bridge/lib/event/event-target.js)), and loads the event.
+`kind` indexes `config.BRACKETS.events`, so the two shipped values are `singles` and `doubles`. The app resolves the series' short link through start.gg's **web redirect** (the GraphQL API returns `null` for a short slug), reads that tournament's event list, matches by keyword ([lib/event/event-target.js](../app/lib/event/event-target.js)), and loads the event.
 
 - **`ok: true` means the event is loaded** — phase groups, sets and brackets read. `refreshed: true` means it was already the loaded event and was re-read instead.
 - **Ambiguity is refused**: a tournament with both "Melee Singles" and "Melee Singles Amateur" errors and names the candidates.

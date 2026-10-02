@@ -10,7 +10,7 @@
 const assert = require("assert");
 const fs     = require("fs");
 const path   = require("path");
-const { CHAR_MAP } = require("../slippi-bridge/lib/char_map");
+const { CHAR_MAP } = require("../app/lib/char_map");
 
 const DIR = path.join(__dirname, "..", "overlays", "assets", "icons");
 

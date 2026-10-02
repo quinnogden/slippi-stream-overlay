@@ -20,9 +20,9 @@ const fs     = require("fs");
 const path   = require("path");
 const vm     = require("vm");
 
-const { PAGES, resolveOverlayPath } = require("../slippi-bridge/lib/server/overlays");
-const { CHAR_MAP } = require("../slippi-bridge/lib/char_map");
-const { themePacks } = require("../slippi-bridge/lib/server/api/setup");
+const { PAGES, resolveOverlayPath } = require("../app/lib/server/overlays");
+const { CHAR_MAP } = require("../app/lib/char_map");
+const { themePacks } = require("../app/lib/server/api/setup");
 const Overlay = require("../overlays/shared/overlay-client");
 
 const REPO = path.join(__dirname, "..");
@@ -206,9 +206,9 @@ test("the icon url the overlays build names a real file for every character and 
 });
 
 test("the url resolver can't be walked out of its folders", () => {
-  assert.strictEqual(resolveOverlayPath("/o/../slippi-bridge/config.local.js", roots), null);
-  assert.strictEqual(resolveOverlayPath("/o/%2e%2e/slippi-bridge/config.js", roots), null);
-  assert.strictEqual(resolveOverlayPath("/assets/../../slippi-bridge/config.js", roots), null);
+  assert.strictEqual(resolveOverlayPath("/o/../app/config.local.js", roots), null);
+  assert.strictEqual(resolveOverlayPath("/o/%2e%2e/app/config.js", roots), null);
+  assert.strictEqual(resolveOverlayPath("/assets/../../app/config.js", roots), null);
 });
 
 console.log(failed === 0 ? "overlays-static: all passed" : `overlays-static: ${failed} failed`);

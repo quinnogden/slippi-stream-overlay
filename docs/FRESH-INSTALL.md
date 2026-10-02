@@ -15,13 +15,13 @@ Work the phases in order. The player file (Phase 2) and the replay buffer (Phase
 ### The script that does the mechanical half
 
 ```bash
-cd slippi-bridge
+cd app
 node scripts/preflight.js              # everything, including live probes
 node scripts/preflight.js --offline    # files and config only — no network
 node scripts/preflight.js --json       # machine-readable
 ```
 
-[preflight.js](../slippi-bridge/scripts/preflight.js) automates Phases 2 and 7: dependencies, config, the hotkeys, the player file, the icons, the overlay pages, the theme pack, the clipper settings, then live probes of the app, the start.gg token, this week's short link and both bracket buttons, and OBS (including the replay buffer's length). It exits non-zero if anything fails.
+[preflight.js](../app/scripts/preflight.js) automates Phases 2 and 7: dependencies, config, the hotkeys, the player file, the icons, the overlay pages, the theme pack, the clipper settings, then live probes of the app, the start.gg token, this week's short link and both bracket buttons, and OBS (including the replay buffer's length). It exits non-zero if anything fails.
 
 It is **read-only** — it prints the exact command or menu path to fix each finding rather than changing anything itself. It also runs before `npm install`, so it can diagnose a missing `node_modules`.
 
@@ -31,12 +31,12 @@ It is **read-only** — it prints the exact command or menu path to fix each fin
 
 | Present after clone | Missing — must be installed or made |
 |---|---|
-| `slippi-bridge/` — the app, `config.js`, `config.local.example.js` | `slippi-bridge/node_modules/` → `npm install` (`start.bat` does it on first run) |
-| `overlays/` — every OBS page, the theme packs, the character icons | `slippi-bridge/config.local.js` → copy from `config.local.example.js` |
-| `start.bat` | `slippi-bridge/data/local_players.json` — this machine's player DB (Phase 2) |
-| `obs-scripts/auto_replays.py` | `slippi-bridge/clipper-settings.json` → written by the dock's Clips tab on first save (optional) |
+| `app/` — the app, `config.js`, `config.local.example.js` | `app/node_modules/` → `npm install` (`start.bat` does it on first run) |
+| `overlays/` — every OBS page, the theme packs, the character icons | `app/config.local.js` → copy from `config.local.example.js` |
+| `start.bat` | `app/data/local_players.json` — this machine's player DB (Phase 2) |
+| `obs-scripts/auto_replays.py` | `app/clipper-settings.json` → written by the dock's Clips tab on first save (optional) |
 
-`slippi-bridge/data/` (the player file and the saved live scoreboard), `stats-cache/` and `clipper-settings.json` are per machine and gitignored.
+`app/data/` (the player file and the saved live scoreboard), `stats-cache/` and `clipper-settings.json` are per machine and gitignored.
 
 ---
 
@@ -54,14 +54,14 @@ TSH is **not** needed. On a machine moving over from it, keep the old TSH folder
 
 ## Phase 2 — App files **[claude]**, credentials **[you]**
 
-- [ ] `cd slippi-bridge && npm install`
+- [ ] `cd app && npm install`
 - [ ] Confirm all six deps resolve: `@slippi/slippi-js`, `axios`, `express`, `obs-websocket-js`, `socket.io`, `uiohook-napi`
       *(`uiohook-napi` is a native module — if it fails to build, the global hotkeys fall back to keys typed into the app's own window and everything else still works. Report it, don't treat it as fatal.)*
 - [ ] Create `config.local.js` from `config.local.example.js` if absent
 - [ ] **[you]** Paste a start.gg token into `config.local.js` — generate at [start.gg → Developer Settings](https://start.gg/admin/profile/developer). Viewable once; expires after a year. **Never** put it in `config.js`, which is committed. Without one the brackets still load (start.gg's keyless web endpoint), but Start, Report and the side panel's player stats are off.
 - [ ] **[you]** Set `SLP_FOLDER` in `config.local.js` to this machine's Slippi spectate folder. The committed default is another machine's, and the app exits at startup if the folder doesn't exist.
 - [ ] **The player DB.** It is TSH's `local_players.json` format, and each machine has its own:
-  - moving from TSH: copy the old install's `user_data/local_players.json` to `slippi-bridge/data/local_players.json` — preflight prints the exact `copy` command when it finds one beside the repo. **Copy, don't point at it**: TSH rewrites the whole file on save.
+  - moving from TSH: copy the old install's `user_data/local_players.json` to `app/data/local_players.json` — preflight prints the exact `copy` command when it finds one beside the repo. **Copy, don't point at it**: TSH rewrites the whole file on save.
   - or set `PLAYERS_FILE` in `config.local.js` to wherever this machine keeps it;
   - or start empty: players are added from start.gg as their sets load, and their mains are learned as they play.
 - [ ] `BRIDGE_PORT` stays 5001 unless there's a reason — every OBS source names it
@@ -81,7 +81,7 @@ TSH is **not** needed. On a machine moving over from it, keep the old TSH folder
 
 ## Phase 4 — Start the app **[you]**
 
-Double-click **`start.bat`** at the repo root (or `node index.js` in `slippi-bridge/`). The console lists the dock url, the phone urls, the player file and its count, the event it reloaded, and the hotkeys it bound. Closing the window stops the app.
+Double-click **`start.bat`** at the repo root (or `node index.js` in `app/`). The console lists the dock url, the phone urls, the player file and its count, the event it reloaded, and the hotkeys it bound. Closing the window stops the app.
 
 Start it **before** OBS, or refresh the browser sources after: a source whose page failed to load doesn't retry. Once loaded, sources survive app restarts.
 
@@ -144,7 +144,7 @@ The script is event-driven off OBS's own `REPLAY_BUFFER_SAVED`, so it picks up c
 ## Phase 7 — End-to-end verification **[claude]**
 
 ```bash
-cd slippi-bridge && node scripts/preflight.js
+cd app && node scripts/preflight.js
 ```
 
 With the app and OBS up, every live section should pass: the app identifies itself, an event is loaded, the Slippi folder is watched, the hotkeys bound **globally**, the token is accepted, the short link resolves to this week's tournament and both bracket buttons find exactly one event, and OBS's replay buffer is running and long enough. Then by eye:
@@ -178,7 +178,7 @@ With the app and OBS up, every live section should pass: the app identifies itse
 | Overlays | `http://localhost:5001/o/…` |
 | obs-websocket | `ws://127.0.0.1:4455` |
 | Hotkeys (defaults) | `Ctrl+Shift+S` swap ports · `Ctrl+Shift+X` switch sides · `Ctrl+Shift+1`/`2` a game to left/right · add `Alt` to take one away |
-| Player DB | `slippi-bridge/data/local_players.json`, or `PLAYERS_FILE` |
+| Player DB | `app/data/local_players.json`, or `PLAYERS_FILE` |
 
 **Never commit:** `config.local.js` (start.gg token), `clipper-settings.json` (OBS password + per-venue tuning), `data/` (players, live state). All gitignored; `config.js` is not, so no secrets there.
 

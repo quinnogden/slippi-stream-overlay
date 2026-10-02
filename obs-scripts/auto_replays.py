@@ -1,7 +1,7 @@
 """
 auto_replays.py — build a break-scene highlight playlist from replay-buffer clips.
 
-Pairs with slippi-bridge's combo clipper: the bridge detects a combo mid-game and
+Pairs with the stream app's combo clipper: the app detects a combo mid-game and
 asks OBS to save the replay buffer (obs-websocket v5). This script, running inside
 OBS, collects those clips into a media source's playlist so switching to the break
 scene plays back everything banked since the last break.
@@ -217,7 +217,7 @@ def script_description() -> str:
         "break scene, then clears them once the break scene has been shown and "
         "left.<br><br>"
         "Driven by OBS's replay-saved event, so it pairs directly with "
-        "slippi-bridge's combo clipper."
+        "the stream app's combo clipper."
     )
 
 

@@ -2,7 +2,7 @@
  * mains-learning.test.js
  *
  * What a player played, learned into the player DB at the end of their set
- * (slippi-bridge/lib/players/mains-learning.js), driven through the real game
+ * (app/lib/players/mains-learning.js), driven through the real game
  * modes, port map, store and PlayerDb — the path a set takes on stream.
  *
  * A wrong learned main is quiet and compounding: the next set opens on the
@@ -27,13 +27,13 @@ const fs     = require("fs");
 const os     = require("os");
 const path   = require("path");
 
-const { ScoreboardStore } = require("../slippi-bridge/lib/scoreboard/store");
-const { PortMap } = require("../slippi-bridge/lib/ports/port-map");
-const { createState } = require("../slippi-bridge/lib/state");
-const { createModes } = require("../slippi-bridge/lib/modes");
-const { PlayerDb } = require("../slippi-bridge/lib/players/player-db");
-const { createMainsLearning, mainsPlayed } = require("../slippi-bridge/lib/players/mains-learning");
-const { CHAR_MAP, characterByName } = require("../slippi-bridge/lib/char_map");
+const { ScoreboardStore } = require("../app/lib/scoreboard/store");
+const { PortMap } = require("../app/lib/ports/port-map");
+const { createState } = require("../app/lib/state");
+const { createModes } = require("../app/lib/modes");
+const { PlayerDb } = require("../app/lib/players/player-db");
+const { createMainsLearning, mainsPlayed } = require("../app/lib/players/mains-learning");
+const { CHAR_MAP, characterByName } = require("../app/lib/char_map");
 
 const log = console.log.bind(console);
 console.log = () => {};   // the modes' own logging; failures still print

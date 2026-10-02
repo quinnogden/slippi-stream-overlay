@@ -18,9 +18,9 @@
  */
 
 const assert = require("assert");
-const { bestOfLabel, losersMarks } = require("../slippi-bridge/lib/scoreboard/set-text");
-const { loadPayload, pickerList, pickStatus } = require("../slippi-bridge/lib/event/set-model");
-const { buildBracket } = require("../slippi-bridge/lib/event/bracket-model");
+const { bestOfLabel, losersMarks } = require("../app/lib/scoreboard/set-text");
+const { loadPayload, pickerList, pickStatus } = require("../app/lib/event/set-model");
+const { buildBracket } = require("../app/lib/event/bracket-model");
 const { eventFrom } = require("./helpers/fake-startgg");
 
 let failed = 0;

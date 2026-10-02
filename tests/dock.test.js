@@ -1,7 +1,7 @@
 /**
  * dock.test.js
  *
- * The dock (slippi-bridge/public/dock/) run headlessly against the real
+ * The dock (app/public/dock/) run headlessly against the real
  * store, the real overlay channel, and a real Express app built from
  * registerRoutes — so a key press goes through the actual route and store
  * command, and what the dock then shows is the actual state patch.
@@ -33,23 +33,23 @@ const assert  = require("assert");
 const fs      = require("fs");
 const os      = require("os");
 const path    = require("path");
-const express = require("../slippi-bridge/node_modules/express");
+const express = require("../app/node_modules/express");
 
-const { ScoreboardStore } = require("../slippi-bridge/lib/scoreboard/store");
-const { PlayerDb } = require("../slippi-bridge/lib/players/player-db");
-const { createOverlayChannel } = require("../slippi-bridge/lib/overlay/channel");
-const { registerRoutes } = require("../slippi-bridge/lib/server/routes");
-const { resolveOverlayPath } = require("../slippi-bridge/lib/server/overlays");
-const { loadPayload, pickerList } = require("../slippi-bridge/lib/event/set-model");
-const { buildBracket } = require("../slippi-bridge/lib/event/bracket-model");
-const { EventService } = require("../slippi-bridge/lib/event/event-service");
-const { CSS_ORDER, CHAR_MAP } = require("../slippi-bridge/lib/char_map");
+const { ScoreboardStore } = require("../app/lib/scoreboard/store");
+const { PlayerDb } = require("../app/lib/players/player-db");
+const { createOverlayChannel } = require("../app/lib/overlay/channel");
+const { registerRoutes } = require("../app/lib/server/routes");
+const { resolveOverlayPath } = require("../app/lib/server/overlays");
+const { loadPayload, pickerList } = require("../app/lib/event/set-model");
+const { buildBracket } = require("../app/lib/event/bracket-model");
+const { EventService } = require("../app/lib/event/event-service");
+const { CSS_ORDER, CHAR_MAP } = require("../app/lib/char_map");
 const { eventFrom } = require("./helpers/fake-startgg");
 const { loadOverlay, fakeIo, texts, sleep, fire } = require("./helpers/overlay-sandbox");
-const { activeThemePack } = require("../slippi-bridge/lib/server/api/setup");
+const { activeThemePack } = require("../app/lib/server/api/setup");
 
 const ROOT = path.resolve(__dirname, "..");
-const PUBLIC = path.join(ROOT, "slippi-bridge", "public");
+const PUBLIC = path.join(ROOT, "app", "public");
 const OVERLAYS = path.join(ROOT, "overlays");
 
 let failed = 0;
@@ -746,7 +746,7 @@ async function rig() {
 
       const bad = await fetch(`${r.base}/api/theme`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pack: "../../slippi-bridge" }),
+        body: JSON.stringify({ pack: "../../app" }),
       });
       assert.strictEqual(bad.status, 400, "a pack that isn't a folder under themes/ is refused");
       assert.strictEqual(activeThemePack(THEME_DIR), "salty-suite");

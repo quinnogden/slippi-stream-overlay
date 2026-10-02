@@ -266,7 +266,7 @@ async function main() {
 
   const gg = new StartggClient(config);
   if (!gg.enabled) {
-    console.error("No start.gg token configured (slippi-bridge/config.local.js → STARTGG_TOKEN).");
+    console.error("No start.gg token configured (app/config.local.js → STARTGG_TOKEN).");
     process.exit(1);
   }
 

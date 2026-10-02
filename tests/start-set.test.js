@@ -12,7 +12,7 @@
  */
 
 const assert = require("assert");
-const { evaluateStartability } = require("../slippi-bridge/lib/server/start-set");
+const { evaluateStartability } = require("../app/lib/server/start-set");
 
 let failed = 0;
 async function test(name, fn) {

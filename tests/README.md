@@ -36,18 +36,18 @@ This is **not** a general test suite, and it is not trying to become one. Almost
 | `overlay-motion.test.js` | The overlays' show/hide and swap animations end on the right content, on the real scoreboard and casters pages at real animation speed: a score bumped again while the old one is still leaving ends on the newest score (not the one before), a pronoun cleared and refilled before its chip has gone keeps the chip with the new text (the overtaken hide must never apply), a cleared chip leaves and then hides, and a caster added after load is shown. A wrong answer is a healthy-looking source showing the score before last, or a chip gone for the rest of the set. Mutation-checked. |
 | `overlays-static.test.js` | Every url an overlay page loads (scripts, stylesheets, every `url()` and `@import` down to the active theme pack, every pack's logo from an overlay stylesheet, since the dock switches packs on air) resolves through `lib/server/overlays.js`'s own tables, with or without a trailing slash; scripts load in order and parse; every page has a socket that follows a theme switch; and the icon url the overlays build names a real file for every character and costume. A mistyped url is a blank or unstyled OBS source with no error anywhere. |
 | `icons.test.js` | Every character and costume Slippi can report has a stock icon in `overlays/assets/icons/`, under `char_map`'s codename. |
-| `preflight.test.js` | The pre-event check (`slippi-bridge/scripts/preflight.js`) runs to the end offline, and its checks of what's in the repo — the theme pack and its logos, the icons, the overlay pages, the default hotkeys — pass. It requires what it checks lazily (it has to run before `npm install`), so a moved module is no startup error anywhere: without this it would surface as a FAIL the night before an event. Five mutations checked. |
+| `preflight.test.js` | The pre-event check (`app/scripts/preflight.js`) runs to the end offline, and its checks of what's in the repo — the theme pack and its logos, the icons, the overlay pages, the default hotkeys — pass. It requires what it checks lazily (it has to run before `npm install`), so a moved module is no startup error anywhere: without this it would surface as a FAIL the night before an event. Five mutations checked. |
 | `helpers/fake-startgg.js` | Loads captured tournaments from `fixtures/startgg/` (`loadCapture`, `eventFrom`) and stands in for `StartggClient` with captured answers (`fakeStartgg`). Not a test. |
 | `helpers/overlay-sandbox.js` | Runs a real overlay page — or the dock — in a `vm`: its own `index.html` parsed into a small fake DOM, its scripts, overlay-client.js included, connected to a real channel. `fire(el, type)` clicks and types. Not a test. |
-| `fixtures/startgg/*.json` | Real start.gg tournaments, scrubbed, captured by `slippi-bridge/scripts/capture-startgg.js`. Raw material for the event service, the bracket model and every test built on them — see below. |
+| `fixtures/startgg/*.json` | Real start.gg tournaments, scrubbed, captured by `app/scripts/capture-startgg.js`. Raw material for the event service, the bracket model and every test built on them — see below. |
 
 ## Writing another overlay test
 
 The overlays are browser scripts, so `require()` can't reach them. `helpers/overlay-sandbox.js` runs one as OBS would, fed by the app's own channel:
 
 ```js
-const { ScoreboardStore } = require("../slippi-bridge/lib/scoreboard/store");
-const { createOverlayChannel } = require("../slippi-bridge/lib/overlay/channel");
+const { ScoreboardStore } = require("../app/lib/scoreboard/store");
+const { createOverlayChannel } = require("../app/lib/overlay/channel");
 const { loadOverlay, fakeIo, texts, sleep } = require("./helpers/overlay-sandbox");
 
 const store = new ScoreboardStore();
@@ -81,7 +81,7 @@ The sandbox answers "did the script do the right thing", never "does it look rig
 `fixtures/startgg/<tournament>[.<label>].json` are real start.gg responses: the tournament, every Melee event's phases and phase groups, every set (with the `slots.prereqType/prereqId` edges a bracket is built from), and the stream queue. Captured with:
 
 ```bash
-cd slippi-bridge
+cd app
 node scripts/capture-startgg.js                  # whatever config.BRACKETS.shortLink points at now
 node scripts/capture-startgg.js --label live-r2  # a named snapshot of the same
 node scripts/capture-startgg.js --past 3         # plus the series' last 3 tournaments

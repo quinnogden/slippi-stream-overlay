@@ -21,11 +21,11 @@ const fs     = require("fs");
 const os     = require("os");
 const path   = require("path");
 
-const { ScoreboardStore, STATE_VERSION } = require("../slippi-bridge/lib/scoreboard/store");
-const { createPersist } = require("../slippi-bridge/lib/scoreboard/persist");
-const { gameDataOf, createReportSet } = require("../slippi-bridge/lib/server/report-set");
-const { loadPayload } = require("../slippi-bridge/lib/event/set-model");
-const { buildBracket } = require("../slippi-bridge/lib/event/bracket-model");
+const { ScoreboardStore, STATE_VERSION } = require("../app/lib/scoreboard/store");
+const { createPersist } = require("../app/lib/scoreboard/persist");
+const { gameDataOf, createReportSet } = require("../app/lib/server/report-set");
+const { loadPayload } = require("../app/lib/event/set-model");
+const { buildBracket } = require("../app/lib/event/bracket-model");
 const { eventFrom } = require("./helpers/fake-startgg");
 
 let failed = 0;

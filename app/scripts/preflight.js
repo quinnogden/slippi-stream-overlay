@@ -26,7 +26,7 @@ const fs   = require("fs");
 const path = require("path");
 const http = require("http");
 
-// This script lives in slippi-bridge/scripts/: the app is one level up, the
+// This script lives in app/scripts/: the app is one level up, the
 // repo root (overlays/ beside it) two.
 const BRIDGE_DIR   = path.resolve(__dirname, "..");
 const REPO_ROOT    = path.resolve(__dirname, "..", "..");
@@ -127,7 +127,7 @@ function checkDeps() {
   if (!pkg) { fail("package.json", "missing or unparseable"); return false; }
 
   if (!exists(path.join(BRIDGE_DIR, "node_modules"))) {
-    fail("node_modules", "not installed", "cd slippi-bridge && npm install   (start.bat does this on its first run)");
+    fail("node_modules", "not installed", "cd app && npm install   (start.bat does this on its first run)");
     return false;
   }
 
@@ -145,10 +145,10 @@ function checkDeps() {
     // Native module. Its absence costs the global hotkeys and nothing else, so
     // it must not read as a blocking failure the night before an event.
     warn("uiohook-napi", "not resolvable — the global hotkeys fall back to keys typed into the app's own window",
-         "cd slippi-bridge && npm install uiohook-napi");
+         "cd app && npm install uiohook-napi");
     return true;
   }
-  fail("Dependencies", `not resolvable: ${missing.join(", ")}`, "cd slippi-bridge && npm install");
+  fail("Dependencies", `not resolvable: ${missing.join(", ")}`, "cd app && npm install");
   return false;
 }
 
@@ -171,7 +171,7 @@ function checkConfig() {
     pass("config.local.js", "present");
   } else {
     warn("config.local.js", "absent — no start.gg token (no Start/Report) and the committed SLP_FOLDER, which is another machine's",
-         "cd slippi-bridge && copy config.local.example.js config.local.js");
+         "cd app && copy config.local.example.js config.local.js");
   }
 
   // Never print the token itself; length is enough to tell "set" from "pasted wrong".
@@ -269,7 +269,7 @@ function checkPlayers(config) {
 
   if (/[\\/]TournamentStreamHelper[^\\/]*[\\/]/i.test(path.resolve(file))) {
     warn("Player file", "is inside a TSH install — TSH rewrites the whole file on save, so never run TSH while the app is up",
-         "Copy it into slippi-bridge/data/ and unset PLAYERS_FILE");
+         "Copy it into app/data/ and unset PLAYERS_FILE");
   }
 }
 
@@ -423,7 +423,7 @@ async function probeApp(config) {
 
   const id = await httpGet(`${base}/api/identity`);
   if (!id.ok) {
-    warn("App", `not running on ${base} — ${id.error}`, "Start it with start.bat (or node index.js in slippi-bridge/)");
+    warn("App", `not running on ${base} — ${id.error}`, "Start it with start.bat (or node index.js in app/)");
     return;
   }
   const idJson = parseJson(id.body);

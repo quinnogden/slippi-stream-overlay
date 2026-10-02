@@ -25,9 +25,9 @@ const fs     = require("fs");
 const os     = require("os");
 const path   = require("path");
 
-const { EventService } = require("../slippi-bridge/lib/event/event-service");
-const { ScoreboardStore } = require("../slippi-bridge/lib/scoreboard/store");
-const { PlayerDb, serialize } = require("../slippi-bridge/lib/players/player-db");
+const { EventService } = require("../app/lib/event/event-service");
+const { ScoreboardStore } = require("../app/lib/scoreboard/store");
+const { PlayerDb, serialize } = require("../app/lib/players/player-db");
 const { fakeStartgg } = require("./helpers/fake-startgg");
 
 let failed = 0;

@@ -11,11 +11,11 @@ Elsewhere in the repo:
 - [../README.md](../README.md) — what the app does, feature by feature; the operator-facing manual.
 - [../CLAUDE.md](../CLAUDE.md) — architecture, module boundaries, and the non-obvious constraints behind the code. The map to read before changing anything.
 - [../tests/README.md](../tests/README.md) — what each automated check protects, and the sandbox's gotchas.
-- `slippi-bridge/scripts/preflight.js` — `node scripts/preflight.js` (add `--offline` to skip network probes) automates the mechanical parts of the fresh-install checklist.
+- `app/scripts/preflight.js` — `node scripts/preflight.js` (add `--offline` to skip network probes) automates the mechanical parts of the fresh-install checklist.
 
 ## Conventions these docs assume
 
-- **`slippi-bridge/index.js` is a composition root.** Behaviour goes in `lib/`; `index.js` only builds services and wires them together.
+- **`app/index.js` is a composition root.** Behaviour goes in `lib/`; `index.js` only builds services and wires them together.
 - **The scoreboard store is the one owner of live state.** Every change is a store command; the overlays, the dock and the save file all follow from its `change` event.
 - **Client modules return `{ ok, error?, … }` rather than throwing.** Every caller is either an Express handler or a fire-and-forget game event, and neither should be able to take the app down because start.gg or OBS is unreachable.
 - **Nothing may block scoring.** Clip saving, stats, bracket reads and status refreshes are all best-effort and isolated from the path that awards a point.

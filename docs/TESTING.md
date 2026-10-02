@@ -8,7 +8,7 @@ Most of this is manual, and the expensive failures are the ones that only appear
 
 ```bash
 node tests/run.js                                   # automated checks, a few seconds
-cd slippi-bridge && node scripts/preflight.js --offline
+cd app && node scripts/preflight.js --offline
 ```
 
 Preflight covers dependencies, config, the hotkeys, the player file, the icons, the overlay pages and the theme pack without touching the network. Drop `--offline` once the app (and OBS, if the clipper matters) is up: it then also checks the running app, the start.gg token, this week's short link and both bracket buttons. See [FRESH-INSTALL.md](FRESH-INSTALL.md).
@@ -37,7 +37,7 @@ It is not a general test suite and shouldn't grow into one. But if you fix an ov
 `combo-detector.js`, `handwarmer.js`, `char_map.js`, `ports/port-map.js`, `event/bracket-model.js`, `event/set-model.js`, `scoreboard/set-text.js` and `clipper-settings.js` do no I/O of their own, so they're callable directly. This is where most logic changes should be checked first.
 
 ```bash
-cd slippi-bridge
+cd app
 
 # Character mapping
 node -e 'const {resolveCharacter,characterByName}=require("./lib/char_map");
@@ -102,7 +102,7 @@ const t = setInterval(() => {
 
 Expected: `[bridge] New game file:`, the two sides' characters logged and drawn on `/o/scoreboard`, `[clipper]` lines if the clipper is on, then one `[handwarmer]` line and `Game over — left/right side wins`, with the score going up on that side in the dock.
 
-**B. The OneDrive hazard** — copy a *finished* replay in slowly **without** zeroing the header (`cp` a large file across a slow link, or write it in chunks keeping the real length). Expected: `[bridge] Parser read past EOF … rebuilding`, and then normal behaviour. That log line is the guard in [game-source.js](../slippi-bridge/lib/game-source.js) working. If you instead see silence and no game end, the guard has regressed — this is the single most damaging regression possible in that file, because it costs the remainder of a set.
+**B. The OneDrive hazard** — copy a *finished* replay in slowly **without** zeroing the header (`cp` a large file across a slow link, or write it in chunks keeping the real length). Expected: `[bridge] Parser read past EOF … rebuilding`, and then normal behaviour. That log line is the guard in [game-source.js](../app/lib/game-source.js) working. If you instead see silence and no game end, the guard has regressed — this is the single most damaging regression possible in that file, because it costs the remainder of a set.
 
 ### Testing the handlers without any file at all
 
@@ -124,7 +124,7 @@ src.getStatus = () => ({ connected: true, detail: "mock" });
 Run the app against **a copy** of the player file and, if you want a real bracket, a past event — never this week's live one if you'll press Start or Report:
 
 ```js
-// boot.js — node boot.js <path to slippi-bridge> <players copy> <event slug>
+// boot.js — node boot.js <path to app> <players copy> <event slug>
 const path = require("path");
 const [bridge, players, slug] = process.argv.slice(2);
 const c = require(path.join(bridge, "config"));
@@ -134,7 +134,7 @@ EventService.prototype.start = function () { this.loadEvent(slug); this._schedul
 require(path.join(bridge, "index.js"));
 ```
 
-Past events load and read normally (e.g. `tournament/hundred-acres-48/event/melee-singles-flex-bo5`). The app still writes `slippi-bridge/data/live-state.json`; delete that afterwards **and nothing else in `data/`** — the default player file lives there too.
+Past events load and read normally (e.g. `tournament/hundred-acres-48/event/melee-singles-flex-bo5`). The app still writes `app/data/live-state.json`; delete that afterwards **and nothing else in `data/`** — the default player file lives there too.
 
 ```bash
 curl -s http://localhost:5001/api/identity

@@ -20,13 +20,13 @@ const assert = require("assert");
 const fs     = require("fs");
 const path   = require("path");
 
-const { resolveOverlayPath } = require("../slippi-bridge/lib/server/overlays");
-const { FIELDS: CLIPPER_FIELDS } = require("../slippi-bridge/lib/clipper-settings");
-const { OVERLAYS: SETUP_OVERLAYS } = require("../slippi-bridge/lib/server/api/setup");
+const { resolveOverlayPath } = require("../app/lib/server/overlays");
+const { FIELDS: CLIPPER_FIELDS } = require("../app/lib/clipper-settings");
+const { OVERLAYS: SETUP_OVERLAYS } = require("../app/lib/server/api/setup");
 
 const ROOT = path.resolve(__dirname, "..");
-const DOCK = path.join(ROOT, "slippi-bridge", "public", "dock");
-const API  = path.join(ROOT, "slippi-bridge", "lib", "server", "api");
+const DOCK = path.join(ROOT, "app", "public", "dock");
+const API  = path.join(ROOT, "app", "lib", "server", "api");
 const html = fs.readFileSync(path.join(DOCK, "index.html"), "utf8");
 const js   = fs.readFileSync(path.join(DOCK, "dock.js"), "utf8");
 const css  = fs.readFileSync(path.join(DOCK, "dock.css"), "utf8");

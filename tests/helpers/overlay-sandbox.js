@@ -17,7 +17,7 @@
  * fire(el, type) is how a test clicks or types. It answers "did the script do
  * the right thing", never "does it look right".
  *
- * The dock (slippi-bridge/public/dock/) runs here too: pass `htmlFile`, a
+ * The dock (app/public/dock/) runs here too: pass `htmlFile`, a
  * `resolve` for its /dock/ scripts, and a `fetch` that reaches the app.
  *
  *   const { io, nsps } = fakeIo();
@@ -31,7 +31,7 @@ const fs   = require("fs");
 const path = require("path");
 const vm   = require("vm");
 
-const { resolveOverlayPath } = require("../../slippi-bridge/lib/server/overlays");
+const { resolveOverlayPath } = require("../../app/lib/server/overlays");
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const OVERLAYS = path.join(REPO_ROOT, "overlays");

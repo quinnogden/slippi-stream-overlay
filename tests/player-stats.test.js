@@ -1,7 +1,7 @@
 /**
  * player-stats.test.js
  *
- * The bridge's head-to-head (slippi-bridge/lib/stats/). A wrong record is the
+ * The bridge's head-to-head (app/lib/stats/). A wrong record is the
  * failure this suite exists for: it renders fine, looks plausible, and is only
  * caught by someone in chat who knows the rivalry. TSH's own H2H was wrong in
  * exactly that way for months.
@@ -26,9 +26,9 @@
 
 const assert = require("assert");
 const { headToHead, h2hPill, runFromEventSets, completedFromEventSets } =
-  require("../slippi-bridge/lib/stats/normalize");
-const { SetHistoryStore } = require("../slippi-bridge/lib/stats/set-history");
-const StartggClient = require("../slippi-bridge/lib/startgg-client");
+  require("../app/lib/stats/normalize");
+const { SetHistoryStore } = require("../app/lib/stats/set-history");
+const StartggClient = require("../app/lib/startgg-client");
 
 let failed = 0;
 async function test(name, fn) {

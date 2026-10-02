@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 One Node app that runs a Melee tournament stream: it reads live Slippi games, owns the scoreboard, runs the event from start.gg, keeps the player DB, serves every OBS overlay, and gives the operator one dock to drive it from.
 
-1. **`slippi-bridge/`** — the app (the folder kept its old name). `index.js` is the composition root; everything else is in `lib/`. The dock is `public/dock/`.
+1. **`app/`** — the app. `index.js` is the composition root; everything else is in `lib/`. The dock is `public/dock/`.
 2. **`overlays/`** — every OBS browser source, the shared overlay runtime, the theme packs and the stock character icons. Served at `/o/` and `/assets/`.
 3. **`start.bat`** — the launcher (installs dependencies on first run).
 4. **`obs-scripts/`** — Python scripts that run *inside* OBS (Tools → Scripts). Just `auto_replays.py`, the break-scene clip playlist. Not required by the app.
@@ -16,7 +16,7 @@ One Node app that runs a Melee tournament stream: it reads live Slippi games, ow
 
 ### Companion docs — read the relevant one before working, don't re-derive it
 
-- **[docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md)** — setting up a machine, a fresh OBS profile, or moving one over from TSH. **When the user says "run the fresh-install checklist", work that document.** Start with `node slippi-bridge/scripts/preflight.js`, which automates its mechanical half (deps, config, hotkeys, the player file, icons, overlay pages, theme pack, then live probes of the app, start.gg and OBS). Read-only; exits non-zero on any failure.
+- **[docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md)** — setting up a machine, a fresh OBS profile, or moving one over from TSH. **When the user says "run the fresh-install checklist", work that document.** Start with `node app/scripts/preflight.js`, which automates its mechanical half (deps, config, hotkeys, the player file, icons, overlay pages, theme pack, then live probes of the app, start.gg and OBS). Read-only; exits non-zero on any failure.
 - **[docs/TESTING.md](docs/TESTING.md)** — verifying a change with no bracket running: the automated checks, replaying `.slp` files *faithfully* (a finished replay does **not** reproduce live conditions — see the `rawDataLength` note there), booting the app against a past event, screenshotting overlays, and the regression checklist.
 - **[docs/BRIDGE-API.md](docs/BRIDGE-API.md)** — the state sections, event payloads and `/api/*` routes, with the traps in each. Consult it before changing anything a browser consumes; nothing on either side validates, so a shape change fails silently in a browser source.
 
@@ -24,16 +24,16 @@ One Node app that runs a Melee tournament stream: it reads live Slippi games, ow
 
 ## Running
 
-`start.bat` at the repo root, or `cd slippi-bridge && node index.js`. One port (default **5001**) serves the dock (`/dock`; `/` and `/control` redirect there), every overlay (`/o/…`), the icons (`/assets/icons/`), the API and Socket.io.
+`start.bat` at the repo root, or `cd app && node index.js`. One port (default **5001**) serves the dock (`/dock`; `/` and `/control` redirect there), every overlay (`/o/…`), the icons (`/assets/icons/`), the API and Socket.io.
 
-Config is [slippi-bridge/config.js](slippi-bridge/config.js) (committed defaults), with the gitignored `slippi-bridge/config.local.js` merged over it by a **shallow** `Object.assign`:
+Config is [app/config.js](app/config.js) (committed defaults), with the gitignored `app/config.local.js` merged over it by a **shallow** `Object.assign`:
 
 - `SLP_FOLDER` — the Slippi spectate folder. The app exits at startup if it doesn't exist.
 - `BRIDGE_PORT` — every OBS source names it.
 - `HOTKEYS` — global chords per action, merged **per action** over `lib/hotkey.js`'s defaults.
 - `CLIPPER` — starting values only; the dock's Clips tab writes the gitignored `clipper-settings.json`, which wins.
 - `BRACKETS` — the series' start.gg short link (**hyphenated**) and keyword `match` + `fallbackSlug` per kind.
-- `PLAYERS_FILE` — the player DB; `null` = `slippi-bridge/data/local_players.json`.
+- `PLAYERS_FILE` — the player DB; `null` = `app/data/local_players.json`.
 - `SET_TEXT` — `{ topN, topLabel, defaultLabel }`: "Bo5" once the set's loser is guaranteed top 6 (5th or better), "Flex" before.
 - `STARTGG_TOKEN` — **never in `config.js`**. Missing token: brackets still load (keyless fallback), Start/Report/stats are off.
 
@@ -57,7 +57,7 @@ start.gg ←→ startgg-client.js  (event service reads, stats, Start, Report)
 OBS      ←→ obs-client.js      (replay buffer saves)
 ```
 
-### `slippi-bridge/`
+### `app/`
 
 ```
 index.js                   composition root
@@ -177,7 +177,7 @@ one set, re-read fresh → enriched from the player DB → the store  loadSet(se
 
 **`lib/server/overlays.js`** — `PAGES` (url → file) and the `/o/` + `/assets/` mounts; `resolveOverlayPath()` is the same table the tests resolve through. **Every url a page uses is absolute** (`/o/shared/overlay.css`), so a source works with or without a trailing slash. **Every overlay stylesheet sits exactly one level under `/o/`**, because a theme pack's `--logo-url` is resolved against the stylesheet that uses the `var()` (see Theme packs).
 
-### The dock — `slippi-bridge/public/dock/`
+### The dock — `app/public/dock/`
 
 A pinned **live strip** that folds to one line (names and score; remembered in `localStorage`) — both sides' names, characters via a select-screen picker (tap sets, hold/right-click opens costumes), score ±, round / best-of / [L] overrides with Auto text, ⇆ Sides · ⇄ Ports · ↻ Detect · Start · Report, and Clear score · Clear set — over six tabs: **Set · Bracket · Casters · Players · Clips · Setup**. Fed by the `/dock` namespace's state plus `status`. Fonts (Saira, Martian Mono) are self-hosted — venue Wi-Fi is unreliable.
 
@@ -293,8 +293,8 @@ Slippi character ids (0–25) → `{ codename, display }`; `CSS_ORDER` is Melee'
 ## Known Gotchas
 
 - `config.js` is git-tracked — never put secrets there. The start.gg token goes in the gitignored `config.local.js`.
-- **`config.local.js` and `clipper-settings.json` stay at the `slippi-bridge/` root**, even though the code that reads them lives in `lib/`: `.gitignore` pins those exact paths, and moving either would start tracking the token or the OBS password.
-- **`slippi-bridge/data/` holds the player DB by default** as well as `live-state.json`. When cleaning up after a test boot, delete `live-state.json`, never the folder.
+- **`config.local.js` and `clipper-settings.json` stay at the `app/` root**, even though the code that reads them lives in `lib/`: `.gitignore` pins those exact paths, and moving either would start tracking the token or the OBS password.
+- **`app/data/` holds the player DB by default** as well as `live-state.json`. When cleaning up after a test boot, delete `live-state.json`, never the folder.
 - **Never run TSH against the app's player file.** TSH rewrites the whole file on save and never re-reads it. Copy the file, don't share it.
 - `fs.watch` is intentionally not used — always poll.
 - The parser is **persistent per file**: anything added to the poll loop must tolerate a live file and must not assume a fresh parse each tick.

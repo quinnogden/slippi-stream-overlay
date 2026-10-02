@@ -13,7 +13,7 @@
  */
 
 const assert = require("assert");
-const { buildBracket, selectView, isTopN, VIEWS } = require("../slippi-bridge/lib/event/bracket-model");
+const { buildBracket, selectView, isTopN, VIEWS } = require("../app/lib/event/bracket-model");
 const { eventFrom } = require("./helpers/fake-startgg");
 
 let failed = 0;

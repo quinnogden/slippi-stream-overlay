@@ -14,7 +14,7 @@
 const assert = require("assert");
 const {
   pickEvent, sameEvent, normalizeEventUrl, normalizeBrackets,
-} = require("../slippi-bridge/lib/event/event-target");
+} = require("../app/lib/event/event-target");
 
 let failed = 0;
 function test(name, fn) {
@@ -134,7 +134,7 @@ test("normalizeBrackets keeps a real config and lowercases keywords", () => {
 
 // The committed config must actually pick the two events it claims to.
 test("the shipped config.BRACKETS resolves against the real event list", () => {
-  const b = normalizeBrackets(require("../slippi-bridge/config"));
+  const b = normalizeBrackets(require("../app/config"));
   assert.ok(pickEvent(EVENTS, b.events.singles, "singles").ok, "shipped singles spec does not match");
   assert.ok(pickEvent(EVENTS, b.events.doubles, "doubles").ok, "shipped doubles spec does not match");
 });

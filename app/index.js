@@ -1,5 +1,5 @@
 /**
- * slippi-bridge
+ * app — the Melee stream app
  *
  * Watches the folder Slippi writes live .slp files into, and runs the event from
  * start.gg (lib/event/). Game events go to:
@@ -198,7 +198,7 @@ setInterval(controlStatus.refresh, 2000);
 // ── Entry point ───────────────────────────────────────────────────────────────
 const clipper = clipperSettings.get();
 
-console.log("[bridge] Starting slippi-bridge...");
+console.log("[bridge] Starting...");
 console.log(`[bridge] Bridge port:    ${config.BRIDGE_PORT}`);
 console.log(`[bridge] Dock:           http://localhost:${config.BRIDGE_PORT}/dock`);
 console.log(`[bridge] Overlays:       http://localhost:${config.BRIDGE_PORT}/o/scoreboard  (also /o/scoreboard/players, /o/casters, /o/side-panel, /o/bracket, /o/highlights)`);

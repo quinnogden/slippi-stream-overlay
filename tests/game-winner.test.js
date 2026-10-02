@@ -13,8 +13,8 @@ const assert = require("assert");
 const path   = require("path");
 // Resolved from the bridge's node_modules — tests/ has none of its own.
 const { GameEndMethod } = require(require.resolve("@slippi/slippi-js",
-  { paths: [path.join(__dirname, "..", "slippi-bridge")] }));
-const { pickWinner } = require("../slippi-bridge/lib/game-source");
+  { paths: [path.join(__dirname, "..", "app")] }));
+const { pickWinner } = require("../app/lib/game-source");
 
 let failed = 0;
 function test(name, fn) {

@@ -21,11 +21,11 @@
 
 const assert = require("assert");
 
-const { ScoreboardStore } = require("../slippi-bridge/lib/scoreboard/store");
-const { PortMap, matchSingles } = require("../slippi-bridge/lib/ports/port-map");
-const { createState } = require("../slippi-bridge/lib/state");
-const { createModes } = require("../slippi-bridge/lib/modes");
-const { CHAR_MAP } = require("../slippi-bridge/lib/char_map");
+const { ScoreboardStore } = require("../app/lib/scoreboard/store");
+const { PortMap, matchSingles } = require("../app/lib/ports/port-map");
+const { createState } = require("../app/lib/state");
+const { createModes } = require("../app/lib/modes");
+const { CHAR_MAP } = require("../app/lib/char_map");
 
 const log = console.log.bind(console);
 console.log = () => {};   // the modes' own logging; failures still print

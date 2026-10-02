@@ -1,7 +1,7 @@
 /**
  * hotkey.test.js
  *
- * The global hotkeys (slippi-bridge/lib/hotkey.js). They act on the live
+ * The global hotkeys (app/lib/hotkey.js). They act on the live
  * scoreboard from whatever window has focus, so a mistake here is a score
  * changing on stream with nobody at the dock having touched it:
  *
@@ -22,7 +22,7 @@
 
 const assert = require("assert");
 
-const { compileHotkeys, createDispatcher, parseChord, DEFAULTS } = require("../slippi-bridge/lib/hotkey");
+const { compileHotkeys, createDispatcher, parseChord, DEFAULTS } = require("../app/lib/hotkey");
 
 let failed = 0;
 function test(name, fn) {
@@ -118,7 +118,7 @@ test("overrides merge per action; null turns one off; bad entries are reported, 
 test("the defaults parse against uiohook-napi's real key table", () => {
   let real;
   try {
-    real = require("../slippi-bridge/node_modules/uiohook-napi").UiohookKey;
+    real = require("../app/node_modules/uiohook-napi").UiohookKey;
   } catch {
     console.log("       (uiohook-napi didn't load here — skipped)");
     return;

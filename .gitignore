@@ -1,23 +1,23 @@
 # Node
-slippi-bridge/node_modules/
-slippi-bridge/package-lock.json
+app/node_modules/
+app/package-lock.json
 
 # Machine-local overrides + secrets (start.gg token). Never commit.
-slippi-bridge/config.local.js
+app/config.local.js
 
 # Combo clipper tunables written by the control panel — per-machine (OBS
 # password, replay folder) and retuned per venue, so it never belongs in git.
-slippi-bridge/clipper-settings.json
-slippi-bridge/clipper-settings.json.tmp
+app/clipper-settings.json
+app/clipper-settings.json.tmp
 
 # Players' start.gg set histories, saved by the side panel's stats so a regular
 # is crawled once rather than every time they're on stream. Rebuilt on demand.
-slippi-bridge/stats-cache/
+app/stats-cache/
 
 # Per-machine runtime state: the live scoreboard (saved on every change so a
 # restart mid-set restores it) and, by default, the player DB
 # (local_players.json — this machine's players, never the repo's).
-slippi-bridge/data/
+app/data/
 
 # An old TSH install left in or beside the repo. The app doesn't use it (the rollback is the tsh-final tag);
 # the whole folder stays untracked (it is ~4000 vendored files and its own

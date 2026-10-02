@@ -1,5 +1,5 @@
 /**
- * The pre-event check (slippi-bridge/scripts/preflight.js) runs, and its
+ * The pre-event check (app/scripts/preflight.js) runs, and its
  * checks of what's in the repo pass.
  *
  * preflight requires most of what it checks lazily, inside the check — it has
@@ -15,7 +15,7 @@ const assert = require("assert");
 const path   = require("path");
 const { spawnSync } = require("child_process");
 
-const SCRIPT = path.join(__dirname, "..", "slippi-bridge", "scripts", "preflight.js");
+const SCRIPT = path.join(__dirname, "..", "app", "scripts", "preflight.js");
 
 let failed = 0;
 function test(name, fn) {

@@ -9,7 +9,7 @@ It replaced [Tournament Stream Helper (TSH)](https://github.com/joaorb64/Tournam
 ```
 Slippi Desktop App → live .slp in SLP_FOLDER
         ↓
-slippi-bridge/  (Node.js, one port: 5001)            ← start.bat
+app/  (Node.js, one port: 5001)            ← start.bat
   ├─ reads each game as it's played: characters, the winner, handwarmers, big combos
   ├─ the scoreboard: set, names, score, per-game list (survives a restart)
   ├─ start.gg: this week's event via your short link, the set picker, the bracket,
@@ -24,7 +24,7 @@ slippi-bridge/  (Node.js, one port: 5001)            ← start.bat
 
 | | |
 |---|---|
-| `slippi-bridge/` | The app: game reading, the scoreboard, start.gg, the player DB, OBS, and the dock (`public/dock/`). |
+| `app/` | The app: game reading, the scoreboard, start.gg, the player DB, OBS, and the dock (`public/dock/`). |
 | `overlays/` | Every OBS page, the theme packs, and the stock character icons. Served at `/o/`. |
 | `start.bat` | Starts the app (installs dependencies on its first run). |
 | `obs-scripts/` | Python scripts that run *inside* OBS. Currently just the break-scene clip playlist. Optional. |
@@ -43,7 +43,7 @@ Optional, and only for the break-scene clip playlist: **64-bit VLC**, and a Pyth
 
 ## Setup
 
-> On a **new machine**, a **fresh OBS profile**, or **moving over from TSH**? Use [docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md) — an ordered checklist with a verification pass. `cd slippi-bridge && node scripts/preflight.js` checks the mechanical half of it at any point.
+> On a **new machine**, a **fresh OBS profile**, or **moving over from TSH**? Use [docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md) — an ordered checklist with a verification pass. `cd app && node scripts/preflight.js` checks the mechanical half of it at any point.
 
 ### 1. Clone
 
@@ -53,7 +53,7 @@ git clone https://github.com/quinnogden/slippi-stream-overlay.git
 
 ### 2. Configure
 
-Copy `slippi-bridge/config.local.example.js` to `slippi-bridge/config.local.js` (gitignored) and set:
+Copy `app/config.local.example.js` to `app/config.local.js` (gitignored) and set:
 
 ```js
 module.exports = {
@@ -68,7 +68,7 @@ Generate the token at [start.gg → Developer Settings](https://start.gg/admin/p
 
 ### 3. The player database
 
-The app keeps players in TSH's `local_players.json` format — tag, prefix, pronouns, twitter, mains — at `slippi-bridge/data/local_players.json` (gitignored; `PLAYERS_FILE` moves it). Moving from TSH, copy the old install's `user_data/local_players.json` there; the file stays compatible both ways. Starting fresh works too: players are added from start.gg as their sets load, and their mains are learned from what they play.
+The app keeps players in TSH's `local_players.json` format — tag, prefix, pronouns, twitter, mains — at `app/data/local_players.json` (gitignored; `PLAYERS_FILE` moves it). Moving from TSH, copy the old install's `user_data/local_players.json` there; the file stays compatible both ways. Starting fresh works too: players are added from start.gg as their sets load, and their mains are learned from what they play.
 
 ### 4. Run it
 
@@ -271,7 +271,7 @@ It polls `SLP_FOLDER` every 500ms for new `.slp` files and reads the one Slippi 
 
 ## Troubleshooting
 
-**Run preflight first:** `cd slippi-bridge && node scripts/preflight.js`. It checks the config, the player file, the overlays, the theme pack, the hotkeys, the running app, the start.gg token, this week's short link and OBS, and prints the fix for each failure.
+**Run preflight first:** `cd app && node scripts/preflight.js`. It checks the config, the player file, the overlays, the theme pack, the hotkeys, the running app, the start.gg token, this week's short link and OBS, and prints the fix for each failure.
 
 **The app exits at startup:** `SLP_FOLDER` doesn't exist on this machine — set it in `config.local.js`.
 
@@ -293,4 +293,4 @@ It polls `SLP_FOLDER` every 500ms for new `.slp` files and reads the one Slippi 
 
 **Highlights frame doesn't line up with the footage:** open it with `?guides=1` and compare the labelled rectangles against OBS's Edit Transform values.
 
-**Score went up on a warm-up game:** the handwarmer threshold may need tuning — the weighted cutoff is at the top of `slippi-bridge/lib/handwarmer.js`. Take the game back with − (or `Ctrl+Shift+Alt+1`/`2`).
+**Score went up on a warm-up game:** the handwarmer threshold may need tuning — the weighted cutoff is at the top of `app/lib/handwarmer.js`. Take the game back with − (or `Ctrl+Shift+Alt+1`/`2`).

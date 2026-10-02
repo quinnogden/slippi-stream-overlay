@@ -14,10 +14,10 @@
 
 const assert = require("assert");
 
-const { ScoreboardStore } = require("../slippi-bridge/lib/scoreboard/store");
-const { createOverlayChannel } = require("../slippi-bridge/lib/overlay/channel");
-const { loadPayload } = require("../slippi-bridge/lib/event/set-model");
-const { buildBracket } = require("../slippi-bridge/lib/event/bracket-model");
+const { ScoreboardStore } = require("../app/lib/scoreboard/store");
+const { createOverlayChannel } = require("../app/lib/overlay/channel");
+const { loadPayload } = require("../app/lib/event/set-model");
+const { buildBracket } = require("../app/lib/event/bracket-model");
 const { eventFrom } = require("./helpers/fake-startgg");
 const { loadOverlay, fakeIo, sleep } = require("./helpers/overlay-sandbox");
 

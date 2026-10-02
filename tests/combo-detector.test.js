@@ -14,7 +14,7 @@
  */
 
 const assert = require("assert");
-const { ComboDetector } = require("../slippi-bridge/lib/combo-detector");
+const { ComboDetector } = require("../app/lib/combo-detector");
 
 let failed = 0;
 function test(name, fn) {
