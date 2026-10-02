@@ -1,0 +1,65 @@
+[
+  {
+    "prefix": "TEAM",
+    "gamerTag": "SampleFox",
+    "name": "",
+    "twitter": "samplefox",
+    "pronoun": "he/him",
+    "custom_textbox": "",
+    "mains": {
+      "ssbm": [
+        [
+          "Fox",
+          0,
+          ""
+        ],
+        [
+          "Falco",
+          1,
+          ""
+        ]
+      ]
+    },
+    "country_code": "US",
+    "state_code": "VA"
+  },
+  {
+    "prefix": "",
+    "gamerTag": "SamplePeach",
+    "name": "",
+    "twitter": "",
+    "pronoun": "she/her",
+    "custom_textbox": "",
+    "mains": {
+      "ssbm": [
+        [
+          "Peach",
+          0,
+          ""
+        ]
+      ]
+    },
+    "learnedMains": [
+      [
+        "Peach",
+        3
+      ],
+      [
+        "Sheik",
+        0
+      ]
+    ],
+    "pinnedMain": [
+      "Peach",
+      3
+    ]
+  },
+  {
+    "prefix": "",
+    "gamerTag": "SampleNewcomer",
+    "name": "",
+    "mains": {
+      "ssbm": []
+    }
+  }
+]

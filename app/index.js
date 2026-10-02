@@ -210,7 +210,8 @@ if (playersMissing) {
   // Not fatal — new start.gg players are added as sets load — but every regular
   // would open on no main and lose their pronoun until the file is copied over.
   console.warn("[bridge]   ⚠ no player file there yet: copy local_players.json from your old TSH install's");
-  console.warn("[bridge]     user_data/ to that path, or set PLAYERS_FILE in config.local.js");
+  console.warn("[bridge]     user_data/ to that path, or set PLAYERS_FILE in config.local.js. Starting fresh?");
+  console.warn("[bridge]     Nothing to do: start.gg players are added as their sets load (format: data/local_players.example.json)");
 }
 console.log(`[bridge] start.gg report: ${ctx.startgg.enabled ? "enabled" : "disabled (no token in config.local.js)"}`);
 console.log(`[bridge] Player stats:   ${ctx.startgg.enabled

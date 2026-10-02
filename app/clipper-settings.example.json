@@ -1,0 +1,16 @@
+{
+  "enabled": false,
+  "obsUrl": "ws://127.0.0.1:4455",
+  "obsPassword": "",
+  "autoStartBuffer": true,
+  "minMoves": 4,
+  "minDamage": 30,
+  "requireKill": true,
+  "comboWindowSec": 0,
+  "maxComboDurationSec": 0,
+  "cooldownSec": 8,
+  "saveDelayMs": 2500,
+  "maxClipsPerGame": 0,
+  "clipFolder": "",
+  "notifySidePanel": true
+}

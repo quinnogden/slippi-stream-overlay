@@ -249,7 +249,8 @@ function checkPlayers(config) {
   const mkdir = exists(path.dirname(file)) ? "" : `mkdir "${path.dirname(file)}" & `;
   const copyFix = tshCopy
     ? `${mkdir}copy "${tshCopy}" "${file}"`
-    : `Copy local_players.json from your old TSH install's user_data/ to ${file}, or set PLAYERS_FILE in config.local.js`;
+    : `Moving from TSH: copy its user_data/local_players.json to ${file}, or set PLAYERS_FILE in config.local.js. `
+      + "Starting fresh: nothing to do (or seed regulars from app/data/local_players.example.json — see docs/FRESH-INSTALL.md)";
 
   if (!exists(file)) {
     warn("Player file", `${where} doesn't exist — the app starts with an empty DB and adds start.gg players as sets load`, copyFix);
@@ -383,7 +384,7 @@ function checkClipper(config) {
     else warn("clipper-settings.json", "not valid JSON — the app falls back to committed defaults and logs it",
               "Delete it and re-save from the dock's Clips tab");
   } else {
-    info("clipper-settings.json", "absent (normal first run) — using config.CLIPPER defaults; the Clips tab writes it on first save");
+    info("clipper-settings.json", "absent (normal first run) — using config.CLIPPER defaults; the Clips tab writes it on first save (every key: clipper-settings.example.json)");
   }
 
   if (!settings.enabled) {

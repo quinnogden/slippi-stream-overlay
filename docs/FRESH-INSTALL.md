@@ -33,10 +33,11 @@ It is **read-only** — it prints the exact command or menu path to fix each fin
 |---|---|
 | `app/` — the app, `config.js`, `config.local.example.js` | `app/node_modules/` → `npm install` (`start.bat` does it on first run) |
 | `overlays/` — every OBS page, the theme packs, the character icons | `app/config.local.js` → copy from `config.local.example.js` |
-| `start.bat` | `app/data/local_players.json` — this machine's player DB (Phase 2) |
+| `start.bat` | `app/data/local_players.json` — this machine's player DB (Phase 2; optional when starting fresh) |
 | `obs-scripts/auto_replays.py` | `app/clipper-settings.json` → written by the dock's Clips tab on first save (optional) |
+| `app/data/local_players.example.json`, `app/clipper-settings.example.json` — samples of the two data files above | |
 
-`app/data/` (the player file and the saved live scoreboard), `stats-cache/` and `clipper-settings.json` are per machine and gitignored.
+`app/data/` (the player file and the saved live scoreboard), `stats-cache/` and `clipper-settings.json` are per machine and gitignored; only the `*.example.*` samples are tracked. [Starting from scratch](#starting-from-scratch--no-tsh-data) says what each one is for.
 
 ---
 
@@ -63,9 +64,48 @@ TSH is **not** needed. On a machine moving over from it, keep the old TSH folder
 - [ ] **The player DB.** It is TSH's `local_players.json` format, and each machine has its own:
   - moving from TSH: copy the old install's `user_data/local_players.json` to `app/data/local_players.json` — preflight prints the exact `copy` command when it finds one beside the repo. **Copy, don't point at it**: TSH rewrites the whole file on save.
   - or set `PLAYERS_FILE` in `config.local.js` to wherever this machine keeps it;
-  - or start empty: players are added from start.gg as their sets load, and their mains are learned as they play.
+  - or start empty: players are added from start.gg as their sets load, and their mains are learned as they play. See [Starting from scratch](#starting-from-scratch--no-tsh-data).
 - [ ] `BRIDGE_PORT` stays 5001 unless there's a reason — every OBS source names it
 - [ ] *Optional* `HOTKEYS` in `config.local.js`, per action (each chord needs Ctrl, Alt or Win; `null` turns one off). Preflight checks them.
+
+### Starting from scratch — no TSH data
+
+You don't need any old data. You need **one** file: `config.local.js`, for `SLP_FOLDER` (plus the start.gg token if you want Start, Report and stats; see above). The app creates everything else, and each per-machine file has a tracked sample that shows its format:
+
+| File (gitignored) | Who writes it | Sample | On a fresh machine |
+|---|---|---|---|
+| `app/config.local.js` | you | `app/config.local.example.js` | **Required.** Copy the sample, set `SLP_FOLDER` and (optionally) the token. |
+| `app/data/local_players.json` | the app (and you, optionally) | `app/data/local_players.example.json` | **Optional.** Leave it absent, or seed it (below). |
+| `app/clipper-settings.json` | the dock's Clips tab | `app/clipper-settings.example.json` | Leave it absent. Save the Clips tab once (Phase 5) and the file is written. The sample lists every key with its default, for reference. |
+| `app/data/live-state.json` | the app, on every scoreboard change | none | Leave it absent. It's version-stamped, so a hand-written copy would be ignored. |
+| `app/stats-cache/player-<id>.json` | the app, from start.gg | none | Leave it absent. Built the first time a player is on stream (~70s for two long-time regulars, then ~1.5s). |
+
+**The player DB from nothing.** With no file, the startup log and preflight show a warning (not a failure). Here's what happens over the first event:
+
+- Loading a set from start.gg adds both players, with their prefix and start.gg id. So does picking one of the loaded event's entrants in the strip's tag field. A typed name that isn't in the DB isn't added.
+- When a singles set is reported or replaced, the characters each player used are saved as their mains. Their next set opens on that character, and game 1's ports match.
+- In the dock's **Players** tab you can fix a prefix, pronoun or twitter, or pin a main. You can only edit players already in the file. There's no "add player" button.
+
+So the only reason to seed the file by hand is to have pronouns or mains right for regulars **before** their first set on stream:
+
+```bat
+cd app\data
+copy local_players.example.json local_players.json
+```
+
+Then replace the three sample players with your own. **Don't leave them in**: a real player with the same tag would match a sample player's record. Stop the app before editing: it reads the file once at startup and overwrites it on its next save. Field by field:
+
+| Field | Meaning |
+|---|---|
+| `gamerTag`, `prefix` | Players are matched by tag (with or without prefix). `prefix` may be `""`. |
+| `pronoun`, `twitter` | Shown on the overlays. `""` for none. |
+| `mains.ssbm` | `[[character, costume, ""], …]`, first entry = main. `character` must be the display name exactly as in [char_map.js](../app/lib/char_map.js) (`"Fox"`, `"Captain Falcon"`, `"Mr. Game & Watch"`, `"Dr. Mario"` …). `costume` is the in-game colour index from 0. The third slot is TSH's and is always `""`. |
+| `pinnedMain` | `[character, costume]`. Wins over everything else. The Players tab's pin sets it. |
+| `learnedMains` | Written by the app (most recent first). Don't hand-write it. |
+| `startggPlayerId` | Written by the app on a set load. Don't hand-write it: it's matched before the tag, so a wrong id shows someone else's pronouns and mains. |
+| `name`, `custom_textbox`, `country_code`, `state_code` | TSH's fields. The app ignores them but keeps them, so the file can go back to TSH. |
+
+`[]` is also a valid, empty file.
 
 ---
 

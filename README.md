@@ -68,7 +68,7 @@ Generate the token at [start.gg → Developer Settings](https://start.gg/admin/p
 
 ### 3. The player database
 
-The app keeps players in TSH's `local_players.json` format — tag, prefix, pronouns, twitter, mains — at `app/data/local_players.json` (gitignored; `PLAYERS_FILE` moves it). Moving from TSH, copy the old install's `user_data/local_players.json` there; the file stays compatible both ways. Starting fresh works too: players are added from start.gg as their sets load, and their mains are learned from what they play.
+The app keeps players in TSH's `local_players.json` format — tag, prefix, pronouns, twitter, mains — at `app/data/local_players.json` (gitignored; `PLAYERS_FILE` moves it). Moving from TSH, copy the old install's `user_data/local_players.json` there; the file stays compatible both ways. Starting fresh works too, and you don't need a file at all: players are added from start.gg as their sets load, and their mains are learned from what they play. To have regulars' pronouns and mains right from their first set, copy [`app/data/local_players.example.json`](app/data/local_players.example.json) to `local_players.json` and replace the sample players with your own. [Starting from scratch](docs/FRESH-INSTALL.md#starting-from-scratch--no-tsh-data) lists every field, plus the other per-machine files and their samples.
 
 ### 4. Run it
 

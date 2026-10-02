@@ -64,6 +64,8 @@ index.js                   composition root
 config.js                  committed defaults     config.local.js  gitignored (token, per-machine paths)
 clipper-settings.json      gitignored, written by the Clips tab — must stay at this path
 data/                      gitignored: live-state.json, and local_players.json by default
+*.example.*                tracked samples of the per-machine files (config.local, clipper-settings,
+                           data/local_players) — docs/FRESH-INSTALL.md "Starting from scratch"
 stats-cache/               gitignored, one start.gg set history per player
 public/dock/               the operator dock (index.html, dock.js, dock.css, fonts/)
 scripts/                   preflight.js  capture-startgg.js
