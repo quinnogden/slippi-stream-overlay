@@ -34,7 +34,7 @@ Config is [slippi-bridge/config.js](slippi-bridge/config.js) (committed defaults
 - `CLIPPER` — starting values only; the dock's Clips tab writes the gitignored `clipper-settings.json`, which wins.
 - `BRACKETS` — the series' start.gg short link (**hyphenated**) and keyword `match` + `fallbackSlug` per kind.
 - `PLAYERS_FILE` — the player DB; `null` = `slippi-bridge/data/local_players.json`.
-- `SET_TEXT` — `{ topN, topLabel, defaultLabel }`: "Bo5" once the set's loser is guaranteed top 8, "Flex" before.
+- `SET_TEXT` — `{ topN, topLabel, defaultLabel }`: "Bo5" once the set's loser is guaranteed top 6 (5th or better), "Flex" before.
 - `STARTGG_TOKEN` — **never in `config.js`**. Missing token: brackets still load (keyless fallback), Start/Report/stats are off.
 
 `CLIPPER` and `BRACKETS` overridden in `config.local.js` replace the whole object; their readers (`clipper-settings.js`, `event-target.js`'s `normalizeBrackets`) fill missing keys from their own defaults for that reason.

@@ -5,8 +5,9 @@
  * The scoreboard's best-of and [L] are derived, not typed, so a wrong rule is
  * on every set of the night before anyone notices:
  *
- *   - the series runs flex (shown "Flex") outside top 8 and Bo5 in it, and "top
- *     8" is start.gg's lPlacement ≤ 8 — off by one and losers top 8 reads Flex;
+ *   - the series runs flex (shown "Flex") outside top 6 and Bo5 in it, and "top
+ *     6" is start.gg's lPlacement ≤ 6 — losers top 8 (7th) is Flex, losers
+ *     quarters (5th) is Bo5;
  *   - [L] goes on the grand-finals player who came up through losers, and on
  *     both players in the reset;
  *   - an operator override always wins.
@@ -41,21 +42,24 @@ const byName = (graph, name) => Object.values(graph.sets).filter((s) => s.name =
 
 console.log("set-text");
 
-test("best-of: Flex until the loser is guaranteed top 8, then Bo5", () => {
+test("best-of: Flex until the loser is guaranteed top 6, then Bo5", () => {
   assert.strictEqual(bestOfLabel({ lPlacement: 9 }), "Flex");
-  assert.strictEqual(bestOfLabel({ lPlacement: 8 }), "Bo5");
-  assert.strictEqual(bestOfLabel({ lPlacement: 7 }), "Bo5");
+  assert.strictEqual(bestOfLabel({ lPlacement: 7 }), "Flex", "losers top 8 is not top 6");
+  assert.strictEqual(bestOfLabel({ lPlacement: 6 }), "Bo5");
+  assert.strictEqual(bestOfLabel({ lPlacement: 5 }), "Bo5");
   assert.strictEqual(bestOfLabel({ lPlacement: 2 }), "Bo5");
-  assert.strictEqual(bestOfLabel({ lPlacement: null }), "Flex", "unknown placement is not top 8");
+  assert.strictEqual(bestOfLabel({ lPlacement: null }), "Flex", "unknown placement is not top 6");
   assert.strictEqual(bestOfLabel({}), "Flex");
 });
 
-test("best-of on a real bracket: winners quarters Flex, winners semis and losers top 8 Bo5", () => {
+test("best-of on a real bracket: losers top 8 Flex, winners semis and losers quarters Bo5", () => {
   const g = graphOf("hundred-acres-49", "singles");
   for (const s of byName(g, "Winners Quarter-Final")) assert.strictEqual(bestOfLabel(s), "Flex");
   for (const s of byName(g, "Losers Round 3")) assert.strictEqual(bestOfLabel(s), "Flex");
+  for (const s of byName(g, "Losers Round 4")) assert.strictEqual(bestOfLabel(s), "Flex", "losers top 8 (7th)");
   for (const s of byName(g, "Winners Semi-Final")) assert.strictEqual(bestOfLabel(s), "Bo5");
-  for (const s of byName(g, "Losers Round 4")) assert.strictEqual(bestOfLabel(s), "Bo5", "losers top 8 (7th)");
+  for (const s of byName(g, "Losers Quarter-Final")) assert.strictEqual(bestOfLabel(s), "Bo5", "losers quarters (5th)");
+  assert.ok(byName(g, "Losers Quarter-Final").length, "fixture has a losers quarter-final");
 });
 
 test("best-of: override wins, and the thresholds/labels are configurable", () => {

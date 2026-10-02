@@ -84,7 +84,7 @@ const config = {
   // Best-of label: `topLabel` once the set's loser is guaranteed `topN`th or
   // better (start.gg lPlacement), `defaultLabel` before that. The dock can
   // override per set.
-  SET_TEXT: { topN: 8, topLabel: "Bo5", defaultLabel: "Flex" },
+  SET_TEXT: { topN: 6, topLabel: "Bo5", defaultLabel: "Flex" },
 
   // ── Secrets (do NOT put real values here — this file is committed to git) ────
   // The start.gg personal access token lives in config.local.js (gitignored),

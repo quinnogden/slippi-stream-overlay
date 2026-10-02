@@ -162,7 +162,7 @@ Switching doesn't touch the scoreboard, so a set in progress and its pending rep
 
 ### Scoreboard and players bar
 
-Names, prefixes, pronouns, characters (the live Slippi costume), scores, the round and the best-of label: **Flex** outside top 8 (a Bo3 that goes to Bo5 at 1-1) and **Bo5** in top 8, decided from start.gg's placement for the set's loser. **[L]** goes on the grand-finals player from losers automatically. The rule lives in `SET_TEXT`; the live strip can override any of it per set.
+Names, prefixes, pronouns, characters (the live Slippi costume), scores, the round and the best-of label: **Flex** outside top 6 (a Bo3 that goes to Bo5 at 1-1) and **Bo5** in top 6, decided from start.gg's placement for the set's loser. **[L]** goes on the grand-finals player from losers automatically. The rule lives in `SET_TEXT`; the live strip can override any of it per set.
 
 ### Side panel
 

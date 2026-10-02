@@ -6,14 +6,16 @@
  * either from the dock's live strip, and an override always wins.
  *
  * The series runs **flex**: a Bo3 that becomes a Bo5 if it reaches 1-1, so it
- * is shown as "Flex" for the whole set rather than flipping mid-set. Top 8 is
- * always Bo5. "Top 8" is decided by start.gg's `lPlacement` — the placement the
+ * is shown as "Flex" for the whole set rather than flipping mid-set. Top 6 is
+ * always Bo5. "Top 6" is decided by start.gg's `lPlacement` — the placement the
  * set's loser is guaranteed — so it holds whether top 8 is its own phase or part
- * of one bracket, and works on unstarted (preview) sets too.
+ * of one bracket, and works on unstarted (preview) sets too. Double-elim
+ * placements run 1, 2, 3, 4, 5, 7, 9…, so top 6 is winners semis and losers
+ * quarters on; losers top 8 (7th) is still Flex.
  */
 
 const DEFAULTS = Object.freeze({
-  topN: 8,            // sets whose loser places this or better are "top N"
+  topN: 6,            // sets whose loser places this or better are "top N"
   topLabel: "Bo5",
   defaultLabel: "Flex",
 });
