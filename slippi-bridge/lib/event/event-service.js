@@ -31,7 +31,10 @@ const { characterByName } = require("../char_map");
 const POLL_MS = 90000;
 
 // start.gg's ActivityState: a completed phase group's sets don't change, so it
-// is read once rather than on every refresh.
+// is read once rather than on every refresh. "Read once" means its sets were
+// read *while* it was completed — the event read that first says so is the one
+// after the last report, and skipping the group then left the bracket's last
+// set (the GF reset) live in the picker until a restart.
 const COMPLETED = 3;
 
 class EventService extends EventEmitter {
@@ -257,7 +260,8 @@ class EventService extends EventEmitter {
   async _readGroups(gen, { background }) {
     let firstError = null;
     for (const g of this._groups) {
-      if (g.graph && Number(g.state) === COMPLETED) continue;
+      if (g.graph && Number(g.readState) === COMPLETED) continue;
+      const state = g.state; // what the sets about to be read are final for
       const res = await this._startgg.getPhaseGroupSets(g.id, { background });
       if (gen !== this._gen) return { ok: true }; // another event loaded meanwhile
       if (!res.ok) {
@@ -267,6 +271,7 @@ class EventService extends EventEmitter {
       }
       g.error = null;
       g.raw = res.sets;
+      g.readState = state;
       g.graph = buildBracket(res.sets, { phaseGroupId: g.id, bracketType: g.bracketType });
     }
     if (firstError) return this._fail(firstError);
@@ -477,6 +482,7 @@ function groupsOf(event, previous) {
         state: pg.state ?? null,
         raw: old?.raw ?? [],
         graph: old?.graph ?? null,
+        readState: old?.readState ?? null,
         error: old?.error ?? null,
       };
     });

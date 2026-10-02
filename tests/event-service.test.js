@@ -236,6 +236,37 @@ const called = (gg, method) => gg.calls.filter((c) => c.method === method);
     assert.match((await svc.refresh()).error, /No event loaded/);
   });
 
+  await test("the refresh that sees the bracket finish still reads its last set", async () => {
+    // hundred-acres-51 ended on a GF reset. Wound back to before its report: the
+    // reset in progress, the group active. The next event read says completed —
+    // that read must still fetch the sets, or the reset stays live in the picker.
+    const startgg = fakeStartgg("hundred-acres-51.final");
+    const { svc } = setup(null, { startgg });
+    const finished = { getEvent: startgg.getEvent, getPhaseGroupSets: startgg.getPhaseGroupSets };
+    startgg.getEvent = async (slug) => {
+      const r = await finished.getEvent(slug);
+      for (const ph of r.event?.phases ?? []) for (const pg of ph.phaseGroups.nodes) pg.state = 2;
+      return r;
+    };
+    startgg.getPhaseGroupSets = async (id) => {
+      const r = await finished.getPhaseGroupSets(id);
+      const reset = r.sets.find((s) => s.fullRoundText === "Grand Final Reset");
+      if (reset) Object.assign(reset, { state: 2, winnerId: null });
+      return r;
+    };
+    await svc.switchEvent("singles");
+    const live = (rows) => rows.filter((s) => s.status === "live").map((s) => s.roundName);
+    assert.deepStrictEqual(live(svc.openSets()), ["Grand Final Reset"], "the wound-back state is what tonight looked like");
+
+    Object.assign(startgg, finished);
+    const before = called(startgg, "getPhaseGroupSets").length;
+    await svc.refresh();
+    assert.strictEqual(called(startgg, "getPhaseGroupSets").length, before + 1, "the group's last read was before it finished");
+    assert.deepStrictEqual(svc.openSets(), [], "nothing left to play");
+    await svc.refresh();
+    assert.strictEqual(called(startgg, "getPhaseGroupSets").length, before + 1, "…and now it's read once");
+  });
+
   await test("stats pre-fetch the players in the next playable sets", async () => {
     const { svc } = setup("hundred-acres-51");
     await svc.switchEvent("singles");
