@@ -31,6 +31,7 @@
   const TABS = ["set", "bracket", "casters", "players", "clips", "setup"];
   const TAB_KEY = "dock.tab";
   const FOLD_KEY = "dock.stripFolded";
+  const WAITING_KEY = "dock.hideWaiting";
   const HOLD_MS = 450;        // a long-press on a character opens its costumes
   const SETS_POLL_MS = 90000; // the app re-reads start.gg every 90s; this only picks that up
   const STALE_MS = 12000;     // no status for this long = the app has stopped talking
@@ -875,6 +876,7 @@
   let sets = [];
   let setsError = null;
   let showFinished = false;
+  let hideWaiting = store(WAITING_KEY) === "1"; // client-side only: the list is fetched whole either way
   let setsReq = 0;
 
   /** @param {boolean} [fromStartgg] — re-read start.gg first (the ↻ key) */
@@ -898,8 +900,16 @@
   const renderSets = guard("sets", () => {
     const list = $("sets-list");
     const filter = $("set-filter");
-    filter.classList.toggle("gone", sets.length <= 8);
     drawnLiveId = sb ? sb.setId : null;
+
+    // The on-air set stays even if start.gg has it waiting — it's the one being played.
+    const isOnAir = (s) => drawnLiveId != null && String(s.setId) === String(drawnLiveId);
+    const waiting = sets.filter((s) => s.status === "waiting" && !isOnAir(s)).length;
+    const shown = hideWaiting ? sets.filter((s) => s.status !== "waiting" || isOnAir(s)) : sets;
+    $("btn-toggle-waiting").textContent = hideWaiting
+      ? (waiting ? `Show waiting (${waiting})` : "Show waiting")
+      : "Hide waiting";
+    filter.classList.toggle("gone", shown.length <= 8);
 
     if (setsError) return list.replaceChildren(h("div", "empty-note", `Couldn't load sets: ${setsError}`));
     if (!sets.length) {
@@ -907,9 +917,13 @@
         ? "No sets in this event yet."
         : "No open sets — the bracket may be finished. Try Show finished."));
     }
+    if (!shown.length) {
+      return list.replaceChildren(h("div", "empty-note",
+        "Every open set is waiting on an earlier one. Tap Show waiting to see them."));
+    }
     const f = filter.value.trim().toLowerCase();
-    const rows = f ? sets.filter((s) => [s.names[0], s.names[1], s.roundName, s.phase]
-      .some((v) => String(v || "").toLowerCase().includes(f))) : sets;
+    const rows = f ? shown.filter((s) => [s.names[0], s.names[1], s.roundName, s.phase]
+      .some((v) => String(v || "").toLowerCase().includes(f))) : shown;
     if (!rows.length) return list.replaceChildren(h("div", "empty-note", "Nothing matches that filter."));
 
     const out = [];
@@ -985,6 +999,11 @@
     showFinished = !showFinished;
     $("btn-toggle-finished").textContent = showFinished ? "Hide finished" : "Show finished";
     fetchSets();
+  });
+  $("btn-toggle-waiting").addEventListener("click", () => {
+    hideWaiting = !hideWaiting;
+    store(WAITING_KEY, hideWaiting ? "1" : "0");
+    renderSets();
   });
 
   // ── Bracket tab ─────────────────────────────────────────────────────────────

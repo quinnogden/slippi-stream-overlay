@@ -186,7 +186,7 @@ A pinned **live strip** that folds to one line (names and score; remembered in `
 - **Input survives pushes.** A name being typed isn't overwritten mid-word (commits on change; Escape sends nothing); the casters are a **draft until Put on stream**, kept across pushes unless unchanged and nobody is typing; the clipper form is generated from one `CLIP_FIELDS` spec and latches dirty.
 - **Health:** `control_status` is sent on change plus a **5s heartbeat**; no status for ~12s dims the lights.
 - **Autocomplete** (`autocomplete()` in `dock.js`, one shared `#ac-menu`, not a `<datalist>`) on the round, prefix, tag, pronoun and caster fields. The strip's tag suggests the **loaded event's entrants only** (the whole player DB with no event), and a pick fills the slot through `/api/players/assign`. A field's own keydown handler goes after `autocomplete()` and skips a `defaultPrevented` key, or Enter on a suggestion also commits the typed text.
-- Report and a load over a set with games ask first. The active tab persists in `localStorage` (wrapped — it can throw).
+- Report and a load over a set with games ask first. The active tab and Up next's **Hide waiting** (a client-side filter; the on-air set is never hidden) persist in `localStorage` (wrapped — it can throw).
 - Layout: one column in an OBS dock, more from ~760px; usable from a phone. `lan-urls.js` lists the dock's url on every reachable address, **Tailscale (`100.64/10`) first** — it survives a venue network change and guest Wi-Fi client isolation; Hyper-V switches and `169.254` adapters are filtered out.
 
 ### Hotkeys — `lib/hotkey.js`
