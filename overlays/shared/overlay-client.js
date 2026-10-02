@@ -462,19 +462,43 @@
    * Squeeze `el` horizontally until it fits its parent — TSH's FitText, which
    * every scoreboard name has been drawn with. Measures after the fonts load,
    * since a fallback face is a different width.
+   *
+   * And again whenever the parent changes width: the box a name fits into is
+   * what its siblings leave, and they change on their own schedule — the
+   * doubles team swatch is wider than a character icon and is drawn after the
+   * name (and after its own swap's exit), so a fit taken once kept the old,
+   * wider box and the swatch covered the end of a long team name.
    */
   function squeeze(el) {
     if (!el || !el.parentElement) return;
-    const fit = () => {
-      el.style.transform = "";
-      const ps = getComputedStyle(el.parentElement);
-      const avail = el.parentElement.clientWidth - parseFloat(ps.paddingLeft) - parseFloat(ps.paddingRight);
-      const need = el.scrollWidth;
-      if (avail > 0 && need > avail) el.style.transform = `scaleX(${avail / need})`;
-    };
-    fit();
-    if (document.fonts && document.fonts.status !== "loaded") document.fonts.ready.then(fit);
+    fitSqueeze(el);
+    if (document.fonts && document.fonts.status !== "loaded") document.fonts.ready.then(() => fitSqueeze(el));
+    if (squeezeObserver && squeezedIn.get(el.parentElement) !== el) {
+      squeezedIn.set(el.parentElement, el);
+      squeezeObserver.observe(el.parentElement);
+    }
   }
+
+  function fitSqueeze(el) {
+    if (!el.parentElement) return;
+    el.style.transform = "";
+    const ps = getComputedStyle(el.parentElement);
+    const avail = el.parentElement.clientWidth - parseFloat(ps.paddingLeft) - parseFloat(ps.paddingRight);
+    const need = el.scrollWidth;
+    if (avail > 0 && need > avail) el.style.transform = `scaleX(${avail / need})`;
+  }
+
+  // parent → the element squeezed into it. A refit only changes a transform,
+  // which never changes layout, so it can't resize what's observed and loop.
+  const squeezedIn = new WeakMap();
+  const squeezeObserver = typeof root.ResizeObserver === "function"
+    ? new root.ResizeObserver((entries) => {
+        for (const e of entries) {
+          const el = squeezedIn.get(e.target);
+          if (el && el.parentElement === e.target) fitSqueeze(el);
+        }
+      })
+    : null;
 
   /**
    * Shrink single-line text's font size until it fits its box — the side
