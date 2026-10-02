@@ -1,25 +1,32 @@
 # Docs
 
-| Document | Read it when |
+The [main README](../README.md) covers what the app does and how to run a stream with it. This folder holds the longer guides.
+
+## Pick a guide
+
+| | Guide | Read it when you're… |
+|:-:|---|---|
+| 🛠️ | [**FRESH-INSTALL.md**](FRESH-INSTALL.md) | **Setting up** a new machine or a fresh OBS profile, or moving over from TSH. It works phase by phase, marks which steps you do and which Claude Code can do, and ends with a verification pass. |
+| 🧪 | [**TESTING.md**](TESTING.md) | **Checking a change** without a live tournament: replaying `.slp` files faithfully, running the app against a past event, screenshotting the overlays, and the regression checklist. |
+| 🔌 | [**BRIDGE-API.md**](BRIDGE-API.md) | **Changing anything a browser reads**: the state sections, event payloads and `/api/*` routes, with the traps in each. |
+
+## Elsewhere in the repo
+
+| Where | What it's for |
 |---|---|
-| [FRESH-INSTALL.md](FRESH-INSTALL.md) | Setting up on a new machine or a fresh OBS profile, or moving a machine over from TSH. Phase-by-phase, marking which steps Claude Code can do and which need you, with the OBS url table. |
-| [TESTING.md](TESTING.md) | Verifying a change without a live tournament — replaying `.slp` files faithfully, booting the app against a past event, looking at the overlays, and the regression checklist for the parts that only fail on stream. |
-| [BRIDGE-API.md](BRIDGE-API.md) | Touching anything a browser consumes — the state sections, the event payloads and the `/api/*` routes, with the traps in each. |
+| [`../README.md`](../README.md) | The operator's manual: every feature, how to set it up, and troubleshooting. |
+| [`../CLAUDE.md`](../CLAUDE.md) | Architecture, module boundaries, and the non-obvious rules behind the code. **Read it before changing anything.** |
+| [`../tests/README.md`](../tests/README.md) | What each automated check protects, and the test sandbox's gotchas. |
+| `app/scripts/preflight.js` | Automates the mechanical half of the install checklist. Run `node scripts/preflight.js` from `app/`, and add `--offline` to skip the network checks. |
 
-Elsewhere in the repo:
+## Rules these docs assume
 
-- [../README.md](../README.md) — what the app does, feature by feature; the operator-facing manual.
-- [../CLAUDE.md](../CLAUDE.md) — architecture, module boundaries, and the non-obvious constraints behind the code. The map to read before changing anything.
-- [../tests/README.md](../tests/README.md) — what each automated check protects, and the sandbox's gotchas.
-- `app/scripts/preflight.js` — `node scripts/preflight.js` (add `--offline` to skip network probes) automates the mechanical parts of the fresh-install checklist.
+> [!NOTE]
+> These four rules hold across the codebase. The guides lean on them without repeating them.
 
-## Conventions these docs assume
+1. **`app/index.js` only wires things together.** Behaviour lives in `lib/`; `index.js` just builds the services and connects them.
+2. **The scoreboard store owns all live state.** Every change is a store command. The overlays, the dock and the save file all follow the store's `change` event.
+3. **Client modules return `{ ok, error?, … }` instead of throwing.** Every caller is either an Express handler or a fire-and-forget game event, and an unreachable start.gg or OBS must never take the app down.
+4. **Nothing may block scoring.** Clip saving, stats, bracket reads and status refreshes are all best-effort and kept apart from the code that awards a point.
 
-- **`app/index.js` is a composition root.** Behaviour goes in `lib/`; `index.js` only builds services and wires them together.
-- **The scoreboard store is the one owner of live state.** Every change is a store command; the overlays, the dock and the save file all follow from its `change` event.
-- **Client modules return `{ ok, error?, … }` rather than throwing.** Every caller is either an Express handler or a fire-and-forget game event, and neither should be able to take the app down because start.gg or OBS is unreachable.
-- **Nothing may block scoring.** Clip saving, stats, bracket reads and status refreshes are all best-effort and isolated from the path that awards a point.
-
-The path and secrets rules these docs rely on are in
-[CLAUDE.md → Known Gotchas](../CLAUDE.md#known-gotchas) — kept in one place rather than restated
-here, because a copy is a copy that goes stale.
+The rules about file paths and secrets are in [CLAUDE.md → Known Gotchas](../CLAUDE.md#known-gotchas). They're kept in one place on purpose, because a copy is a copy that goes stale.

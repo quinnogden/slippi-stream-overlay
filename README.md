@@ -1,82 +1,130 @@
+<div align="center">
+
 # slippi-stream-overlay
 
-A Melee tournament stream app: it reads live Slippi game data, runs the event from start.gg, owns the scoreboard, serves every OBS overlay, and gives the operator one dock to drive it all from. Characters, costumes and scores update by themselves as games are played; loading a set, switching sides and reporting the result are one press each.
+**One app that runs a Super Smash Bros. Melee tournament stream.**
 
-It replaced [Tournament Stream Helper (TSH)](https://github.com/joaorb64/TournamentStreamHelper), which this repo used to feed. There is now one thing to run.
+It reads live Slippi games, runs the bracket from start.gg, keeps the scoreboard,<br>
+serves every OBS overlay, and gives the stream operator one panel to drive it all from.
 
-## How It Works
+![Windows](https://img.shields.io/badge/platform-Windows-0078D6)
+![Node 18+](https://img.shields.io/badge/node-18%2B-339933)
+![OBS 28+](https://img.shields.io/badge/OBS-28%2B-302E31)
+![start.gg](https://img.shields.io/badge/brackets-start.gg-E0393E)
 
-```
-Slippi Desktop App → live .slp in SLP_FOLDER
-        ↓
-app/  (Node.js, one port: 5001)            ← start.bat
-  ├─ reads each game as it's played: characters, the winner, handwarmers, big combos
-  ├─ the scoreboard: set, names, score, per-game list (survives a restart)
-  ├─ start.gg: this week's event via your short link, the set picker, the bracket,
-  │            Start / Report, player stats for the side panel
-  ├─ the player DB: pronouns, and each player's mains — learned from what they play
-  ├─ OBS: saves the replay buffer when a combo lands
-  ├─ /o/…   → every OBS browser source (scoreboard, side panel, bracket, casters, highlights)
-  └─ /dock  → the operator's dock (an OBS custom dock, or a phone)
-```
+<img src="docs/images/hero.png" alt="The scoreboard over the game capture, with the side panel beside the webcam" width="100%">
 
-## What's in the repo
+<sub>The scoreboard and side panel on stream. The game capture and webcam are placeholders.</sub>
 
-| | |
-|---|---|
-| `app/` | The app: game reading, the scoreboard, start.gg, the player DB, OBS, and the dock (`public/dock/`). |
-| `overlays/` | Every OBS page, the theme packs, and the stock character icons. Served at `/o/`. |
-| `start.bat` | Starts the app (installs dependencies on its first run). |
-| `obs-scripts/` | Python scripts that run *inside* OBS. Currently just the break-scene clip playlist. Optional. |
-| `tests/` | `node tests/run.js`. No framework, nothing to install. Deliberately narrow — see [tests/README.md](tests/README.md). |
-| `docs/` | The longer-form docs below. |
+</div>
 
-Beyond this page: [docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md) for setting up a machine step by step (including moving over from TSH), [docs/TESTING.md](docs/TESTING.md) for verifying a change with no bracket running, [docs/BRIDGE-API.md](docs/BRIDGE-API.md) for the state, event and route shapes, and [CLAUDE.md](CLAUDE.md) for the architecture and the non-obvious constraints behind the code.
+---
+
+## Why use it
+
+- 🎮 **Scores update by themselves.** Characters, costumes and the winner of each game come straight from Slippi as the game is played.
+- 🏆 **The bracket comes from start.gg.** Load the next set in one tap, then press **Report** when it's done. Nobody has to open the bracket page.
+- 🖥️ **Six OBS overlays, one look.** The scoreboard, side panel, bracket, casters and replay frame all share a theme pack you can swap.
+- 🎬 **Combos clip themselves.** When a big combo lands, OBS saves its replay buffer, and the clips play back on your break scene.
+- 🧠 **It learns your players.** Pronouns and mains are kept in a player database, and mains are learned from what people actually play.
+
+It replaced [Tournament Stream Helper (TSH)](https://github.com/joaorb64/TournamentStreamHelper), which this repo used to feed. Now there's only one thing to run.
+
+---
+
+## Contents
+
+| Getting started | Using it | Reference |
+|---|---|---|
+| [Requirements](#requirements) | [The dock](#the-dock) | [Theme packs](#theme-packs) |
+| [Quick start](#quick-start) | [How scoring works](#how-scoring-works) | [Combo clipper](#combo-clipper) |
+| [Adding it to OBS](#adding-it-to-obs) | [Reporting to start.gg](#reporting-to-startgg) | [Troubleshooting](#troubleshooting) |
+| | [The overlays](#the-overlays) | [For developers](#for-developers) |
+
+---
 
 ## Requirements
 
-- [Node.js](https://nodejs.org) 18+
-- **Slippi Desktop App** in spectate/mirror mode, so it writes live `.slp` files to a folder
-- **OBS 28+** — 28 is where obs-websocket v5 became built-in, which the [combo clipper](#combo-clipper) needs
+| You need | Why |
+|---|---|
+| [**Node.js 18+**](https://nodejs.org) | Runs the app. |
+| **Slippi Desktop App** | Set to spectate/mirror mode, so it writes live `.slp` files to a folder. |
+| **OBS 28+** | Version 28 has obs-websocket v5 built in, which the [combo clipper](#combo-clipper) uses. |
+| *Optional:* **64-bit VLC** and a Python that OBS will load | Only for the break-scene clip playlist ([details](#playing-clips-back)). |
 
-Optional, and only for the break-scene clip playlist: **64-bit VLC**, and a Python install [that your OBS build will actually load](#playing-the-clips-back).
+---
 
-## Setup
+## Quick start
 
-> On a **new machine**, a **fresh OBS profile**, or **moving over from TSH**? Use [docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md) — an ordered checklist with a verification pass. `cd app && node scripts/preflight.js` checks the mechanical half of it at any point.
+> [!TIP]
+> Setting up a **new machine**, a **fresh OBS profile**, or **moving over from TSH**? Follow [docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md) instead. It's an ordered checklist with a verification pass at the end.
 
-### 1. Clone
+### 1 · Clone
 
 ```bash
 git clone https://github.com/quinnogden/slippi-stream-overlay.git
 ```
 
-### 2. Configure
+### 2 · Add your settings
 
-Copy `app/config.local.example.js` to `app/config.local.js` (gitignored) and set:
+Copy `app/config.local.example.js` to **`app/config.local.js`** and fill in two values:
 
 ```js
 module.exports = {
-  STARTGG_TOKEN: "…",                                          // start.gg → Developer Settings
+  STARTGG_TOKEN: "…",   // start.gg → Developer Settings
   SLP_FOLDER: "C:/Users/YourName/Documents/Slippi/Spectate/YourName",
 };
 ```
 
-Generate the token at [start.gg → Developer Settings](https://start.gg/admin/profile/developer) (viewable once; expires after a year). Without it the brackets still load, but Start, Report and the side panel's player stats are off. **Never put it in `config.js`**, which is committed.
+- **`STARTGG_TOKEN`**: create one at [start.gg → Developer Settings](https://start.gg/admin/profile/developer). You can only view it once, and it expires after a year. Without it, brackets still load, but **Start**, **Report** and the side panel's player stats are turned off.
+- **`SLP_FOLDER`**: the folder Slippi writes live games into. The app won't start if this folder doesn't exist.
 
-`config.js` holds the rest, all with working defaults: `BRACKETS` (your series' start.gg short link, for the [Singles / Doubles buttons](#switching-brackets)) and `PLAYERS_FILE`. `HOTKEYS`, `SET_TEXT` (the Flex / Bo5 rule) and `CLIPPER` (the [combo clipper](#combo-clipper)'s starting values, tuned from the dock afterwards) default in their own modules and can be overridden per key. Anything per machine goes in `config.local.js`.
+> [!WARNING]
+> Put the token in `config.local.js` only, never in `config.js`. `config.local.js` is gitignored; `config.js` is committed.
 
-### 3. The player database
+<details>
+<summary><b>Other settings</b> (all optional, with working defaults)</summary>
 
-The app keeps players in TSH's `local_players.json` format — tag, prefix, pronouns, twitter, mains — at `app/data/local_players.json` (gitignored; `PLAYERS_FILE` moves it). Moving from TSH, copy the old install's `user_data/local_players.json` there; the file stays compatible both ways. Starting fresh works too, and you don't need a file at all: players are added from start.gg as their sets load, and their mains are learned from what they play. To have regulars' pronouns and mains right from their first set, copy [`app/data/local_players.example.json`](app/data/local_players.example.json) to `local_players.json` and replace the sample players with your own. [Starting from scratch](docs/FRESH-INSTALL.md#starting-from-scratch--no-tsh-data) lists every field, plus the other per-machine files and their samples.
+<br>
 
-### 4. Run it
+| Setting | Where | What it does |
+|---|---|---|
+| `BRACKETS` | `config.js` | Your series' start.gg short link, for the [Singles / Doubles buttons](#switching-brackets). |
+| `PLAYERS_FILE` | `config.js` | Moves the player database. The default is `app/data/local_players.json`. |
+| `HOTKEYS` | `config.local.js` | Changes the [global hotkeys](#hotkeys). |
+| `SET_TEXT` | `config.local.js` | Changes the Flex / Bo5 rule. |
+| `CLIPPER` | `config.local.js` | Starting values for the [combo clipper](#combo-clipper). After that, tune it from the dock. |
+| `BRIDGE_PORT` | `config.local.js` | The port everything is served on (default **5001**). |
 
-Double-click **`start.bat`**. The console lists the dock url, the urls for a phone, the player file, the event it reloaded and the hotkeys it bound. Closing the window stops it.
+Anything specific to one machine goes in `config.local.js`.
 
-### 5. OBS
+</details>
 
-Add each overlay as a Browser Source — the dock's **Setup** tab lists them all with copy buttons:
+### 3 · Set up the player database *(optional)*
+
+Players are kept in `app/data/local_players.json`, which records each player's tag, prefix, pronouns, twitter and mains. **You don't need this file to start.** Players are added from start.gg as their sets load, and their mains are learned as they play.
+
+- **Coming from TSH?** Copy the old install's `user_data/local_players.json` here. The format works in both directions.
+- **Want regulars correct from their first set?** Copy [`local_players.example.json`](app/data/local_players.example.json) to `local_players.json` and replace the sample players with your own.
+
+Every field is described in [Starting from scratch](docs/FRESH-INSTALL.md#starting-from-scratch--no-tsh-data).
+
+### 4 · Run it
+
+Double-click **`start.bat`**. The first run installs the dependencies.
+
+The console then shows the dock's address, addresses for a phone, the player file, the event it loaded and the hotkeys it bound. **Close the window to stop the app.**
+
+> [!NOTE]
+> Want to check your setup? Run `cd app && node scripts/preflight.js`. It tests the config, the player file, the overlays, the theme, the hotkeys, start.gg and OBS, and prints a fix for anything that fails.
+
+---
+
+## Adding it to OBS
+
+### Browser sources
+
+Add each overlay as a **Browser Source**. You don't need to type these: the dock's **Setup** tab lists every URL with a copy button.
 
 | Source | URL | Size |
 |---|---|---|
@@ -87,210 +135,361 @@ Add each overlay as a Browser Source — the dock's **Setup** tab lists them all
 | Highlights | `http://localhost:5001/o/highlights` | 1920 × 1080 |
 | Casters | `http://localhost:5001/o/casters` | any |
 
-The side panel has a transparent 587 × 330 cutout — layer your webcam source **behind** it. On every source, **uncheck "Shutdown source when not visible"** and **"Refresh browser when scene becomes active"**. Start the app before OBS, or refresh the sources once it's up.
+> [!IMPORTANT]
+> On **every** browser source, uncheck **"Shutdown source when not visible"** and **"Refresh browser when scene becomes active"**.
+>
+> Start the app **before** OBS. If OBS was already open, refresh the sources once the app is up.
 
-Then the dock: **Docks → Custom Browser Docks**, URL `http://localhost:5001/dock`.
+The side panel has a transparent 587 × 330 cutout for your webcam, so put the webcam source **behind** it.
+
+### Custom dock
+
+Go to **Docks → Custom Browser Docks** and add `http://localhost:5001/dock`.
+
+---
 
 ## The dock
 
-The operator's whole job in one narrow panel, built to sit beside the OBS preview (it widens into columns on a bigger screen, and works from a phone at the address the console prints — the Tailscale one first, since it survives venue Wi-Fi). It is **not** part of the broadcast.
+<img src="docs/images/dock.png" alt="The dock: the live strip with both players, score and actions, and the Set tab's list of sets" width="300" align="right">
 
-A **live strip** stays pinned at the top: both sides' names and characters, the score with − / + per side, the round, the best-of and the [L] marks (each overridable, **Auto text** puts them back), and the set's actions:
+The dock is the operator's whole job in one narrow panel. It sits beside the OBS preview and **never appears on stream**.
 
-- **⇆ Sides** — the two players trade columns on the scoreboard (names, scores, characters, start.gg entrants, the game list — all together). Use it to match where they actually sit.
-- **⇄ Ports** — the Slippi ports are the wrong way round: the points are about to land on the wrong player. The scoreboard stays put; the correction sticks for the rest of the set.
-- **↻ Detect** — re-match the ports against the players' characters.
-- **Start** / **Report** — start.gg's own "Start match" and the result report. See [Reporting](#reporting-to-startgg).
+It also works in a browser, where it widens into columns, or **on a phone**. Use the address the console prints; the Tailscale address is listed first because it keeps working when the venue Wi-Fi changes.
 
-Tap a character to change it; the picker is the character-select screen, and holding (or right-clicking) a character shows its costumes.
+### The live strip
 
-Below the strip, six tabs:
+This strip stays pinned at the top and shows:
 
-| Tab | |
+- **Both players**: tag, prefix and character. Tap a character to open a picker laid out like the character-select screen. Hold or right-click a character to choose a costume.
+- **The score**, with **−** / **+** for each side.
+- **The round, best-of and [L] marks**. Each can be overridden, and **Auto** puts them back.
+
+And these buttons:
+
+| Button | What it does |
 |---|---|
-| **Set** | The event's sets, **playable sets first** (both players known, not started) — one tap loads one, re-read fresh from start.gg, with pronouns and mains from the player DB. **Clear for a manual set** for a friendlies set. |
-| **Bracket** | **Singles** / **Doubles** for this week's event, the phase group, and which view the bracket overlay shows: Winners · Losers · Top 8 · Top 16 · Full. |
-| **Casters** | Up to four caster tags (autocompleted from the player DB). A draft until **Put on stream**. |
-| **Players** | Search the player DB; correct a prefix, pronoun or twitter; **pin** the main a player's sets open on. |
-| **Clips** | The combo clipper: on/off, OBS connection, thresholds, recent clips, **Test clip**. |
-| **Setup** | Every OBS url, the phone urls, the bound hotkeys, where the files are. |
+| **⇆ Sides** | The players swap columns on the scoreboard. Use it to match where they actually sit. |
+| **⇄ Ports** | Fixes ports that are the wrong way round, before a point goes to the wrong player. The scoreboard doesn't move. |
+| **↻ Detect** | Matches the ports to the players' characters again. |
+| **Start** / **Report** | start.gg's "Start match" and the result report. See [Reporting](#reporting-to-startgg). |
+
+### The tabs
+
+| Tab | What's in it |
+|---|---|
+| **Set** | The event's sets, with **playable sets first**. Tap one to put it on the scoreboard. Use **Clear set** for friendlies. |
+| **Bracket** | **Singles** / **Doubles** for this week's event, and which view the bracket overlay shows. |
+| **Casters** | Up to four casters. Edits are a draft until you press **Put on stream**. |
+| **Players** | Search the player database, fix a prefix or pronoun, and **pin** a player's main. |
+| **Clips** | The combo clipper: on/off, the OBS connection, thresholds, recent clips, and **Test clip**. |
+| **Setup** | Every OBS URL, the phone URLs, the hotkeys, and where the files are. |
+
+<br clear="right">
 
 ### Hotkeys
 
-Global — they work whichever window has focus (OBS, Dolphin, a browser):
+The hotkeys are **global**, so they work in whichever window has focus (OBS, Dolphin, a browser).
 
-| | Default |
+| Action | Default |
 |---|---|
-| Swap ports | `Ctrl+Shift+S` |
-| Switch sides | `Ctrl+Shift+X` |
-| A game to the left / right side | `Ctrl+Shift+1` / `Ctrl+Shift+2` |
-| Take one away | `Ctrl+Shift+Alt+1` / `Ctrl+Shift+Alt+2` |
+| Swap ports | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> |
+| Switch sides | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd> |
+| Game to left / right | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd> / <kbd>2</kbd> |
+| Take a game away | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>1</kbd> / <kbd>2</kbd> |
+| Clear the score | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>0</kbd> |
 
-Change them per action with `HOTKEYS` in `config.local.js` (each needs Ctrl, Alt or Win; `null` turns one off). Modifiers match exactly, and a held key fires once. If the `uiohook-napi` native module can't load, they fall back to single keys typed into the app's own window (`s`, `x`, `1`, `2`, `q`, `w`), and the Setup tab says so.
+<details>
+<summary>Changing hotkeys, and what happens if they can't load</summary>
 
-## The scoreboard and the ports
+<br>
 
-The score is the **list of games**: a Slippi game end adds one to the side that won, − / + add or remove one by hand. So the report sent to start.gg can never disagree with what's on screen, and Switch Sides moves everything at once.
+- Change each action with `HOTKEYS` in `config.local.js`. Every chord needs Ctrl, Alt or Win, and `null` turns a hotkey off.
+- Modifiers must match exactly, and holding a key down fires it once.
+- If the `uiohook-napi` native module can't load, the app falls back to single keys typed into its own console window (`s` `x` `1` `2` `q` `w` `0`). The Setup tab tells you when this happens.
 
-Which side each Slippi port plays for is decided at every game start:
+</details>
 
-1. **The same ports as the last game** keep their sides — so a manual ⇄ Ports sticks for the rest of the set.
-2. **Characters** — each port's character against the players' mains (game 1) or the last game's characters (when someone moved controllers). Costume breaks a tie between two of the same character.
-3. **Positional** — lower port on the left. The dock flags this in amber as a guess to check before game 1.
+---
 
-The winner is read **at game end**, so anything corrected during the game — a port swap, a set loaded late — decides who gets the point. Loading a set while a game is running re-detects the ports on its own.
+## How scoring works
 
-**Mains are learned.** When a singles set is reported (or replaced by the next one), what each player actually played goes into the player DB, most-played first, so their next set opens on the right character and game 1's ports match first time. A pinned main (Players tab) always wins.
+### The score is a list of games
+
+Each time Slippi reports a game's end, the winning side gets a game. **−** and **+** remove or add one by hand. Because the score *is* that list:
+
+- the report sent to start.gg always matches what's on screen, and
+- **⇆ Sides** moves names, scores and games together.
+
+### Which port is which player
+
+At the start of every game, the app decides which side each Slippi port plays for:
+
+1. **Same ports as last game?** They keep their sides, so a manual **⇄ Ports** fix lasts for the rest of the set.
+2. **Match by character.** Each port's character is compared with the players' mains (game 1) or the characters from the last game. If both players are on the same character, the costume breaks the tie.
+3. **Fall back to position.** The lower port goes on the left. The dock marks this in **amber** as a guess to check before game 1 ends.
+
+The winner is read **at the end of the game**. So if you fix the ports or load the right set partway through a game, the point still goes to the right player.
+
+### Mains are learned
+
+When a singles set ends, the characters each player used are saved to the player database, most-played first. Their next set opens on the right character, and game 1's ports match the first time. A **pinned** main (set in the Players tab) always wins.
+
+### Warm-ups and rage quits
+
+- **Handwarmers don't count.** Each game is checked for warm-up signs: little damage dealt, both players still on more than one stock, a quit-out (LRAS), and a length under 60 seconds. With enough of them, the game is treated as a warm-up: the characters still update, but the score doesn't.
+- **Rage quits do count.** If someone quits out of a real game, the point goes to the other player (in doubles, the other *team*).
+
+### Doubles
+
+Doubles is detected automatically when a game has four players on Slippi teams. Each side shows its team colour (red, blue or green), and the side panel skips the per-player cards. Clips and learned mains are singles only.
+
+---
 
 ## Reporting to start.gg
 
-When a set loaded from start.gg has been played out, press **Report** on the live strip. The dock shows the winner and score and asks before anything is sent — reporting is always manual. It sends the winner and **every game's winner**, so start.gg shows the real score. A success reloads the bracket and the side panel's stats.
+When a set loaded from start.gg is finished, press **Report**. The dock shows the winner and score and **asks before sending anything**; reporting is always manual. It sends every game's winner, so start.gg shows the real score.
 
-It's unavailable, with the reason shown, when there's nothing valid to report: no token, a manual set, a set that hasn't been started on start.gg (every set of an unstarted bracket is a `preview_…` placeholder — load it again once the TO starts the bracket), or a tied score. Singles and doubles are both supported.
+**Start** handles the other end: it presses start.gg's "Start match" for the set you just loaded. It only shows while start.gg still lists the set as not started or called.
 
-**Start** does the opposite end of the job: start.gg's "Start match" for the set you just loaded, so nobody opens the bracket page to press it. It only shows while start.gg still has the set as not started or called.
+<details>
+<summary>Why is Report greyed out?</summary>
 
-## Switching brackets
+<br>
 
-If your stream alternates formats, the Bracket tab's **Singles** and **Doubles** load the right event in one press.
+The dock always shows the reason. The usual causes are:
 
-Nothing about this changes week to week. `config.js → BRACKETS` holds your series' **short link** (`start.gg/100-acres` — hyphenated exactly as it appears) plus a couple of keywords per format; the TO re-points that short link at each new tournament, and the app follows it — resolving the link, reading that tournament's real event list, and matching the event by keyword. If the keywords match two events it refuses and names both rather than guessing.
+- No start.gg token.
+- A manual set (not loaded from start.gg).
+- **The bracket hasn't been started on start.gg yet.** Until the TO starts it, every set is a `preview_…` placeholder. Load the set again once the bracket starts.
+- The score is tied.
 
-Switching doesn't touch the scoreboard, so a set in progress and its pending report are unaffected. Preflight's live check resolves the short link and both buttons, so a link the TO forgot to re-point shows up before the stream instead of during it.
+</details>
+
+### Switching brackets
+
+If your stream switches between singles and doubles, the Bracket tab's **Singles** and **Doubles** buttons load the right event in one press, every week.
+
+`BRACKETS` in `config.js` holds your series' **short link** (e.g. `start.gg/100-acres`, hyphenated exactly as it appears) and a few keywords per format. The TO points that short link at each new tournament, and the app follows it. If the keywords match two events, the app **refuses and names both** rather than guessing.
+
+Switching never touches the scoreboard, so a set in progress is safe.
+
+---
 
 ## The overlays
 
-### Scoreboard and players bar
+### Scoreboard
 
-Names, prefixes, pronouns, characters (the live Slippi costume), scores, the round and the best-of label: **Flex** outside top 6 (a Bo3 that goes to Bo5 at 1-1) and **Bo5** in top 6, decided from start.gg's placement for the set's loser. **[L]** goes on the grand-finals player from losers automatically. The rule lives in `lib/scoreboard/set-text.js` (`SET_TEXT` in `config.local.js` changes it); the live strip can override any of it per set.
+<img src="docs/images/scoreboard.png" alt="Scoreboard: TRAIL Thistle (Fox) 1, Bo5, 2 CAMP Bramble (Marth) with the L mark" width="100%">
+
+The scoreboard shows names, prefixes, pronouns, the live character and costume, scores, the round and the best-of.
+
+- **Best-of** is set automatically: **Flex** outside top 6 (a Bo3 that becomes a Bo5 at 1–1) and **Bo5** in top 6. To change the rule, edit `lib/scoreboard/set-text.js`, or set `SET_TEXT` in `config.local.js`.
+- **[L]** goes on the grand-finals player who came from losers.
+- The live strip can override any of this for one set.
+
+### Players bar
+
+<img src="docs/images/players-bar.png" alt="Players bar: names and scores along the bottom with the tournament logo in the centre" width="100%">
+
+The same information in a bar along the bottom, with the tournament logo above the round. It's at `/o/scoreboard/players`.
 
 ### Side panel
 
-A 611 × 1080 source beside the webcam: a header card with the tournament name, and a bottom card rotating every 20 seconds through the tournament logo, each player's recent placements and current run, their head-to-head, the sponsor logo, and the event's just-finished sets. Doubles skips the player cards and head-to-head.
+<img src="docs/images/side-panel.png" alt="Side panel: tournament header, webcam cutout, and a Just Finished list of results" width="230" align="right">
 
-The stats are the app's own, from start.gg — each player's whole set history is crawled once and saved (`stats-cache/`), so a regular's card is up seconds after their set loads. When the combo clipper saves a clip, a pill slides in over the bottom card naming the player and the combo (`notifySidePanel` in the Clips tab turns it off).
+A 611 × 1080 panel that sits beside the webcam. The header shows the tournament name. The bottom card rotates every 20 seconds through:
+
+- the tournament logo
+- each player's recent placements and current run
+- their head-to-head record
+- the sponsor logo
+- the event's just-finished sets
+
+Player stats come from start.gg. Each player's full set history is downloaded once and saved, so a regular's card appears seconds after their set loads.
+
+When the combo clipper saves a clip, a pill naming the player and the combo slides in over the bottom card.
+
+Doubles skips the player cards and head-to-head.
+
+<br clear="right">
 
 ### Bracket
 
-One source, five views switched from the dock — **Winners · Losers · Top 8 · Top 16 · Full** — with a crossfade between them; `?view=top8` pins a source to one. Each view scales to fit, down to a legibility floor; past that it pans slowly from the live round and back. Sets show seeds, scores and character icons (Slippi's for sets played on stream, the DB main otherwise); winners' paths light up in the theme's accent, and a losers-side drop-in carries a small "from W-R2" tag instead of a line across the screen.
+<img src="docs/images/bracket.png" alt="Bracket overlay showing a Top 8 with seeds, scores and character icons" width="100%">
+
+One source with five views: **Winners · Losers · Top 8 · Top 16 · Full**. Switch between them from the dock, and the overlay crossfades. Add `?view=top8` to a source's URL to keep it on one view.
+
+- Each view **scales to fit**. If it would get too small to read, it **pans slowly** instead.
+- Sets show seeds, scores and character icons. The winners' paths light up in the theme's accent colour.
+- A player dropping into losers gets a small tag ("from W-R2") instead of a line across the screen.
 
 ### Casters
 
-A lower-third tag per caster: mic, prefix, tag, pronouns. `/o/casters` shows them all in a row; `?i=0`, `?i=1` … one per source, to put under each caster's cam.
+<img src="docs/images/casters.png" alt="Two caster name tags with microphone icons and pronouns" width="480">
 
-### Replay scene frame
+One name tag per caster, showing the mic icon, prefix, tag and pronouns. `/o/casters` shows them all in a row. Add `?i=0`, `?i=1`, … to show one caster per source, so each tag can sit under that caster's cam.
 
-`/o/highlights` frames the clip window and the two player cams and titles the scene. It's **decoration only** — nothing knows which clip VLC is playing, so on-screen combo credit would be wrong as often as right.
+### Highlights (replay scene frame)
 
-Its geometry has to match your OBS source positions. Rather than editing CSS, pass the numbers straight from OBS's **Edit Transform** on the URL:
+<img src="docs/images/highlights.png" alt="Highlights frame with guides showing the clip window and two cam windows, each labelled with its position and size" width="100%">
 
+A frame for your replay scene: a title, a clip window and two player cams. It's **decoration only**. It doesn't know which clip is playing.
+
+The frame has to line up with your OBS sources. Instead of editing CSS, copy the numbers from OBS's **Edit Transform** into the URL:
+
+```text
+?clip=x,y,w,h        the clip window
+?cam=y,w,h           both cams (they share these; only x differs)
+?camx=leftX,rightX   each cam's x position
+?pad=clipPad,camPad  frame thickness
 ```
-?clip=x,y,w,h       the clip window
-?cam=y,w,h          both cams (they share these; only x differs)
-?camx=leftX,rightX  each cam's x
-?pad=clipPad,camPad frame thickness
-```
 
-Defaults match a clip at `480,140` `960×800` with cams at `0,288` and `1520,288`, each `400×504`. Add **`?guides=1`** to outline each hole with its measured rectangle — hold that against OBS. `?animate=false` freezes the animation (it works on the side panel and scoreboard too).
+Add **`?guides=1`** to outline each window with its size, as in the screenshot above, and compare it with OBS. Add `?animate=false` to any overlay to switch off its animation.
+
+---
 
 ## Theme packs
 
-A theme is a self-contained folder, so running a different tournament doesn't mean edits scattered across the overlays:
+A theme is one self-contained folder, so moving to a different tournament's branding doesn't mean editing every overlay.
 
-```
-overlays/theme.css                  ← a one-line switch naming the active pack
+<table>
+<tr>
+<td align="center"><img src="docs/images/theme-hundred-acres-s2-panel.png" alt="Hundred Acres season two theme" width="200"><br><code>hundred-acres-s2</code><br><sub>on air · fireflies</sub></td>
+<td align="center"><img src="docs/images/theme-hundred-acres-panel.png" alt="Hundred Acres season one theme" width="200"><br><code>hundred-acres</code><br><sub>season one · drifting orbs</sub></td>
+<td align="center"><img src="docs/images/theme-salty-suite-panel.png" alt="Salty Suite theme" width="200"><br><code>salty-suite</code><br><sub>orbs and spotlights</sub></td>
+</tr>
+</table>
+
+**To switch themes:** use the dock's **Setup → Theme**. Every overlay fades out and reloads in the new theme.
+
+The choice is stored in `overlays/theme.css`, a one-line file that names the active pack:
+
+```text
+overlays/theme.css                  ← one @import line naming the active pack
 overlays/themes/hundred-acres-s2/
-  theme.css                         every colour token, the @font-face, both logo URLs
-  flair.css                         the pack's background flair (optional)
+  theme.css                         colours, fonts, the two logo URLs
+  flair.css                         animated background details (optional)
   logo.png                          tournament logo
   sponsor.png                       sponsor / venue logo
-  fonts/                            the brand font, self-hosted
+  fonts/                            the brand font, stored locally
 ```
 
-Every overlay imports the switch, so changing its one `@import` re-skins them all. Refresh the OBS sources and you're done. Shipped today: `hundred-acres-s2` (on air), `hundred-acres` (season one) and `salty-suite`.
+**To make a new theme:** copy a pack folder, change its colours and artwork, then pick it in the dock.
 
-Each pack owns its background flair — the moving texture behind the side panel's card and the title bars. Season one drifts soft orbs, Salty Suite adds spotlights, and season two has fireflies, with a trail map's topographic contours one token away (`--flair-*` in its `theme.css`).
+> [!CAUTION]
+> - **Switch back afterwards.** Nothing reminds you, and the wrong branding is only obvious once you're live.
+> - **When copying a pack**, the two logo URLs inside its `theme.css` contain the folder name and must be updated. Preflight fails if they don't resolve.
 
-**To start a new event:** copy a pack folder, change its colours and artwork, and point `overlays/theme.css` at it. Switching back afterwards is the same one-line edit — nothing prompts you, and the wrong branding is only obvious once you're live. When copying, the two logo URLs inside the pack's `theme.css` contain the pack's own folder name and need editing too; preflight fails if they don't resolve.
+---
 
-## Combo Clipper
+## Combo clipper
 
-The app watches for notable combos **as the game is happening** and asks OBS to save its replay buffer, so the clip already exists by the time the point is over. `obs-scripts/auto_replays.py` then collects those clips into a playlist for your break scene.
+The app spots notable combos **while the game is being played** and tells OBS to save its replay buffer, so the clip exists by the time the stock is over. `obs-scripts/auto_replays.py` then plays those clips back on your break scene.
+
+> [!NOTE]
+> **Clips are singles only.** Slippi's stats library only computes combos for 2-player games. That's upstream and can't be worked around, and the dock tells you so.
 
 ### Setup
 
-1. **OBS → Settings → Output → Replay Buffer** — enable it, and set the length to **20 seconds or more**. Combos routinely run 6–9 seconds and the app deliberately waits a couple more so the kill and the reaction land in the clip. A 10-second buffer loses the start of the combo.
-2. **OBS → Tools → WebSocket Server Settings** — enable it, note the port (4455) and the password.
-3. In the dock's **Clips** tab, paste the WebSocket address, the password and your replay output folder, then **Save settings**.
-4. Turn the clipper **on** and press **Test clip**. A clip should hit the folder and show up in the recent list. Do this before a bracket starts — it proves the whole chain in one press.
+1. **OBS → Settings → Output → Replay Buffer**: turn it on and set it to **20 seconds or more**. Combos often run 6–9 seconds, and the app waits a couple more so the kill makes it into the clip.
+2. **OBS → Tools → WebSocket Server Settings**: turn it on, and note the port (4455) and password.
+3. In the dock's **Clips** tab, enter the WebSocket address, the password and your replay folder, then press **Save settings**.
+4. Turn the clipper **on** and press **Test clip**. A clip should appear in the folder and in the recent list.
 
-### Tuning
+> [!TIP]
+> Press **Test clip** before every bracket. It checks the whole chain in one press.
 
-Every setting is live-editable from the Clips tab; no restart. The defaults are in `lib/clipper-settings.js`, and your edits are saved to `clipper-settings.json` (gitignored, since it holds the OBS password).
+<details>
+<summary><b>Tuning the thresholds</b></summary>
+
+<br>
+
+Every setting can be changed live from the Clips tab, without a restart. Your changes are saved to `app/clipper-settings.json`, which is gitignored because it holds the OBS password.
 
 | Setting | What it does |
 |---|---|
-| **Min moves** / **Min damage** | How big a combo has to be to qualify |
-| **Require kill** | Only clip combos that actually took a stock |
-| **Combo window** | Judge only the *last* N seconds of a combo instead of the whole thing — see below |
-| **Cooldown** | Minimum gap between saves, so one exchange doesn't bank five near-identical clips |
-| **Max clips per game** | Caps a blowout. `0` = unlimited |
-| **Save delay** | How long to wait after detecting, so the kill animation is in the clip |
-| **Notify side panel** | The "clip saved" pill on the broadcast overlay |
+| **Min moves** / **Min damage** | How big a combo has to be to count. |
+| **Require kill** | Only clip combos that take a stock. |
+| **Combo window** | Only judge the *last* N seconds of a combo (see below). |
+| **Cooldown** | The minimum gap between saves, so one exchange doesn't make five near-identical clips. |
+| **Max clips per game** | A cap for blowouts. `0` means no limit. |
+| **Save delay** | How long to wait after a combo is spotted, so the kill animation is in the clip. |
+| **Notify side panel** | Shows the "clip saved" pill on stream. |
 
-**The combo window is the setting worth understanding.** A combo doesn't end when the pressure stops — Slippi keeps it open until the victim gets back to neutral or dies, so an offstage chase counts as *one* 30-second combo that's mostly dead air. Judged as a whole, it qualifies on the strength of an opening burst that has already fallen out of the replay buffer by the time the clip saves. Set a window (try 8–10 seconds, comfortably under your buffer length) and the thresholds are measured over the closing seconds instead, so what qualifies and what gets captured are the same footage.
+**The combo window is the setting worth understanding.** Slippi treats a combo as one long event until the victim gets back to neutral or dies, so an offstage chase can count as a single 30-second combo that's mostly empty air. Judged as a whole, it qualifies on an opening burst that has already left the replay buffer by the time the clip is saved.
 
-> **Clips are singles only.** Slippi's own stats library only computes combos for 2-player games, so doubles produces nothing at all. This is upstream and can't be worked around — the dock says so rather than leaving you waiting.
+Set a window of **8–10 seconds** (comfortably shorter than your buffer), and only the final seconds are measured. The footage that qualifies is then the footage that gets saved.
 
-### Playing the clips back
+</details>
 
-Add a **VLC Video Source** (64-bit VLC required) or a Media Source to your break scene, then load `obs-scripts/auto_replays.py` via **OBS → Tools → Scripts** and point it at your replay folder and that source. It builds the playlist from the newest clips whenever you switch to the scene.
+### Playing clips back
 
-Check the Scripts window's **Python Settings** tab first — OBS is picky about which Python version it will load, and it's not necessarily the newest one you have installed.
+1. Add a **VLC Video Source** (needs 64-bit VLC) or a **Media Source** to your break scene.
+2. Load `obs-scripts/auto_replays.py` from **OBS → Tools → Scripts**, then point it at your replay folder and that source.
 
-## Handwarmer Detection
+Whenever you switch to the scene, it builds a playlist from the newest clips.
 
-Each game is scored on a weighted heuristic to detect practice/warm-up games:
+> [!WARNING]
+> Check the **Python Settings** tab in the Scripts window first. OBS only loads certain Python versions, and the newest one you have installed may not be one of them.
 
-- Both players dealt less than 150 total damage
-- Both players had more than 1 stock remaining at the end
-- Game ended via LRAS (Quit Out)
-- Match duration under 60 seconds
-
-A handwarmer doesn't count: characters and costumes still update, the score doesn't. It works for doubles too — LRAS quit-outs are still caught, and normal doubles endings are never falsely flagged.
-
-**Rage quits:** if LRAS is detected but the game is *not* a handwarmer (a real game was quit), the point goes to the other player.
-
-## Doubles
-
-Detected automatically when a game has 4 active players with Slippi team ids. Each side shows its in-game team colour (red / blue / green), and the side panel drops the per-player cards. Clips and mains learning are singles only.
-
-## How the app reads the game
-
-It polls `SLP_FOLDER` every 500ms for new `.slp` files and reads the one Slippi is currently writing, so it sees characters, scores and combos as the game happens. `fs.watch` is intentionally not used — it misses new files on Windows/OneDrive paths.
+---
 
 ## Troubleshooting
 
-**Run preflight first:** `cd app && node scripts/preflight.js`. It checks the config, the player file, the overlays, the theme pack, the hotkeys, the running app, the start.gg token, this week's short link and OBS, and prints the fix for each failure.
+> [!TIP]
+> **Start with preflight:** `cd app && node scripts/preflight.js`. It checks almost everything below and prints the fix for each failure.
 
-**The app exits at startup:** `SLP_FOLDER` doesn't exist on this machine — set it in `config.local.js`.
+| Problem | Fix |
+|---|---|
+| **The app closes right after starting** | `SLP_FOLDER` doesn't exist on this machine. Set it in `config.local.js`. |
+| **"Port already in use"** | Usually handled for you: an older copy of the app is stopped automatically. If a *different* program is on port 5001, the app refuses to start. Free the port (`netstat -ano \| findstr :5001`, then `taskkill /PID <pid> /F`) or change `BRIDGE_PORT`, and update every OBS source to match. |
+| **An OBS source is blank** | It loaded while the app was off. Refresh the source. A `localhost:5000/layout/…` URL is TSH's old address; use the [new URLs](#browser-sources). |
+| **Points go to the wrong player** | Press **⇄ Ports** (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>). If the *names* are on the wrong sides, use **⇆ Sides** instead. |
+| **Players have no character or pronouns** | There's no player file; the console warns about this at startup. See [the player database](#3--set-up-the-player-database-optional). |
+| **An overlay has no styling or is missing a logo** | `overlays/theme.css` names a theme pack that isn't there. Preflight tells you which. |
+| **Report or Start is greyed out** | The dock shows why. See [Why is Report greyed out?](#reporting-to-startgg) |
+| **No clips are saved** | Most likely causes, in order: it's a doubles set, the replay buffer isn't running, or the thresholds are too high. **Test clip** tells an OBS problem apart from a threshold problem. |
+| **Clips start partway through the combo** | The replay buffer is shorter than 20 seconds. |
+| **The highlights frame doesn't line up** | Add `?guides=1` and compare the labels with OBS's Edit Transform values. |
+| **A warm-up game was scored** | Take it back with **−** (or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>1</kbd>/<kbd>2</kbd>). The warm-up cutoff is at the top of `app/lib/handwarmer.js`. |
 
-**Port already in use:** normally handled for you — if the port is held by an older copy of the app, the new one stops it and takes the port back. It only does that for a process that identifies itself as this app; if something else is on 5001 it refuses to start and says so. Either free the port (`netstat -ano | findstr :5001`, then `taskkill /PID <pid> /F`) or move the app with `BRIDGE_PORT` in `config.local.js` — and every OBS source with it.
+---
 
-**An OBS source is blank:** it was added or refreshed while the app was down — refresh it. If it still points at `localhost:5000/layout/…`, that's TSH's old url; use the table in [Setup](#5-obs).
+## For developers
 
-**Points landing on the wrong player:** **⇄ Ports** (or `Ctrl+Shift+S`). If the *names* are on the wrong sides, that's **⇆ Sides** instead.
+### How it fits together
 
-**Every player opens with no character or pronouns:** there's no player file — the startup log warns about it. See [The player database](#3-the-player-database).
+```text
+Slippi Desktop App ──► live .slp files in SLP_FOLDER
+                              │  (checked every 500 ms)
+                              ▼
+          ┌────────────────── app/ ──────────────────┐     start.bat
+          │  game reading · scoreboard · player DB   │
+          │  start.gg (event, sets, report, stats)   │◄──► start.gg
+          │  OBS (replay buffer saves)               │◄──► OBS
+          └──────────────┬──────────────┬────────────┘
+                         ▼              ▼
+              /o/…  OBS overlays    /dock  operator panel
+```
 
-**Overlay renders unstyled, or a logo is missing:** the theme pack is missing or `overlays/theme.css` names a pack that isn't there. Preflight says which.
+Everything is served from one port (**5001** by default).
 
-**Report or Start is unavailable:** the dock shows the reason. Common causes: no start.gg token, a manual set, an unstarted bracket (preview sets), or a tied score.
+### What's in the repo
 
-**Clipper never fires:** in order of likelihood — it's a doubles set, the replay buffer isn't running, or the thresholds are too high. **Test clip** separates an OBS problem from a threshold problem.
+| Path | What it is |
+|---|---|
+| [`app/`](app/) | The app: game reading, the scoreboard, start.gg, the player DB, OBS, and the dock (`public/dock/`). |
+| [`overlays/`](overlays/) | Every OBS page, the theme packs, and the character icons. Served at `/o/`. |
+| [`obs-scripts/`](obs-scripts/) | Python scripts that run *inside* OBS: the break-scene clip playlist. Optional. |
+| [`tests/`](tests/) | `node tests/run.js`. No framework, nothing to install. See [tests/README.md](tests/README.md). |
+| [`docs/`](docs/) | The longer guides below. |
+| `start.bat` | Starts the app, and installs dependencies on the first run. |
 
-**Clips start mid-combo:** the OBS replay buffer is shorter than 20 seconds.
+### Further reading
 
-**Highlights frame doesn't line up with the footage:** open it with `?guides=1` and compare the labelled rectangles against OBS's Edit Transform values.
-
-**Score went up on a warm-up game:** the handwarmer threshold may need tuning — the weighted cutoff is at the top of `app/lib/handwarmer.js`. Take the game back with − (or `Ctrl+Shift+Alt+1`/`2`).
+| Doc | Read it when you're… |
+|---|---|
+| [docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md) | setting up a machine step by step, including moving over from TSH |
+| [docs/TESTING.md](docs/TESTING.md) | checking a change with no bracket running |
+| [docs/BRIDGE-API.md](docs/BRIDGE-API.md) | changing the state, events or `/api/*` routes the overlays and dock use |
+| [CLAUDE.md](CLAUDE.md) | changing the code: the architecture and the non-obvious rules behind it |
