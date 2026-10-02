@@ -19,7 +19,7 @@ slippi-bridge/stats-cache/
 # (local_players.json — this machine's players, never the repo's).
 slippi-bridge/data/
 
-# An old TSH install kept beside the repo as a rollback. The app doesn't use it;
+# An old TSH install left in or beside the repo. The app doesn't use it (the rollback is the tsh-final tag);
 # the whole folder stays untracked (it is ~4000 vendored files and its own
 # user_data/ with a real player DB).
 TournamentStreamHelper-*/

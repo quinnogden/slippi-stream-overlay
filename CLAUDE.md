@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **Branch `tsh-replacement`** is the Melee-only replacement for TournamentStreamHelper (plan: `~/.claude/plans/i-want-to-start-abundant-walrus.md`, milestones M0–M8). This file describes it as of the M8 cutover. `master` still runs TSH + the old bridge until this branch merges; a leftover `TournamentStreamHelper-*/` folder beside the repo is a rollback only — gitignored, unused by the app.
+> This app replaced TournamentStreamHelper (plan: `~/.claude/plans/i-want-to-start-abundant-walrus.md`, milestones M0–M8), merged to `master` after a clean live event on 2026-10-01. The last TSH-era commit is tagged **`tsh-final`** — that tag is the rollback, not any folder on disk.
 
 ## What This Repo Is
 
@@ -202,7 +202,7 @@ The dock's status: health (`startgg` from the event service's last read, `slippi
 `EADDRINUSE` on `BRIDGE_PORT` is the normal restart case (a window left open, a crash that left node running), so the new process takes the port back itself — wired in `lib/server/app.js`.
 
 - **Identity gate.** It only kills a process that answers `GET /api/identity` with `{ app: "slippi-bridge", pid }` (the identity string is kept from the bridge era on purpose). An unidentified occupant is reported and left running — killing an unrelated program would be far worse than refusing to start.
-- A legacy fallback recognises a pre-identity bridge by its `/api/status` shape and finds the pid with `netstat -ano`; remove it whenever those builds are gone.
+- An occupant that answers as the app but reports no pid is refused, not hunted for with `netstat`.
 - **Retry is bind-driven**: Windows releases a killed process's socket asynchronously, so `waitForPortFree()` polls by binding a throwaway server. One attempt only.
 - The `listening` log is a `httpServer.once("listening")` handler, **not** a `listen()` callback: a failed `listen()` leaves its callback attached, and the retry would log twice.
 
@@ -307,4 +307,4 @@ Slippi character ids (0–25) → `{ codename, display }`; `CSS_ORDER` is Melee'
 - **Don't synthesise global keypresses to test the hotkeys** — they also type into whatever window has focus. Press them by hand.
 - **`scripts/` is one level deeper than the app.** `preflight.js` resolves the app at `..` and the repo at `../..`, and requires most of what it checks **lazily** (it has to run before `npm install`). `tests/preflight.test.js` runs it offline so a moved module fails a test rather than a pre-event check.
 - `slippi_game_start` / `slippi_clip_saved` keep a `teamNum` field (`side + 1`) — the payload's long-standing name for the side, not a TSH team.
-- `TournamentStreamHelper-*/` beside the repo is gitignored wholesale: a rollback install, with its own `user_data/` (a real player DB). The app reads nothing from it; preflight only mentions it.
+- `TournamentStreamHelper-*/` is gitignored wholesale: an old TSH install left in or beside the repo, with its own `user_data/` (a real player DB). The app reads nothing from it; preflight only mentions it (and offers its `local_players.json` as the copy source on a machine moving over).
