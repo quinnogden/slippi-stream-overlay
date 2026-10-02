@@ -4,9 +4,7 @@
  *
  * A wrong port→side mapping is invisible until it's on stream — the scoreboard
  * looks healthy and the point lands on the wrong player — and reproducing one
- * by hand means running a tournament. Replaces port-reresolve and
- * swap-reresolve, which pinned the TSH-era PortMapper's version of the same
- * guarantees:
+ * by hand means running a tournament. Pinned here:
  *
  *   - game 1 matches ports to sides by the players' mains, even when the ports
  *     are "backwards"; with nothing to match on it falls back to positional and
@@ -14,8 +12,7 @@
  *   - the same ports next game keep the mapping (a manual correction sticks);
  *     moved ports are matched against what each side just played;
  *   - the winner's side is read at game end, so a port swap, a set loaded
- *     mid-game, or Switch Sides during the game all credit the right player —
- *     the job the 0-0 late-bind used to approximate;
+ *     mid-game, or Switch Sides during the game all credit the right player;
  *   - doubles: Slippi teams map as wholes, non-adjacent ports included.
  */
 

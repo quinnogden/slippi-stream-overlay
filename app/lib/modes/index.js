@@ -9,8 +9,7 @@
  *
  * The store tells this module when the scoreboard moves under a live game:
  *   set-loaded     → the port map belongs to the previous set: clear it, and
- *                    re-detect now if a game is running (this replaces the old
- *                    0-0 late-bind and most uses of the Re-detect button)
+ *                    re-detect now if a game is running
  *   sides-switched → flip the map; the store already moved the characters
  */
 
@@ -133,7 +132,7 @@ function createModes(ctx) {
   }
 
   /**
-   * The operator says the ports are the wrong way round (Ctrl+Shift+S, ⇆).
+   * The operator says the ports are the wrong way round (Ctrl+Shift+S, ⇄).
    * The scoreboard stays put; the live characters and colours move, and the
    * rest of the set keeps the corrected mapping.
    */
@@ -163,7 +162,6 @@ function createModes(ctx) {
       p.side = portMap.sideOf(p.playerIndex) ?? 1 - p.side;
       p.teamNum = p.side + 1;
     }
-    if (game.teamColorMap) game.teamColorMap = { 1: game.teamColorMap[2], 2: game.teamColorMap[1] };
     io.emit("slippi_game_start", game);
   });
 

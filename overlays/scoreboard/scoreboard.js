@@ -4,8 +4,7 @@
  * parts its markup has.
  *
  * Everything comes from the store's `scoreboard` section, including the live
- * character and costume — Slippi writes them to the store at game start, so
- * there is no longer a costume-0 icon to patch after TSH renders.
+ * character and costume — Slippi writes them to the store at game start.
  */
 (function () {
   "use strict";

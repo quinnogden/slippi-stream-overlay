@@ -115,11 +115,9 @@ function createFolderSource(config, detector) {
   let lastSize    = 0;
   let gameStarted = false;
   let gameEnded   = false;
-  // ONE SlippiGame per file, not one per tick. processOnTheFly + the instance's
-  // internal readPosition means each getStats() only parses the bytes appended
-  // since the last call — which is what makes a 500ms live conversion scan
-  // affordable. Rebuilding it every tick (as this did before combo detection)
-  // would re-parse the whole file each time.
+  // ONE SlippiGame per file, not one per tick: with processOnTheFly each
+  // getStats() parses only the bytes appended since the last call, which is what
+  // makes a 500ms live conversion scan affordable.
   let game        = null;
   let errorStreak = 0;
 
@@ -161,13 +159,10 @@ function createFolderSource(config, detector) {
       // Guard against a poisoned parser. A live .slp carries rawDataLength = 0 in
       // its header until Slippi closes it, so the parser stops at the last
       // complete command. But a file whose header already declares the FULL
-      // length while its bytes are still arriving — a finished replay landing in
-      // the folder via OneDrive sync, which this setup is wide open to — makes
-      // iterateEvents run off the end of the real data and leave readPosition
-      // past EOF. It never recovers: game-end would never fire and the rest of
-      // the set would go unscored. Rebuilding from scratch re-reads what's
-      // actually there, which is exactly how this behaved before the parser
-      // became persistent.
+      // length while its bytes are still arriving (a finished replay landing via
+      // OneDrive sync) makes iterateEvents leave readPosition past EOF for good:
+      // no game-end, the rest of the set unscored. Rebuilding re-reads what's
+      // actually there.
       if (typeof game.readPosition === "number" && game.readPosition > stat.size) {
         console.warn(`[bridge] Parser read past EOF on ${path.basename(currentFile)} ` +
                      `(pos ${game.readPosition} > size ${stat.size}) — rebuilding`);
@@ -205,15 +200,10 @@ function createFolderSource(config, detector) {
 
       errorStreak = 0;
     } catch (_e) {
-      // File may be mid-write; ignore transient errors.
-      //
-      // The parser resumes from a byte offset and only consumes fully-written
-      // commands, so a partial write is normal and self-corrects. But the game
-      // instance now lives for the whole game rather than one tick, so a parser
-      // that somehow does get stuck would stay stuck and silently cost the rest
-      // of the set. Rebuild it after ~5s of continuous failure; re-parsing from
-      // scratch re-emits nothing (game-start is latched, the detector remembers
-      // which conversions it has seen).
+      // A partial write is normal and self-corrects. But the parser lives for
+      // the whole game, so one that does get stuck would silently cost the rest
+      // of the set: rebuild it after ~5s of failures. Re-parsing re-emits nothing
+      // (game-start is latched, the detector remembers what it has seen).
       if (++errorStreak >= 10) {
         console.warn(`[bridge] Repeated read errors on ${path.basename(currentFile ?? "")} — rebuilding parser`);
         game        = null;
@@ -222,7 +212,7 @@ function createFolderSource(config, detector) {
     }
   }, 500);
 
-  // Health probe for the control panel: "connected" as long as the watched
+  // Health probe for the dock: "connected" as long as the watched
   // folder is still readable (OneDrive paths can vanish mid-session).
   emitter.getStatus = () => ({
     connected: fs.existsSync(config.SLP_FOLDER),

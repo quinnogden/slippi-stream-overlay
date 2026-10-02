@@ -16,26 +16,8 @@ const HEARTBEAT_MS = 5000;
 const { evaluateReportability } = require("./report-set");
 const { evaluateStartability }  = require("./start-set");
 
-/**
- * The Current Set card before anything is known about the loaded set.
- * @param {string|null} reason — shown in place of both buttons' hints
- */
-function emptyCurrentSet(reason) {
-  return {
-    setId: null,
-    scores: { team1: 0, team2: 0 },
-    teamNames: { team1: "", team2: "" },
-    canReport: false,
-    reason,
-    canStart: false,
-    startReason: reason,
-  };
-}
-
-const sideName = (side) => {
-  const tags = (side?.players ?? []).map((p) => [p.prefix, p.tag].filter(Boolean).join(" ")).filter(Boolean);
-  return side?.teamName || tags.join(" / ");
-};
+/** The Current Set card before anything is known about the loaded set. */
+const emptyCurrentSet = (reason) => ({ setId: null, canReport: false, reason, canStart: false });
 
 /**
  * @param {object} ctx
@@ -43,7 +25,7 @@ const sideName = (side) => {
  *   heuristic that chose it, with each port's player name
  */
 function createControlStatus(ctx, portInfo) {
-  const { config, store, event, startgg, clipperSettings, obs, io, state } = ctx;
+  const { store, event, startgg, clipperSettings, obs, io, state } = ctx;
 
   /** The clipper block — also served on its own by GET /api/clipper. */
   function clipperSnapshot() {
@@ -63,7 +45,6 @@ function createControlStatus(ctx, portInfo) {
     const src = state.source?.getStatus?.() ?? { connected: false };
     const ev = event?.status() ?? { state: "none", error: null };
     const t = store.tournament();
-    const bracket = store.bracket();
     return {
       // Up once an event read has succeeded; an error carries start.gg's wording.
       startgg: { ok: ev.state === "ok", state: ev.state, error: ev.error ?? null },
@@ -72,34 +53,23 @@ function createControlStatus(ctx, portInfo) {
       portMapping: portInfo(),
       currentSet,
       tournament: { name: t.name, eventName: t.eventName },
-      // What the bracket overlay is showing: the dock's view, and which group.
-      bracketOverlay: { view: store.view().bracketView, group: bracket?.label ?? null },
-      shortLink: config.BRACKETS?.shortLink ?? "",
       startggEnabled: startgg.enabled,
       clipper: clipperSnapshot(),
       ts: Date.now(),
     };
   }
 
-  // Seeded so a panel that connects before the first tick still gets every field.
+  // Seeded so a dock that connects before the first tick still gets every field.
   state.lastControlStatus = compose({ currentSet: emptyCurrentSet("starting up") });
 
-  /** The Current Set card, from the store. */
+  /** Whether the dock's Report and Start apply to the loaded set. */
   function currentSetCard() {
-    const sb = store.scoreboard();
-    const { canReport, reason } = evaluateReportability(ctx, sb.setId);
+    const { setId } = store.scoreboard();
+    const { canReport, reason } = evaluateReportability(ctx, setId);
     // Synchronous by contract — it reads a cache and schedules its own lookup
     // in the background, so the tick never waits on start.gg.
-    const startable = evaluateStartability(ctx, sb.setId);
-    return {
-      setId: sb.setId,
-      scores: { team1: sb.sides[0].score, team2: sb.sides[1].score },
-      teamNames: { team1: sideName(sb.sides[0]), team2: sideName(sb.sides[1]) },
-      canReport,
-      reason,
-      canStart: startable.canStart,
-      startReason: startable.reason,
-    };
+    const { canStart } = evaluateStartability(ctx, setId);
+    return { setId, canReport, reason, canStart };
   }
 
   let sentJson = null;
@@ -132,7 +102,7 @@ function createControlStatus(ctx, portInfo) {
     if (inFlight) return inFlight;
     inFlight = build()
       .catch((e) => {
-        console.warn(`[bridge] Status refresh failed: ${e.message}`);
+        console.warn(`[status] Refresh failed: ${e.message}`);
         return state.lastControlStatus;
       })
       .finally(() => { inFlight = null; });
@@ -142,4 +112,4 @@ function createControlStatus(ctx, portInfo) {
   return { refresh, clipperSnapshot };
 }
 
-module.exports = { createControlStatus, emptyCurrentSet, HEARTBEAT_MS };
+module.exports = { createControlStatus, HEARTBEAT_MS };

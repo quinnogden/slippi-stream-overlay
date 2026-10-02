@@ -2,9 +2,7 @@
  * The start.gg GraphQL queries behind the side panel's stats.
  *
  * Every one of these is sized against start.gg's hard ceiling of 1000 objects
- * per response — over it, the *whole* response is refused, not trimmed. That
- * ceiling is what breaks TSH's own head-to-head (it asks for 10 events with up
- * to 100 sets each, gets refused, and reads the refusal as "no sets"). The
+ * per response — over it, the *whole* response is refused, not trimmed. The
  * object counts noted below are per node, so a change to a selection set should
  * recheck the page size next to it.
  *
@@ -71,8 +69,7 @@ function setDetailsQuery(setIds) {
 // Both players' placements and their run in the loaded event, in one request.
 //
 // recentStandings(onlySinglesEvents) is start.gg deciding singles-vs-doubles
-// from the event's own type, which replaces the side panel's old guess from the
-// event *name* ("Melee Bracket" used to be dropped as unknowable).
+// from the event's own type, not a guess from the event's name.
 //
 // The run is the event's completed sets for either player (playerIds is OR,
 // not AND), split per player afterwards. ~17 objects per set.
@@ -110,10 +107,4 @@ fragment ResultSet on Set {
   }
 }`.trim();
 
-module.exports = {
-  MELEE_VIDEOGAME_ID,
-  PLAYER_SETS_PAGE,
-  setDetailsQuery,
-  playerCardsQuery,
-  idList,
-};
+module.exports = { MELEE_VIDEOGAME_ID, PLAYER_SETS_PAGE, setDetailsQuery, playerCardsQuery };

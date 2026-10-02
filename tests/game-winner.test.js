@@ -1,7 +1,7 @@
 /**
  * Who gets the point when a game ends.
  *
- * pickWinner() decides which port the bridge credits, and from there which TSH
+ * pickWinner() decides which port is credited, and from there which side's
  * score goes up. Every way it can be wrong is silent until it's on stream: the
  * scoreboard ticks up, just for the wrong player. The rage-quit path is the one
  * with a trap in it — in doubles the point must go to the OTHER team, never to
@@ -11,7 +11,7 @@
 
 const assert = require("assert");
 const path   = require("path");
-// Resolved from the bridge's node_modules — tests/ has none of its own.
+// Resolved from the app's node_modules — tests/ has none of its own.
 const { GameEndMethod } = require(require.resolve("@slippi/slippi-js",
   { paths: [path.join(__dirname, "..", "app")] }));
 const { pickWinner } = require("../app/lib/game-source");

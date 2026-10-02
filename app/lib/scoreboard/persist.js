@@ -1,9 +1,6 @@
 /**
- * Live-state persistence: the scoreboard survives a restart.
- *
- * TSH kept its scoreboard in its own process, so a bridge crash cost nothing
- * but the port map. Now the app *is* the scoreboard, and a restart mid-set
- * without this would blank the names, the score and the per-game list a
+ * Live-state persistence: the scoreboard survives a restart. Without it a
+ * restart mid-set would blank the names, the score and the per-game list a
  * report is built from.
  *
  * Every store `change` schedules a debounced, atomic write (temp file +

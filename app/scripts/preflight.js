@@ -17,8 +17,8 @@
  * things this script exists to diagnose is a missing node_modules/, so it has
  * to run before `npm install` does. Local modules are required inside the check
  * that uses them, and only the dependency-free ones before the dependency check
- * has passed (config.js, hotkey.js, char_map.js, api/setup.js and
- * clipper-settings.js are fs/path only). tests/preflight.test.js runs this
+ * has passed (config.js, hotkey.js, char_map.js, api/setup.js,
+ * clipper-settings.js and port-guard.js need only Node built-ins). tests/preflight.test.js runs this
  * script, so a broken lazy require fails a test rather than a pre-event check.
  */
 
@@ -28,7 +28,7 @@ const http = require("http");
 
 // This script lives in app/scripts/: the app is one level up, the
 // repo root (overlays/ beside it) two.
-const BRIDGE_DIR   = path.resolve(__dirname, "..");
+const APP_DIR      = path.resolve(__dirname, "..");
 const REPO_ROOT    = path.resolve(__dirname, "..", "..");
 const OVERLAYS_DIR = path.join(REPO_ROOT, "overlays");
 
@@ -100,7 +100,7 @@ function httpGet(url, timeoutMs = 3000) {
 const parseJson = (body) => { try { return JSON.parse(body); } catch { return null; } };
 const rel = (p) => path.relative(REPO_ROOT, p) || ".";
 
-/** Old TSH installs beside the repo — not used by the app, kept for rollback. */
+/** Old TSH installs beside the repo — gitignored, and not used by the app. */
 function tshFolders() {
   try {
     return fs.readdirSync(REPO_ROOT, { withFileTypes: true })
@@ -122,18 +122,18 @@ function checkNode() {
 function checkDeps() {
   at("dependencies");
 
-  const pkg = parseJson(exists(path.join(BRIDGE_DIR, "package.json"))
-    ? fs.readFileSync(path.join(BRIDGE_DIR, "package.json"), "utf8") : "");
+  const pkg = parseJson(exists(path.join(APP_DIR, "package.json"))
+    ? fs.readFileSync(path.join(APP_DIR, "package.json"), "utf8") : "");
   if (!pkg) { fail("package.json", "missing or unparseable"); return false; }
 
-  if (!exists(path.join(BRIDGE_DIR, "node_modules"))) {
+  if (!exists(path.join(APP_DIR, "node_modules"))) {
     fail("node_modules", "not installed", "cd app && npm install   (start.bat does this on its first run)");
     return false;
   }
 
   const missing = [];
   for (const dep of Object.keys(pkg.dependencies ?? {})) {
-    try { require.resolve(dep, { paths: [BRIDGE_DIR] }); }
+    try { require.resolve(dep, { paths: [APP_DIR] }); }
     catch { missing.push(dep); }
   }
 
@@ -167,7 +167,7 @@ function checkConfig() {
   pass("config.js", "loaded");
 
   // config.local.js — optional, but it's where the token and per-machine paths go.
-  if (exists(path.join(BRIDGE_DIR, "config.local.js"))) {
+  if (exists(path.join(APP_DIR, "config.local.js"))) {
     pass("config.local.js", "present");
   } else {
     warn("config.local.js", "absent — no start.gg token (no Start/Report) and the committed SLP_FOLDER, which is another machine's",
@@ -210,7 +210,7 @@ function checkConfig() {
 function checkHotkeys(config) {
   let keyTable;
   try {
-    keyTable = require(require.resolve("uiohook-napi", { paths: [BRIDGE_DIR] })).UiohookKey;
+    keyTable = require(require.resolve("uiohook-napi", { paths: [APP_DIR] })).UiohookKey;
   } catch {
     skip("Hotkeys", "uiohook-napi not loadable — the app falls back to keys typed into its own window");
     return;
@@ -224,7 +224,7 @@ function checkHotkeys(config) {
   }
   const list = compiled.bindings.map((b) => `${b.chord} ${b.label.toLowerCase()}`).join(" · ");
   if (compiled.errors.length) {
-    fail("Hotkeys", compiled.errors.join("; "), "Fix HOTKEYS in config.local.js (or config.js) — the rest still bind");
+    fail("Hotkeys", compiled.errors.join("; "), "Fix HOTKEYS in config.local.js — the rest still bind");
   } else {
     pass("Hotkeys", list || "none bound (every HOTKEYS entry is null)");
   }
@@ -239,7 +239,7 @@ function checkHotkeys(config) {
  */
 function checkPlayers(config) {
   at("player DB");
-  const file = config.PLAYERS_FILE ?? path.join(BRIDGE_DIR, "data", "local_players.json");
+  const file = config.PLAYERS_FILE ?? path.join(APP_DIR, "data", "local_players.json");
   const where = config.PLAYERS_FILE ? file : `${rel(file)} (the default; PLAYERS_FILE unset)`;
 
   // The copy an old TSH install holds, for the fix line.
@@ -378,13 +378,13 @@ function checkClipper(config) {
     return null;
   }
 
-  const file = path.join(BRIDGE_DIR, "clipper-settings.json");
+  const file = path.join(APP_DIR, "clipper-settings.json");
   if (exists(file)) {
     if (parseJson(fs.readFileSync(file, "utf8"))) pass("clipper-settings.json", "present and valid");
     else warn("clipper-settings.json", "not valid JSON — the app falls back to committed defaults and logs it",
               "Delete it and re-save from the dock's Clips tab");
   } else {
-    info("clipper-settings.json", "absent (normal first run) — using config.CLIPPER defaults; the Clips tab writes it on first save (every key: clipper-settings.example.json)");
+    info("clipper-settings.json", "absent (normal first run) — using the defaults; the Clips tab writes it on first save (every key: clipper-settings.example.json)");
   }
 
   if (!settings.enabled) {
@@ -407,13 +407,13 @@ function checkClipper(config) {
   return settings;
 }
 
-/** An old TSH install is only a rollback now; say so, so nobody starts it by habit. */
+/** An old TSH install left beside the repo; say so, so nobody starts it by habit. */
 function checkLeftovers() {
   const old = tshFolders();
   if (!old.length) return;
   at("leftovers");
-  info("Old TSH install", `${old.map(rel).join(", ")} — the app doesn't use it. Keep it as a rollback for a couple of events, `
-    + "then delete it; never run it against the app's player file");
+  info("Old TSH install", `${old.map(rel).join(", ")} — the app doesn't use it (the rollback is the tsh-final git tag), `
+    + "so it can be deleted; never run it against the app's player file");
 }
 
 // ── Live probes ───────────────────────────────────────────────────────────────
@@ -428,7 +428,7 @@ async function probeApp(config) {
     return;
   }
   const idJson = parseJson(id.body);
-  if (idJson?.app !== "slippi-bridge") {
+  if (idJson?.app !== require("../lib/port-guard").APP_ID) {
     fail("App", `something else is serving port ${config.BRIDGE_PORT} — it did not identify as this app`,
          "Free the port, or move the app with BRIDGE_PORT in config.local.js (and every OBS source with it)");
     return;
@@ -527,7 +527,7 @@ async function probeObs(settings) {
 
   let OBSWebSocket;
   try {
-    ({ OBSWebSocket } = require(require.resolve("obs-websocket-js", { paths: [BRIDGE_DIR] })));
+    ({ OBSWebSocket } = require(require.resolve("obs-websocket-js", { paths: [APP_DIR] })));
   } catch {
     skip("OBS", "obs-websocket-js not installed");
     return;

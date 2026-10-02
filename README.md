@@ -64,7 +64,7 @@ module.exports = {
 
 Generate the token at [start.gg → Developer Settings](https://start.gg/admin/profile/developer) (viewable once; expires after a year). Without it the brackets still load, but Start, Report and the side panel's player stats are off. **Never put it in `config.js`**, which is committed.
 
-`config.js` holds the rest, all with working defaults: `BRACKETS` (your series' start.gg short link, for the [Singles / Doubles buttons](#switching-brackets)), `HOTKEYS`, `SET_TEXT` (the Flex / Bo5 rule), `PLAYERS_FILE` and `CLIPPER` (starting values for the [combo clipper](#combo-clipper), tuned from the dock afterwards). Anything per machine goes in `config.local.js` instead.
+`config.js` holds the rest, all with working defaults: `BRACKETS` (your series' start.gg short link, for the [Singles / Doubles buttons](#switching-brackets)) and `PLAYERS_FILE`. `HOTKEYS`, `SET_TEXT` (the Flex / Bo5 rule) and `CLIPPER` (the [combo clipper](#combo-clipper)'s starting values, tuned from the dock afterwards) default in their own modules and can be overridden per key. Anything per machine goes in `config.local.js`.
 
 ### 3. The player database
 
@@ -162,7 +162,7 @@ Switching doesn't touch the scoreboard, so a set in progress and its pending rep
 
 ### Scoreboard and players bar
 
-Names, prefixes, pronouns, characters (the live Slippi costume), scores, the round and the best-of label: **Flex** outside top 6 (a Bo3 that goes to Bo5 at 1-1) and **Bo5** in top 6, decided from start.gg's placement for the set's loser. **[L]** goes on the grand-finals player from losers automatically. The rule lives in `SET_TEXT`; the live strip can override any of it per set.
+Names, prefixes, pronouns, characters (the live Slippi costume), scores, the round and the best-of label: **Flex** outside top 6 (a Bo3 that goes to Bo5 at 1-1) and **Bo5** in top 6, decided from start.gg's placement for the set's loser. **[L]** goes on the grand-finals player from losers automatically. The rule lives in `lib/scoreboard/set-text.js` (`SET_TEXT` in `config.local.js` changes it); the live strip can override any of it per set.
 
 ### Side panel
 
@@ -226,7 +226,7 @@ The app watches for notable combos **as the game is happening** and asks OBS to 
 
 ### Tuning
 
-Every setting is live-editable from the Clips tab; no restart. `config.js → CLIPPER` only holds the starting values, and your edits are saved to `clipper-settings.json` (gitignored, since it holds the OBS password).
+Every setting is live-editable from the Clips tab; no restart. The defaults are in `lib/clipper-settings.js`, and your edits are saved to `clipper-settings.json` (gitignored, since it holds the OBS password).
 
 | Setting | What it does |
 |---|---|

@@ -11,10 +11,10 @@
  *
  * Writes tests/fixtures/startgg/<tournament>.json: the tournament, every Melee
  * event's phases and phase groups, every set in every phase group (with the slot
- * prereq edges the bracket model is built from), and the stream queue.
+ * prereq edges the bracket model is built from).
  *
- * Why this exists: the replacement bracket model is built from start.gg's own
- * set graph, and tests/README.md is explicit that hand-written state produces
+ * Why this exists: the bracket model is built from start.gg's own set graph,
+ * and tests/README.md is explicit that hand-written state produces
  * tests that pass without exercising anything. So the fixtures are real
  * responses — scrubbed, because they carry attendee data:
  *
@@ -22,11 +22,11 @@
  *     synthetic value through ONE table, so the prereq edges still join up;
  *   - gamer tags become "Player<n>", prefixes "Team<n>", entrant names are rebuilt
  *     from the scrubbed tags, and displayScore is rewritten to match;
- *   - tournament / event / phase / round names and stream names are kept (public,
- *     and the bracket model reads them).
+ *   - tournament / event / phase / round names are kept (public, and the
+ *     bracket model reads them).
  *
  * Read-only against start.gg; goes through backgroundQuery so it respects the
- * same rate budget as the bridge's stats.
+ * same rate budget as the app's stats.
  */
 
 const fs   = require("fs");
@@ -34,20 +34,16 @@ const path = require("path");
 
 const config        = require("../config");
 const StartggClient = require("../lib/startgg-client");
-// The same fields the app reads, so fixtures can't drift from runtime shapes.
-const { SET_FIELDS } = require("../lib/event/queries");
+const { MELEE_VIDEOGAME_ID } = require("../lib/stats/queries");
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const OUT_DIR   = path.join(REPO_ROOT, "tests", "fixtures", "startgg");
-
-const MELEE_VIDEOGAME_ID = 1;
 
 const TOURNAMENT_QUERY = `
 query capTournament($slug: String!) {
   tournament(slug: $slug) {
     id name slug startAt state
     owner { id }
-    streams { id streamName streamSource }
     events {
       id name slug state type numEntrants
       videogame { id }
@@ -58,14 +54,6 @@ query capTournament($slug: String!) {
         }
       }
     }
-  }
-}`.trim();
-
-const STREAM_QUEUE_QUERY = `
-query capStreamQueue($tournamentId: ID!) {
-  streamQueue(tournamentId: $tournamentId) {
-    stream { id streamName }
-    sets { ${SET_FIELDS} }
   }
 }`.trim();
 
@@ -112,18 +100,10 @@ async function captureTournament(gg, slug) {
     }
   }
 
-  let streamQueue = [];
-  try {
-    streamQueue = (await gql(gg, STREAM_QUEUE_QUERY, { tournamentId: t.id }))?.streamQueue ?? [];
-  } catch (err) {
-    console.warn(`  stream queue unavailable: ${err.message}`);
-  }
-
   return {
     capturedAt: new Date().toISOString(),
     tournament: { ...t, events },
     phaseGroupSets,
-    streamQueue,
   };
 }
 
@@ -144,7 +124,7 @@ async function pastSlugs(gg, currentSlug, count) {
  * One id table for the whole capture, so every reference (prereqId → set or
  * seed id, winnerId → entrant id, phaseGroup.id) still points at the same
  * synthetic node. Numeric ids stay numeric; preview ids keep their "preview_"
- * prefix because the bridge recognises unstarted sets by it.
+ * prefix because the app recognises unstarted sets by it.
  */
 function makeScrubber() {
   const ids  = new Map();
@@ -222,11 +202,9 @@ function makeScrubber() {
   return function scrub(capture) {
     // Names first: scrubSet reads the real entrant names to rewrite displayScore.
     for (const sets of Object.values(capture.phaseGroupSets)) sets.forEach(scrubSet);
-    for (const q of capture.streamQueue) (q.sets ?? []).forEach(scrubSet);
     delete capture.tournament.owner;
 
     walkIds(capture.tournament);
-    walkIds(capture.streamQueue);
     const remapped = {};
     for (const [pgId, sets] of Object.entries(capture.phaseGroupSets)) {
       walkIds(sets);
@@ -241,8 +219,7 @@ function makeScrubber() {
 
 /**
  * Never overwrite a fixture. The same tournament is worth capturing more than
- * once — before it starts (preview sets), mid-event (in-progress sets, a live
- * stream queue), after — and each is a different test case. So a repeat capture
+ * once — before it starts (preview sets), mid-event (in-progress sets), after — and each is a different test case. So a repeat capture
  * gets a label: the one given with --label, else the local time.
  */
 function outFile(slug, label) {
@@ -285,7 +262,7 @@ async function main() {
     const sets = Object.values(capture.phaseGroupSets).reduce((n, s) => n + s.length, 0);
     const file = outFile(slug, label);
     fs.writeFileSync(file, JSON.stringify(capture, null, 1) + "\n");
-    console.log(`  → ${path.relative(REPO_ROOT, file)} (${sets} sets, ${capture.streamQueue.length} stream queues)`);
+    console.log(`  → ${path.relative(REPO_ROOT, file)} (${sets} sets)`);
   }
 }
 

@@ -1,6 +1,6 @@
 /**
  * The event service: the dock's bracket buttons, its set picker, and what
- * loading a set puts on the scoreboard — now that TSH no longer does any of it.
+ * loading a set puts on the scoreboard.
  *
  * Each failure here is silent until it is on stream:
  *

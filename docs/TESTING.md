@@ -126,12 +126,12 @@ Run the app against **a copy** of the player file and, if you want a real bracke
 ```js
 // boot.js — node boot.js <path to app> <players copy> <event slug>
 const path = require("path");
-const [bridge, players, slug] = process.argv.slice(2);
-const c = require(path.join(bridge, "config"));
+const [app, players, slug] = process.argv.slice(2);
+const c = require(path.join(app, "config"));
 c.PLAYERS_FILE = players;
-const { EventService } = require(path.join(bridge, "lib/event/event-service"));
+const { EventService } = require(path.join(app, "lib/event/event-service"));
 EventService.prototype.start = function () { this.loadEvent(slug); this._schedule(); };
-require(path.join(bridge, "index.js"));
+require(path.join(app, "index.js"));
 ```
 
 Past events load and read normally (e.g. `tournament/hundred-acres-48/event/melee-singles-flex-bo5`). The app still writes `app/data/live-state.json`; delete that afterwards **and nothing else in `data/`** — the default player file lives there too.

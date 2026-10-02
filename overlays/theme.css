@@ -6,9 +6,9 @@
    self-contained folder you can copy to start a new event.
 
    Every pack lives under themes/ at once; this line picks the one
-   that is on air. To re-skin the broadcast: change the one @import
-   below, then refresh the OBS browser sources. Switch it back when
-   the event is over — nothing else will remind you.
+   that is on air. The dock's Setup → Theme rewrites it and every
+   overlay reloads (a hand edit works too, then refresh the sources).
+   Switch it back when the event is over — nothing else will remind you.
 
    Served at /o/theme.css and @imported by /o/shared/overlay.css,
    which every overlay links. tests/overlays-static.test.js follows

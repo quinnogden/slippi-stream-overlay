@@ -50,8 +50,8 @@ function register(app, { store, event, refreshControlStatus }) {
     res.json(result);
   });
 
-  // Any event by a pasted start.gg URL (the Bracket tab's box, as TSH's
-  // "Set tournament"). Same reply as /api/bracket.
+  // Any event by a pasted start.gg URL (the Bracket tab's box). Same reply as
+  // /api/bracket.
   app.post("/api/bracket-url", async (req, res) => {
     const url = req.body?.url;
     if (typeof url !== "string" || !url.trim()) {

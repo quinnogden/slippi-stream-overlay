@@ -1,7 +1,5 @@
 /**
- * overlay-client.js — the runtime every overlay page loads. Replaces TSH's
- * globals.js (and with it jQuery, lodash, kuroshiro and the 30fps
- * program_state.json poll).
+ * overlay-client.js — the runtime every overlay page loads.
  *
  *   <script src="/socket.io/socket.io.js"></script>
  *   <script src="/o/shared/overlay-client.js"></script>
@@ -12,9 +10,8 @@
  *   ov.ready.then(() => { … });                    // first state drawn, fonts in
  *
  * The page fades in by itself: `body` starts at opacity 0 (overlay.css) and
- * gets `.ready` once the first state has been drawn and the fonts have loaded.
- * That replaces globals.js's `fadeTo` — the trap where a page that never got
- * its first TSH push stayed invisible for good. `?animate=false` adds
+ * gets `.ready` once the first state has been drawn and the fonts have loaded,
+ * so a page can't stay invisible waiting on a push it missed. `?animate=false` adds
  * `body.no-animate`, which overlay.css uses to skip every entrance.
  *
  * A theme switch from the dock (`theme`) fades the page out and reloads it,
@@ -113,7 +110,7 @@
     return `/assets/icons/chara_2_${character.codename}_${skin}.png`;
   }
 
-  const api = { createMirror, getPath, icon };
+  const api = { createMirror, icon };
 
   if (typeof module !== "undefined" && module.exports) {
     module.exports = api;
@@ -189,8 +186,6 @@
     await new Promise((r) => requestAnimationFrame(() => r()));
     onBody((b) => b.classList.add("ready"));
   }
-
-  // ── Theme switch ────────────────────────────────────────────────────────────
 
   // ── Motion ──────────────────────────────────────────────────────────────────
   //
@@ -280,6 +275,8 @@
     el.__ovPhase = null;
     el.__ovRender = null;
   }
+
+  // ── Theme switch ────────────────────────────────────────────────────────────
 
   const THEME_FADE_MS = 450;
   let reloading = false;
@@ -459,15 +456,12 @@
   }
 
   /**
-   * Squeeze `el` horizontally until it fits its parent — TSH's FitText, which
-   * every scoreboard name has been drawn with. Measures after the fonts load,
-   * since a fallback face is a different width.
-   *
-   * And again whenever the parent changes width: the box a name fits into is
-   * what its siblings leave, and they change on their own schedule — the
-   * doubles team swatch is wider than a character icon and is drawn after the
-   * name (and after its own swap's exit), so a fit taken once kept the old,
-   * wider box and the swatch covered the end of a long team name.
+   * Squeeze `el` horizontally until it fits its parent — how every scoreboard
+   * name is drawn. Measured again once the fonts load (a fallback face is a
+   * different width), and whenever the parent changes width: the box a name
+   * fits into is what its siblings leave, and they change on their own
+   * schedule (the doubles swatch is drawn after the name, and is wider than
+   * a character icon).
    */
   function squeeze(el) {
     if (!el || !el.parentElement) return;
@@ -596,7 +590,7 @@
     return node;
   }
 
-  const motion = { ease, ms, restOf, pose, canAnimate };
+  const motion = { ease, ms, restOf, pose };
 
   root.Overlay = { ...api, connect, reveal, followTheme, swap, presence, text, motion, squeeze, fitText, fitGroup, h, param };
 })(typeof window !== "undefined" ? window : globalThis);

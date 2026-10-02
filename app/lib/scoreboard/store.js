@@ -2,18 +2,17 @@
  * ScoreboardStore — the one owner of live state: the set on the scoreboard,
  * the loaded tournament, the casters, and the overlays' shared view settings.
  *
- * Replaces TSH's scoreboard. Every change goes through a command method, which
- * bumps `rev` and emits `change` with the top-level sections it touched — the
- * overlay channel turns that into patches, persist.js into a save. Nothing
- * outside this file mutates the state.
+ * Every change goes through a command method, which bumps `rev` and emits
+ * `change` with the top-level sections it touched — the overlay channel turns
+ * that into patches, persist.js into a save. Nothing outside this file mutates
+ * the state.
  *
- * Two decisions that remove whole classes of TSH-era bugs:
+ * Two decisions that remove whole classes of bugs:
  *
  *   - **A side carries its start.gg entrant id.** sides[0] is the left column,
  *     sides[1] the right; switchSides() reverses the array, so the entrant id
- *     travels with the name. Reporting reads `sides[w].entrantId` — there is no
- *     longer a "which start.gg slot is column 1 while swapped" question
- *     (TSH's entrantSlot inversion), and nothing to poll.
+ *     travels with the name. Reporting reads `sides[w].entrantId` — no "which
+ *     start.gg slot is column 1 while swapped" question, and nothing to poll.
  *
  *   - **The score is derived from the game list.** Each side's score is the
  *     number of games it has won; a Slippi game end appends a game, a manual
@@ -127,8 +126,8 @@ class ScoreboardStore extends EventEmitter {
 
   /**
    * Whether the loaded set can be reported to start.gg, and with what.
-   * Replaces the TSH-side score/swap reads; set-gate.js still holds the token check.
-   * @returns {{ ok: true, setId: string, winnerSide: 0|1, winnerEntrantId: string, games: Array }
+   * set-gate.js holds the token check.
+   * @returns {{ ok: true, setId: string, winnerSide: 0|1, winnerEntrantId: string, sides: Array, games: Array }
    *         | { ok: false, reason: string }}
    */
   reportable() {
@@ -245,7 +244,7 @@ class ScoreboardStore extends EventEmitter {
    * @param {{ tag?: string, prefix?: string, pronoun?: string, playerId?: string|null, main?: object|null }} fields
    */
   setPlayer(side, index, fields) {
-    const p = this._player(side, index, true);
+    const p = this._player(side, index);
     for (const k of ["tag", "prefix", "pronoun", "playerId", "main"]) {
       if (fields[k] !== undefined) p[k] = fields[k];
     }
@@ -258,19 +257,10 @@ class ScoreboardStore extends EventEmitter {
    * @param {{ codename: string, name: string, skin: number } | null} character
    */
   setCharacter(side, index, character) {
-    const p = this._player(side, index, true);
+    const p = this._player(side, index);
     if (sameChar(p.character, character)) return;
     p.character = character ? { codename: character.codename, name: character.name, skin: Number(character.skin) || 0 } : null;
     this._changed(["scoreboard"]);
-  }
-
-  /** Clear every displayed character (doubles: the overlay shows none). */
-  clearCharacters() {
-    let changed = false;
-    for (const side of this._set.sides) for (const p of side.players) {
-      if (p.character) { p.character = null; changed = true; }
-    }
-    if (changed) this._changed(["scoreboard"]);
   }
 
   /**
@@ -437,10 +427,6 @@ class ScoreboardStore extends EventEmitter {
   restore(saved) {
     if (!saved || saved.v !== STATE_VERSION || !saved.set) return false;
     this._set = { ...emptySet(), ...clone(saved.set) };
-    // A save from before the doubles flag: the sides' shape says which it was.
-    if (typeof saved.set.doubles !== "boolean") {
-      this._set.doubles = this._set.sides.some((x) => x.players.length > 1);
-    }
     this._tournament = { ...emptyTournament(), ...(saved.tournament ?? {}) };
     this._casters = Array.isArray(saved.casters) ? clone(saved.casters) : [];
     this._view = { ...this._view, ...(saved.view ?? {}) };
@@ -454,10 +440,11 @@ class ScoreboardStore extends EventEmitter {
     if (side !== 0 && side !== 1) throw new Error(`side must be 0 or 1, got ${side}`);
   }
 
-  _player(side, index, create) {
+  /** A side's player, created (with any before it) if the index is new. */
+  _player(side, index) {
     this._side(side);
     const players = this._set.sides[side].players;
-    if (!players[index] && create && index >= 0 && index < 4) {
+    if (!players[index] && index >= 0 && index < 4) {
       while (players.length <= index) players.push(emptyPlayer());
     }
     if (!players[index]) throw new Error(`no player ${index} on side ${side}`);

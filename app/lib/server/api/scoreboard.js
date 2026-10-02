@@ -13,9 +13,9 @@ const path = require("path");
 const { CHAR_MAP, CSS_ORDER } = require("../../char_map");
 const { TEAM_COLORS } = require("../../modes/doubles");
 
-/** 400 with a message, for a body the dock should never have sent. */
-function bad(res, error) {
-  return res.status(400).json({ ok: false, error });
+/** An error status with a message — by default 400, for a body the dock should never have sent. */
+function bad(res, error, code = 400) {
+  return res.status(code).json({ ok: false, error });
 }
 
 const isSide = (v) => v === 0 || v === 1;
@@ -39,6 +39,18 @@ function characterList(iconsDir) {
     const skins = files.filter((f) => re.test(f)).length;
     return { id, codename, name: display, skins };
   });
+}
+
+/**
+ * A picker character by codename, with a costume it has an icon for.
+ * @returns {{ ch: object } | { error: string }}
+ */
+function pickCharacter(characters, codename, skin) {
+  const ch = characters.find((c) => c.codename === codename);
+  if (!ch) return { error: `unknown character ${codename}` };
+  const skins = Math.max(1, ch.skins);
+  if (!Number.isInteger(skin) || skin < 0 || skin >= skins) return { error: `${ch.name} has costumes 0-${skins - 1}` };
+  return { ch };
 }
 
 /**
@@ -108,11 +120,8 @@ function register(app, deps) {
       store.setCharacter(side, index, null);
       return res.json({ ok: true });
     }
-    const ch = characters.find((c) => c.codename === codename);
-    if (!ch) return bad(res, `unknown character ${codename}`);
-    if (!Number.isInteger(skin) || skin < 0 || skin >= Math.max(1, ch.skins)) {
-      return bad(res, `${ch.name} has costumes 0-${Math.max(1, ch.skins) - 1}`);
-    }
+    const { ch, error } = pickCharacter(characters, codename, skin);
+    if (error) return bad(res, error);
     const character = { codename: ch.codename, name: ch.name, skin };
     store.setCharacter(side, index, character);
     store.setPlayer(side, index, { main: character });
@@ -156,7 +165,7 @@ function register(app, deps) {
     res.json({ ok: true, doubles: on });
   });
 
-  // A doubles side's team colour, as TSH's colour picker: { side, color:
+  // A doubles side's team colour: { side, color:
   // "red" | "blue" | "green" | null }. The next doubles game start sets it
   // again from Slippi's teams.
   app.post("/api/side-color", (req, res) => {
@@ -211,4 +220,4 @@ function register(app, deps) {
   });
 }
 
-module.exports = { register, characterList, sameName };
+module.exports = { register, characterList, pickCharacter, sameName, bad, isSide, isIndex };

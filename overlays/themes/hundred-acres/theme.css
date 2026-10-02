@@ -57,14 +57,10 @@
      leaving the side panel's bottom card and the bracket title on
      --score-bg-color. Unset here, so both stay teal. */
   --sponsor-color:  #aa8e5b;
-  --accent-color:   #f9d697;   /* used by side panel, player card, etc. */
 
-  /* Semantic UI colors */
-  --icon-bg-color:   var(--score-bg-color); /* character icon slot backgrounds */
+  /* Win / loss */
   --win-color:       #29b548;               /* winner result indicator */
   --loss-color:      #ff3837;               /* loser result indicator */
-  --p2-team-color:   #308aff;               /* p2 accent in queues/bracket */
-  --set-score-color: var(--darkened-text);  /* neutral set score chip */
 
   /* RGB triplets for use inside rgba() — keep in sync with the hexes above */
   --bg-color-rgb:       42, 61, 35;    /* #2a3d23 */

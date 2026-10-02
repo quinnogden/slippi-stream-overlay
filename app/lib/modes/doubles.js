@@ -28,15 +28,14 @@ function createDoubles(ctx) {
    */
   function apply(sorted) {
     const players = {};
-    const teamColorMap = {};
+    const colors = [null, null];
     sorted.forEach((raw, i) => {
       const side = portMap.sideOf(raw.playerIndex) ?? (i < 2 ? 0 : 1);
       const slot = portMap.slotOf(raw.playerIndex);
       const skin = raw.characterColor ?? 0;
       const ch = resolveCharacter(raw.characterId, skin);
       if (ch) store.setCharacter(side, slot, { codename: ch.codename, name: ch.display, skin });
-      const color = MELEE_TEAM_COLORS[raw.teamId];
-      if (color) teamColorMap[side + 1] = color;
+      colors[side] = MELEE_TEAM_COLORS[raw.teamId] ?? colors[side];
       players[raw.playerIndex] = {
         playerIndex: raw.playerIndex,
         side,
@@ -48,13 +47,13 @@ function createDoubles(ctx) {
       };
       console.log(`[bridge] Doubles ${side === 0 ? "left" : "right"} #${slot + 1} (port ${raw.playerIndex + 1}): ${ch?.display ?? "?"}`);
     });
-    for (const side of [0, 1]) store.setSideColor(side, teamColorMap[side + 1] ?? null);
+    for (const side of [0, 1]) store.setSideColor(side, colors[side]);
 
-    state.currentGameState = { players, isDoubles: true, teamColorMap };
+    state.currentGameState = { players, isDoubles: true };
     io.emit("slippi_game_start", state.currentGameState);
   }
 
   return { apply };
 }
 
-module.exports = { createDoubles, MELEE_TEAM_COLORS, TEAM_COLORS };
+module.exports = { createDoubles, TEAM_COLORS };

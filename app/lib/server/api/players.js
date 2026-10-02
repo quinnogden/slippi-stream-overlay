@@ -9,17 +9,13 @@
  */
 
 const { characterByName } = require("../../char_map");
-const { characterList, sameName } = require("./scoreboard");
+const { characterList, pickCharacter, sameName, bad, isSide, isIndex } = require("./scoreboard");
 
 const FIELD_MAX = 40;
 const LIST_ALL = 150; // an empty name field lists this many of the player list
 
-const isSide = (v) => v === 0 || v === 1;
-const isIndex = (v) => Number.isInteger(v) && v >= 0 && v < 4;
-
-function bad(res, error, code = 400) {
-  return res.status(code).json({ ok: false, error });
-}
+/** A DB main ({ name, skin }) as an icon-ready { codename, name, skin }. */
+const asCharacter = (m) => (m ? characterByName(m.name, m.skin) : null);
 
 /**
  * @param {import("express").Express} app
@@ -31,12 +27,11 @@ function register(app, { store, playerDb, event = null, iconsDir, refreshControl
   // describe() with each main as an icon-ready { codename, name, skin }.
   const entry = (rec, onAir) => {
     const d = playerDb.describe(rec);
-    const ch = (m) => (m ? characterByName(m.name, m.skin) : null);
     return {
       ...d,
-      main: ch(d.main),
-      pinnedMain: ch(d.pinnedMain),
-      learnedMains: d.learnedMains.map(ch).filter(Boolean),
+      main: asCharacter(d.main),
+      pinnedMain: asCharacter(d.pinnedMain),
+      learnedMains: d.learnedMains.map(asCharacter).filter(Boolean),
       onAir: onAir.has(rec),
     };
   };
@@ -85,7 +80,7 @@ function register(app, { store, playerDb, event = null, iconsDir, refreshControl
     return list.length ? list : null;
   }
 
-  // The name fields' autocomplete, as TSH does it: while an event is loaded,
+  // The name fields' autocomplete: while an event is loaded,
   // only its entrants (with pronoun and main from the player list); with
   // none, or with ?scope=list (the casters, who aren't entrants), the whole
   // player list. ?q= matches tag or "prefix tag", tags starting with it
@@ -112,14 +107,13 @@ function register(app, { store, playerDb, event = null, iconsDir, refreshControl
     const players = hits.slice(0, q ? 12 : 64).map((p) => {
       const rec = playerDb.find(p);
       const d = rec ? playerDb.describe(rec) : null;
-      const ch = (m) => (m ? characterByName(m.name, m.skin) : null);
       return {
         ref: d ? d.ref : null,
         tag: p.tag,
         prefix: p.prefix || (d ? d.prefix : ""),
         pronoun: d ? d.pronoun : "",
         startggPlayerId: p.playerId,
-        main: d ? ch(d.main) : null,
+        main: d ? asCharacter(d.main) : null,
         team: p.team,
         seed: p.seed,
       };
@@ -153,8 +147,7 @@ function register(app, { store, playerDb, event = null, iconsDir, refreshControl
       const d = playerDb.describe(rec);
       fields = { tag: d.tag, prefix: d.prefix, pronoun: d.pronoun, playerId: d.startggPlayerId };
     }
-    const m = rec ? playerDb.preferredMain(rec) : null;
-    const main = m ? characterByName(m.name, m.skin) : null;
+    const main = rec ? asCharacter(playerDb.preferredMain(rec)) : null;
     if (main) fields.main = main;
     // Someone else in the slot: the scoreboard isn't the start.gg set any more
     // (as a typed name, /api/player). The same player picked again changes nothing.
@@ -203,11 +196,8 @@ function register(app, { store, playerDb, event = null, iconsDir, refreshControl
     if (codename == null) {
       playerDb.pinMain(rec, null);
     } else {
-      const ch = characters.find((c) => c.codename === codename);
-      if (!ch) return bad(res, `unknown character ${codename}`);
-      if (!Number.isInteger(skin) || skin < 0 || skin >= Math.max(1, ch.skins)) {
-        return bad(res, `${ch.name} has costumes 0-${Math.max(1, ch.skins) - 1}`);
-      }
+      const { ch, error } = pickCharacter(characters, codename, skin);
+      if (error) return bad(res, error);
       playerDb.pinMain(rec, { name: ch.name, skin });
     }
     res.json({ ok: true, player: entry(rec, onAirRecords()) });

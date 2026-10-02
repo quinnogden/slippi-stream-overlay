@@ -9,7 +9,7 @@
  * Scoring:
  *   With pause disabled (gameBitfield3 < 142, the competitive setting):
  *     LRAS end (method 7)                → +1, else −1
- *     Both players used < startStocks-1  → +2  (both still have multiple stocks)
+ *     Every player > 1 stock at the end  → +2
  *   With pause enabled:
  *     Each player's kill count ≤ 1       → +1  (if startStocks > 2, singles only)
  *   Always:
@@ -28,9 +28,10 @@ const LRAS_METHOD = GameEndMethod.NO_CONTEST;
  * @returns {boolean}
  */
 function wasHandwarmer(game) {
-  if (!game.getGameEnd()) return false;
+  const gameEnd = game.getGameEnd();
+  if (!gameEnd) return false;
 
-  const settings    = game.getSettings();
+  const settings = game.getSettings();
 
   // Detect doubles: 4 active players. Some checks (kill count) are unreliable
   // for 4-player stat computation in slippi-js, so they are guarded below.
@@ -42,7 +43,6 @@ function wasHandwarmer(game) {
 
   const startStocks = settings?.players?.[0]?.startStocks ?? 4;
   const stats       = game.getStats();
-  const gameEnd     = game.getGameEnd();
   const lastFrame   = game.getLatestFrame();
   const metadata    = game.getMetadata();
 

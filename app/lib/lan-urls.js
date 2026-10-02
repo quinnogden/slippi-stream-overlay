@@ -1,5 +1,5 @@
 /**
- * Every address a phone or tablet could open the control panel on.
+ * Every address a phone or tablet could open the dock on.
  *
  * The venue hands out a different IP than home does, so the URL is printed at
  * startup instead of written down.
@@ -42,9 +42,4 @@ function lanDockUrls(config) {
   }));
 }
 
-/** lanDockUrls() as console-ready lines. */
-function lanControlUrls(config) {
-  return lanDockUrls(config).map((a) => `${a.url}  (${a.name})`);
-}
-
-module.exports = { lanControlUrls, lanDockUrls };
+module.exports = { lanDockUrls };

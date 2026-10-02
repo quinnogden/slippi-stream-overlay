@@ -1,17 +1,12 @@
 /**
- * The side panel's player stats, fetched by the bridge instead of by TSH.
- *
- * TSH's own stats are what used to feed the side panel, and its head-to-head
- * was wrong in ways that changed from set to set: start.gg refused most of its
- * requests for being too large, and it read each refusal as "no sets"; it
- * discarded half its own results; and it only looked at events on a player's
- * user account. See docs/BRIDGE-API.md (`player_stats`) for what the layout
- * receives, and queries.js / set-history.js for how each problem is avoided.
+ * The side panel's player stats: each player's card, their head-to-head, and
+ * the loaded event's finished sets. See docs/BRIDGE-API.md (`player_stats`) for
+ * what the layout receives, and queries.js / set-history.js for how start.gg's
+ * size ceiling and partial histories are handled.
  *
  * Driven by the scoreboard store: a change to the pair on the scoreboard (or to
  * the loaded event) is acted on at once. Loading a set is one store command, so
- * there is no half-loaded pair to wait out — TSH wrote a set load as several
- * separate writes, the first pairing the new player 1 with the old player 2.
+ * there is no half-loaded pair to wait out.
  *
  * The loaded event's finished sets come from the event service's own reads
  * (every set of every phase group, refreshed every 90s and after a report),

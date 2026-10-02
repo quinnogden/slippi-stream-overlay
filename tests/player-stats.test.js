@@ -1,12 +1,9 @@
 /**
- * player-stats.test.js
- *
- * The bridge's head-to-head (app/lib/stats/). A wrong record is the
+ * The side panel's head-to-head (app/lib/stats/). A wrong record is the
  * failure this suite exists for: it renders fine, looks plausible, and is only
- * caught by someone in chat who knows the rivalry. TSH's own H2H was wrong in
- * exactly that way for months.
+ * caught by someone in chat who knows the rivalry.
  *
- * Every rule in headToHead() here was found by checking the bridge against a
+ * Every rule in headToHead() here was found by checking the app against a
  * hand-verified record (ZODD-01's vs NAV / Big Matt / Yung John / Redd), and
  * each case below is the shape of set that broke it:
  *
@@ -18,8 +15,8 @@
  *
  * Also pins the two things that keep the crawl affordable: a top-up stops at the
  * first page it already holds, and a page start.gg refuses as too large is
- * re-read at half the size instead of being treated as empty (which is TSH's
- * bug). And that background requests wait for rate budget.
+ * re-read at half the size instead of being treated as empty. And that
+ * background requests wait for rate budget.
  *
  * Usage: node tests/player-stats.test.js
  */

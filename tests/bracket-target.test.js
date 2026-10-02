@@ -93,7 +93,7 @@ test("an empty event list is refused rather than throwing", () => {
 });
 
 // This is what makes a second press re-pull the bracket instead of silently
-// no-opping inside TSH.
+// doing nothing.
 test("sameEvent sees through scheme, www, /events/ and trailing path", () => {
   assert.strictEqual(
     sameEvent("start.gg/tournament/x/event/y",

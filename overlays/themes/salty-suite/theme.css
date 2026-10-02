@@ -66,14 +66,10 @@
      where Hundred Acres gets a teal-vs-green hue break for free. */
   --score-box-bg:   #6b1a14;
   --sponsor-color:  #9d7c1c;
-  --accent-color:   #edba05;
 
-  /* Semantic UI colors */
-  --icon-bg-color:   var(--score-bg-color); /* character icon slot backgrounds */
+  /* Win / loss */
   --win-color:       #3fa34d;               /* winner — stays green to read as a signal */
   --loss-color:      #d4372c;               /* loser — warmer red than the maroon accent */
-  --p2-team-color:   #a8342f;               /* the poster's red corner, opposite gold */
-  --set-score-color: var(--darkened-text);  /* neutral set score chip */
 
   /* RGB triplets for use inside rgba() — keep in sync with the hexes above */
   --bg-color-rgb:       22, 22, 22;    /* #161616 */

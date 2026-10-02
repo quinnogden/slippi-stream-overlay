@@ -27,7 +27,7 @@ const FRAMES_PER_SECOND = 60;
 class ComboDetector {
   /**
    * @param {() => object} getSettings — returns the live clipper settings.
-   *   Read fresh on every scan so the control panel can retune mid-game.
+   *   Read fresh on every scan so the dock can retune mid-game.
    */
   constructor(getSettings) {
     this._getSettings = getSettings;
@@ -94,7 +94,7 @@ class ComboDetector {
    *
    * @returns {{moveCount: number, damage: number, durationSec: number}|null}
    *   null when windowing can't apply (off, or no move data to window over), in
-   *   which case the caller judges the whole conversion as before.
+   *   which case the caller judges the whole conversion.
    */
   _window(c, s) {
     const windowSec = s.comboWindowSec ?? 0;

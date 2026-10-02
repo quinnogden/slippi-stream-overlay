@@ -3,6 +3,8 @@
  * state, the side panel's stats.
  */
 
+const { APP_ID } = require("../../port-guard");
+
 /**
  * @param {import("express").Express} app
  * @param {object} deps — { store, refreshControlStatus, playerStatsSnapshot }
@@ -11,7 +13,7 @@ function register(app, { store, refreshControlStatus, playerStatsSnapshot }) {
   // Lets an app that finds this port busy confirm the occupant is one of its
   // own — and which process to stop — instead of asking the operator for netstat.
   app.get("/api/identity", (req, res) => {
-    res.json({ app: "slippi-bridge", pid: process.pid });
+    res.json({ app: APP_ID, pid: process.pid });
   });
 
   app.get("/api/status", async (req, res) => {

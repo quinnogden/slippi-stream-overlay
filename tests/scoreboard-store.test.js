@@ -3,14 +3,12 @@
  *
  * Two failures this pins are silent on stream and expensive after it:
  *
- *   - **Reporting the wrong entrant.** Under TSH, which start.gg entrant sat in
- *     a column depended on TSH's swap flag (the entrantSlot inversion). Now each
- *     side carries its entrant id and Switch Sides moves it — so the report
- *     after any number of switches must still name the player who won, and
- *     every per-game winner must still be the right entrant.
- *   - **Losing the set to a restart.** The app is the scoreboard now; a crash
- *     mid-set without the live-state save blanks names, score and the game
- *     list a report is built from.
+ *   - **Reporting the wrong entrant.** Each side carries its entrant id and
+ *     Switch Sides moves it — so the report after any number of switches must
+ *     still name the player who won, and every per-game winner must still be
+ *     the right entrant.
+ *   - **Losing the set to a restart.** A crash mid-set without the live-state
+ *     save blanks names, score and the game list a report is built from.
  *
  * Loads are real set-model payloads from captured brackets, never hand-written
  * set shapes.
@@ -188,7 +186,7 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sb-store-"));
     }
   });
 
-  await test("doubles by hand: a second player a side; singles drops them; a pre-flag save stays doubles", async () => {
+  await test("doubles by hand: a second player a side; singles drops them", async () => {
     const store = freshStore();
     const entrants = store.scoreboard().sides.map((s) => s.entrantId);
     assert.strictEqual(store.scoreboard().isDoubles, false, "a singles set loads as singles");
@@ -208,14 +206,6 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sb-store-"));
     store.setDoubles(true);
     store.clearSet();
     assert.ok(!store.scoreboard().isDoubles, "Clear set goes back to singles");
-
-    // A save written before the flag existed: the sides' shape says doubles.
-    store.setDoubles(true);
-    const old = store.toJSON();
-    delete old.set.doubles;
-    const back = new ScoreboardStore();
-    assert.ok(back.restore(old));
-    assert.ok(back.scoreboard().isDoubles);
   });
 
   await test("unlinking from start.gg: no set id, entrants, seeds or team name; what's shown stays", async () => {

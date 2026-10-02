@@ -12,8 +12,7 @@
  * Every write is a POST to /api/*; the answer that matters is the state patch
  * that follows, so nothing here updates the strip optimistically.
  *
- * Three rules this file keeps, each the fix for a way the old control panel
- * failed on stream:
+ * Three rules this file keeps, each a way a console fails on stream:
  *
  *   - A render never throws out. Each one is guarded, and the mirror guards
  *     its selectors, so one bad field can't freeze the whole dock while it
@@ -79,12 +78,12 @@
 
   /**
    * POST and toast the outcome — the shape every key here shares.
-   * @param {string|((r: object) => string)} okMsg
+   * @param {string|((r: object) => string)|null} okMsg — null: only a failure is toasted
    */
   async function act(path, body, okMsg, failLabel) {
     const r = await api(path, body);
-    if (r.ok) toast(typeof okMsg === "function" ? okMsg(r) : okMsg, true);
-    else toast(`${failLabel}: ${r.error || "no answer from the app"}`, false);
+    if (!r.ok) toast(`${failLabel}: ${r.error || "no answer from the app"}`, false);
+    else if (okMsg != null) toast(typeof okMsg === "function" ? okMsg(r) : okMsg, true);
     return r;
   }
 
@@ -105,10 +104,8 @@
     const msg = h("div", "confirm-msg");
     msg.append(...o.html);
     const row = h("div", "key-row");
-    const yes = h("button", "key arm", o.yes);
-    yes.type = "button";
-    const no = h("button", "key", "Cancel");
-    no.type = "button";
+    const yes = button("key arm", o.yes);
+    const no = button("key", "Cancel");
     yes.addEventListener("click", () => { slot.replaceChildren(); o.onYes(); });
     no.addEventListener("click", () => { slot.replaceChildren(); if (o.onNo) o.onNo(); });
     row.append(yes, no);
@@ -121,17 +118,20 @@
     return parts.map((p) => (typeof p === "string" ? document.createTextNode(p) : h("b", "", p.b)));
   }
 
-  /** A hardware key, built rather than written as markup. */
-  function key(label, cls) {
-    const b = h("button", "key" + (cls ? " " + cls : ""), label);
+  /** A <button> that never submits anything. */
+  function button(cls, text) {
+    const b = h("button", cls, text);
     b.type = "button";
     return b;
   }
 
+  /** A hardware key, built rather than written as markup. */
+  const key = (label, cls) => button("key" + (cls ? " " + cls : ""), label);
+
   // ── Autocomplete ────────────────────────────────────────────────────────────
 
   /**
-   * A suggestion list under a text field, as TSH has on its manual fields. One
+   * A suggestion list under a text field. One
    * menu (#ac-menu) serves every field, placed under whichever has focus. A
    * list of our own rather than a <datalist>: OBS's dock browser draws those
    * badly, and a player suggestion carries their main's icon.
@@ -223,8 +223,7 @@
     const cap = ac.o.caption ? ac.o.caption(ac.items) : "";
     if (cap) rows.push(h("div", "ac-cap", cap));
     ac.items.forEach((it, i) => {
-      const row = h("button", "ac-item" + (i === ac.active ? " on" : ""));
-      row.type = "button";
+      const row = button("ac-item" + (i === ac.active ? " on" : ""));
       row.tabIndex = -1;
       row.append(...(ac.o.render ? ac.o.render(it) : [h("span", "ac-label", ac.o.label(it))]));
       // mousedown, not click, keeps the focus in the field — a blur would close the menu first.
@@ -460,7 +459,7 @@
 
   /**
    * One side of the strip. Singles: a character per player. Doubles: the
-   * team's colour instead, as TSH has — the overlay shows the colour, not four
+   * team's colour instead — the overlay shows the colour, not four
    * characters. No prefix either: the overlay shows doubles players by tag
    * alone. The colour dots go on a line under the players, with the seed and
    * team name, so the tags get the column's whole width.
@@ -468,8 +467,7 @@
   function buildSide(i, count, doubles) {
     const root = $("side-" + i);
     root.classList.toggle("doubles", doubles);
-    const lChip = h("button", "l-chip", "L");
-    lChip.type = "button";
+    const lChip = button("l-chip", "L");
     lChip.title = "[L] on stream — the side that came from losers. Set automatically in grand finals";
     lChip.addEventListener("click", () => toggleLosers(i));
 
@@ -486,8 +484,7 @@
       let charBtn = null;
       let img = null;
       if (!doubles) {
-        charBtn = h("button", "char empty");
-        charBtn.type = "button";
+        charBtn = button("char empty");
         charBtn.title = "Character";
         img = h("img");
         img.alt = "";
@@ -524,12 +521,10 @@
     }
 
     const box = h("div", "score-box");
-    const dec = h("button", "key", "−");
-    dec.type = "button";
+    const dec = button("key", "−");
     dec.title = "Take a game away";
     const score = h("output", "score", "0");
-    const inc = h("button", "key", "+");
-    inc.type = "button";
+    const inc = button("key", "+");
     inc.title = "Give this side a game";
     dec.addEventListener("click", () => bump(i, -1));
     inc.addEventListener("click", () => bump(i, 1));
@@ -541,8 +536,7 @@
       group.setAttribute("role", "group");
       group.setAttribute("aria-label", "Team colour");
       swatches = TEAM_SWATCHES.map(([name, hex]) => {
-        const b = h("button", "swatch " + name);
-        b.type = "button";
+        const b = button("swatch " + name);
         b.title = `${name[0].toUpperCase()}${name.slice(1)} team`;
         b.setAttribute("aria-label", b.title);
         b.addEventListener("click", () => setTeamColor(i, name, hex));
@@ -645,9 +639,7 @@
   function setTeamColor(i, name, hex) {
     if (!sb) return;
     const clear = sameHex(sb.sides[i].color, hex);
-    api("/api/side-color", { side: i, color: clear ? null : name }).then((r) => {
-      if (!r.ok) toast(`Colour change failed: ${r.error}`, false);
-    });
+    act("/api/side-color", { side: i, color: clear ? null : name }, null, "Colour change failed");
   }
 
   // Back to singles drops each side's second player, so it asks first if
@@ -667,9 +659,7 @@
   });
 
   function bump(side, delta) {
-    api("/api/score", { side, delta }).then((r) => {
-      if (!r.ok) toast(`Score change failed: ${r.error}`, false);
-    });
+    act("/api/score", { side, delta }, null, "Score change failed");
   }
 
   function toggleLosers(i) {
@@ -678,12 +668,10 @@
     // the other side's override.
     const next = [...((sb.overrides && sb.overrides.losers) || [null, null])];
     next[i] = !sb.sides[i].losers;
-    api("/api/set-text", { losers: next }).then((r) => {
-      if (!r.ok) toast(`[L] change failed: ${r.error}`, false);
-    });
+    act("/api/set-text", { losers: next }, null, "[L] change failed");
   }
 
-  // TSH's round and match terms, after the loaded bracket's own round names.
+  // Common round and match names, after the loaded bracket's own.
   const ROUND_TERMS = [
     "Winners Round 1", "Winners Round 2", "Winners Round 3", "Winners Quarter-Final", "Winners Semi-Final", "Winners Final",
     "Losers Round 1", "Losers Round 2", "Losers Round 3", "Losers Round 4", "Losers Top 8",
@@ -712,12 +700,8 @@
   });
   bindField($("round"), (v) => api("/api/set-text", { round: v || null }));
 
-  $("best-of").addEventListener("change", () => {
-    const v = $("best-of").value;
-    api("/api/set-text", { bestOf: v || null }).then((r) => {
-      if (!r.ok) toast(`Best-of change failed: ${r.error}`, false);
-    });
-  });
+  $("best-of").addEventListener("change", () =>
+    act("/api/set-text", { bestOf: $("best-of").value || null }, null, "Best-of change failed"));
 
   $("btn-text-auto").addEventListener("click", () =>
     act("/api/set-text", { round: null, bestOf: null, losers: [null, null] }, "Set text back to automatic", "Couldn't reset it"));
@@ -928,9 +912,8 @@
 
     const out = [];
     for (const set of rows) {
-      const onAir = drawnLiveId != null && String(set.setId) === String(drawnLiveId);
-      const row = h("button", `set-row ${set.status}` + (onAir ? " air" : ""));
-      row.type = "button";
+      const onAir = isOnAir(set);
+      const row = button(`set-row ${set.status}` + (onAir ? " air" : ""));
 
       const meta = h("div", "set-meta");
       meta.append(h("span", "round-name", set.roundName || `Set ${set.identifier}`));
@@ -1086,14 +1069,10 @@
   });
 
   document.querySelectorAll("#bracket-views .key").forEach((b) => b.addEventListener("click", () =>
-    api("/api/bracket-view", { view: b.dataset.view }).then((r) => {
-      if (!r.ok) toast(`View switch failed: ${r.error}`, false);
-    })));
+    act("/api/bracket-view", { view: b.dataset.view }, null, "View switch failed")));
 
   $("bracket-group").addEventListener("change", () =>
-    api("/api/bracket-view", { phaseGroupId: $("bracket-group").value || null }).then((r) => {
-      if (!r.ok) toast(`Group switch failed: ${r.error}`, false);
-    }));
+    act("/api/bracket-view", { phaseGroupId: $("bracket-group").value || null }, null, "Group switch failed"));
 
   // ── Casters tab ─────────────────────────────────────────────────────────────
 
@@ -1320,8 +1299,7 @@
     const row = h("div", "pl-row" + (p.onAir ? " air" : "") + (open ? " open" : ""));
 
     const shown = p.pinnedMain || p.main;
-    const charBtn = h("button", "char" + (shown ? "" : " empty") + (p.pinnedMain ? " pinned" : ""));
-    charBtn.type = "button";
+    const charBtn = button("char" + (shown ? "" : " empty") + (p.pinnedMain ? " pinned" : ""));
     charBtn.title = p.pinnedMain ? `Pinned: ${p.pinnedMain.name} — change` : "Pin the main their sets open on";
     const img = h("img");
     img.alt = "";
@@ -1329,8 +1307,7 @@
     charBtn.append(img);
     charBtn.addEventListener("click", () => openPinPicker(p));
 
-    const name = h("button", "pl-name");
-    name.type = "button";
+    const name = button("pl-name");
     name.title = open ? "Close" : "Edit";
     if (p.prefix) name.append(h("span", "pl-prefix", p.prefix));
     name.append(h("span", "pl-tag", p.tag || "?"));
@@ -1591,7 +1568,7 @@
   }
 
   const HOTKEY_HINTS = {
-    global: "Work from any window — and still reach it, so Dolphin and OBS see the keys too. A held key fires once. Change them in config.HOTKEYS.",
+    global: "Work from any window — and still reach it, so Dolphin and OBS see the keys too. A held key fires once. Change them with HOTKEYS in config.local.js.",
     terminal: "The global listener (uiohook-napi) didn't load: these keys only work typed into the app's own console window.",
     none: "The global listener (uiohook-napi) didn't load and the app has no console: use the strip's keys.",
   };
@@ -1734,8 +1711,7 @@
   }
 
   function tile(character, skin, title) {
-    const b = h("button", "tile");
-    b.type = "button";
+    const b = button("tile");
     b.title = title;
     const img = h("img");
     img.alt = "";
@@ -1791,9 +1767,9 @@
     $("picker-costumes").replaceChildren(...row);
   });
 
-  function openPicker(side, index, opts = {}) {
+  function openPicker(side, index) {
     if (!sb) return;
-    picking = { side, index, pin: null, costumesFor: opts.costumesFor || null };
+    picking = { side, index, pin: null, costumesFor: null };
     renderPicker();
     $("picker").classList.add("open");
   }

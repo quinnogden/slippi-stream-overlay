@@ -201,7 +201,7 @@ class SetHistoryStore {
     if (this._dir === null) return;
     try {
       fs.mkdirSync(this._dir, { recursive: true });
-      // Write-then-rename, so a bridge killed mid-write can't leave half a file
+      // Write-then-rename, so an app killed mid-write can't leave half a file
       // that would read as a corrupt (and therefore empty) history.
       const file = this._file(rec.playerId);
       fs.writeFileSync(file + ".tmp", JSON.stringify({ version: FILE_VERSION, ...rec }));
@@ -212,4 +212,4 @@ class SetHistoryStore {
   }
 }
 
-module.exports = { SetHistoryStore, compactSet, PAGE_SIZES };
+module.exports = { SetHistoryStore };

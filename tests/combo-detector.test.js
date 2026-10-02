@@ -3,13 +3,13 @@
  *
  * `comboWindowSec` decides what reaches the broadcast's highlight reel, and
  * every way it can be wrong is silent: too tight and the clipper saves nothing
- * for a whole night while OBS, the bridge and the dock all look healthy; too
+ * for a whole night while OBS, the app and the dock all look healthy; too
  * loose and it banks 30-second edgeguard chases whose qualifying burst has
  * already fallen out of the replay buffer. Either way the manual reproduction
  * step is "run a tournament", which is exactly what this suite exists for.
  *
  * ComboDetector is pure and takes a settings thunk, so this needs no sandbox
- * and no TSH state — the conversion objects below are the slippi-js shape
+ * — the conversion objects below are the slippi-js shape
  * documented at the top of lib/combo-detector.js.
  */
 

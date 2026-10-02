@@ -1,10 +1,4 @@
-/**
- * Which Slippi player entries are real players, and whether a game is doubles.
- *
- * Port→side resolution lives in lib/ports/port-map.js and writing characters
- * to the scoreboard in lib/modes/; this file used to hold the TSH-push and
- * name-sync steps those replaced.
- */
+/** Which Slippi player entries are real players, and whether a game is doubles. */
 
 /**
  * The ports actually in the game. slippi-js getSettings().players keeps an

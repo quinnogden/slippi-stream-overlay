@@ -1,8 +1,7 @@
 /* ── Title-bar atmosphere ─────────────────────────────────────────────────────
    The depth layers behind a dark title bar: a soft light from above, fine
-   horizontal grain and a vignette from below. Used by the bracket's title bar
-   and the highlights title plate, which used to carry byte-identical copies of
-   all of this.
+   horizontal grain and a vignette from below. Shared by the bracket's title bar
+   and the highlights title plate.
 
    Markup, inside a positioned, overflow:hidden container:
      <div class="title-atm title-light"></div>

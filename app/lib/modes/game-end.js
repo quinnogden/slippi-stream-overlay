@@ -3,8 +3,7 @@
  *
  * The winner's side is read from the port map *now*, not from game start, so
  * anything corrected during the game (a port swap, a set loaded late and
- * re-detected) decides who gets the point. That is what the old 0-0 late-bind
- * approximated by re-reading TSH's names.
+ * re-detected) decides who gets the point.
  *
  * The game goes into the store's game list with the characters each side
  * played: the score is derived from that list, the report sends it, and the

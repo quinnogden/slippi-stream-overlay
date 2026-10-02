@@ -1,12 +1,10 @@
 /**
  * The control_status object has one shape, from the first push onward.
  *
- * A panel that connects before the first 2s tick gets the startup seed, and one
+ * A dock that connects before the first 2s tick gets the startup seed, and one
  * that connects later gets a rebuilt status. If the two disagree about which
- * fields exist, the panel reads `undefined` for a while after every bridge
- * restart and nothing reports it — render() has no try/catch, so a nested read
- * of a missing object freezes the dock outright. Both now come from compose();
- * this pins that they stay that way.
+ * fields exist, the dock reads `undefined` for a while after every restart and
+ * nothing reports it. Both come from compose(); this pins that they stay that way.
  *
  * Also pins that start.gg's token gate holds for every method that needs the
  * token, since the gate lives in one place (_gql) rather than in each method.
@@ -31,7 +29,7 @@ async function test(name, fn) {
   }
 }
 
-/** Every key path in an object, e.g. "currentSet.scores.team1". */
+/** Every key path in an object, e.g. "currentSet.canReport". */
 function keyPaths(obj, prefix = "") {
   return Object.entries(obj).flatMap(([k, v]) => {
     const p = prefix ? `${prefix}.${k}` : k;
@@ -45,7 +43,6 @@ function ctxFor() {
   const store = new ScoreboardStore();
   store.setTournament({ name: "Hundred Acres #49", eventName: "Melee Singles", eventSlug: "tournament/x/event/y" });
   return {
-    config:          { BRACKETS: { shortLink: "x" } },
     store,
     event:           { status: () => ({ state: "ok", error: null, updatedAt: 1 }) },
     startgg:         { enabled: false },

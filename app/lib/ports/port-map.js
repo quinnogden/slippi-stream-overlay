@@ -2,12 +2,9 @@
  * PortMap — which scoreboard side (0 = left, 1 = right) each Slippi port is
  * playing for, and in doubles which player of that side.
  *
- * Replaces PortMapper. That class tracked TSH from the outside: names and win
- * tallies per port, so it could notice the scoreboard changing under it. The
- * scoreboard is now in-process and tells us when it changes (the store's
- * `set-loaded` / `sides-switched`), so the name and score heuristics have
- * nothing left to detect and are gone. What is left is one chain, run at each
- * game start:
+ * The store says when the scoreboard changes under it (`set-loaded`,
+ * `sides-switched` — handled in modes/index.js), so what's here is one chain,
+ * run at each game start:
  *
  *   1. **Continuity.** The same ports as the last game of this set: keep the
  *      mapping (and the method that chose it). This is what makes a manual port
@@ -15,15 +12,14 @@
  *   2. **Characters.** Match each port's character against a reference per side
  *      — the last recorded game's characters when the ports moved mid-set (a
  *      controller change), the players' DB mains at the start of a set or on a
- *      re-detect. Same rules as the old tryCharacterBased / tryCharacterBased-
- *      Doubles: costume only breaks a tie between identical characters, and in
- *      doubles the assignment with more total hits across both sides wins.
+ *      re-detect. Costume only breaks a tie between identical characters, and
+ *      in doubles the assignment with more total hits across both sides wins.
  *   3. **Positional.** Lower port (doubles: the group holding the lowest port)
  *      on the left. Flagged as low confidence in the dock.
  *
  * Pure apart from logging: no I/O, nothing read from the store — the caller
  * passes the reference characters in. Side numbers are 0/1 throughout; the
- * legacy `teamNum` (1/2) only exists at the Socket.io edge.
+ * payloads' `teamNum` (1/2) only exists at the Socket.io edge.
  */
 
 /**
@@ -40,8 +36,6 @@ class PortMap {
   }
 
   // ── Reads ───────────────────────────────────────────────────────────────────
-
-  hasMapping() { return this._side !== null; }
 
   /** How the current mapping was decided: character | positional | manual | null. */
   get method() { return this._side ? this._method : null; }
@@ -148,9 +142,9 @@ class PortMap {
   }
 }
 
-// ── Pure helpers (exported for tests) ─────────────────────────────────────────
+// ── Pure helpers ──────────────────────────────────────────────────────────────
 
-/** Singles uses the outermost two ports, as the old buildPlayersSingles did. */
+/** Singles uses the outermost two ports. */
 function outerPorts(players) {
   return players.length <= 2 ? players : [players[0], players[players.length - 1]];
 }
@@ -269,4 +263,4 @@ function describe(sides) {
     .join(" ");
 }
 
-module.exports = { PortMap, matchSingles, matchDoubles, positionalDoubles, assignSlots, outerPorts };
+module.exports = { PortMap, matchSingles, outerPorts };

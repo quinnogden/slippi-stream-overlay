@@ -35,7 +35,7 @@ Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/si
   setId: "92837465",               // start.gg set id; null for a manual set; "preview_…" before the bracket starts
   phaseGroupId, identifier: "C",
   round: "Winners Semi-Final",     // the override if set, else start.gg's round name
-  bestOfLabel: "Flex",             // derived from lPlacement (config.SET_TEXT) unless overridden; "" = override "None"
+  bestOfLabel: "Flex",             // derived from lPlacement (set-text.js) unless overridden; "" = override "None"
   isGrandFinal, isReset, isPreview,
   isDoubles,                       // the set's shape on load; the dock's toggle; a doubles game with no set
   sides: [                         // [left, right] — switchSides() reverses the array
@@ -103,7 +103,6 @@ The whole `currentGameState`. Emitted on game start, on a port swap or re-detect
     // …
   },
   isDoubles: false,
-  teamColorMap: undefined,      // doubles only: { "1": "#D32F2F", "2": "#1565C0" } (by side + 1)
 }
 ```
 
@@ -184,13 +183,13 @@ Consumer rules — each is a way to put a healthy-looking wrong number on stream
 
 - **Orient by id, every render.** Match `players` / `h2h.players` against the start.gg ids the scoreboard shows in each column *now* (`scoreboard.sides[i].players[0].playerId`). Never cache a left/right orientation: Switch Sides moves the players, not the snapshot.
 - **An `h2h` for any other pair is not this pair's.** The stats answer seconds after a set loads, so a snapshot for the *previous* pair is routinely current while the new names are already up. Show nothing until `h2h.players` contains both column ids.
-- **There is no second source.** A pair still `loading` shows nothing — the TSH head-to-head that used to fill that gap was the one that was wrong.
+- **There is no second source.** A pair still `loading` shows nothing.
 - **`scores` can be null** for a winner-only report. Derive W/L from `winner`.
 - **`completedSets`** is the loaded event's finished sets, newest first (12), from the event service's 90s reads — not a query of its own.
 
 ### `control_status`
 
-The dock's status snapshot. Identical shape to `GET /api/status`. Rebuilt every 2 seconds, **sent only when it changed, and every 5 seconds regardless** — the heartbeat the dock uses to tell a quiet app from a stalled one (no status for 12s dims its health lights). The dock reads the scoreboard itself from the channel's state, so `currentSet.scores` / `teamNames` here are for `/api/status` readers.
+The dock's status snapshot. Identical shape to `GET /api/status`. Rebuilt every 2 seconds, **sent only when it changed, and every 5 seconds regardless** — the heartbeat the dock uses to tell a quiet app from a stalled one (no status for 12s dims its health lights). The scoreboard itself reaches the dock as state, not through here.
 
 ```js
 {
@@ -203,16 +202,11 @@ The dock's status snapshot. Identical shape to `GET /api/status`. Rebuilt every 
   },
   currentSet: {
     setId: "12345678",             // or null for a manual set
-    scores:    { team1: 2, team2: 1 },     // left, right
-    teamNames: { team1: "…", team2: "…" },
     canReport: true,
     reason: "",                    // why reporting is blocked, when canReport is false
     canStart: false,               // start.gg still has this set as not-started/called
-    startReason: "…",              // why starting is blocked, when canStart is false
   },
   tournament: { name: "Hundred Acres #51", eventName: "Melee Singles (Flex Bo5)" },  // "" when none
-  bracketOverlay: { view: "top8", group: "Bracket" },   // what /o/bracket shows
-  shortLink: "100-acres",          // config.BRACKETS.shortLink, for the Bracket tab's label
   startggEnabled: true,            // a token is configured
   clipper: {
     settings: { /* full clipper settings — see clipper-settings.js */ },
@@ -268,7 +262,7 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `GET` | `/api/players/values` | `{ prefixes, pronouns }`: each distinct value in the DB, most used first — the prefix and pronoun suggestions |
 | `GET` | `/api/setup` | The Setup tab: `{ overlays: [{ name, path, size, note? }], base, lan: [{ url, name, tailscale }], hotkeys: { mode, bindings, errors }, players: { file, count }, slippiFolder, startgg: { token, shortLink }, theme, themes }` — `theme` is the pack `overlays/theme.css` imports (null if unreadable), `themes` every folder under `overlays/themes/` with a `theme.css` |
 | `POST` | `/api/theme` | `{ pack }` — rewrites the `@import` line in `overlays/theme.css` (atomic; the header comment is kept) and sends `theme`. 400 for a pack not in `themes` or a `theme.css` with no `@import` line to repoint. `{ ok, pack, changed }`. The file is git-tracked, so a non-default pack shows as a local change |
-| `GET` | `/api/clipper` | `{ settings, obs, recentClips, clipsThisGame, supported }` |
+| `GET` | `/api/clipper` | `{ settings, obs, recentClips, clipsThisGame }` |
 | `POST` | `/api/clipper/settings` | Validate, clamp, persist to `clipper-settings.json`, apply live |
 | `POST` | `/api/clipper/toggle` | `{ enabled }` — master switch, applied immediately |
 | `POST` | `/api/clipper/test` | Save the replay buffer now; proves the OBS chain |
@@ -313,13 +307,13 @@ For a set loaded after its game 1 had started, or ports the operator suspects. L
 - **Concurrent calls are refused, not queued** (`"Still switching brackets…"`): the dock can be open in OBS and on a phone at once.
 - **Switching doesn't touch the scoreboard.** The set on air, its score and its set id survive, so a pending report still targets the right set. That is why the dock asks for no confirmation.
 
-**`/api/bracket-url`** (`{ url }`, the Bracket tab's URL box — TSH's "Set tournament") loads any event by a pasted start.gg link, with the same reply and the same rules (concurrent calls refused, the scoreboard untouched). An event URL in any shape `normalizeEventUrl` accepts (`/events/` plural, `/overview`, a query string) loads directly; a tournament URL or short link loads its event only if it has exactly one, and otherwise errors with the event names. It clears the tournament's `kind`, since it isn't this week's Singles or Doubles.
+**`/api/bracket-url`** (`{ url }`, the Bracket tab's URL box) loads any event by a pasted start.gg link, with the same reply and the same rules (concurrent calls refused, the scoreboard untouched). An event URL in any shape `normalizeEventUrl` accepts (`/events/` plural, `/overview`, a query string) loads directly; a tournament URL or short link loads its event only if it has exactly one, and otherwise errors with the event names. It clears the tournament's `kind`, since it isn't this week's Singles or Doubles.
 
 ### `/api/start-set` and `currentSet.canStart`
 
 `canStart` is true only while start.gg reports the loaded set as state **1** (created) or **6** (called). It is **not** part of the 2s tick's round-trips: `lib/server/start-set.js` caches the state per set id and fetches it once, in the background, the first time a set id appears. Polling it would spend 30 of start.gg's 80-requests-per-60s on a value that changes twice a set, and the first casualty would be reporting.
 
-- **`canStart: false` with `startReason: "Checking start.gg…"` is the normal first tick** after a set loads. The real answer lands a tick or two later.
+- **`canStart: false` is the normal first tick** after a set loads ("Checking start.gg…"). The real answer lands a tick or two later.
 - A **preview set id** (`preview_3400584_1_5`) is never startable or reportable — start.gg hasn't created the set because the bracket hasn't been started. Load it again once the TO has started the bracket.
 - The route re-checks server-side, so a stale dock can't start a finished set.
 

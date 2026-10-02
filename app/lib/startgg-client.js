@@ -1,7 +1,5 @@
 /**
- * StartggClient — the bridge's direct client for start.gg.
- *
- * This is the ONE place the bridge talks to an external service, and that is the
+ * StartggClient — the only module that talks to start.gg, and that is the
  * invariant worth keeping: two modules would mean two places handling token
  * expiry, rate limits and timeouts.
  *
@@ -30,8 +28,8 @@
  *
  * Auth is a start.gg "personal access token" (config.STARTGG_TOKEN, supplied
  * via the gitignored config.local.js). When no token is set, `enabled` is false
- * and _gql() short-circuits every GraphQL method — the rest of the bridge is
- * unaffected, and the short-link resolve still works.
+ * and _gql() sends reads to the web endpoint and refuses mutations; the
+ * short-link resolve needs no token at all.
  */
 
 const axios = require("axios");
@@ -129,7 +127,7 @@ class StartggClient {
 
   /**
    * Report a set result to start.gg.
-   * @param {string|number} setId          — start.gg set id (from TSH state)
+   * @param {string|number} setId          — start.gg set id
    * @param {string|number} winnerEntrantId — start.gg entrant id of the winning team
    * @param {Array<object>} [gameData]      — optional per-game detail (BracketSetGameDataInput)
    * @returns {Promise<{ ok: boolean, state?: number, error?: string }>}
@@ -248,8 +246,7 @@ class StartggClient {
       const msg = gqlErrors.map((e) => e.message).join("; ");
       // start.gg refuses any response over 1000 objects — the whole response, not
       // just the part over the line. Flagged so a batching caller can split and
-      // retry instead of treating the batch as empty (TSH's head-to-head does the
-      // latter, and silently loses those sets).
+      // retry instead of treating the batch as empty.
       const complexity = /complexity is too high/i.test(msg);
       return { ok: false, complexity, error: errorPrefix ? `${errorPrefix}: ${msg}` : msg };
     }
@@ -307,7 +304,7 @@ class StartggClient {
 
   /**
    * The set's current start.gg state (1 not started, 2 in progress, 3 done,
-   * 6 called). Used to decide whether the panel's Start Set button applies.
+   * 6 called). Used to decide whether the dock's Start button applies.
    *
    * Deliberately a separate round-trip rather than a field on the 2s status
    * tick: start.gg allows 80 requests/60s, and polling this would spend most of
@@ -360,7 +357,7 @@ class StartggClient {
    * Resolve a start.gg short link to the tournament slug it currently points at.
    *
    * The series' short link is re-pointed at each week's tournament, so this is
-   * what makes the control panel's bracket buttons need no weekly edit.
+   * what makes the dock's Singles / Doubles buttons need no weekly edit.
    *
    * NOT GraphQL: the API returns null for a short slug, so the server-side
    * redirect is the only mechanism. NOT gated on `enabled`: no token is
@@ -512,5 +509,3 @@ class StartggClient {
 }
 
 module.exports = StartggClient;
-// Exported for the short-link tests.
-module.exports.tournamentSlugFromUrl = tournamentSlugFromUrl;

@@ -1,16 +1,11 @@
 /**
- * port-guard.js
+ * Frees BRIDGE_PORT when an earlier copy of the app still holds it — a start.bat
+ * window left open, a crash that left node running — so the operator never has
+ * to netstat/taskkill between sets.
  *
- * Frees BRIDGE_PORT when a previous slippi-bridge is still holding it.
- *
- * The bridge gets restarted a lot mid-event — a closed console that left the
- * process alive, a start.bat window left open, an editor still running the old copy —
- * and the survivor keeps the port. Making the operator run netstat/taskkill
- * between sets is the wrong answer, so the new process reclaims it itself.
- *
- * It only ever kills a process that identifies itself as a slippi-bridge over
- * HTTP. Anything else holding the port is reported and left alone: killing an
- * unrelated program because it happened to pick 5001 would be far worse than
+ * It only kills a process that identifies itself as the app over HTTP (the id
+ * string is kept from the bridge era). Anything else holding the port is
+ * reported and left alone: killing an unrelated program would be far worse than
  * refusing to start.
  */
 
@@ -48,21 +43,16 @@ function getLocalJson(port, path, timeoutMs) {
 }
 
 /**
- * Ask whoever owns the port whether they're a slippi-bridge.
- *
- * `/api/identity` answers with the app's name and its own pid; anything that
- * doesn't is not ours.
+ * Ask whoever owns the port whether it's the app: `/api/identity` answers with
+ * the app's id and its own pid.
  *
  * @param {number} port
- * @returns {Promise<{ isBridge: boolean, pid: number|null }>}
+ * @returns {Promise<{ isApp: boolean, pid: number|null }>}
  */
 async function identifyOccupant(port) {
   const identity = await getLocalJson(port, "/api/identity", IDENTITY_TIMEOUT_MS);
-  if (identity && identity.app === APP_ID) {
-    return { isBridge: true, pid: Number.isInteger(identity.pid) ? identity.pid : null };
-  }
-
-  return { isBridge: false, pid: null };
+  if (identity?.app !== APP_ID) return { isApp: false, pid: null };
+  return { isApp: true, pid: Number.isInteger(identity.pid) ? identity.pid : null };
 }
 
 /**
@@ -112,15 +102,13 @@ async function waitForPortFree(port) {
  * @returns {Promise<{ ok: boolean, reason?: string }>} ok means "bind again now"
  */
 async function reclaimPort(port, log = () => {}) {
-  const { isBridge, pid: reportedPid } = await identifyOccupant(port);
-  if (!isBridge) {
+  const { isApp, pid } = await identifyOccupant(port);
+  if (!isApp) {
     return { ok: false, reason: `something other than ${APP_ID} is listening on ${port}` };
   }
-
-  if (reportedPid == null) {
+  if (pid == null) {
     return { ok: false, reason: `an old ${APP_ID} holds ${port} but didn't report its process id` };
   }
-  const pid = reportedPid;
   if (pid === process.pid) {
     return { ok: false, reason: `port ${port} is held by this process` };
   }

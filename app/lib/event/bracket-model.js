@@ -5,9 +5,8 @@
  *
  * The graph is built from start.gg's own edges — every slot names what fills it
  * (`prereqType` "seed" or "set", `prereqId`, `prereqPlacement` 1 = winner of,
- * 2 = loser of). TSH instead rebuilt the tree from the seed count and renumbered
- * rounds to suit its view; following the edges means a bracket start.gg can draw,
- * this can draw, byes and odd entrant counts included.
+ * 2 = loser of), never seed math — so a bracket start.gg can draw, this can
+ * draw, byes and odd entrant counts included.
  *
  * Facts about start.gg's sets this relies on (all visible in
  * tests/fixtures/startgg/):
@@ -70,7 +69,7 @@ function scoreOf(slot) {
 /**
  * Build the graph for one phase group.
  *
- * @param {Array<object>} rawSets — PhaseGroup.sets nodes (see scripts/capture-startgg.js SET_FIELDS)
+ * @param {Array<object>} rawSets — PhaseGroup.sets nodes (queries.js SET_FIELDS)
  * @param {{ phaseGroupId?: string|number, bracketType?: string }} [meta]
  * @returns {{
  *   phaseGroupId: string|null, bracketType: string|null, preview: boolean,
@@ -119,7 +118,6 @@ function buildBracket(rawSets, meta = {}) {
       name: s.fullRoundText ?? "",
       side: Number(s.round) < 0 ? "L" : "W", // GF / GFR resolved in pass 2
       lPlacement: s.lPlacement ?? null,
-      wPlacement: s.wPlacement ?? null,
       state: stateOf(s),
       completedAt: s.completedAt ?? null,
       preview: id.startsWith("preview"),

@@ -3,9 +3,9 @@
  * out. No I/O — lib/stats/index.js does the fetching, and tests drive these
  * directly.
  *
- * Everything leaving here is keyed by start.gg **player id**, never by TSH
- * column. The side panel orients each record against the ids TSH shows on each
- * side *right now*, so a Swap Teams needs no refetch, and a snapshot that
+ * Everything leaving here is keyed by start.gg **player id**, never by column.
+ * The side panel orients each record against the ids on each side of the
+ * scoreboard *right now*, so Switch Sides needs no refetch, and a snapshot that
  * arrives late for a pair that is no longer loaded simply fails to match
  * instead of putting the previous pair's record under the new names.
  */
@@ -190,11 +190,4 @@ function completedFromEventSets(nodes) {
   return out.sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
 }
 
-module.exports = {
-  headToHead,
-  h2hPill,
-  historyFromStandings,
-  runFromEventSets,
-  completedFromEventSets,
-  slotScore,
-};
+module.exports = { headToHead, h2hPill, historyFromStandings, runFromEventSets, completedFromEventSets };

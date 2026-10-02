@@ -3,9 +3,9 @@
  *
  * The file stays TSH-shaped on purpose: an array of records keyed by
  * "prefix gamerTag", with Melee mains under `mains.ssbm` as
- * `[displayName, skin, variant]`. The stream PC has its own copy (the one in
- * this repo is only a fixture), so the path is configuration, the file is
- * edited in place, and it can always be handed back to TSH.
+ * `[displayName, skin, variant]`. Each machine has its own copy, so the path is
+ * configuration, the file is edited in place, and it can always be handed back
+ * to TSH.
  *
  * Rules that keep it handable-back:
  *   - **Unknown fields round-trip.** A record is kept as the object it was read
@@ -32,6 +32,8 @@ const LEARNED_KEEP = 5;
 const SAVE_DEBOUNCE_MS = 500;
 
 const keyOf = (prefix, tag) => `${(prefix ?? "").trim()} ${(tag ?? "").trim()}`.trim().toLowerCase();
+/** A stored `[displayName, skin]` entry as { name, skin }, or null. */
+const pickMain = (e) => (Array.isArray(e) && e[0] ? { name: String(e[0]), skin: Number(e[1]) || 0 } : null);
 
 class PlayerDb {
   /**
@@ -153,7 +155,6 @@ class PlayerDb {
   /** The fields the app shows, from a record. */
   describe(rec) {
     if (!rec) return null;
-    const pick = (e) => (Array.isArray(e) && e[0] ? { name: String(e[0]), skin: Number(e[1]) || 0 } : null);
     return {
       ref: this.refOf(rec),
       tag: rec.gamerTag ?? "",
@@ -162,8 +163,8 @@ class PlayerDb {
       twitter: rec.twitter ?? "",
       startggPlayerId: rec.startggPlayerId ?? null,
       main: this.preferredMain(rec),
-      pinnedMain: pick(rec.pinnedMain),
-      learnedMains: (Array.isArray(rec.learnedMains) ? rec.learnedMains : []).map(pick).filter(Boolean),
+      pinnedMain: pickMain(rec.pinnedMain),
+      learnedMains: (Array.isArray(rec.learnedMains) ? rec.learnedMains : []).map(pickMain).filter(Boolean),
     };
   }
 
@@ -173,10 +174,9 @@ class PlayerDb {
    * @returns {{ name: string, skin: number } | null}
    */
   preferredMain(rec) {
-    const pick = (e) => (Array.isArray(e) && e[0] ? { name: String(e[0]), skin: Number(e[1]) || 0 } : null);
-    return pick(rec?.pinnedMain)
-      ?? pick(rec?.learnedMains?.[0])
-      ?? pick(this._tshMains(rec)[0])
+    return pickMain(rec?.pinnedMain)
+      ?? pickMain(rec?.learnedMains?.[0])
+      ?? pickMain(this._tshMains(rec)[0])
       ?? null;
   }
 

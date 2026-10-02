@@ -2,7 +2,7 @@
  * The Start Set button's gating doesn't poll start.gg.
  *
  * evaluateStartability() is called from the 2s control-status tick. start.gg
- * allows 80 requests per 60 seconds across the whole bridge, so a lookup on
+ * allows 80 requests per 60 seconds across the whole app, so a lookup on
  * every tick would burn 30 of them a minute on a value that changes twice per
  * set — and the first thing to break would be *reporting*, mid-stream, with no
  * error anywhere near the cause. That is squarely this suite's charter.

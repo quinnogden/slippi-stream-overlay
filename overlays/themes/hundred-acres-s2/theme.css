@@ -62,19 +62,15 @@
   --score-bg-color: #0c1d24;   /* the badge's slate border */
   --score-color:    #f5dba2;
   --sponsor-color:  #b39867;
-  --accent-color:   #f5dba2;
 
   /* Fox orange, for small trim only (hairlines, header dividers, the live
      set's border) — see --trim-color in shared/overlay.css. */
   --trim-color:     #e08a3c;
   --trim-rgb:       224, 138, 60;
 
-  /* Semantic UI colors */
-  --icon-bg-color:   var(--score-bg-color);
+  /* Win / loss */
   --win-color:       #3fae54;               /* meadow green — a signal, kept bright */
   --loss-color:      #e5483f;
-  --p2-team-color:   #4a9fd6;               /* the river */
-  --set-score-color: var(--darkened-text);
 
   /* Background flair — block to show, none to hide; combine freely.
      contours  the trail map's topographic lines, drifting very slowly

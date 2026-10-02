@@ -14,9 +14,7 @@
 
 const SET_FIELDS = `
   id identifier round fullRoundText state winnerId displayScore
-  lPlacement wPlacement hasPlaceholder totalGames
-  startedAt completedAt
-  stream { streamName }
+  lPlacement completedAt
   phaseGroup { id }
   slots {
     slotIndex prereqType prereqId prereqPlacement
@@ -65,4 +63,4 @@ query set($id: ID!) {
   set(id: $id) { ${SET_FIELDS} }
 }`.trim();
 
-module.exports = { SET_FIELDS, PAGE_SIZES, EVENT_QUERY, PHASE_GROUP_SETS_QUERY, SET_QUERY };
+module.exports = { PAGE_SIZES, EVENT_QUERY, PHASE_GROUP_SETS_QUERY, SET_QUERY };

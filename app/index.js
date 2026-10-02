@@ -36,9 +36,9 @@ const { createState }        = require("./lib/state");
 const { createModes }        = require("./lib/modes");
 const { createClipRecorder } = require("./lib/clip-recorder");
 const { installHotkeys }     = require("./lib/hotkey");
-const { lanControlUrls, lanDockUrls } = require("./lib/lan-urls");
+const { lanDockUrls }        = require("./lib/lan-urls");
 const { createMainsLearning } = require("./lib/players/mains-learning");
-const { activeThemePack, themePacks } = require("./lib/server/api/setup");
+const { OVERLAYS, activeThemePack, themePacks } = require("./lib/server/api/setup");
 const { createServer }        = require("./lib/server/app");
 const { createControlStatus } = require("./lib/server/control-status");
 const { createReportSet }     = require("./lib/server/report-set");
@@ -52,11 +52,11 @@ const { app, io, start: startListening } = createServer(config);
 startListening();
 
 // ── Services ──────────────────────────────────────────────────────────────────
-// Clipper settings are read through a getter everywhere so the control panel can
+// Clipper settings are read through a getter everywhere so the Clips tab can
 // retune thresholds mid-set without restarting anything.
 const clipperSettings = new ClipperSettings(config);
 
-// The scoreboard lives here now, so it has to survive a restart mid-set.
+// The scoreboard has to survive a restart mid-set.
 const store   = new ScoreboardStore({ setText: config.SET_TEXT });
 const persist = createPersist(store, path.join(__dirname, "data", "live-state.json"));
 if (persist.restore()) console.log("[bridge] Restored the scoreboard from data/live-state.json");
@@ -67,8 +67,7 @@ const playersFile = config.PLAYERS_FILE ?? path.join(__dirname, "data", "local_p
 const playersMissing = !fs.existsSync(playersFile);
 
 // The overlays' and dock's live feed. The feature modules emit through it (as
-// ctx.io): it sends each event on the default namespace as before, and on
-// /overlay and /dock under the channel's names.
+// ctx.io), and it relays each event to /overlay and /dock under its own names.
 const channel = createOverlayChannel({ io, store });
 
 /**
@@ -119,7 +118,7 @@ async function reportCurrentSet() {
   }
   return result;
 }
-// Ctrl+Shift+S and the dock's ⇆: the ports are the wrong way round.
+// Ctrl+Shift+S and the dock's ⇄: the ports are the wrong way round.
 function swapPorts() {
   const result = modes.swapPorts();
   controlStatus.refresh();
@@ -201,9 +200,9 @@ const clipper = clipperSettings.get();
 console.log("[bridge] Starting...");
 console.log(`[bridge] Bridge port:    ${config.BRIDGE_PORT}`);
 console.log(`[bridge] Dock:           http://localhost:${config.BRIDGE_PORT}/dock`);
-console.log(`[bridge] Overlays:       http://localhost:${config.BRIDGE_PORT}/o/scoreboard  (also /o/scoreboard/players, /o/casters, /o/side-panel, /o/bracket, /o/highlights)`);
-for (const url of lanControlUrls(config)) {
-  console.log(`[bridge]   on phone:    ${url}`);
+console.log(`[bridge] Overlays:       http://localhost:${config.BRIDGE_PORT}${OVERLAYS[0].path}  (also ${OVERLAYS.slice(1).map((o) => o.path).join(", ")})`);
+for (const { url, name } of lanDockUrls(config)) {
+  console.log(`[bridge]   on phone:    ${url}  (${name})`);
 }
 console.log(`[bridge] Players:        ${playersFile} (${ctx.playerDb.size} players)`);
 if (playersMissing) {
@@ -241,8 +240,8 @@ ctx.state.source.on("game-start", modes.onGameStart);
 ctx.state.source.on("game-end",   modes.onGameEnd);
 ctx.state.source.on("highlight",  clipRecorder.onHighlight);
 
-// Connect to OBS up front when the clipper is already on, so the control panel
-// shows a real OBS status before the first combo rather than after it.
+// Connect to OBS up front when the clipper is already on, so the dock shows a
+// real OBS status before the first combo rather than after it.
 ctx.obs.applySettings();
 
 ctx.event.start();

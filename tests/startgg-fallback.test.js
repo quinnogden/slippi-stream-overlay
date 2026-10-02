@@ -1,9 +1,8 @@
 /**
  * start.gg reads fall back to the keyless web endpoint; writes never do.
  *
- * Without TSH, the bracket and the set picker are read by the app itself, so a
- * spent rate limit or a missing token would otherwise blank the bracket mid-
- * event. The fallback covers that — and it must stay narrow, because each way
+ * The bracket and the set picker are read by the app itself, so a spent rate
+ * limit or a missing token would otherwise blank the bracket mid-event. The fallback covers that — and it must stay narrow, because each way
  * it could widen is silent:
  *
  *   - a mutation (report, start) sent keyless would be refused by start.gg at
@@ -12,7 +11,7 @@
  *     the first report of the night fails;
  *   - during a 429 cooldown, a paged read must not stall 30s between pages.
  *
- * No network: axios is stubbed, resolved from the bridge's own folder so this
+ * No network: axios is stubbed, resolved from the app's own folder so this
  * patches the same module instance startgg-client.js uses.
  */
 

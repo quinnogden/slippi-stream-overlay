@@ -1,7 +1,7 @@
 /**
  * EventService — the start.gg event the dock works from: which event is loaded,
  * its phase groups' brackets, the set picker, and loading a set onto the
- * scoreboard. Replaces TSH's start.gg provider.
+ * scoreboard.
  *
  *   short link → this week's tournament → its singles/doubles event   (switchEvent)
  *   or a pasted start.gg URL → that event                            (loadEventUrl)
@@ -31,10 +31,8 @@ const { characterByName } = require("../char_map");
 const POLL_MS = 90000;
 
 // start.gg's ActivityState: a completed phase group's sets don't change, so it
-// is read once rather than on every refresh. "Read once" means its sets were
-// read *while* it was completed — the event read that first says so is the one
-// after the last report, and skipping the group then left the bracket's last
-// set (the GF reset) live in the picker until a restart.
+// is read once rather than on every refresh — once its sets were read *while*
+// it was completed, or the last report (the GF reset) stays live in the picker.
 const COMPLETED = 3;
 
 class EventService extends EventEmitter {
@@ -116,8 +114,7 @@ class EventService extends EventEmitter {
   }
 
   /**
-   * The Bracket tab's URL box, as TSH's "Set tournament": load whatever event a
-   * pasted start.gg link names, for when the short link points elsewhere or the
+   * The Bracket tab's URL box: load whatever event a pasted start.gg link names, for when the short link points elsewhere or the
    * keywords can't pick it. An event URL loads that event; a tournament URL (or
    * short link) loads its event only when it has exactly one — with several,
    * picking one would be a guess, so they are listed instead.
@@ -489,4 +486,4 @@ function groupsOf(event, previous) {
   });
 }
 
-module.exports = { EventService, groupsOf };
+module.exports = { EventService };

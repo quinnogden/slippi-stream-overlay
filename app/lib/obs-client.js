@@ -1,12 +1,11 @@
 /**
  * ObsClient — the only module that talks to OBS (obs-websocket v5).
  *
- * Returns typed { ok, error?, ... } results like startgg-client.js rather than
- * throwing, because every caller is either a
- * fire-and-forget combo hit or an Express handler and neither should be able to
- * take the bridge down when OBS simply isn't open.
+ * Returns typed { ok, error?, ... } results rather than throwing: every caller
+ * is a fire-and-forget combo hit or an Express handler, and neither may take the
+ * app down when OBS simply isn't open.
  *
- * Connection policy: OBS is frequently started after the bridge, restarted
+ * Connection policy: OBS is frequently started after the app, restarted
  * mid-event, or not running at all. So the socket connects lazily, retries with
  * backoff for as long as the clipper is enabled, and never rejects upward. A
  * disabled clipper holds no socket at all.
@@ -74,7 +73,7 @@ class ObsClient {
 
   /**
    * Bring the connection in line with current settings.
-   * Called at startup and whenever the control panel saves.
+   * Called at startup and whenever the Clips tab saves.
    */
   applySettings() {
     const s = this._getSettings();
