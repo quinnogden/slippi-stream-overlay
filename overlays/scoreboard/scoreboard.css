@@ -224,6 +224,8 @@ body {
    The round alone, centred and sized to fill the card: one line that
    shrinks to fit (Overlay.fitText in scoreboard.js) rather than spilling
    past it. The best-of is the pill between the players (index.html only).
+   The padding is the breathing room round the round: fitText shrinks to
+   the width inside it, and --round-size is set to sit inside its height.
    ─────────────────────────────────────────────────────────── */
 .info.container {
   left: 50%;
@@ -241,7 +243,7 @@ body {
   width: 100%;
   letter-spacing: 0.10em;
   text-align: center;
-  --round-size: 32px;
+  --round-size: 26px;
 }
 
 .match .round {
@@ -279,9 +281,10 @@ body {
 .fgc.thin .info.container.top {
   top: 2px;
   height: 48px;
+  padding: 9px 24px;
 }
 
-.fgc.thin .match { --round-size: 28px; }
+.fgc.thin .match { --round-size: 23px; }
 .fgc.thin .match .round { line-height: 1; }
 
 .meleePlayer .info.container.top {
@@ -300,7 +303,8 @@ body {
   --base-transform: translateX(-50%);
   transform: var(--base-transform);
   bottom: -5px;
-  padding: 6px 14px 10px;
+  /* The extra 5px at the bottom is the part hanging off the canvas. */
+  padding: 11px 28px 16px;
   left: 660px;
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
