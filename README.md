@@ -354,8 +354,7 @@ A theme is one self-contained folder, so moving to a different tournament's bran
 
 <table>
 <tr>
-<td align="center"><img src="docs/images/theme-hundred-acres-s2-panel.png" alt="Hundred Acres season two theme" width="200"><br><code>hundred-acres-s2</code><br><sub>on air · fireflies</sub></td>
-<td align="center"><img src="docs/images/theme-hundred-acres-panel.png" alt="Hundred Acres season one theme" width="200"><br><code>hundred-acres</code><br><sub>season one · drifting orbs</sub></td>
+<td align="center"><img src="docs/images/theme-hundred-acres-panel.png" alt="Hundred Acres theme" width="200"><br><code>hundred-acres</code><br><sub>on air · fireflies</sub></td>
 <td align="center"><img src="docs/images/theme-salty-suite-panel.png" alt="Salty Suite theme" width="200"><br><code>salty-suite</code><br><sub>orbs and spotlights</sub></td>
 </tr>
 </table>
@@ -366,7 +365,7 @@ The choice is stored in `overlays/theme.css`, a one-line file that names the act
 
 ```text
 overlays/theme.css                  ← one @import line naming the active pack
-overlays/themes/hundred-acres-s2/
+overlays/themes/hundred-acres/
   theme.css                         colours, fonts, the two logo URLs
   flair.css                         animated background details (optional)
   logo.png                          tournament logo
