@@ -1,0 +1,15 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!-- One overlay, framed for a README image: the 1920×1080 page in an iframe,
+     offset by (x, y), clipped to w×h and scaled by s. fw narrows the page
+     (the side panel is 611 wide). Driven by screenshots.js. --><style>
+html,body{margin:0;overflow:hidden;background:#191c23}
+#v{position:absolute;transform-origin:0 0;overflow:hidden}
+iframe{position:absolute;border:0;width:1920px;height:1080px;background:transparent}
+</style></head><body><div id="v"><iframe id="f" allowtransparency="true"></iframe></div><script>
+const q=new URLSearchParams(location.search), n=(k,d)=>Number(q.get(k)??d);
+const x=n("x",0),y=n("y",0),w=n("w",1920),h=n("h",1080),s=n("s",1),fw=n("fw",1920);
+const v=document.getElementById("v"), f=document.getElementById("f");
+v.style.width=w+"px"; v.style.height=h+"px"; v.style.transform=`scale(${s})`;
+f.style.left=-x+"px"; f.style.top=-y+"px"; f.style.width=fw+"px";
+f.src=`http://localhost:${q.get("port")}`+q.get("src");
+</script></body></html>

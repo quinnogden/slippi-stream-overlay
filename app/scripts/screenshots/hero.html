@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!-- The README's hero: the scoreboard and side panel over stand-ins for the
+     game capture and the webcam, at 0.75 of the canvas. Driven by screenshots.js. --><style>
+html,body{margin:0;overflow:hidden;background:#191c23}
+#v{position:absolute;width:1920px;height:1080px;transform:scale(.75);transform-origin:0 0;overflow:hidden}
+.game{position:absolute;left:0;top:0;width:1309px;height:1080px;
+  background:radial-gradient(ellipse at 50% 55%,#26324a 0%,#1a2133 55%,#141826 100%)}
+.game::before{content:"";position:absolute;inset:0;opacity:.07;
+  background-image:linear-gradient(#9fb3d9 1px,transparent 1px),linear-gradient(90deg,#9fb3d9 1px,transparent 1px);
+  background-size:64px 64px}
+.cam{position:absolute;left:1321px;width:587px;background:linear-gradient(160deg,#3a3d47,#2c2f37)}
+.label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font:600 22px/1 "Segoe UI",sans-serif;letter-spacing:.35em;color:rgba(200,210,230,.38)}
+iframe{position:absolute;border:0;height:1080px;background:transparent}
+</style></head><body><div id="v">
+<div class="game"><div class="label">GAME CAPTURE</div></div>
+<div class="cam" id="cam"><div class="label">WEBCAM</div></div>
+<iframe id="panel" style="left:1309px;width:611px"></iframe>
+<iframe id="board" style="left:0;width:1920px"></iframe>
+</div><script>
+const base=`http://localhost:${new URLSearchParams(location.search).get("port")}`;
+const cam=document.getElementById("cam"); cam.style.top="78px"; cam.style.height="330px"; // side-panel.css --cam-top / --cam-h
+document.getElementById("panel").src=base+"/o/side-panel?panel=completed-sets&animate=false";
+document.getElementById("board").src=base+"/o/scoreboard?animate=false";
+</script></body></html>

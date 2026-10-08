@@ -117,4 +117,4 @@ function register(app, { setupInfo, overlaysDir, emit }) {
   });
 }
 
-module.exports = { register, OVERLAYS, activeThemePack, themePacks };
+module.exports = { register, OVERLAYS, activeThemePack, themePacks, setThemePack };

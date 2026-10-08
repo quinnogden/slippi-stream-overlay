@@ -65,7 +65,7 @@ data/                      gitignored: live-state.json, and local_players.json b
                            data/local_players) — docs/FRESH-INSTALL.md "Starting from scratch"
 stats-cache/               gitignored, one start.gg set history per player
 public/dock/               the operator dock (index.html, dock.js, dock.css, fonts/)
-scripts/                   preflight.js  capture-startgg.js
+scripts/                   preflight.js  capture-startgg.js  screenshots/ (the README images)
 lib/
   scoreboard/              store.js  persist.js  set-text.js
   ports/                   port-map.js

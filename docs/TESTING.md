@@ -156,6 +156,7 @@ Payload shapes and the traps in each route are in [BRIDGE-API.md](BRIDGE-API.md)
 The app serves every page, so there is nothing to stub: open `http://localhost:5001/o/<page>` in Chrome at 1920×1080 (or `/dock` at ~420px wide for the OBS dock, and again at 1280+), and drive it through the API or the dock. OBS's browser is Chromium 103 — no `:has()`, `color-mix()` or container queries.
 
 - **Screenshots:** headless Chrome with `--screenshot --window-size=1920,1080 --virtual-time-budget=4000` captures a page after load. Virtual time runs ahead of real time, so a change made *after* load won't be in it; for a live update use the DevTools protocol (`--remote-debugging-port`, Node's global `WebSocket`) and screenshot after the API call.
+- **The README's images:** `cd app && node scripts/screenshots/screenshots.js` retakes every one in `docs/images/` (name some to retake just those; `--out <dir>` to write elsewhere). It boots the app on port 5099 against the scrubbed `hundred-acres-51` capture with invented tags, so the running app and `app/data/` are untouched, and captures over the DevTools protocol in real time. Look at the results before committing them.
 - **Every theme pack.** Switch the pack from the dock's Setup → Theme (every source reloads itself), and look again — nothing should hardcode a pack colour.
 
 ### Side panel
