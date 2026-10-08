@@ -180,7 +180,7 @@ The side panel's player cards, head-to-head and Just Finished, from start.gg and
                 badge: "/assets/luckystats/class-regional-threat.svg" | null,   // the app's copy; null if it couldn't be saved
                 region: "MD/VA Melee",               // their public Region, else their calculated primaryRegion — never a crew
                 regionIcon: "/assets/luckystats/region-306be3064a1e1bdd.jpg" | null,  // the Region's artwork (app's copy)
-                regionRank: 1 | null },              // their place in that Region's ranking, when luckystats sends one
+                regionRank: 1 | null },              // their place in their region's ranking (luckystats' per-player regionRank)
     },
     matchup: {                     // null unless both players were found
       winProbability: { "1097": 0.958, "1069": 0.042 },   // glickoOnly — never blended

@@ -113,10 +113,11 @@ const text = (v) => (typeof v === "string" && v.trim() ? v.trim() : null);
  * vs NAV: 60–23 there, 69–25 on start.gg). The ratings alone don't disagree
  * with anything we show.
  *
- * The region is the player's public Region — its name, its artwork, and their
- * place in its ranking once luckystats sends one (`displayRegion.rank`) — when
+ * The region is the player's public Region — its name and its artwork — when
  * they're on one, else their calculated `primaryRegion`. Never a crew: the
- * card labels it "Region", and `displayRegion` falls back to a crew.
+ * card labels it "Region", and `displayRegion` falls back to a crew. Their
+ * place in the region's ranking is the player's own `regionRank`, a sibling
+ * of `primaryRegion` (not inside `displayRegion`).
  *
  * `classSvg` and `regionImage` are luckystats' urls, for the caller to save
  * and swap for the app's own (luckystats.js).
@@ -139,7 +140,7 @@ function luckyFromResponse(body, userToPlayer) {
       classSvg: text(p.playerClass?.svgUrl),
       region: text(region?.name) || text(p.primaryRegion) || (d?.source === "calculated" ? text(d.name) : null),
       regionImage: text(region?.imageUrl),
-      regionRank: place(region?.rank),       // in that Region's ranking; null without one
+      regionRank: place(p.regionRank),       // in their region's ranking; null without one
     };
   }
 

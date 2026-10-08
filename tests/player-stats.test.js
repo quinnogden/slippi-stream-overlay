@@ -177,9 +177,13 @@ function set(id, sides, winnerSide, extra = {}) {
     body.players[0].displayRegion = { name: "Some Crew", imageUrl: "https://luckystats.gg/crew.png", url: null, source: "crew" };
     r = luckyFromResponse(body, { 9001: A, 9002: B }).ratings[A];
     assert.deepStrictEqual([r.region, r.regionImage], ["Region A", null], "a crew was shown as the region");
-    // A rank in the Region's ranking rides with the Region it belongs to.
-    body.players[1].displayRegion.rank = 10;
-    assert.strictEqual(luckyFromResponse(body, { 9001: A, 9002: B }).ratings[B].regionRank, 10);
+    // The rank in the region's ranking is the player's own field, beside
+    // primaryRegion — not inside displayRegion.
+    body.players[1].regionRank = 10;
+    body.players[0].displayRegion.rank = 3;
+    const both = luckyFromResponse(body, { 9001: A, 9002: B }).ratings;
+    assert.strictEqual(both[B].regionRank, 10);
+    assert.strictEqual(both[A].regionRank, null, "displayRegion.rank isn't luckystats' field, but it was shown");
   });
 
   await test("a malformed value is dropped, never shown", () => {
@@ -188,13 +192,14 @@ function set(id, sides, winnerSide, extra = {}) {
       luckyRank: { rank: 0 },
       playerClass: { key: "regional-threat", name: "  ", svgUrl: 42 },
       primaryRegion: { name: "Region A" },
+      regionRank: 0,
       displayRegion: { name: "", imageUrl: "https://example.public.blob.vercel-storage.com/a.jpg", url: null, source: "region" },
     });
     body.players[1].luckyRank = { rank: "-3" };
     const { ratings } = luckyFromResponse(body, { 9001: A, 9002: B });
     assert.deepStrictEqual(
-      [ratings[A].rank, ratings[A].className, ratings[A].classSvg, ratings[A].region, ratings[A].regionImage],
-      [null, null, null, null, null]);
+      [ratings[A].rank, ratings[A].className, ratings[A].classSvg, ratings[A].region, ratings[A].regionImage, ratings[A].regionRank],
+      [null, null, null, null, null, null]);
     assert.strictEqual(ratings[B].rank, null);
   });
 
