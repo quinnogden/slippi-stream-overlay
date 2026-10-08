@@ -179,6 +179,10 @@ function checkConfig() {
   if (token) pass("start.gg token", `set (${token.length} chars)`);
   else warn("start.gg token", "not set — Start and Report stay off and the side panel has no stats; brackets still load (keyless)");
 
+  const luckyKey = config.LUCKYSTATS_KEY ?? "";
+  if (luckyKey) pass("luckystats key", `set (${luckyKey.length} chars)`);
+  else info("luckystats key", "not set — the side panel shows no Lucky Rank, Elo or win projection (optional)");
+
   if (!config.SLP_FOLDER) {
     fail("SLP_FOLDER", "not configured");
   } else if (!exists(config.SLP_FOLDER)) {
@@ -516,6 +520,25 @@ async function probeStartgg(config, depsOk) {
   }
 }
 
+/** The luckystats.gg key, checked against luckystats itself. */
+async function probeLuckystats(config) {
+  at("luckystats.gg (live)");
+  const key = config.LUCKYSTATS_KEY ?? "";
+  if (!key) { skip("API key", "not set"); return; }
+  try {
+    const res = await fetch("https://luckystats.gg/api/stream/players?ids=1", {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.ok) pass("API key", "accepted");
+    else if (res.status === 401 || res.status === 403) fail("API key", `rejected (HTTP ${res.status})`,
+      "Create a key in your luckystats.gg account settings and put it in config.local.js as LUCKYSTATS_KEY");
+    else warn("API key", `unexpected answer (HTTP ${res.status})`);
+  } catch (e) {
+    warn("API key", `couldn't reach luckystats.gg — ${errText(e)}`);
+  }
+}
+
 /**
  * Direct OBS probe — independent of whether the app is up, and the only way to
  * check the replay buffer's *length*, which is the setting that quietly
@@ -629,6 +652,7 @@ function report() {
   } else if (config) {
     await probeApp(config);
     await probeStartgg(config, depsOk);
+    await probeLuckystats(config);
     await probeObs(clipper);
   }
 

@@ -15,6 +15,12 @@
  * lists them), so a first-timer's history is usually saved before their set
  * is on air.
  *
+ * Each pair's Lucky Ranks, classes, regions and win probability come from
+ * luckystats.gg (luckystats.js), asked by the start.gg user ids the player-card
+ * request already returns. Its own request, so it doesn't wait for the
+ * histories. Its head-to-head is never used — start.gg's is the one shown; see
+ * normalize.luckyFromResponse.
+ *
  * Emits `player_stats` on every change and to each new connection. Without a
  * start.gg token `enabled` is false: no player cards or head-to-head, but the
  * finished sets still come through.
@@ -23,18 +29,20 @@
 const path = require("path");
 const { SetHistoryStore } = require("./set-history");
 const { setDetailsQuery, playerCardsQuery } = require("./queries");
+const { LuckyStatsClient } = require("./luckystats");
 const N = require("./normalize");
 
 const COMPLETED_SHOWN  = 12;
 const HISTORY_FRESH_MS = 120000; // a pair reloaded within this skips the top-up
 const RETRY_MS         = 60000;
 const REPORT_DELAY_MS  = 4000;   // start.gg takes a moment to reflect a report
-const H2H_PILLS        = 5;
+const H2H_PILLS        = 7;      // the head-to-head card lists this many (side-panel.js H2H_SHOWN)
 const PREWARM_SETS     = 3;      // how many playable sets' players to pre-fetch
 
 /**
- * @param {object} ctx — { store, event, startgg, io } (event: lib/event/event-service.js)
- * @param {{ cacheDir?: string|null, log?: Function }} [opts]
+ * @param {object} ctx — { config, store, event, startgg, io } (event: lib/event/event-service.js)
+ * @param {{ cacheDir?: string|null, lucky?: LuckyStatsClient|null, log?: Function }} [opts]
+ *   Default: a client with config.LUCKYSTATS_KEY. Null, or one with no key: no luckystats data.
  */
 function createPlayerStats(ctx, opts = {}) {
   const { store: scoreboard, event: eventService, startgg, io } = ctx;
@@ -43,12 +51,15 @@ function createPlayerStats(ctx, opts = {}) {
     ? path.join(__dirname, "..", "..", "stats-cache")
     : opts.cacheDir;
   const store = new SetHistoryStore(startgg, cacheDir, { log });
+  const client = opts.lucky === undefined ? new LuckyStatsClient({ apiKey: ctx.config?.LUCKYSTATS_KEY }) : opts.lucky;
+  const lucky = client?.enabled ? client : null;
 
   let snap = {
     enabled: startgg.enabled,
     event: null,
     players: {},
     h2h: null,
+    lucky: null,
     completedSets: { state: "none", sets: [] },
     updatedAt: Date.now(),
   };
@@ -64,6 +75,7 @@ function createPlayerStats(ctx, opts = {}) {
   let queued = [];      // player ids waiting to be pre-fetched
 
   const details = new Map(); // set id → detail node; finished sets don't change
+  const userIds = new Map(); // player id → start.gg user id ("" = no account); never changes
 
   function emit() {
     snap.updatedAt = Date.now();
@@ -116,12 +128,16 @@ function createPlayerStats(ctx, opts = {}) {
         playerId: p.playerId, name: p.name, state: "loading", history: [], run: [],
       }]));
       snap.h2h = pids.length === 2 ? { players: pids, state: "loading", wins: {}, total: 0, recent: [] } : null;
+      snap.lucky = lucky && pids.length > 0 ? { players: pids, state: "loading", ratings: {}, matchup: null } : null;
       emit();
     }
 
     try {
       if (pids.length > 0) await loadCards(my, t);
+      // Its own request — a first-time head-to-head can take a minute.
+      const ratings = loadLucky(my, t);
       if (pids.length === 2) await loadH2h(my, t, force);
+      await ratings;
     } finally {
       if (my === gen) busy = false;
     }
@@ -148,6 +164,8 @@ function createPlayerStats(ctx, opts = {}) {
     // singles pair while the loaded event is doubles.
     const runNodes = ev && ev.type === 1 ? ev.sets?.nodes ?? [] : [];
     t.players.forEach((p, i) => {
+      const node = res.data?.[`p${i}`];
+      if (node) userIds.set(p.playerId, node.user?.id ? String(node.user.id) : "");
       snap.players[p.playerId] = {
         playerId: p.playerId,
         name: p.name,
@@ -195,6 +213,46 @@ function createPlayerStats(ctx, opts = {}) {
     };
     log(`H2H ${label}: ${h2h.wins[a.playerId]}-${h2h.wins[b.playerId]} over ${h2h.sets.length} set(s)`);
     emit();
+  }
+
+  /** Lucky Ranks, classes, regions and the win probability, from luckystats.gg. */
+  async function loadLucky(my, t) {
+    const pids = t.players.map((p) => p.playerId);
+    if (!lucky || pids.length === 0) return;
+    const asked = pids.filter((pid) => userIds.get(pid));
+    const userToPlayer = Object.fromEntries(asked.map((pid) => [userIds.get(pid), pid]));
+    const set = (state, extra = {}) => {
+      snap.lucky = { players: pids, state, ratings: {}, matchup: null, ...extra };
+      emit();
+    };
+    if (asked.length === 0) return set("none"); // no start.gg account, or the cards failed
+
+    const res = await lucky.players(asked.map((pid) => userIds.get(pid)));
+    if (my !== gen) return;
+    if (!res.ok) {
+      log(`luckystats failed: ${res.error}`);
+      // A refresh of the same pair keeps what it had.
+      if (snap.lucky?.state !== "done") set("error", { error: res.error });
+      return;
+    }
+
+    const { ratings, matchup } = N.luckyFromResponse(res.data, userToPlayer);
+    // Their images, saved locally (once) for the sources to load.
+    await Promise.all(Object.values(ratings).map(async (r) => {
+      [r.badge, r.regionIcon] = await Promise.all([
+        r.classKey ? lucky.badge(r.classKey, r.classSvg) : null,
+        r.regionImage ? lucky.regionArt(r.regionImage) : null,
+      ]);
+      delete r.classSvg;
+      delete r.regionImage;
+    }));
+    if (my !== gen) return;
+
+    const name = (pid) => t.players.find((p) => p.playerId === pid)?.name || pid;
+    const line = pids.map((pid) => `${name(pid)} ${ratings[pid]?.rank ? "#" + ratings[pid].rank : ratings[pid] ? "unranked" : "unknown"}`);
+    if (matchup) line.push(pids.map((pid) => `${Math.round(matchup.winProbability[pid] * 100)}%`).join(" / "));
+    log(`luckystats: ${line.join(" · ")}`);
+    set("done", { ratings, matchup });
   }
 
   /** Round, scores and tournament for the few sets the panel draws. */

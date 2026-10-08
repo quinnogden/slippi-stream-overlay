@@ -508,9 +508,19 @@ body {
 
 
 /* ── Player identity block (not a pill) ───────────────────── */
+/* The tag, character and Lucky Rank on the left; luckystats' class and
+   region in a box (.player-lucky) in the space to their right. */
 .player-identity {
   flex-shrink: 0;
+  display:     flex;
+  align-items: center;
+  gap:         14px;
   padding:     6px 4px 6px 4px;
+}
+
+.player-name-block {
+  flex:      1;
+  min-width: 0;
 }
 
 .player-identity .player-tag {
@@ -541,7 +551,178 @@ body {
   text-transform: uppercase;
   color:          var(--darkened-text);
   margin-top:     4px;
+  white-space:    nowrap;
+  overflow:       hidden;
+  text-overflow:  ellipsis;
   text-shadow:    0 1px 3px rgba(0,0,0,0.6);
+}
+
+
+/* luckystats' Lucky Rank, under the character and flush left with it —
+   behind their clover, so it reads as their rank rather than a seed. */
+.player-rank {
+  display:     flex;
+  align-items: center;
+  margin-top:  8px;
+}
+
+.lucky-label {
+  font-family:    var(--font);
+  font-size:      12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color:          var(--darkened-text);
+  opacity:        0.8;
+  text-shadow:    0 1px 3px rgba(0,0,0,0.6);
+}
+
+.lucky-rank {
+  display:        flex;
+  align-items:    center;
+  gap:            6px;
+  font-family:    var(--score-font, var(--font));
+  font-size:      24px;
+  letter-spacing: 0.04em;
+  line-height:    1;
+  color:          var(--text-color);
+  text-shadow:
+    0 2px 4px  rgba(0,0,0,0.85),
+    0 4px 12px rgba(0,0,0,0.50);
+}
+.lucky-rank::before {
+  content:     "";
+  flex-shrink: 0;
+  width:       20px;
+  height:      20px;
+  background:  url("lucky-clover.svg") center / contain no-repeat;
+  filter:      drop-shadow(0 0 5px rgba(52,211,153,0.45));
+}
+
+/* Class and Region, in a box of their own right of the tag. */
+.player-lucky {
+  flex-shrink:    0;
+  max-width:      50%;
+  display:        flex;
+  flex-direction: column;
+  padding:        2px 18px 2px 12px;
+  border-radius:  12px;
+  background:     var(--pill-bg, rgba(255,255,255,0.06));   /* a pack may soften it */
+  border:         1px solid rgba(var(--text-color-rgb), 0.10);
+  box-shadow:
+    0 2px 8px  rgba(0,0,0,0.40),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+.lucky-row {
+  display:     flex;
+  align-items: center;
+  gap:         12px;
+  min-width:   0;
+  padding:     8px 0;
+}
+/* A hairline between the two, graduated like the panel headers'. */
+.lucky-row + .lucky-row {
+  background: linear-gradient(to right,
+      transparent,
+      rgba(var(--trim-rgb, var(--text-color-rgb)), 0.35) 30%,
+      rgba(var(--trim-rgb, var(--text-color-rgb)), 0.35) 70%,
+      transparent)
+    top / 100% 1px no-repeat;
+}
+
+/* Each row's icon sits in a fixed slot; side-panel.js marks the slot .none
+   when the image is missing or fails to load, and drops the <img>. */
+.lucky-icon {
+  flex-shrink: 0;
+  width:       36px;
+  height:      36px;
+}
+.lucky-icon img {
+  display: block;
+  width:   100%;
+  height:  100%;
+}
+.lucky-icon.class img { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6)); }
+/* No badge: beside a region row the slot keeps its column, so the two names
+   still line up; alone, it takes no room. */
+.lucky-icon.class.none { visibility: hidden; }
+.lucky-row.class:only-child > .lucky-icon.none { display: none; }
+/* Region artwork is the Region's avatar: round, ringed in the trim. */
+.lucky-icon.region img {
+  border-radius: 50%;
+  object-fit:    cover;
+  box-shadow:
+    0 0 0 2px rgba(var(--trim-rgb, var(--text-color-rgb)), 0.6),
+    0 2px 6px rgba(0,0,0,0.6);
+}
+/* No artwork (a calculated region, or art that's missing): a pin. */
+.lucky-icon.region.none {
+  background:   var(--trim-color, var(--text-color));
+  -webkit-mask: url("lucky-pin.svg") center / 28px no-repeat;
+          mask: url("lucky-pin.svg") center / 28px no-repeat;
+}
+
+.lucky-text {
+  min-width:      0;
+  display:        flex;
+  flex-direction: column;
+  gap:            3px;
+}
+.lucky-text .lucky-label { font-size: 11px; }
+
+.lucky-line {
+  display:     flex;
+  align-items: baseline;
+  gap:         8px;
+  min-width:   0;
+}
+
+.lucky-value {
+  min-width:      0;
+  font-family:    var(--font);
+  font-size:      19px;
+  line-height:    1.1;
+  letter-spacing: 0.04em;
+  color:          var(--text-color);
+  white-space:    nowrap;
+  overflow:       hidden;
+  text-overflow:  ellipsis;
+  text-shadow:    0 1px 3px rgba(0,0,0,0.6);
+}
+.lucky-row.class .lucky-value { color: var(--trim-color, var(--text-color)); }
+
+/* The player's place in their Region's ranking, beside its name. */
+.lucky-place {
+  flex-shrink: 0;
+  font-family: var(--score-font, var(--font));
+  font-size:   19px;
+  line-height: 1.1;
+  color:       var(--trim-color, var(--text-color));
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+
+/* "Powered by Lucky Stats" — on every card that shows luckystats data. */
+.lucky-credit {
+  flex-shrink:     0;
+  display:         flex;
+  align-items:     center;
+  justify-content: center;
+  gap:             10px;
+  font-family:     var(--font);
+  font-size:       12px;
+  letter-spacing:  0.22em;
+  text-transform:  uppercase;
+  color:           var(--darkened-text);
+  opacity:         0.8;
+  text-shadow:     0 1px 3px rgba(0,0,0,0.6);
+  margin-bottom:   -14px;   /* 6px off the card's bottom edge, not .info-panel's 20 */
+}
+.lucky-credit::before,
+.lucky-credit::after {
+  content:    "";
+  width:      28px;
+  height:     1px;
+  background: rgba(var(--trim-rgb, var(--text-color-rgb)), 0.4);
 }
 
 
@@ -768,6 +949,76 @@ body {
   min-height:     0;
   overflow:       hidden;
 }
+
+
+/* ── Head to head: luckystats' win probability ──────────────
+   Each player's chance either side of a bar whose left colour gives way
+   to the right at the left player's chance (--p, set by side-panel.js). */
+
+#panel-recent-sets {
+  /* The bar's two ends. A pack may set its own. */
+  --prob-left:  var(--prob-left-color,  #d6454f);
+  --prob-right: var(--prob-right-color, #3d9be0);
+}
+
+.h2h-projection {
+  display:     flex;
+  align-items: center;
+  gap:         14px;
+  margin-top:  12px;
+}
+
+.h2h-projection-mid {
+  flex:           1;
+  min-width:      0;
+  display:        flex;
+  flex-direction: column;
+  gap:            7px;
+}
+
+.prob-pct {
+  flex-shrink:    0;
+  min-width:      3.6em;
+  font-family:    var(--score-font, var(--font));
+  font-size:      36px;
+  line-height:    1;
+  letter-spacing: 0.02em;
+  color:          var(--prob-left);
+  text-shadow:    0 2px 6px rgba(0,0,0,0.7);
+}
+.prob-pct.right { color: var(--prob-right); text-align: right; }
+.prob-pct-sign  { font-size: 0.6em; margin-left: 0.08em; }
+
+.prob-bar {
+  --p:           50%;
+  position:      relative;
+  height:        14px;
+  border-radius: 999px;
+  background: linear-gradient(90deg,
+    var(--prob-left)  0%,
+    var(--prob-left)  calc(var(--p) - 12%),
+    var(--prob-right) calc(var(--p) + 12%),
+    var(--prob-right) 100%);
+  box-shadow:
+    0 2px 8px rgba(0,0,0,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.28),
+    inset 0 -2px 3px rgba(0,0,0,0.25);
+}
+
+.prob-marker {
+  position:      absolute;
+  top:           -5px;
+  bottom:        -5px;
+  left:          var(--p);
+  width:         4px;
+  margin-left:   -2px;
+  border-radius: 2px;
+  background:    var(--text-color);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.45),
+    0 0 10px rgba(var(--text-color-rgb), 0.7);
+}
+
 
 
 /* ── Clip-saved toast ─────────────────────────────────────────

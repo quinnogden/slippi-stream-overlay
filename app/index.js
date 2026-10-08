@@ -46,6 +46,7 @@ const { createStartSet }      = require("./lib/server/start-set");
 const { registerRoutes }      = require("./lib/server/routes");
 const { registerOverlays }    = require("./lib/server/overlays");
 const { createPlayerStats }   = require("./lib/stats");
+const { IMAGE_DIR: luckyImageDir } = require("./lib/stats/luckystats");
 
 // ── Server ────────────────────────────────────────────────────────────────────
 const { app, io, start: startListening } = createServer(config);
@@ -156,7 +157,7 @@ const hotkeys = installHotkeys(config.HOTKEYS, {
 for (const err of hotkeys.errors) console.warn(`[hotkey] ${err} — left unbound`);
 
 const overlaysDir = path.resolve(__dirname, "..", "overlays");
-registerOverlays(app, { overlaysDir });
+registerOverlays(app, { overlaysDir, luckyImageDir });
 
 registerRoutes(app, {
   publicDir: path.join(__dirname, "public"),
@@ -214,7 +215,7 @@ if (playersMissing) {
 }
 console.log(`[bridge] start.gg report: ${ctx.startgg.enabled ? "enabled" : "disabled (no token in config.local.js)"}`);
 console.log(`[bridge] Player stats:   ${ctx.startgg.enabled
-  ? "from start.gg (histories saved in stats-cache/)"
+  ? `from start.gg (histories saved in stats-cache/)${config.LUCKYSTATS_KEY ? ", ratings from luckystats.gg" : "; no luckystats (no LUCKYSTATS_KEY)"}`
   : "off (no start.gg token)"}`);
 const loadedEvent = store.tournament();
 console.log(`[bridge] Brackets:       ${ctx.event.shortLink

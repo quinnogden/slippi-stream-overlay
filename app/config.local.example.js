@@ -17,6 +17,11 @@
 module.exports = {
   STARTGG_TOKEN: "",
 
+  // Optional: a luckystats.gg API key — the side panel's Lucky Rank, class,
+  // Elo and win projection. Create one in your luckystats.gg account settings
+  // (the account must be claimed). Without it those cards just don't appear.
+  LUCKYSTATS_KEY: "",
+
   // Optional: point the dock's Singles/Doubles buttons at a different series.
   // The merge is shallow, so this replaces the WHOLE object from config.js —
   // copy both event kinds across, not just the one you're changing.

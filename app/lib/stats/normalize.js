@@ -89,6 +89,72 @@ function headToHead(setsA, setsB, pidA, pidB) {
   return { sets, wins };
 }
 
+// ── luckystats.gg ───────────────────────────────────────────────────────────
+
+const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+// What a card can show, or null: a rank is a whole number from 1, a name is
+// text. Anything else luckystats sends is treated as missing.
+const place = (v) => {
+  const n = typeof v === "string" && /^\d+$/.test(v) ? Number(v) : v;
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
+const text = (v) => (typeof v === "string" && v.trim() ? v.trim() : null);
+
+/**
+ * A luckystats answer, keyed by start.gg player id like everything else here.
+ *
+ * Each player is placed by the `startggUserId` it came back with, never by its
+ * position: a player luckystats doesn't know is simply missing from the list,
+ * and an id that isn't the one we asked for is someone else entirely. The
+ * matchup is placed by its own `order` the same way.
+ *
+ * The win probability is luckystats' `glickoOnly`, not `blended`: blended mixes
+ * in luckystats' head-to-head, which undercounts against start.gg's (ZODD-01
+ * vs NAV: 60–23 there, 69–25 on start.gg). The ratings alone don't disagree
+ * with anything we show.
+ *
+ * The region is the player's public Region — its name, its artwork, and their
+ * place in its ranking once luckystats sends one (`displayRegion.rank`) — when
+ * they're on one, else their calculated `primaryRegion`. Never a crew: the
+ * card labels it "Region", and `displayRegion` falls back to a crew.
+ *
+ * `classSvg` and `regionImage` are luckystats' urls, for the caller to save
+ * and swap for the app's own (luckystats.js).
+ *
+ * @param {object} body — the /api/stream/players response
+ * @param {Object<string,string>} userToPlayer — start.gg user id → player id, for the ids asked for
+ * @returns {{ ratings: Object<string, object>, matchup: object|null }}
+ */
+function luckyFromResponse(body, userToPlayer) {
+  const ratings = {};
+  for (const p of body?.players ?? []) {
+    const pid = userToPlayer[String(p?.startggUserId)];
+    if (!pid) continue;
+    const d = p.displayRegion;
+    const region = d?.source === "region" && text(d.name) ? d : null;
+    ratings[pid] = {
+      rank: place(p.luckyRank?.rank),        // Lucky Rank; null when unranked
+      className: text(p.playerClass?.name),
+      classKey: text(p.playerClass?.key),
+      classSvg: text(p.playerClass?.svgUrl),
+      region: text(region?.name) || text(p.primaryRegion) || (d?.source === "calculated" ? text(d.name) : null),
+      regionImage: text(region?.imageUrl),
+      regionRank: place(region?.rank),       // in that Region's ranking; null without one
+    };
+  }
+
+  let matchup = null;
+  const m = body?.matchup;
+  const prob = m?.winProbability?.glickoOnly;
+  if (m?.ok && Array.isArray(m.order) && m.order.length === 2) {
+    const [p1, p2] = m.order.map((u) => userToPlayer[String(u)]);
+    if (p1 && p2 && p1 !== p2 && ratings[p1] && ratings[p2] && num(prob?.player1) !== null && num(prob?.player2) !== null) {
+      matchup = { winProbability: { [p1]: prob.player1, [p2]: prob.player2 } };
+    }
+  }
+  return { ratings, matchup };
+}
+
 /**
  * One head-to-head set as a pill draws it, from a set(id) detail node.
  * @param {object} node — setDetailsQuery() result
@@ -190,4 +256,7 @@ function completedFromEventSets(nodes) {
   return out.sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
 }
 
-module.exports = { headToHead, h2hPill, historyFromStandings, runFromEventSets, completedFromEventSets };
+module.exports = {
+  headToHead, h2hPill, luckyFromResponse,
+  historyFromStandings, runFromEventSets, completedFromEventSets,
+};

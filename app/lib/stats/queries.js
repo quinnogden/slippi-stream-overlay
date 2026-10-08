@@ -67,6 +67,8 @@ function setDetailsQuery(setIds) {
 
 // ── Player cards ────────────────────────────────────────────────────────────
 // Both players' placements and their run in the loaded event, in one request.
+// Also each player's start.gg *user* id, which is what luckystats.gg is asked
+// by (null for a player with no account).
 //
 // recentStandings(onlySinglesEvents) is start.gg deciding singles-vs-doubles
 // from the event's own type, not a guess from the event's name.
@@ -79,6 +81,7 @@ const RUN_PER_PAGE    = 30;
 function playerCardsQuery(playerIds, eventSlug) {
   const players = idList(playerIds).map((id, i) => `p${i}: player(id: ${id}) {
     id
+    user { id }
     recentStandings(videogameId: ${MELEE_VIDEOGAME_ID}, limit: ${STANDINGS_LIMIT}, onlySinglesEvents: true) {
       placement isFinal
       container { ... on Event { id name numEntrants startAt isOnline tournament { name } } }

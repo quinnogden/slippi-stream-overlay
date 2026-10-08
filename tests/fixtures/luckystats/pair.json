@@ -1,0 +1,323 @@
+{
+  "players": [
+    {
+      "id": "501",
+      "gamerTag": "Player1",
+      "startggUserId": "9001",
+      "elo": 2513.597610945665,
+      "country": null,
+      "primaryRegion": "Region A",
+      "crews": [
+        {
+          "id": "2",
+          "name": "Region A Melee",
+          "slug": "region-a-melee",
+          "url": "https://luckystats.gg/crews/region-a-melee",
+          "imageUrl": "https://example.public.blob.vercel-storage.com/regions/1/avatar-1.jpg",
+          "bannerUrl": "https://example.public.blob.vercel-storage.com/regions/1/banner-1.jpg",
+          "region": {
+            "id": "1",
+            "name": "Region A Melee",
+            "url": "https://luckystats.gg/crews/region-a-melee",
+            "imageUrl": "https://example.public.blob.vercel-storage.com/regions/1/avatar-1.jpg"
+          }
+        }
+      ],
+      "regions": [
+        {
+          "id": "1",
+          "name": "Region A Melee",
+          "url": "https://luckystats.gg/crews/region-a-melee",
+          "imageUrl": "https://example.public.blob.vercel-storage.com/regions/1/avatar-1.jpg"
+        }
+      ],
+      "displayRegion": {
+        "name": "Region A Melee",
+        "imageUrl": "https://example.public.blob.vercel-storage.com/regions/1/avatar-1.jpg",
+        "url": "https://luckystats.gg/crews/region-a-melee",
+        "source": "region"
+      },
+      "regionEmoji": "🇺🇸",
+      "luckyRank": {
+        "rank": 167,
+        "points": 190
+      },
+      "playerClass": {
+        "key": "regional-threat",
+        "name": "Regional Threat",
+        "minPoints": 150,
+        "svgUrl": "https://luckystats.gg/player-classes/regional-threat.svg"
+      },
+      "mainCharacter": 6,
+      "characterId": 6,
+      "characterName": "Fox",
+      "tournamentCount": 171,
+      "glickoRd": 69.39221298077946,
+      "glickoVolatility": 0.05989464268672998,
+      "glickoRank": 173,
+      "totalSetsCareer": 966
+    },
+    {
+      "id": "502",
+      "gamerTag": "Player2",
+      "startggUserId": "9002",
+      "elo": 2247.547076082171,
+      "country": null,
+      "primaryRegion": "Region A",
+      "crews": [
+        {
+          "id": "2",
+          "name": "Region A Melee",
+          "slug": "region-a-melee",
+          "url": "https://luckystats.gg/crews/region-a-melee",
+          "imageUrl": "https://example.public.blob.vercel-storage.com/regions/1/avatar-1.jpg",
+          "bannerUrl": "https://example.public.blob.vercel-storage.com/regions/1/banner-1.jpg",
+          "region": {
+            "id": "1",
+            "name": "Region A Melee",
+            "url": "https://luckystats.gg/crews/region-a-melee",
+            "imageUrl": "https://example.public.blob.vercel-storage.com/regions/1/avatar-1.jpg"
+          }
+        }
+      ],
+      "regions": [
+        {
+          "id": "1",
+          "name": "Region A Melee",
+          "url": "https://luckystats.gg/crews/region-a-melee",
+          "imageUrl": "https://example.public.blob.vercel-storage.com/regions/1/avatar-1.jpg"
+        }
+      ],
+      "displayRegion": {
+        "name": "Region A Melee",
+        "imageUrl": "https://example.public.blob.vercel-storage.com/regions/1/avatar-1.jpg",
+        "url": "https://luckystats.gg/crews/region-a-melee",
+        "source": "region"
+      },
+      "regionEmoji": "🇺🇸",
+      "luckyRank": {
+        "rank": 355,
+        "points": 83
+      },
+      "playerClass": {
+        "key": "ranked",
+        "name": "Ranked",
+        "minPoints": 75,
+        "svgUrl": "https://luckystats.gg/player-classes/ranked.svg"
+      },
+      "mainCharacter": 6,
+      "characterId": 6,
+      "characterName": "Fox",
+      "tournamentCount": 154,
+      "glickoRd": 68.45791675877095,
+      "glickoVolatility": 0.0596901407337402,
+      "glickoRank": 784,
+      "totalSetsCareer": 880
+    }
+  ],
+  "matchup": {
+    "ok": true,
+    "order": [
+      "9001",
+      "9002"
+    ],
+    "labels": {
+      "player1": "Player1",
+      "player2": "Player2"
+    },
+    "h2h": {
+      "player1Wins": 60,
+      "player2Wins": 23,
+      "totalSets": 83,
+      "lastPlayedAt": "2026-09-11T01:03:24.000Z",
+      "firstPlayedAt": "2024-04-19T02:25:24.000Z",
+      "recentSets": [
+        {
+          "id": "lucky-115",
+          "winner": "player1",
+          "score": "3-1",
+          "tournamentName": "Hundred Acres #49",
+          "eventName": "Melee Singles (Flex Bo5)",
+          "fullRoundText": "Winners Semi-Final",
+          "completedAt": "2026-09-11T01:03:24.000Z",
+          "isOnline": false
+        },
+        {
+          "id": "lucky-049",
+          "winner": "player2",
+          "score": "2-3",
+          "tournamentName": "Hundred Acres #41",
+          "eventName": "Melee Singles (Flex Bo5)",
+          "fullRoundText": "Losers Final",
+          "completedAt": "2026-07-17T02:44:24.000Z",
+          "isOnline": false
+        },
+        {
+          "id": "lucky-990",
+          "winner": "player2",
+          "score": "1-3",
+          "tournamentName": "Hundred Acres #40",
+          "eventName": "Melee Singles (Flex Bo5)",
+          "fullRoundText": "Grand Final",
+          "completedAt": "2026-07-10T03:11:30.000Z",
+          "isOnline": false
+        },
+        {
+          "id": "lucky-060",
+          "winner": "player1",
+          "score": "3-0",
+          "tournamentName": "Hundred Acres #39",
+          "eventName": "Melee Singles (Flex Bo5)",
+          "fullRoundText": "Losers Final",
+          "completedAt": "2026-07-03T02:23:01.000Z",
+          "isOnline": false
+        },
+        {
+          "id": "lucky-063",
+          "winner": "player1",
+          "score": "3-1",
+          "tournamentName": "Hundred Acres #39",
+          "eventName": "Melee Singles (Flex Bo5)",
+          "fullRoundText": "Winners Semi-Final",
+          "completedAt": "2026-07-03T01:36:47.000Z",
+          "isOnline": false
+        },
+        {
+          "id": "lucky-370",
+          "winner": "player1",
+          "score": "3-1",
+          "tournamentName": "Hundred Acres #36",
+          "eventName": "Melee Singles (Flex Bo5)",
+          "fullRoundText": "Grand Final",
+          "completedAt": "2026-06-12T02:31:57.000Z",
+          "isOnline": false
+        },
+        {
+          "id": "lucky-371",
+          "winner": "player1",
+          "score": "3-0",
+          "tournamentName": "Hundred Acres #36",
+          "eventName": "Melee Singles (Flex Bo5)",
+          "fullRoundText": "Winners Final",
+          "completedAt": "2026-06-12T01:06:21.000Z",
+          "isOnline": false
+        },
+        {
+          "id": "lucky-192",
+          "winner": "player1",
+          "score": "3-1",
+          "tournamentName": "Hundred Acres #33",
+          "eventName": "Melee Singles (Flex Bo5)",
+          "fullRoundText": "Grand Final",
+          "completedAt": "2026-05-22T02:38:07.000Z",
+          "isOnline": false
+        },
+        {
+          "id": "lucky-193",
+          "winner": "player1",
+          "score": "3-1",
+          "tournamentName": "Hundred Acres #33",
+          "eventName": "Melee Singles (Flex Bo5)",
+          "fullRoundText": "Winners Final",
+          "completedAt": "2026-05-22T01:57:12.000Z",
+          "isOnline": false
+        },
+        {
+          "id": "lucky-633",
+          "winner": "player1",
+          "score": "3-1",
+          "tournamentName": "Hundred Acres #32",
+          "eventName": "Melee Singles (Flex Bo5)",
+          "fullRoundText": "Grand Final Reset",
+          "completedAt": "2026-05-15T02:24:52.000Z",
+          "isOnline": false
+        }
+      ]
+    },
+    "winProbability": {
+      "glickoOnly": {
+        "player1": 0.9577342110874808,
+        "player2": 0.0422657889125192
+      },
+      "blended": {
+        "player1": 0.9007781907568432,
+        "player2": 0.09922180924315682
+      },
+      "note": "glickoOnly uses current Glicko scores only; blended mixes in H2H record (when 2+ sets) with recency decay, matching the stream session API."
+    },
+    "comparison": {
+      "ratingDifference": 266.05053486349425,
+      "higherRatedSide": "player1",
+      "luckyRankDifference": -188,
+      "betterLuckyRankSide": "player1",
+      "careerTotalSets": {
+        "player1": 966,
+        "player2": 880
+      },
+      "glickoRank": {
+        "player1": 173,
+        "player2": 784
+      }
+    },
+    "matchupMeta": {
+      "distinctTournaments": 46,
+      "setsOffline": 83,
+      "setsOnline": 0,
+      "avgGameDifferentialPlayer1": 1.0240963855421688,
+      "daysSinceLastMatch": 27,
+      "activeWinStreakFromMostRecentSet": {
+        "leader": "player1",
+        "length": 1
+      },
+      "longestWinStreaks": {
+        "player1": 18,
+        "player2": 7
+      }
+    },
+    "estimatedGlickoAfterNextSet": {
+      "method": "Glicko-2 single-opponent update (backend/glicko_backfill.py)",
+      "tau": 0.5,
+      "note": "Projected ratings if the next set counted toward Glicko with current μ and RD/volatility. Does not apply inactivity decay between tournaments. The UI \"elo\" field is the Glicko μ score.",
+      "ifPlayer1Wins": {
+        "player1": {
+          "ratingBefore": 2513.6,
+          "ratingAfter": 2518.5,
+          "ratingDelta": 4.9,
+          "rdBefore": 69.4,
+          "rdAfter": 69.3,
+          "volatilityBefore": 0.059895,
+          "volatilityAfter": 0.059893
+        },
+        "player2": {
+          "ratingBefore": 2247.5,
+          "ratingAfter": 2242.8,
+          "ratingDelta": -4.8,
+          "rdBefore": 68.5,
+          "rdAfter": 68.4,
+          "volatilityBefore": 0.05969,
+          "volatilityAfter": 0.059689
+        }
+      },
+      "ifPlayer2Wins": {
+        "player1": {
+          "ratingBefore": 2513.6,
+          "ratingAfter": 2490.8,
+          "ratingDelta": -22.8,
+          "rdBefore": 69.4,
+          "rdAfter": 69.3,
+          "volatilityBefore": 0.059895,
+          "volatilityAfter": 0.059901
+        },
+        "player2": {
+          "ratingBefore": 2247.5,
+          "ratingAfter": 2269.7,
+          "ratingDelta": 22.2,
+          "rdBefore": 68.5,
+          "rdAfter": 68.4,
+          "volatilityBefore": 0.05969,
+          "volatilityAfter": 0.059697
+        }
+      }
+    }
+  }
+}

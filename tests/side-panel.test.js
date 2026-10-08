@@ -26,6 +26,8 @@
  */
 
 const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
 
 const { ScoreboardStore } = require("../app/lib/scoreboard/store");
 const { createOverlayChannel } = require("../app/lib/overlay/channel");
@@ -33,7 +35,7 @@ const { loadPayload } = require("../app/lib/event/set-model");
 const { buildBracket } = require("../app/lib/event/bracket-model");
 const N = require("../app/lib/stats/normalize");
 const { eventFrom } = require("./helpers/fake-startgg");
-const { loadOverlay, fakeIo, texts, sleep } = require("./helpers/overlay-sandbox");
+const { loadOverlay, fakeIo, texts, sleep, fire } = require("./helpers/overlay-sandbox");
 
 let failed = 0;
 async function test(name, fn) {
@@ -59,13 +61,30 @@ const DOUBLES = loadPayload(dgraph, Object.keys(dgraph.sets)[0]);
 
 const pidsOf = (payload) => payload.sides.map((s) => s.players[0].playerId);
 
+// A real luckystats.gg answer (scrubbed), for start.gg users 9001 and 9002.
+const LUCKY_PAIR = () => JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", "luckystats", "pair.json"), "utf8"));
+
+/** The snapshot's `lucky` section for a pair, through the real normalizer. */
+function luckyFor(payload, { pair = null } = {}) {
+  const [a, b] = pidsOf(payload);
+  const { ratings, matchup } = N.luckyFromResponse(LUCKY_PAIR(), { 9001: a, 9002: b });
+  // As lib/stats/index.js leaves them: luckystats' image urls swapped for the app's copies.
+  for (const r of Object.values(ratings)) {
+    r.badge = r.classKey ? `/assets/luckystats/class-${r.classKey}.svg` : null;
+    r.regionIcon = r.regionImage ? "/assets/luckystats/region-0123456789abcdef.jpg" : null;
+    delete r.classSvg;
+    delete r.regionImage;
+  }
+  return { players: pair ?? [a, b], state: "done", ratings, matchup };
+}
+
 /**
  * A `player_stats` snapshot as lib/stats/index.js emits it for a pair. The
  * runs and the event's finished sets are the real normalizers over the
  * captured event; the histories and the head-to-head (start.gg reads that
  * aren't captured) are written in the documented shape.
  */
-function statsFor(payload, { cards = "done", h2h = "done", wins = [22, 8], h2hPair = null } = {}) {
+function statsFor(payload, { cards = "done", h2h = "done", wins = [22, 8], h2hPair = null, lucky = null } = {}) {
   const [a, b] = pidsOf(payload);
   const player = (pid, i) => ({
     playerId: pid,
@@ -88,6 +107,7 @@ function statsFor(payload, { cards = "done", h2h = "done", wins = [22, 8], h2hPa
         { tournament: "HA #37", round: "Winners Final", completedAt: 1781000000, winner: b, scores: { [a]: null, [b]: null } },
       ] : [],
     },
+    lucky: lucky === true ? luckyFor(payload) : lucky,
     completedSets: { state: "done", sets: N.completedFromEventSets(singles.sets).slice(0, 12) },
     updatedAt: 0,
   };
@@ -230,6 +250,103 @@ const plain = (v) => JSON.parse(JSON.stringify(v)); // the page's arrays are ano
     const runRows = env.page.$$("#panel-player-1 .run-list .panel-pill");
     assert.strictEqual(runRows.length, Math.min(5, N.runFromEventSets(singles.sets, pidsOf(LOSERS_FINAL)[0]).length));
     assert.ok(runRows.length > 0);
+  });
+
+  // ── luckystats.gg ──────────────────────────────────────────────────────────
+
+  const pct = (p) => `${(p * 100).toFixed(1)}%`;
+
+  await test("the win projection sits on the head-to-head, only with luckystats for this pair", async () => {
+    const env = await setup(GRAND_FINAL, statsFor(GRAND_FINAL, { lucky: true }));
+    assert.ok(env.page.$("#panel-recent-sets .prob-bar"), "no probability bar on the head-to-head");
+    assert.strictEqual(env.page.$("#panel-recent-sets .lucky-credit").style.display, "");
+    const [a] = pidsOf(GRAND_FINAL);
+    env.channel.emit("player_stats", statsFor(GRAND_FINAL, { lucky: luckyFor(GRAND_FINAL, { pair: [a, "424242"] }) }));
+    await env.settle();
+    assert.strictEqual(env.sp.projectionView(), null, "another pair's projection was drawn under these names");
+    assert.ok(env.page.$("#panel-recent-sets .prob-bar") === null, "a bar was drawn for another pair");
+    assert.strictEqual(env.page.$("#panel-recent-sets .lucky-credit").style.display, "none", "credited data that isn't there");
+    assert.ok(env.sp.rotator._slots.includes("recent-sets"), "the record went with the projection");
+  });
+
+  await test("the win projection is oriented by player id, and Switch Sides flips it", async () => {
+    const env = await setup(GRAND_FINAL, statsFor(GRAND_FINAL, { lucky: true }));
+    const p = LUCKY_PAIR().matchup.winProbability.glickoOnly; // player1 is the left column's player
+    const shown = () => env.page.$$("#panel-recent-sets .prob-pct").map((el) => el.textContent);
+    assert.deepStrictEqual(shown(), [pct(p.player1), pct(p.player2)]);
+    assert.strictEqual(env.page.$("#panel-recent-sets .prob-bar").style["--p"], pct(p.player1));
+    env.store.switchSides();
+    await env.settle();
+    assert.deepStrictEqual(shown(), [pct(p.player2), pct(p.player1)], "after Switch Sides the projection didn't follow the players");
+    assert.strictEqual(env.page.$("#panel-recent-sets .prob-bar").style["--p"], pct(p.player2));
+  });
+
+  await test("two players who have never met get no head-to-head card, even with a projection", async () => {
+    const env = await setup(GRAND_FINAL, statsFor(GRAND_FINAL, { wins: [0, 0], lucky: true }));
+    assert.ok(env.sp.projectionView(), "the projection is there to show");
+    assert.ok(!env.sp.rotator._slots.includes("recent-sets"), "a head-to-head with no sets joined the rotation");
+  });
+
+  await test("player cards: the Lucky Rank under the character, class and region boxed beside the tag — credited, and none of it without luckystats", async () => {
+    const env = await setup(GRAND_FINAL, statsFor(GRAND_FINAL, { lucky: true }));
+    assert.deepStrictEqual(visibleText(env.page, "#panel-player-1 .player-rank"), ["#167"]);
+    assert.deepStrictEqual(visibleText(env.page, "#panel-player-1 .player-lucky"), ["Class", "Regional Threat", "Region", "Region A Melee"]);
+    assert.deepStrictEqual(visibleText(env.page, "#panel-player-2 .player-rank"), ["#355"]);
+    assert.strictEqual(env.page.$("#panel-player-1 .lucky-icon.region img").src, "/assets/luckystats/region-0123456789abcdef.jpg");
+    assert.strictEqual(env.page.$("#panel-player-1 .lucky-icon.class img").src, "/assets/luckystats/class-regional-threat.svg");
+    assert.strictEqual(env.page.$("#panel-player-1 .lucky-credit").style.display, "");
+    env.channel.emit("player_stats", statsFor(GRAND_FINAL));
+    await env.settle();
+    assert.deepStrictEqual(visibleText(env.page, "#panel-player-1 .player-rank"), []);
+    assert.deepStrictEqual(visibleText(env.page, "#panel-player-1 .player-lucky"), []);
+    assert.strictEqual(env.page.$("#panel-player-1 .player-lucky").style.display, "none", "an empty box was left on the card");
+    assert.strictEqual(env.page.$("#panel-player-1 .lucky-credit").style.display, "none", "credited data that isn't there");
+  });
+
+  await test("player cards: the region rank beside the region's name, and a pin for a region with no artwork", async () => {
+    const lucky = luckyFor(GRAND_FINAL);
+    const [a, b] = pidsOf(GRAND_FINAL);
+    lucky.ratings[a].regionRank = 1;
+    Object.assign(lucky.ratings[b], { rank: null, className: null, badge: null, region: "Region A", regionIcon: null });
+    const env = await setup(GRAND_FINAL, statsFor(GRAND_FINAL, { lucky }));
+    assert.deepStrictEqual(visibleText(env.page, "#panel-player-1 .player-lucky"), ["Class", "Regional Threat", "Region", "Region A Melee", "#1"]);
+    // Unranked, on no public Region: no rank, no class row, the region with a pin.
+    assert.deepStrictEqual(visibleText(env.page, "#panel-player-2 .player-rank"), []);
+    assert.deepStrictEqual(visibleText(env.page, "#panel-player-2 .player-lucky"), ["Region", "Region A"]);
+    assert.ok(env.page.$("#panel-player-2 .lucky-icon.region.none"), "no pin where the artwork would be");
+  });
+
+  await test("player cards: whatever luckystats lacks takes no room — no rank line, row, box or broken image", async () => {
+    const lucky = luckyFor(GRAND_FINAL);
+    const [a, b] = pidsOf(GRAND_FINAL);
+    Object.assign(lucky.ratings[a], { className: null, badge: null, region: null, regionIcon: null, regionRank: null });
+    Object.assign(lucky.ratings[b], { rank: null, region: null, regionIcon: null });
+    const env = await setup(GRAND_FINAL, statsFor(GRAND_FINAL, { lucky }));
+    // A rank and nothing else: the rank, the credit, and no box.
+    assert.deepStrictEqual(visibleText(env.page, "#panel-player-1 .player-rank"), ["#167"]);
+    assert.strictEqual(env.page.$("#panel-player-1 .player-lucky").style.display, "none", "an empty box was left beside the tag");
+    assert.strictEqual(env.page.$("#panel-player-1 .lucky-credit").style.display, "");
+    // A class and nothing else: no rank line, and the box holds the one row.
+    assert.strictEqual(env.page.$("#panel-player-2 .player-rank").style.display, "none", "an empty rank line was left");
+    assert.deepStrictEqual(visibleText(env.page, "#panel-player-2 .player-lucky"), ["Class", "Ranked"]);
+    // A badge that fails to load leaves its slot empty, not a broken image.
+    fire(env.page.$("#panel-player-2 .lucky-icon.class img"), "error");
+    assert.ok(env.page.$("#panel-player-2 .lucky-icon.class img") === null, "a broken badge was left on the card");
+    assert.ok(env.page.$("#panel-player-2 .lucky-icon.class.none"));
+  });
+
+  await test("player cards: Region artwork that fails to load falls back to the pin", async () => {
+    const env = await setup(GRAND_FINAL, statsFor(GRAND_FINAL, { lucky: true }));
+    fire(env.page.$("#panel-player-1 .lucky-icon.region img"), "error");
+    assert.ok(env.page.$("#panel-player-1 .lucky-icon.region img") === null, "a broken image was left in the box");
+    assert.ok(env.page.$("#panel-player-1 .lucky-icon.region.none"), "no pin in its place");
+  });
+
+  await test("doubles: no win projection", async () => {
+    // luckystats for the very ids in the columns: only the doubles shape keeps it off.
+    const env = await setup(DOUBLES, { ...statsFor(GRAND_FINAL), players: {}, h2h: null, lucky: luckyFor(DOUBLES) });
+    assert.strictEqual(env.sp.projectionView(), null);
+    assert.ok(!env.sp.rotator._slots.includes("recent-sets"));
   });
 
   await test("Just Finished is the event's real finished sets, newest first", async () => {

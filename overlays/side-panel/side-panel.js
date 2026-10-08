@@ -7,12 +7,14 @@
  *
  * Everything comes from the app: the scoreboard and tournament sections of
  * the state, and the `stats` event (lib/stats/ — start.gg histories fetched
- * by the app, keyed by start.gg player id). There is no second source to fall
- * back to: a pair the stats haven't finished shows no card rather than
- * someone else's numbers.
+ * by the app, plus luckystats.gg's ratings, all keyed by start.gg player id).
+ * There is no second source to fall back to: a pair the stats haven't
+ * finished shows no card rather than someone else's numbers. luckystats adds
+ * Rank, Class and Region to the player cards and the win probability to the
+ * head-to-head, and every card showing it says so ("Powered by Lucky Stats").
  *
- *   ?panel=<id>     hold one panel instead of rotating (for styling)
- *   ?animate=false  still the theme pack's background flair
+ *   ?panel=<id>       hold one panel instead of rotating (for styling)
+ *   ?animate=false    still the theme pack's background flair
  *
  * tests/side-panel.test.js runs this file against the real store, channel
  * mirror and overlay client.
@@ -32,6 +34,7 @@
   const PILL_MS        = 680;     // each pill's rise
   const PILL_DELAY     = 120;     // after the panel starts coming in
   const PILL_STAGGER   = 55;      // between pills
+  const H2H_SHOWN      = 7;       // the pair's newest sets on the head-to-head (the app sends 7)
   const HOLD_PANEL     = param("panel");
 
   const PANEL_ORDER = [
@@ -117,6 +120,54 @@
     return c && Array.isArray(c.sets) ? c.sets.slice(0, 8) : [];
   }
 
+  /**
+   * luckystats' numbers for a column's player: { rank, className, badge,
+   * region, regionIcon, regionRank }, or null. Keyed by player id, so a player
+   * carried over from the previous set keeps theirs.
+   */
+  function luckyPlayer(i) {
+    const lucky = stats?.enabled ? stats.lucky : null;
+    const pid = playerIdOf(i);
+    if (!lucky || lucky.state !== "done" || !pid) return null;
+    return lucky.ratings?.[pid] ?? null;
+  }
+
+  /** What the player card shows right of the tag; null when there's nothing. */
+  function luckyLine(i) {
+    const r = luckyPlayer(i);
+    if (!r || !(r.rank || r.className || r.region)) return null;
+    return {
+      rank: r.rank ?? null,
+      className: r.className ?? null, badge: r.badge ?? null,
+      region: r.region ?? null, regionIcon: r.regionIcon ?? null, regionRank: r.regionRank ?? null,
+    };
+  }
+
+  /**
+   * luckystats' win probability, oriented to the columns: [left, right], or
+   * null. Like the head-to-head, a projection for another pair isn't this one's.
+   */
+  function projectionView() {
+    if (isDoubles()) return null;
+    const lucky = stats?.enabled ? stats.lucky : null;
+    const ids = [playerIdOf(0), playerIdOf(1)];
+    if (!lucky || lucky.state !== "done" || !lucky.matchup || !ids[0] || !ids[1] || ids[0] === ids[1]) return null;
+    const pair = (lucky.players ?? []).map(String);
+    if (!ids.every((id) => pair.includes(id))) return null;
+    const prob = ids.map((id) => lucky.matchup.winProbability?.[id]);
+    return prob.every((p) => typeof p === "number" && Number.isFinite(p)) ? prob : null;
+  }
+
+  /**
+   * The head-to-head card: start.gg's record and, when luckystats has one for
+   * this pair, the win probability. Null without a record — two players who
+   * have never met get no card, probability or not.
+   */
+  function h2hCardView() {
+    const record = h2hView();
+    return record ? { record, prob: projectionView() } : null;
+  }
+
   function hasPlayerCard(i) {
     if (!playerOf(i)?.tag) return false;
     return historyView(i).length > 0 || runView(i).length > 0;
@@ -128,7 +179,7 @@
       case "logo-sponsor":   return true;
       case "player-1":       return !isDoubles() && hasPlayerCard(0);
       case "player-2":       return !isDoubles() && hasPlayerCard(1);
-      case "recent-sets":    return !isDoubles() && h2hView() !== null;
+      case "recent-sets":    return !isDoubles() && h2hCardView() !== null;
       case "completed-sets": return completedView().length > 0;
       default:               return false;
     }
@@ -338,8 +389,40 @@
     tagEl.replaceChildren();
     if (p.prefix) tagEl.appendChild(h("span", "player-sponsor", p.prefix + " "));
     tagEl.appendChild(document.createTextNode(p.tag || ""));
+    const charEl = panel.querySelector(".player-char-name");
+    charEl.textContent = (p.character?.name ?? "").toUpperCase();
+
+    // luckystats.gg: the Lucky Rank under the character (behind their clover,
+    // in CSS), and Class and Region in a box right of the tag. Anything it
+    // doesn't have takes no room: no rank line, no row, no box, no credit.
+    // Drawn before the tag and character are fitted, since the box narrows them.
+    const lucky = luckyLine(i);
+    panel.querySelector(".lucky-credit").style.display = lucky ? "" : "none";
+    const rankEl = panel.querySelector(".player-rank");
+    rankEl.replaceChildren();
+    rankEl.style.display = lucky?.rank ? "" : "none";
+    if (lucky?.rank) rankEl.appendChild(h("span", "lucky-rank", "#" + lucky.rank));
+
+    const box = panel.querySelector(".player-lucky");
+    box.replaceChildren();
+    const rows = [
+      lucky?.className && { kind: "class", label: "Class", value: lucky.className, icon: lucky.badge },
+      lucky?.region && { kind: "region", label: "Region", value: lucky.region, icon: lucky.regionIcon, place: lucky.regionRank },
+    ].filter(Boolean);
+    box.style.display = rows.length ? "" : "none";
+    const values = [];
+    for (const r of rows) {
+      const row = box.appendChild(h("div", "lucky-row " + r.kind));
+      row.appendChild(luckyIcon(r.icon, r.kind));
+      const text = row.appendChild(h("div", "lucky-text"));
+      text.appendChild(h("div", "lucky-label", r.label));
+      const line = text.appendChild(h("div", "lucky-line"));
+      values.push(line.appendChild(h("span", "lucky-value", r.value)));
+      if (r.place) line.appendChild(h("span", "lucky-place", "#" + r.place));
+    }
+    for (const v of values) fitText(v, 13);
     fitText(tagEl, 24);
-    panel.querySelector(".player-char-name").textContent = (p.character?.name ?? "").toUpperCase();
+    fitText(charEl, 14);
 
     // Rows are fitted together once the card is complete — see fitGroup.
     const fit = { opp: [], round: [], hist: [] };
@@ -374,14 +457,58 @@
     fitGroup(fit.hist);
   }
 
+  const pct = (p) => `${(p * 100).toFixed(1)}%`;
+
+  /**
+   * A class badge or Region artwork, in its slot. Missing, or failing to load,
+   * the slot is marked .none — empty for a class, a pin for a Region (CSS) —
+   * so a source never shows a broken image.
+   */
+  function luckyIcon(src, kind) {
+    const slot = h("i", `lucky-icon ${kind}`);
+    if (!src) {
+      slot.classList.add("none");
+      return slot;
+    }
+    const img = slot.appendChild(h("img"));
+    img.alt = "";
+    img.addEventListener("error", () => {
+      img.remove();
+      slot.classList.add("none");
+    });
+    img.src = src;
+    return slot;
+  }
+
+  /** Each player's chance either side of the bar; its colours meet at the left player's. */
+  function projectionRow(prob) {
+    const bar = h("div", "prob-bar");
+    bar.style.setProperty("--p", pct(prob[0]));
+    bar.appendChild(h("i", "prob-marker"));
+    const mid = h("div", "h2h-projection-mid");
+    mid.append(bar, h("div", "h2h-subtitle", "Win Projection"));
+    // The number and its sign apart: a pack's score font may draw "%" large.
+    const side = (p, cls) => {
+      const el = h("span", cls, pct(p).slice(0, -1));
+      el.appendChild(h("span", "prob-pct-sign", "%"));
+      return el;
+    };
+    const row = h("div", "h2h-projection");
+    row.append(side(prob[0], "prob-pct"), mid, side(prob[1], "prob-pct right"));
+    return row;
+  }
+
   function renderRecentSets() {
-    const list = document.querySelector("#panel-recent-sets .sets-list");
+    const panel = document.getElementById("panel-recent-sets");
+    const list = panel?.querySelector(".sets-list");
     if (!list) return;
     list.replaceChildren();
-    const h2h = h2hView();
-    if (!h2h) return;
+    const v = h2hCardView();
+    panel.querySelector(".lucky-credit").style.display = v?.prob ? "" : "none";
+    if (!v) return;
+    const h2h = v.record;
 
-    // The tally is the whole record; the pills below are its newest five.
+    // The tally is the whole record; the pills below are its newest few.
     const head = h("div", "h2h-header");
     const row = h("div", "h2h-row");
     const left = h("div", "h2h-name", playerOf(0)?.tag || "P1");
@@ -390,10 +517,11 @@
     mid.append(h("div", "h2h-subtitle", "Head to Head"), h("span", "h2h-score", `${h2h.wins[0]} – ${h2h.wins[1]}`));
     row.append(left, mid, right);
     head.appendChild(row);
+    if (v.prob) head.appendChild(projectionRow(v.prob));
     list.appendChild(head);
 
     const subs = [], rounds = [];
-    for (const s of h2h.sets.slice(0, 5)) {
+    for (const s of h2h.sets.slice(0, H2H_SHOWN)) {
       const sc = scoreLabels(s.score, s.winner);
       const sub = (s.tournament || "") + (s.timestamp ? " · " + formatDate(s.timestamp) : "");
       const row2 = pill("recent-set-pill " + (s.winner === 0 ? "win" : "loss"));
@@ -447,9 +575,9 @@
   };
 
   function refresh() {
-    renderIfChanged("player-1", [identity(0), historyView(0), runView(0)], () => renderPlayerCard(0));
-    renderIfChanged("player-2", [identity(1), historyView(1), runView(1)], () => renderPlayerCard(1));
-    renderIfChanged("recent-sets", [h2hView(), identity(0), identity(1)], renderRecentSets);
+    renderIfChanged("player-1", [identity(0), historyView(0), runView(0), luckyLine(0)], () => renderPlayerCard(0));
+    renderIfChanged("player-2", [identity(1), historyView(1), runView(1), luckyLine(1)], () => renderPlayerCard(1));
+    renderIfChanged("recent-sets", [h2hCardView(), identity(0), identity(1)], renderRecentSets);
     renderIfChanged("completed-sets", completedView(), renderCompletedSets);
     // After rendering: buildSlots can restart the rotation, and the panel it
     // fades in should already hold the new content.
@@ -527,5 +655,7 @@
   ov.ready.then(() => rotator.start());
 
   // For tests/side-panel.test.js, and for poking at from OBS's devtools.
-  root.SidePanel = { rotator, historyView, runView, h2hView, completedView, slotHasContent, scoreLabels };
+  root.SidePanel = {
+    rotator, historyView, runView, h2hView, completedView, luckyPlayer, projectionView, slotHasContent, scoreLabels,
+  };
 })(window);

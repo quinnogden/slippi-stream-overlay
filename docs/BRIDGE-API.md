@@ -145,7 +145,7 @@ Same payload, split by outcome. **Only `slippi_clip_saved` reaches the broadcast
 
 ### `player_stats`
 
-The side panel's player cards, head-to-head and Just Finished, from start.gg (`lib/stats/`). Emitted on every change and on connect; always the whole snapshot. Same object as `GET /api/player-stats`.
+The side panel's player cards, head-to-head and Just Finished, from start.gg and luckystats.gg (`lib/stats/`). Emitted on every change and on connect; always the whole snapshot. Same object as `GET /api/player-stats`.
 
 ```js
 {
@@ -165,11 +165,26 @@ The side panel's player cards, head-to-head and Just Finished, from start.gg (`l
     state: "done",                 // "loading" | "done" | "error" (+ error)
     wins: { "1097": 22, "1069": 8 },   // the whole record
     total: 30,
-    recent: [                      // newest five only
+    recent: [                      // newest seven only
       { id, tournament, event, round, online, completedAt,
         winner: "1097",            // player id
         scores: { "1097": 3, "1069": 1 } },  // null/null for a set reported as a bare winner
     ],
+  },
+  lucky: {                         // luckystats.gg; null with no LUCKYSTATS_KEY, or no singles pair
+    players: ["1097", "1069"],     // which pair this is FOR — check it, as for h2h
+    state: "done",                 // "loading" | "done" | "error" (+ error) | "none" (no start.gg user ids)
+    ratings: {                     // keyed by start.gg PLAYER id; a player luckystats doesn't know is absent
+      "1097": { rank: 167,                          // Lucky Rank; null when unranked
+                className: "Regional Threat", classKey: "regional-threat",   // null when unranked
+                badge: "/assets/luckystats/class-regional-threat.svg" | null,   // the app's copy; null if it couldn't be saved
+                region: "MD/VA Melee",               // their public Region, else their calculated primaryRegion — never a crew
+                regionIcon: "/assets/luckystats/region-306be3064a1e1bdd.jpg" | null,  // the Region's artwork (app's copy)
+                regionRank: 1 | null },              // their place in that Region's ranking, when luckystats sends one
+    },
+    matchup: {                     // null unless both players were found
+      winProbability: { "1097": 0.958, "1069": 0.042 },   // glickoOnly — never blended
+    } | null,
   },
   completedSets: {
     state: "done",                 // "none" (no event loaded) | "done" | "error"
@@ -186,6 +201,11 @@ Consumer rules — each is a way to put a healthy-looking wrong number on stream
 - **There is no second source.** A pair still `loading` shows nothing.
 - **`scores` can be null** for a winner-only report. Derive W/L from `winner`.
 - **`completedSets`** is the loaded event's finished sets, newest first (12), from the event service's 90s reads — not a query of its own.
+- **A `lucky.matchup` for any other pair is not this pair's** — the same rule as `h2h`: show the projection only when `lucky.players` contains both column ids. `ratings` are per player, so a player carried over from the last set keeps theirs.
+- **Credit luckystats.** Any card drawing from `lucky` says "Powered by Lucky Stats"; that was the condition of the endpoint.
+- **Any `ratings` field can be null** (unranked, no class, no region, an image that couldn't be saved): show nothing for it and leave no room for it.
+- **Images are the app's.** `badge` and `regionIcon` are paths the app serves; luckystats' own urls never reach a source (venue Wi-Fi).
+- **Where both sources answer, show start.gg's** — the head-to-head is start.gg's (luckystats' undercounts); `lucky` carries only what start.gg has no answer for.
 
 ### `control_status`
 

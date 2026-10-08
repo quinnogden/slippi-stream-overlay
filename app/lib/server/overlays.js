@@ -12,6 +12,10 @@
  * The theme switch and the packs are plain files under overlays/
  * (`/o/theme.css`, `/o/themes/<pack>/`), so the `/o/` mount serves them.
  *
+ * `/assets/luckystats/` is luckystats.gg's class badges and Region artwork, saved
+ * by the app into stats-cache/ (lib/stats/luckystats.js) so no source loads
+ * from the web.
+ *
  * tests/overlays-static.test.js resolves every page's urls through
  * resolveOverlayPath(), i.e. through these same tables.
  */
@@ -32,10 +36,11 @@ const PAGES = {
 
 /**
  * Url prefix → directory, most specific first.
- * @param {{ overlaysDir: string }} roots
+ * @param {{ overlaysDir: string, luckyImageDir?: string }} roots
  */
-function mounts({ overlaysDir }) {
+function mounts({ overlaysDir, luckyImageDir }) {
   return [
+    ...(luckyImageDir ? [{ url: "/assets/luckystats/", dir: luckyImageDir }] : []),
     { url: "/assets/", dir: path.join(overlaysDir, "assets") },
     { url: "/o/",      dir: overlaysDir },
   ];
@@ -70,7 +75,7 @@ function existing(file) {
 
 /**
  * @param {import("express").Express} app
- * @param {{ overlaysDir: string }} roots
+ * @param {{ overlaysDir: string, luckyImageDir?: string }} roots
  */
 function registerOverlays(app, roots) {
   for (const [url, file] of Object.entries(PAGES)) {
