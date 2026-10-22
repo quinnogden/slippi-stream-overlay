@@ -27,7 +27,7 @@
   const { h, icon } = window.Overlay;
   const $ = (id) => document.getElementById(id);
 
-  const TABS = ["set", "crew", "bracket", "casters", "players", "clips", "setup"];
+  const TABS = ["set", "bracket", "casters", "players", "clips", "crew", "setup"];
   const TAB_KEY = "dock.tab";
   const FOLD_KEY = "dock.stripFolded";
   const WAITING_KEY = "dock.hideWaiting";
