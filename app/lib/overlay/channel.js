@@ -37,6 +37,9 @@ const RELAY = {
   player_stats:      { overlay: "stats",                          sticky: true },
   control_status:    {                        dock: "status",     sticky: true },
   theme_changed:     { overlay: "theme",      dock: "theme" },
+  // A crew game that changed no stocks, or started with a side unpicked: the
+  // operator's to fix, never the broadcast's.
+  crew_notice:       {                        dock: "crew:notice" },
 };
 
 const NAMESPACES = ["overlay", "dock"];

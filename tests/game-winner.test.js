@@ -14,7 +14,7 @@ const path   = require("path");
 // Resolved from the app's node_modules — tests/ has none of its own.
 const { GameEndMethod } = require(require.resolve("@slippi/slippi-js",
   { paths: [path.join(__dirname, "..", "app")] }));
-const { pickWinner } = require("../app/lib/game-source");
+const { pickWinner, winnerByStocks } = require("../app/lib/game-source");
 
 let failed = 0;
 function test(name, fn) {
@@ -79,6 +79,17 @@ test("RESOLVED (doubles elimination) uses placements, then stocks", () => {
 
   const without = { gameEndMethod: GameEndMethod.RESOLVED, lrasInitiatorIndex: -1, placements: null };
   assert.strictEqual(pickWinner(without, DOUBLES, false, () => 1), 1);
+});
+
+// The fallback itself, on a last frame shaped as slippi-js gives it: the
+// stock count is on `post` — `pre` has none, and reading it found no winner.
+test("the stock fallback reads the last frame's post-frame stocks", () => {
+  const frame = (players) => ({ getLatestFrame: () => ({ players }) });
+  const p = (stocks) => ({ pre: { playerIndex: 0 }, post: { stocksRemaining: stocks } });
+  assert.strictEqual(winnerByStocks(frame({ 0: p(0), 3: p(2) })), 3);
+  // Doubles: the dead players' entries are null.
+  assert.strictEqual(winnerByStocks(frame({ 0: null, 1: p(1), 2: null, 3: p(0) })), 1);
+  assert.strictEqual(winnerByStocks({ getLatestFrame: () => null }), null);
 });
 
 // Older replays carry null here. `null >= 0` is true in JS, so an unguarded

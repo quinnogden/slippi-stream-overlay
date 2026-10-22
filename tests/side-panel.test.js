@@ -361,6 +361,47 @@ const plain = (v) => JSON.parse(JSON.stringify(v)); // the page's arrays are ano
     assert.deepStrictEqual(plain(env.sp.rotator._slots), ["logo-primary", "logo-sponsor", "completed-sets"]);
   });
 
+  await test("crew battle: the logos and the two rosters only — the player in lit, the eliminated greyed", async () => {
+    const env = await setup(GRAND_FINAL); // the stats for the set before stay sent
+    env.store.startCrew({ stocksEach: 3, teams: [
+      { name: "ACRES", members: [{ tag: "Zodd" }, { tag: "Redd", main: { codename: "falco", name: "Falco", skin: 0 } }] },
+      { name: "SALTY", members: [{ tag: "Nav" }, { tag: "Yung John" }] },
+    ] });
+    const ids = env.store.scoreboard().crew.teams.map((t) => t.members.map((m) => m.id));
+    env.store.crewPick(0, ids[0][0]);
+    env.store.crewPick(1, ids[1][0]);
+    env.store.crewApplyGame({ winnerSide: 0, winnerStocks: 2,
+      characters: [[{ codename: "fox", name: "Fox", skin: 1 }], [{ codename: "marth", name: "Marth", skin: 0 }]] });
+    await env.settle();
+    assert.deepStrictEqual(plain(env.sp.rotator._slots), ["logo-primary", "crew-1", "logo-sponsor", "crew-2"]);
+
+    const rows = (n) => env.page.$$(`#panel-crew-${n} .crew-member`).map((r) => ({
+      status: ["active", "in", "out"].filter((c) => r.classList.contains(c)).join(","),
+      text: texts(r).join(" "),
+      icon: r.querySelector("img") ? r.querySelector("img").getAttribute("src") : null,
+    }));
+    assert.deepStrictEqual(rows(1), [
+      { status: "active", text: "Zodd 2", icon: "/assets/icons/chara_2_fox_01.png" },   // what he played
+      { status: "in", text: "Redd 3", icon: "/assets/icons/chara_2_falco_00.png" },     // his main
+    ]);
+    assert.deepStrictEqual(rows(2), [
+      { status: "out", text: "Nav 0", icon: "/assets/icons/chara_2_marth_00.png" },
+      { status: "in", text: "Yung John 3", icon: null },
+    ]);
+    assert.deepStrictEqual(texts(env.page.$("#panel-crew-1 .crew-head")), ["ACRES", "5", "Stocks"]);
+    assert.deepStrictEqual(texts(env.page.$("#panel-crew-2 .crew-head")), ["SALTY", "3", "Stocks"]);
+
+    // Switch Sides: each roster goes with its column.
+    env.store.switchSides();
+    await env.settle();
+    assert.deepStrictEqual(texts(env.page.$("#panel-crew-1 .crew-head")), ["SALTY", "3", "Stocks"]);
+
+    // Ended, it's the set's rotation again — no rosters left in it.
+    env.store.clearSet();
+    await env.settle();
+    assert.ok(!env.sp.rotator._slots.some((id) => id.startsWith("crew-")), "a roster stayed in the rotation");
+  });
+
   await test("no stats at all (no token, nothing loaded) still rotates the logos", async () => {
     const env = await setup(GRAND_FINAL, null);
     assert.deepStrictEqual(plain(env.sp.rotator._slots), ["logo-primary", "logo-sponsor"]);

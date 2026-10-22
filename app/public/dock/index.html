@@ -38,6 +38,8 @@
         <span class="strip-summary" id="strip-summary"></span>
         <span class="set-ref" id="set-ref">Manual set</span>
         <button class="key mini mode-key" id="btn-doubles" type="button" aria-pressed="false" title="Doubles: two players a side, and a team colour instead of characters">Doubles</button>
+        <!-- Only during a crew battle, in Doubles' place. -->
+        <button class="key mini mode-key lit" id="btn-crew" type="button" title="A crew battle is on the scoreboard — its rosters are in the Crew tab">Crew</button>
       </div>
 
       <div class="strip-body" id="strip-body">
@@ -81,6 +83,7 @@
         <button class="tab" type="button" data-tab="casters">Casters</button>
         <button class="tab" type="button" data-tab="players">Players</button>
         <button class="tab" type="button" data-tab="clips">Clips</button>
+        <button class="tab" type="button" data-tab="crew">Crew</button>
         <button class="tab" type="button" data-tab="setup">Setup</button>
       </nav>
 
@@ -200,6 +203,48 @@
         <div class="card">
           <div class="card-head"><span class="label">Recent clips</span></div>
           <div class="clip-list" id="clip-list"></div>
+        </div>
+      </div>
+
+      <!-- ── Crew ── -->
+      <div class="panel" id="panel-crew">
+        <!-- Before a battle: the two crews, a draft kept in this browser. -->
+        <div id="crew-setup">
+          <div class="crew-cols" id="crew-draft"></div>
+          <div class="card">
+            <div class="card-head"><span class="label">Crew battle</span></div>
+            <label class="field">
+              <span>Stocks each</span>
+              <select id="crew-stocks">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+                <option value="9">9</option>
+              </select>
+            </label>
+            <div class="key-row">
+              <button class="key go" id="btn-crew-start" type="button" title="Put the two crews on the scoreboard, in place of the set there">Start crew battle</button>
+            </div>
+            <div id="crew-start-confirm"></div>
+            <div class="hint">The left crew goes in the scoreboard's left column. Pick each tag from the suggestions to bring in their pronouns and main. <b>Save</b> keeps a crew to load at the next event.</div>
+          </div>
+        </div>
+
+        <!-- During one: each crew's roster as the scoreboard has it. -->
+        <div id="crew-live" hidden>
+          <div class="crew-cols" id="crew-rosters"></div>
+          <div class="card">
+            <div class="key-row">
+              <button class="key arm" id="btn-crew-end" type="button" title="Take the crew battle off the scoreboard (asks first)">End crew battle</button>
+            </div>
+            <div id="crew-end-confirm"></div>
+            <div class="hint">Nobody goes in by themselves — tap <b>In</b> for each crew's first player, and for whoever replaces a loser. At game end the winner keeps the stocks they have left and the loser is out. <b>−</b>/<b>+</b> fixes anyone's stocks; the strip's ± and the score hotkeys move whoever is in.</div>
+          </div>
         </div>
       </div>
 

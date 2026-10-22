@@ -20,7 +20,8 @@
  *   - doubles — which player of a side a port is falls back to port order, and
  *     a wrong guess would teach one player their partner's character;
  *   - a typed name with no DB record: a manual set's names aren't start.gg's,
- *     and a typo shouldn't become a player.
+ *     and a typo shouldn't become a player;
+ *   - a crew battle: it stays out of the normal flow (and has no game list).
  *
  * A pinned main (the dock's Players tab) still wins on load; learning only
  * reorders `learnedMains`.
@@ -33,7 +34,7 @@
  * @returns {Array<{ side: 0|1, player: object, chars: Array<{ name: string, skin: number }> }>}
  */
 function mainsPlayed(sb) {
-  if (!sb) return [];
+  if (!sb || sb.crew) return [];
   const out = [];
   sb.sides.forEach((side, i) => {
     if (side.players.length !== 1) return; // doubles: which teammate a port is can be a guess

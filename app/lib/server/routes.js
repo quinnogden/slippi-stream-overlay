@@ -9,12 +9,12 @@
 const path    = require("path");
 const express = require("express");
 
-const API = ["status", "scoreboard", "event", "players", "casters", "clipper", "setup"].map((name) => require(`./api/${name}`));
+const API = ["status", "scoreboard", "crew", "event", "players", "casters", "clipper", "setup"].map((name) => require(`./api/${name}`));
 
 /**
  * @param {import("express").Express} app
  * @param {object} deps — {
- *   publicDir, iconsDir, store, event, playerDb, clipperSettings, obs,
+ *   publicDir, iconsDir, store, event, playerDb, savedCrews, clipperSettings, obs,
  *   refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet,
  *   swapPorts, switchSides, reresolvePorts, gameLive, recordClip, playerStatsSnapshot,
  *   setupInfo, overlaysDir, emit

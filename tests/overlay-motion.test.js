@@ -109,6 +109,32 @@ const pronounChip = (page) => page.$('.chips[data-side="0"] .pronoun');
     assert.strictEqual(chip.textContent, "");
   });
 
+  await test("a crew battle's name is a chip under the player in, not their sponsor, and follows Switch Sides", async () => {
+    const { store, page } = await setup("scoreboard", (s) => s.startCrew({ stocksEach: 4, teams: [
+      { name: "ACRES", members: [{ tag: "Zodd", prefix: "HA" }] },
+      { name: "SALTY", members: [{ tag: "Nav" }] },
+    ] }));
+    const crewChip = (i) => page.$(`.chips[data-side="${i}"] .crew`);
+    const card = (i, sel) => page.$(`.player[data-side="${i}"] .name ${sel}`);
+    await sleep(HIDE_DONE);
+    assert.strictEqual(card(0, ".tag").textContent, "ACRES", "nobody in: the card is the crew's name");
+    assert.ok(crewChip(0).classList.contains("empty"), "nobody in: the chip only repeats the card");
+
+    store.crewPick(0, store.scoreboard().crew.teams[0].members[0].id);
+    await settle();
+    await sleep(SWAP_DONE);
+    assert.strictEqual(card(0, ".tag").textContent, "Zodd");
+    assert.strictEqual(card(0, ".sponsor").textContent, "HA", "the player's own sponsor, not the crew");
+    assert.ok(!crewChip(0).classList.contains("empty"), "the crew chip should show with someone in");
+    assert.strictEqual(crewChip(0).textContent, "ACRES");
+
+    store.switchSides();
+    await settle();
+    await sleep(SWAP_DONE);
+    assert.strictEqual(crewChip(1).textContent, "ACRES", "the chip moves with its crew");
+    assert.ok(crewChip(0).classList.contains("empty"), "SALTY has nobody in");
+  });
+
   await test("a caster added after the page is up is shown, and one cleared is hidden", async () => {
     const { store, page } = await setup("casters", (s) => s.setCasters([{ tag: "First" }]));
     const cards = () => page.document.querySelectorAll(".caster");

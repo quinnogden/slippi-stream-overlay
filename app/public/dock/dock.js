@@ -27,7 +27,7 @@
   const { h, icon } = window.Overlay;
   const $ = (id) => document.getElementById(id);
 
-  const TABS = ["set", "bracket", "casters", "players", "clips", "setup"];
+  const TABS = ["set", "bracket", "casters", "players", "clips", "crew", "setup"];
   const TAB_KEY = "dock.tab";
   const FOLD_KEY = "dock.stripFolded";
   const WAITING_KEY = "dock.hideWaiting";
@@ -467,6 +467,7 @@
   function buildSide(i, count, doubles) {
     const root = $("side-" + i);
     root.classList.toggle("doubles", doubles);
+    root.classList.remove("crew");
     const lChip = button("l-chip", "L");
     lChip.title = "[L] on stream — the side that came from losers. Set automatically in grand finals";
     lChip.addEventListener("click", () => toggleLosers(i));
@@ -552,8 +553,73 @@
     applyKeyHints();
   }
 
+  /**
+   * One side of the strip in a crew battle: the crew's name over whoever is
+   * in, their character, and the crew's stocks left, whose ± is one stock for
+   * the player in (as the score hotkeys are). Names aren't typed here — a tap
+   * on them opens the Crew tab, where the roster is.
+   */
+  function buildCrewSide(i) {
+    const root = $("side-" + i);
+    root.classList.remove("doubles");
+    root.classList.add("crew");
+    const charBtn = button("char empty");
+    const img = h("img");
+    img.alt = "";
+    charBtn.append(img);
+    charBtn.addEventListener("click", () => openPicker(i, 0));
+    const port = h("span", "port");
+    const charWrap = h("div", "char-wrap");
+    charWrap.append(charBtn, port);
+    const names = button("crew-names");
+    names.title = "The crew's roster — Crew tab";
+    names.addEventListener("click", () => showTab("crew"));
+    const crewName = h("span", "crew-sub");
+    const inName = h("span", "crew-in");
+    names.append(crewName, inName);
+    const row = h("div", "player");
+    row.append(charWrap, names);
+    const who = h("div", "who");
+    who.append(row);
+
+    const box = h("div", "score-box");
+    const dec = button("key", "−");
+    const score = h("output", "score", "0");
+    const inc = button("key", "+");
+    dec.addEventListener("click", () => bump(i, -1));
+    inc.addEventListener("click", () => bump(i, 1));
+    box.append(dec, score, inc);
+    root.replaceChildren(who, box);
+    sides[i] = {
+      crew: true, count: 1, doubles: false, crewName, inName, score, dec, inc,
+      players: [{ charBtn, img, port, prefix: null, tag: null }],
+      decTitle: "Take a stock from the player in", incTitle: "Give the player in a stock back",
+    };
+    applyKeyHints();
+  }
+
+  function renderCrewSide(i, side, team, stocksEach) {
+    const s = sides[i];
+    const m = team.members.find((x) => x.status === "active") || null;
+    s.crewName.textContent = team.name;
+    s.inName.textContent = m ? m.tag : "Nobody in — tap to send someone";
+    s.inName.classList.toggle("none", !m);
+    const ui = s.players[0];
+    const ch = m ? side.players[0] && side.players[0].character : null;
+    const url = ch ? icon(ch) : null;
+    ui.charBtn.classList.toggle("empty", !url);
+    if (url && ui.img.getAttribute("src") !== url) ui.img.src = url;
+    ui.charBtn.disabled = !m;
+    ui.charBtn.title = !m ? "Send someone in first" : ch ? `${ch.name} — change` : "Pick a character";
+    s.score.textContent = String(team.total);
+    s.dec.disabled = !m;
+    s.inc.disabled = !m || m.stocks >= stocksEach;
+  }
+
   const renderStrip = guard("strip", () => {
     if (!sb) return;
+    const crew = sb.crew || null;
+    $("strip").classList.toggle("crew", !!crew);
     const edited = sb.overrides || {};
 
     setField($("round"), sb.round || "");
@@ -568,7 +634,8 @@
     $("btn-text-auto").classList.toggle("show", anyEdit);
 
     const ref = [];
-    if (!sb.setId) ref.push("Manual set");
+    if (crew) ref.push(`Crew battle · ${crew.stocksEach} stock${crew.stocksEach === 1 ? "" : "s"} each`);
+    else if (!sb.setId) ref.push("Manual set");
     else if (sb.isPreview) ref.push("Preview set");
     else ref.push(`Set ${sb.identifier || sb.setId}`);
     if (sb.isReset) ref.push("Reset");
@@ -581,8 +648,12 @@
     mode.setAttribute("aria-pressed", String(doubles));
 
     sb.sides.forEach((side, i) => {
+      if (crew) {
+        if (!sides[i] || !sides[i].crew) buildCrewSide(i);
+        return renderCrewSide(i, side, crew.teams[i], crew.stocksEach);
+      }
       const count = doubles ? side.players.length : 1;
-      if (!sides[i] || sides[i].count !== count || sides[i].doubles !== doubles) buildSide(i, count, doubles);
+      if (!sides[i] || sides[i].crew || sides[i].count !== count || sides[i].doubles !== doubles) buildSide(i, count, doubles);
       const s = sides[i];
       s.lChip.classList.toggle("on", !!side.losers);
       s.lChip.classList.toggle("pinned", (edited.losers || [])[i] != null);
@@ -852,6 +923,7 @@
     // Read when looked at: neither changes on its own mid-set.
     if (name === "players" && !playersFetched) fetchPlayers();
     if (name === "setup") fetchSetup();
+    if (name === "crew" && !savedCrews) fetchSavedCrews();
   }
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
 
@@ -941,9 +1013,12 @@
 
       if (pendingLoad && pendingLoad.setId === set.setId) {
         const slot = h("div");
+        const score = sb.sides.map((s) => s.score).join("–");
         confirmIn(slot, {
-          html: rich("The set on the scoreboard is at ", { b: sb.sides.map((s) => s.score).join("–") }, ". Loading this replaces it."),
-          yes: "Load anyway",
+          html: sb.crew
+            ? rich("A crew battle is on the scoreboard (", { b: `${score} stocks` }, "). Loading this set ends it.")
+            : rich("The set on the scoreboard is at ", { b: score }, ". Loading this replaces it."),
+          yes: sb.crew ? "End it and load" : "Load anyway",
           onYes: () => loadSet(set),
           onNo: () => { pendingLoad = null; },
         });
@@ -958,9 +1033,9 @@
     if ((sb ? sb.setId : null) !== drawnLiveId) renderSets();
   }
 
-  /** One tap loads, except over a set that already has games on it. */
+  /** One tap loads, except over a set that already has games on it, or a crew battle. */
   function requestLoad(set) {
-    const scored = sb && sb.sides.some((s) => s.score > 0);
+    const scored = sb && (sb.crew || sb.sides.some((s) => s.score > 0));
     if (scored) {
       pendingLoad = set;
       renderSets();
@@ -1254,6 +1329,403 @@
     if (casterDraft) renderCastersDirty();
     else renderCasters();
   }
+
+  // ── Crew tab ────────────────────────────────────────────────────────────────
+  //
+  // Before a battle, the two crews are a draft kept in this browser, so a
+  // refresh doesn't lose ten typed tags, and loaded from or saved to the app's
+  // saved crews; Start sends them whole. During one, the rosters are the
+  // app's and every change goes at once — who's in, ± a stock, a tag fixed, a
+  // member added, moved or taken off. Those rows are rebuilt only when the
+  // members change, so a push never takes the focus from a tag being typed.
+
+  const CREW_DRAFT_KEY = "dock.crewDraft";
+  const MAX_CREW = 10;
+  const SIDE_NAMES = ["Left", "Right"];
+
+  const blankMember = () => ({ tag: "", prefix: "", pronoun: "", ref: null });
+  const blankCrew = () => ({ name: "", members: [blankMember()] });
+
+  function loadCrewDraft() {
+    try {
+      const d = JSON.parse(store(CREW_DRAFT_KEY) || "null");
+      if (d && Array.isArray(d.teams) && d.teams.length === 2) {
+        return {
+          stocksEach: Number(d.stocksEach) || 4,
+          teams: d.teams.map((t) => ({
+            name: String((t && t.name) || ""),
+            members: ((t && t.members) || []).slice(0, MAX_CREW).map((m) => ({ ...blankMember(), ...m, tag: String((m && m.tag) || "") })),
+          })),
+        };
+      }
+    } catch (_) { /* an unreadable copy: start blank */ }
+    return { stocksEach: 4, teams: [blankCrew(), blankCrew()] };
+  }
+
+  const crewDraft = loadCrewDraft();
+  const saveCrewDraft = () => store(CREW_DRAFT_KEY, JSON.stringify(crewDraft));
+
+  /** A draft crew's members as the app takes them: blank rows dropped. */
+  const draftMembers = (team) => team.members.filter((m) => m.tag.trim())
+    .map((m) => ({ tag: m.tag.trim(), prefix: m.prefix || "", pronoun: m.pronoun || "", ref: m.ref }));
+
+  /** A member's tag field: suggests from the whole player list (crews aren't entrants). */
+  function memberSuggest(input, pick) {
+    autocomplete(input, {
+      label: (p) => p.tag,
+      source: (text) => playerSuggestions(text, true),
+      caption: playerCaption,
+      render: playerItem,
+      pick,
+    });
+  }
+
+  const renderCrewTab = guard("crew", () => {
+    const live = !!(sb && sb.crew);
+    $("crew-setup").hidden = live;
+    $("crew-live").hidden = !live;
+    if (live) renderRosters();
+  });
+
+  // ── Crew tab: the draft ──
+
+  let savedCrews = null;   // /api/crews, A–Z; null until first read
+  let savedSelects = [];   // the draft cards' saved-crew pickers, refilled when the list changes
+
+  async function fetchSavedCrews() {
+    const r = await api("/api/crews");
+    if (!r.ok) return toast(`Couldn't read the saved crews: ${r.error}`, false);
+    setSavedCrews(r.crews);
+  }
+
+  function setSavedCrews(list) {
+    savedCrews = list || [];
+    savedSelects.forEach(fillSavedSelect);
+  }
+
+  function fillSavedSelect(picker) {
+    const { sel } = picker;
+    const was = sel.value;
+    const list = savedCrews || [];
+    const opt = (value, label) => {
+      const o = h("option", "", label);
+      o.value = value;
+      return o;
+    };
+    sel.replaceChildren(
+      opt("", !savedCrews ? "Saved crews…" : list.length ? `Saved crews (${list.length})…` : "No saved crews yet"),
+      ...list.map((c) => opt(c.name, `${c.name} · ${c.members.length}`)));
+    sel.value = list.some((c) => c.name === was) ? was : "";
+    picker.refresh();
+  }
+
+  /** The draft's two crews, rebuilt whole — on a load, an add, a move or a removal, never on a push. */
+  const renderCrewDraft = guard("crew draft", () => {
+    savedSelects = [];
+    $("crew-draft").replaceChildren(...crewDraft.teams.map(draftCard));
+    $("crew-stocks").value = String(crewDraft.stocksEach);
+  });
+
+  function draftCard(team, i) {
+    const card = h("div", `card crew-card s${i}`);
+    const head = h("div", "card-head");
+    const count = draftMembers(team).length;
+    head.append(h("span", "label", `${SIDE_NAMES[i]} crew`), h("span", "card-meta", count ? `${count} player${count === 1 ? "" : "s"}` : ""));
+
+    const name = h("input", "crew-name-in");
+    name.type = "text";
+    name.placeholder = "Crew name";
+    name.spellcheck = false;
+    name.maxLength = 40;
+    name.value = team.name;
+    name.addEventListener("input", () => { team.name = name.value; saveCrewDraft(); });
+
+    const list = h("div", "crew-members");
+    team.members.forEach((m, n) => list.append(draftRow(team, m, n)));
+    const add = key("+ Member", "ghost wide mini");
+    add.disabled = team.members.length >= MAX_CREW;
+    add.addEventListener("click", () => {
+      team.members.push(blankMember());
+      saveCrewDraft();
+      renderCrewDraft();
+      const tags = $("crew-draft").querySelectorAll(`.crew-card.s${i} .cm-tag`);
+      if (tags.length) tags[tags.length - 1].focus();
+    });
+    card.append(head, name, savedRow(i), list, add);
+    return card;
+  }
+
+  function draftRow(team, m, n) {
+    const row = h("div", "cm-row");
+    const tag = h("input", "cm-tag");
+    tag.type = "text";
+    tag.placeholder = "Tag";
+    tag.spellcheck = false;
+    tag.value = m.tag;
+    memberSuggest(tag, (p) => {
+      Object.assign(m, { tag: p.tag, prefix: p.prefix || "", pronoun: p.pronoun || "", ref: p.ref != null ? p.ref : null });
+      tag.value = p.tag;
+      saveCrewDraft();
+    });
+    // Typed over, it's no longer the player picked: the app looks the name up.
+    tag.addEventListener("input", () => {
+      Object.assign(m, { tag: tag.value, prefix: "", pronoun: "", ref: null });
+      saveCrewDraft();
+    });
+    const up = key("↑", "mini");
+    up.title = "Up one — the side panel lists them in this order";
+    up.disabled = n === 0;
+    up.addEventListener("click", () => {
+      [team.members[n - 1], team.members[n]] = [team.members[n], team.members[n - 1]];
+      saveCrewDraft();
+      renderCrewDraft();
+    });
+    const del = key("✕", "mini");
+    del.title = "Take off the crew";
+    del.addEventListener("click", () => {
+      team.members.splice(n, 1);
+      if (!team.members.length) team.members.push(blankMember());
+      saveCrewDraft();
+      renderCrewDraft();
+    });
+    const ops = h("div", "c-ops");
+    ops.append(up, del);
+    row.append(h("span", "c-num", String(n + 1)), tag, ops);
+    return row;
+  }
+
+  /** A side's saved-crew picker: Load into the draft, delete, and Save the draft under its name. */
+  function savedRow(i) {
+    const sel = h("select", "crew-saved-sel");
+    sel.title = "A saved crew";
+    const load = key("Load", "mini");
+    load.title = "Put this saved crew in the draft, in place of what's here";
+    const del = key("✕", "mini");
+    del.title = "Delete this saved crew";
+    const save = key("Save", "mini");
+    save.title = "Save this crew under its name — replaces a saved crew of the same name";
+    const picker = { sel, refresh: () => { load.disabled = !sel.value; del.disabled = !sel.value; } };
+    sel.addEventListener("change", picker.refresh);
+    savedSelects.push(picker);
+    fillSavedSelect(picker);
+
+    load.addEventListener("click", () => {
+      const c = (savedCrews || []).find((x) => x.name === sel.value);
+      if (!c) return;
+      crewDraft.teams[i] = { name: c.name, members: c.members.map((m) => ({ ...blankMember(), ...m })) };
+      saveCrewDraft();
+      renderCrewDraft();
+      toast(`${c.name} is the ${SIDE_NAMES[i].toLowerCase()} crew`, true);
+    });
+
+    const confirmSlot = h("div");
+    del.addEventListener("click", () => {
+      const name = sel.value;
+      if (!name) return;
+      confirmIn(confirmSlot, {
+        html: rich("Delete the saved crew ", { b: name }, "? The draft keeps what's in it."),
+        yes: "Delete",
+        onYes: async () => {
+          const r = await act("/api/crews/delete", { name }, `Deleted ${name}`, "Couldn't delete it");
+          if (r.ok) setSavedCrews(r.crews);
+        },
+      });
+    });
+
+    save.addEventListener("click", async () => {
+      const team = crewDraft.teams[i];
+      const body = { name: team.name.trim(), members: draftMembers(team) };
+      const r = await act("/api/crews/save", body, (x) => `${x.replaced ? "Updated" : "Saved"} ${body.name}`, "Couldn't save the crew");
+      if (r.ok) setSavedCrews(r.crews);
+    });
+
+    const row = h("div", "crew-saved-row");
+    row.append(sel, load, del, save);
+    const wrap = h("div", "crew-saved");
+    wrap.append(row, confirmSlot);
+    return wrap;
+  }
+
+  $("crew-stocks").addEventListener("change", () => {
+    crewDraft.stocksEach = Number($("crew-stocks").value) || 4;
+    saveCrewDraft();
+  });
+
+  // Over a set with games, it asks first: starting replaces it, unreported.
+  $("btn-crew-start").addEventListener("click", () => {
+    const body = {
+      stocksEach: crewDraft.stocksEach,
+      teams: crewDraft.teams.map((t) => ({ name: t.name.trim(), members: draftMembers(t) })),
+    };
+    const go = () => act("/api/crew/start", body, "Crew battle on — send a player in from each crew", "Couldn't start it");
+    if (!sb || !sb.sides.some((s) => s.score > 0)) return go();
+    confirmIn($("crew-start-confirm"), {
+      html: rich("The set on the scoreboard is at ", { b: sb.sides.map((s) => s.score).join("–") },
+        ". Starting the crew battle replaces it — nothing is reported."),
+      yes: "Start anyway",
+      onYes: go,
+    });
+  });
+
+  // ── Crew tab: the battle ──
+
+  const rosterUi = [null, null]; // per side: { key, card, nameIn, left, rows, add }
+
+  const memberBody = (m) => ({ id: m.id, tag: m.tag, prefix: m.prefix, pronoun: m.pronoun });
+
+  /** A roster edit, built on the roster as the app has it now. */
+  function sendRoster(i, { name, members }) {
+    const team = sb && sb.crew ? sb.crew.teams[i] : null;
+    if (!team) return Promise.resolve({ ok: false, error: "No crew battle on the scoreboard" });
+    return api("/api/crew/roster", { side: i, name: name != null ? name : team.name, members: members || team.members.map(memberBody) });
+  }
+
+  /** The roster with member n changed (or, with a function, rearranged), toasting a refusal. */
+  async function rosterChange(i, change, failLabel) {
+    const team = sb && sb.crew ? sb.crew.teams[i] : null;
+    if (!team) return { ok: false };
+    const r = await sendRoster(i, { members: change(team.members.map(memberBody)) });
+    if (!r.ok && failLabel) toast(`${failLabel}: ${r.error}`, false);
+    return r;
+  }
+
+  function renderRosters() {
+    const crew = sb.crew;
+    crew.teams.forEach((team, i) => {
+      const k = team.members.map((m) => m.id).join(",");
+      if (!rosterUi[i] || rosterUi[i].key !== k) buildRoster(i, team, k);
+      const ui = rosterUi[i];
+      setField(ui.nameIn, team.name);
+      ui.left.textContent = `${team.total} stock${team.total === 1 ? "" : "s"} left`;
+      ui.add.disabled = team.members.length >= MAX_CREW;
+      team.members.forEach((m, n) => {
+        const r = ui.rows[n];
+        r.row.className = "cm-row live " + m.status;
+        setField(r.tag, m.tag);
+        const isIn = m.status === "active";
+        r.inBtn.classList.toggle("lit", isIn);
+        r.inBtn.disabled = m.status === "out";
+        r.inBtn.title = isIn ? `${m.tag} is in — tap to take them out of the game` : m.status === "out" ? `${m.tag} is out` : `Send ${m.tag} in`;
+        r.stocks.textContent = String(m.stocks);
+        r.dec.disabled = m.stocks <= 0;
+        r.inc.disabled = m.stocks >= crew.stocksEach;
+        r.del.disabled = m.played || isIn || m.stocks !== crew.stocksEach;
+        r.del.title = r.del.disabled ? "Has played — stays on the roster" : "Take off the crew";
+      });
+    });
+  }
+
+  function buildRoster(i, team, k) {
+    const head = h("div", "card-head");
+    const nameIn = h("input", "crew-name-in");
+    nameIn.type = "text";
+    nameIn.placeholder = "Crew name";
+    nameIn.spellcheck = false;
+    nameIn.maxLength = 40;
+    bindField(nameIn, (v) => sendRoster(i, { name: v }));
+    const left = h("span", "card-meta crew-left");
+    head.append(nameIn, left);
+
+    const list = h("div", "crew-members");
+    const rows = team.members.map((m, n) => {
+      const r = liveRow(i, n);
+      list.append(r.row);
+      return r;
+    });
+
+    // A new member: picked from the suggestions, or typed and Enter.
+    const add = h("input", "cm-add");
+    add.type = "text";
+    add.placeholder = "+ Add a member";
+    add.spellcheck = false;
+    const addMember = async (fields) => {
+      add.value = "";
+      const r = await rosterChange(i, (ms) => [...ms, fields], "Couldn't add them");
+      if (!r.ok) add.value = fields.tag;
+    };
+    memberSuggest(add, (p) => addMember({ tag: p.tag, prefix: p.prefix || "", pronoun: p.pronoun || "", ref: p.ref }));
+    add.addEventListener("keydown", (e) => {
+      if (e.defaultPrevented || e.key !== "Enter" || !add.value.trim()) return;
+      addMember({ tag: add.value.trim(), prefix: "", pronoun: "" });
+    });
+
+    // Each side keeps its card, so a rebuild of one never moves the other
+    // (and the focus with it).
+    let card = rosterUi[i] && rosterUi[i].card;
+    if (!card) {
+      card = h("div", `card crew-card live s${i}`);
+      $("crew-rosters").append(card);
+    }
+    card.replaceChildren(head, list, add);
+    rosterUi[i] = { key: k, card, nameIn, left, rows, add };
+  }
+
+  /** Member n of side i's row. Its keys read the member when pressed — the row outlives a push. */
+  function liveRow(i, n) {
+    const cur = () => (sb && sb.crew ? sb.crew.teams[i].members[n] : null);
+    const row = h("div", "cm-row live");
+
+    const inBtn = key("In", "mini cm-in");
+    inBtn.addEventListener("click", () => {
+      const m = cur();
+      if (m) act("/api/crew/pick", { side: i, id: m.status === "active" ? null : m.id }, null, "Couldn't send them in");
+    });
+
+    const tag = h("input", "cm-tag");
+    tag.type = "text";
+    tag.placeholder = "Tag";
+    tag.spellcheck = false;
+    // A pick is that player; a typed change is someone the app looks up,
+    // unless it only fixes the capitalisation.
+    const setMember = (fields) => rosterChange(i, (ms) => ms.map((x, j) => (j === n ? { ...x, ...fields } : x)));
+    memberSuggest(tag, (p) => commitPick(tag, p.tag, () =>
+      setMember({ tag: p.tag, prefix: p.prefix || "", pronoun: p.pronoun || "", ref: p.ref })));
+    bindField(tag, (v) => {
+      const m = cur();
+      const same = !!m && m.tag.toLowerCase() === v.toLowerCase();
+      return setMember(same ? { tag: v } : { tag: v, prefix: "", pronoun: "" });
+    });
+
+    const dec = key("−", "mini");
+    dec.title = "Take a stock away";
+    const stocks = h("output", "cm-stocks", "");
+    const inc = key("+", "mini");
+    inc.title = "Give a stock back";
+    const stock = (delta) => {
+      const m = cur();
+      if (m) act("/api/crew/stock", { side: i, id: m.id, delta }, null, "Stock change failed");
+    };
+    dec.addEventListener("click", () => stock(-1));
+    inc.addEventListener("click", () => stock(1));
+    const box = h("div", "cm-stock-box");
+    box.append(dec, stocks, inc);
+
+    const up = key("↑", "mini");
+    up.title = "Up one — the side panel lists them in this order";
+    up.disabled = n === 0;
+    up.addEventListener("click", () => rosterChange(i, (ms) => {
+      [ms[n - 1], ms[n]] = [ms[n], ms[n - 1]];
+      return ms;
+    }, "Couldn't move them"));
+    const del = key("✕", "mini");
+    del.addEventListener("click", () => rosterChange(i, (ms) => ms.filter((_, j) => j !== n), "Couldn't take them off"));
+    const ops = h("div", "c-ops");
+    ops.append(up, del);
+
+    row.append(inBtn, tag, box, ops);
+    return { row, inBtn, tag, stocks, dec, inc, del };
+  }
+
+  $("btn-crew-end").addEventListener("click", () => {
+    if (!sb || !sb.crew) return;
+    confirmIn($("crew-end-confirm"), {
+      html: rich("End the crew battle at ", { b: sb.crew.teams.map((t) => `${t.name} ${t.total}`).join(" – ") }, "? The scoreboard goes blank."),
+      yes: "End it",
+      onYes: () => act("/api/crew/end", {}, "Crew battle over — the scoreboard is blank", "Couldn't end it"),
+    });
+  });
+
+  $("btn-crew").addEventListener("click", () => showTab("crew"));
 
   // ── Players tab ─────────────────────────────────────────────────────────────
 
@@ -1660,8 +2132,8 @@
     }
     sides.forEach((s, i) => {
       if (!s) return;
-      s.inc.title = hint("Give this side a game", i === 0 ? "leftPlus" : "rightPlus");
-      s.dec.title = hint("Take a game away", i === 0 ? "leftMinus" : "rightMinus");
+      s.inc.title = hint(s.incTitle || "Give this side a game", i === 0 ? "leftPlus" : "rightPlus");
+      s.dec.title = hint(s.decTitle || "Take a game away", i === 0 ? "leftMinus" : "rightMinus");
     });
   }
 
@@ -1821,6 +2293,7 @@
     sb = now;
     renderStrip();
     renderPicker();
+    renderCrewTab();
     // The Players tab with no search lists who's on the scoreboard; it follows
     // a new set, unless a player is open in the editor.
     const who = sb ? sb.sides.map((s) => s.players.map((p) => `${p.playerId}:${p.tag}`).join(",")).join("|") : "";
@@ -1864,6 +2337,8 @@
     renderSetup();
   });
   ov.on("clip:error", (c) => toast(`Clip failed: ${(c && c.error) || "OBS didn't save it"}`, false));
+  // A crew game that changed no stocks, or started with a side nobody sent in for.
+  ov.on("crew:notice", (n) => toast((n && n.text) || "Crew battle: check the stocks", !!(n && n.ok)));
 
   if (ov.socket) {
     ov.socket.on("connect", () => document.body.classList.remove("offline"));
@@ -1881,6 +2356,8 @@
   }, 3000);
 
   renderCasters();
+  renderCrewDraft();
+  renderCrewTab();
   showTab(store(TAB_KEY));
   // The strip's keys carry the bound chords in their titles.
   if (!$("panel-setup").classList.contains("on")) fetchSetup();
@@ -1896,6 +2373,8 @@
     get sets() { return sets; },
     get players() { return players; },
     get casterDraft() { return casterDraft; },
+    get crewDraft() { return crewDraft; },
+    get savedCrews() { return savedCrews; },
     get setup() { return setup; },
     openPicker, openPinPicker, closePicker, pick, fetchSets, fetchPlayers, fetchSetup, showTab, CLIP_FIELDS,
   };

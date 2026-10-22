@@ -84,10 +84,13 @@ function createPlayerStats(ctx, opts = {}) {
 
   const START_GG_ID = /^[1-9]\d*$/;
 
-  /** What the scoreboard shows: the singles pair (if any) and the loaded event. */
+  /**
+   * What the scoreboard shows: the singles pair (if any) and the loaded event.
+   * A crew battle has no pair to look up: its side panel shows the rosters.
+   */
   function readTarget() {
     const sb = scoreboard.scoreboard();
-    const players = sb.isDoubles
+    const players = sb.isDoubles || sb.crew
       ? []
       : sb.sides.map((side) => side.players[0])
         .filter((p) => START_GG_ID.test(String(p?.playerId ?? "")))

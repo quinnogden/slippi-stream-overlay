@@ -47,6 +47,7 @@ const { CSS_ORDER, CHAR_MAP } = require("../app/lib/char_map");
 const { eventFrom } = require("./helpers/fake-startgg");
 const { loadOverlay, fakeIo, texts, sleep, fire } = require("./helpers/overlay-sandbox");
 const { activeThemePack } = require("../app/lib/server/api/setup");
+const { SavedCrews } = require("../app/lib/crew/saved-crews");
 
 const ROOT = path.resolve(__dirname, "..");
 const PUBLIC = path.join(ROOT, "app", "public");
@@ -165,6 +166,7 @@ async function rig() {
     store,
     event,
     playerDb: db,
+    savedCrews: new SavedCrews(path.join(TMP, `crews-${dbNo}.json`)),
     setupInfo: () => SETUP,
     overlaysDir: THEME_DIR,
     emit: channel.emit,
@@ -882,6 +884,84 @@ async function rig() {
       fire(r.button(r.page.$("#clear-confirm"), "Singles"), "click");
       await until(() => !r.store.scoreboard().isDoubles, "singles");
       await until(() => r.side(0).querySelector(".char"), "the characters are back");
+    } finally { r.close(); }
+  });
+
+  await test("crew battle: drafted, saved and started from the Crew tab; the strip and the rosters run it", async () => {
+    const r = await rig();
+    try {
+      r.store.loadSet(fresh(LOSERS_FINAL));
+      r.store.recordGame({ winnerSide: 0 });
+      await until(() => r.scoreText(0) === "1", "a set with a game on it");
+      r.Dock.showTab("crew");
+      await until(() => r.Dock.savedCrews, "the saved crews read");
+      const card = (i) => r.page.$(`#crew-draft .crew-card.s${i}`);
+      const type = (el, v) => { el.value = v; fire(el, "input"); };
+
+      // The draft: typed tags — the app fills in what the player list knows.
+      type(card(0).querySelector(".crew-name-in"), "ACRES");
+      type(card(0).querySelector(".cm-tag"), "Player2");
+      fire(r.button(card(0), "+ Member"), "click");
+      type(card(0).querySelectorAll(".cm-tag")[1], "Zodd");
+      type(card(1).querySelector(".crew-name-in"), "SALTY");
+      type(card(1).querySelector(".cm-tag"), "Commentator");
+      fire(r.button(card(0), "Save"), "click");
+      await until(() => (r.Dock.savedCrews || []).length === 1, "the left crew saved");
+      assert.deepStrictEqual(JSON.parse(JSON.stringify(r.Dock.savedCrews[0].members.map((m) => m.tag))), ["Player2", "Zodd"]);
+
+      // Over a set with a game, Start asks first.
+      fire(r.page.$("#btn-crew-start"), "click");
+      assert.match(texts(r.page.$("#crew-start-confirm")).join(""), /1–0/);
+      fire(r.button(r.page.$("#crew-start-confirm"), "Start anyway"), "click");
+      await until(() => r.store.scoreboard().crew, "the crew battle on the scoreboard");
+      const crew = r.store.scoreboard().crew;
+      assert.deepStrictEqual([crew.teams[0].members[0].prefix, crew.teams[0].members[0].icon.codename, crew.teams[0].members[0].icon.skin],
+        ["Team1", "fox", 2], "the player list's prefix and main");
+      assert.strictEqual(crew.teams[1].members[0].pronoun, "he/him");
+
+      // The strip: crews, stocks, nobody in.
+      await until(() => r.page.$("#strip").classList.contains("crew"), "the strip in crew mode");
+      await until(() => r.page.$("#crew-setup").hidden, "the draft put away");
+      assert.strictEqual(r.side(0).querySelector(".crew-sub").textContent, "ACRES");
+      assert.match(r.side(0).querySelector(".crew-in").textContent, /Nobody in/);
+      assert.strictEqual(r.scoreText(0), "8");
+      assert.ok(r.keys(0)[0].disabled && r.keys(0)[1].disabled, "± with nobody in");
+      const post = (route, body) => fetch(r.base + route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      assert.strictEqual((await post("/api/score", { side: 1, delta: -1 })).status, 409, "a stock taken from nobody");
+      assert.strictEqual((await post("/api/player", { side: 0, tag: "Typed" })).status, 409, "a name typed over a crew");
+
+      // Sent in from the roster; the strip's − is his stock.
+      const row = (i, n) => r.page.$(`#crew-rosters .crew-card.s${i}`).querySelectorAll(".cm-row")[n];
+      await until(() => row(0, 0), "the rosters drawn");
+      fire(r.button(row(0, 0), "In"), "click");
+      await until(() => r.side(0).querySelector(".crew-in").textContent === "Player2", "Player2 in on the strip");
+      assert.ok(row(0, 0).classList.contains("active"));
+      fire(r.keys(0)[0], "click");
+      await until(() => r.scoreText(0) === "7", "a stock off the left");
+      assert.strictEqual(row(0, 0).querySelector(".cm-stocks").textContent, "3");
+      assert.ok(r.button(row(0, 0), "✕").disabled, "someone who has played can't be taken off");
+      assert.ok(!r.button(row(0, 1), "✕").disabled);
+
+      // A crew game the app couldn't apply is said in the dock.
+      r.channel.emit("crew_notice", { ok: false, text: "Game started — nobody sent in for SALTY. Pick them before it ends" });
+      assert.match(r.page.$("#toast").textContent, /nobody sent in for SALTY/);
+
+      // Ended: a blank scoreboard, and the draft back as it was.
+      fire(r.page.$("#btn-crew-end"), "click");
+      fire(r.button(r.page.$("#crew-end-confirm"), "End it"), "click");
+      await until(() => !r.store.scoreboard().crew, "the battle ended");
+      await until(() => !r.page.$("#strip").classList.contains("crew"), "the strip back to a set");
+      assert.strictEqual(r.tagInput(0).value, "", "the scoreboard is blank");
+      assert.ok(!r.page.$("#crew-setup").hidden);
+      assert.strictEqual(card(0).querySelector(".crew-name-in").value, "ACRES");
+
+      // A saved crew loads into either side.
+      const sel = card(1).querySelector(".crew-saved-sel");
+      sel.value = "ACRES";
+      fire(sel, "change");
+      fire(r.button(card(1), "Load"), "click");
+      assert.strictEqual(r.Dock.crewDraft.teams[1].name, "ACRES");
+      assert.strictEqual(card(1).querySelectorAll(".cm-tag").length, 2);
     } finally { r.close(); }
   });
 

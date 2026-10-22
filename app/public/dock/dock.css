@@ -540,6 +540,29 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 .strip-tools { display: flex; gap: 5px; }
 .strip-tools .key { flex: 1 1 0; }
 
+/* A crew battle: no doubles, best-of or [L], and nothing to clear — the
+   crews are run, and ended, from the Crew tab. Its chip takes Doubles' place. */
+.strip.crew #btn-doubles, .strip.crew #best-of, .strip.crew .strip-tools { display: none; }
+.strip:not(.crew) #btn-crew { display: none; }
+.side.crew { grid-template-columns: minmax(0, 1fr) auto; }
+/* The crew over whoever is in; a tap opens the Crew tab. */
+.crew-names {
+  display: grid;
+  min-width: 0;
+  padding: 1px 5px;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.crew-names:hover { border-color: var(--d-line-2); }
+.crew-sub, .crew-in { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crew-sub { font-size: 12px; color: var(--d-ink-dim); }
+.crew-in { font: 600 18px/1.2 var(--d-text); }
+.crew-in.none { font: 400 13px/1.5 var(--d-text); color: var(--d-amber); }
+
 .strip-hint { font-size: 12px; color: var(--d-ink-dim); min-height: 1em; }
 .strip-hint:empty { display: none; }
 #report-confirm:empty, #clear-confirm:empty { display: none; }
@@ -568,13 +591,13 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
   border: 1px solid var(--d-line);
   border-radius: 9px;
 }
-/* Six fit one row down to an OBS dock's ~400px; below that they wrap. */
+/* Seven fit one row down to an OBS dock's ~400px; below that they wrap. */
 .tab {
-  flex: 1 1 54px;
+  flex: 1 1 48px;
   min-height: 38px;
-  padding: 0 4px;
+  padding: 0 2px;
   font: 700 14px/1 var(--d-sign);
-  letter-spacing: .12em;
+  letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--d-ink-dim);
   background: transparent;
@@ -786,6 +809,67 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 /* Edits that aren't on stream yet look it. */
 #casters-card.dirty { border-color: rgba(255, 176, 32, .55); }
 #casters-card.dirty #casters-stamp { color: var(--d-amber); }
+
+/* ── Crew ── */
+
+/* The two crews side by side when there's room, stacked in an OBS dock. */
+.crew-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.crew-cols .card { margin-bottom: 0; }
+/* Which column of the scoreboard each crew is in, marked as the strip marks it. */
+.crew-card { border-left: 3px solid var(--d-left); }
+.crew-card.s1 { border-left-color: var(--d-right); }
+
+.crew-name-in, .crew-saved-sel, .cm-tag, .cm-add {
+  width: 100%;
+  min-width: 0;
+  color: var(--d-ink);
+  background: var(--d-well);
+  border: 1px solid var(--d-line);
+  border-radius: 5px;
+  outline: none;
+}
+.crew-name-in:focus, .crew-saved-sel:focus, .cm-tag:focus, .cm-add:focus { border-color: rgba(var(--d-accent-rgb), .9); }
+.crew-name-in {
+  min-height: 36px;
+  padding: 6px 8px;
+  font: 700 17px/1.1 var(--d-sign);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.crew-card.live .card-head .crew-name-in { flex: 1 1 auto; }
+.crew-left { flex: none; color: var(--d-accent); font-size: 13px; }
+
+.crew-saved-row { display: flex; gap: 5px; margin-top: 8px; }
+.crew-saved-sel { flex: 1 1 auto; width: auto; min-height: 28px; padding: 2px 6px; font-size: 13px; }
+.crew-saved-sel option { background: var(--d-panel); color: var(--d-ink); }
+.crew-saved .confirm { margin-top: 8px; }
+
+.crew-members { display: grid; gap: 5px; margin: 10px 0 8px; }
+.cm-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.cm-row .c-num { font-size: 14px; line-height: 30px; }
+.cm-row .c-ops { display: flex; gap: 4px; }
+.cm-tag, .cm-add { min-height: 30px; padding: 4px 7px; font: 600 15px/1.2 var(--d-text); }
+.cm-add { font-weight: 400; border-style: dashed; }
+
+/* During a battle: In, the tag, − stocks +, then ↑ ✕. */
+.cm-row.live {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+.cm-in { min-width: 40px; }
+.cm-stock-box { display: flex; align-items: center; gap: 3px; }
+.cm-stock-box .key { min-width: 28px; padding: 0; font-family: var(--d-mono); font-size: 15px; }
+.cm-stocks { min-width: 20px; text-align: center; font: 700 17px/1 var(--d-mono); color: var(--d-accent); }
+/* In, still to play, out — as the side panel shows them. */
+.cm-row.active { border-color: rgba(var(--d-accent-rgb), .7); background: rgba(var(--d-accent-rgb), .08); }
+.cm-row.out .cm-tag, .cm-row.out .cm-stocks { color: var(--d-ink-faint); text-decoration: line-through; }
 
 /* ── Players ── */
 

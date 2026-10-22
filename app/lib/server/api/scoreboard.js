@@ -24,6 +24,9 @@ const isIndex = (v) => Number.isInteger(v) && v >= 0 && v < 4;
 /** The same name, give or take capitalisation and spaces at the ends. */
 const sameName = (a, b) => String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
 
+/** The refusal for a name or singles/doubles change during a crew battle: the sides are the crews'. */
+const CREW_SIDES = "Crew battle — edit the roster in the Crew tab";
+
 /**
  * The picker's characters in Melee's character-select order, each with how
  * many costumes have an icon. Counted once from the icons folder — the icons
@@ -71,9 +74,14 @@ function register(app, deps) {
   });
 
   // { side, delta: 1 | -1 } adds or removes a game; { side, score } sets it outright.
+  // In a crew battle ± is one stock for the side's active player (store.bump),
+  // and there's no score to set.
   app.post("/api/score", (req, res) => {
     const { side, delta, score } = req.body ?? {};
     if (!isSide(side)) return bad(res, "side must be 0 or 1");
+    const crew = store.isCrew() ? store.scoreboard().crew : null;
+    if (crew && delta !== 1 && delta !== -1) return bad(res, "In a crew battle ± moves the active player's stocks", 409);
+    if (crew && crew.active[side] == null) return bad(res, `Nobody sent in for ${crew.teams[side].name}`, 409);
     if (delta === 1 || delta === -1) store.bump(side, delta);
     else if (Number.isInteger(score) && score >= 0 && score <= 9) store.setScore(side, score);
     else return bad(res, "send delta (1 or -1) or score (0-9)");
@@ -92,6 +100,7 @@ function register(app, deps) {
   app.post("/api/player", (req, res) => {
     const { side, index = 0, ...rest } = req.body ?? {};
     if (!isSide(side) || !isIndex(index)) return bad(res, "side (0|1) and index (0-3) required");
+    if (store.isCrew()) return bad(res, CREW_SIDES, 409);
     const fields = {};
     for (const k of ["tag", "prefix", "pronoun"]) {
       if (rest[k] === undefined) continue;
@@ -150,6 +159,7 @@ function register(app, deps) {
 
   // Back to 0–0 on the set that's loaded (Ctrl+Shift+0 does the same).
   app.post("/api/clear-score", (req, res) => {
+    if (store.isCrew()) return bad(res, "A crew battle's stocks are fixed one at a time in the Crew tab", 409);
     store.clearScore();
     refreshControlStatus();
     res.json({ ok: true });
@@ -160,6 +170,7 @@ function register(app, deps) {
   app.post("/api/doubles", (req, res) => {
     const on = req.body?.on;
     if (typeof on !== "boolean") return bad(res, "on must be true or false");
+    if (store.isCrew()) return bad(res, CREW_SIDES, 409);
     store.setDoubles(on);
     refreshControlStatus();
     res.json({ ok: true, doubles: on });
@@ -220,4 +231,4 @@ function register(app, deps) {
   });
 }
 
-module.exports = { register, characterList, pickCharacter, sameName, bad, isSide, isIndex };
+module.exports = { register, characterList, pickCharacter, sameName, bad, isSide, isIndex, CREW_SIDES };
