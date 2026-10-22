@@ -72,11 +72,11 @@ function rig() {
   return { ...ctx, modes, emitted, notices };
 }
 
-/** ACRES (Zodd on Fox, Redd on Falco) vs SALTY (Nav on Marth, Yung John on Sheik). */
+/** ACRES (HA Zodd on Fox, Redd on Falco) vs SALTY (Nav on Marth, Yung John on Sheik). */
 const BATTLE = (stocksEach = 4) => ({
   stocksEach,
   teams: [
-    { name: "ACRES", members: [{ tag: "Zodd", main: char("fox") }, { tag: "Redd", main: char("falco") }] },
+    { name: "ACRES", members: [{ tag: "Zodd", prefix: "HA", main: char("fox") }, { tag: "Redd", main: char("falco") }] },
     { name: "SALTY", members: [{ tag: "Nav", main: char("marth") }, { tag: "Yung John", main: char("sheik") }] },
   ],
 });
@@ -112,12 +112,13 @@ test("starting a crew battle replaces the set: it closes, and the scoreboard sho
   assert.deepStrictEqual(sb.crew.active, [null, null], "nobody goes in by themselves");
 });
 
-test("sent in: the player's tag with the crew's name as the prefix, on their main until Slippi says", () => {
+test("sent in: the player's own sponsor and tag (the crew's name is the team name), on their main until Slippi says", () => {
   const { store } = rig();
   store.startCrew(BATTLE());
   pick(store, 0, "Zodd");
   const p = sbOf(store).sides[0].players[0];
-  assert.deepStrictEqual([p.prefix, p.tag, p.playerId], ["ACRES", "Zodd", null]);
+  assert.deepStrictEqual([p.prefix, p.tag, p.playerId], ["HA", "Zodd", null]);
+  assert.strictEqual(sbOf(store).sides[0].teamName, "ACRES");
   assert.strictEqual(p.character.codename, "fox");
   assert.strictEqual(member(store, 0, "Zodd").status, "active");
   assert.strictEqual(sbOf(store).sides[1].players[0].tag, "SALTY");
@@ -249,7 +250,7 @@ test("a live roster edit: renamed, reordered, a member added — and someone who
   assert.ok(store.crewRoster(0, { name: "Acres", members: [redd, zodd, { tag: "Ploob" }] }).ok);
   assert.deepStrictEqual(crew().members.map((m) => [m.tag, m.stocks]), [["Redd", 4], ["Zodd", 3], ["Ploob", 4]]);
   assert.strictEqual(scores(store)[0], 11);
-  assert.strictEqual(sbOf(store).sides[0].players[0].prefix, "Acres");
+  assert.strictEqual(sbOf(store).sides[0].teamName, "Acres");
   const r = store.crewRoster(0, { name: "Acres", members: body().filter((m) => m.tag !== "Zodd") });
   assert.deepStrictEqual(r, { ok: false, error: "Zodd has played — they stay on the roster" });
   assert.ok(store.crewRoster(0, { name: "Acres", members: body().filter((m) => m.tag !== "Ploob") }).ok, "an untouched member can go");

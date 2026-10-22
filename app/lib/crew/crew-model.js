@@ -206,16 +206,17 @@ function flip(crew) {
 }
 
 /**
- * What a side of the scoreboard shows: the active member, with the crew's name
- * where a sponsor prefix goes — or, with nobody sent in, the crew's name alone
- * (in the tag: the overlay hides a name with no tag).
+ * What a side of the scoreboard shows: the active member, with their own
+ * sponsor prefix (the scoreboard puts the crew's name in a chip of its own) —
+ * or, with nobody sent in, the crew's name alone (in the tag: the overlay
+ * hides a name with no tag).
  * @param {object|null} liveCharacter — the character the store holds for the side (Slippi's, mid-game)
  */
 function sideView(crew, side, liveCharacter) {
   const team = crew.teams[side];
   const m = activeOf(crew, side);
   const player = m
-    ? { playerId: null, tag: m.tag, prefix: team.name, pronoun: m.pronoun, main: m.character ?? m.main, character: liveCharacter ?? null }
+    ? { playerId: null, tag: m.tag, prefix: m.prefix, pronoun: m.pronoun, main: m.character ?? m.main, character: liveCharacter ?? null }
     : { playerId: null, tag: team.name, prefix: "", pronoun: "", main: null, character: null };
   return { entrantId: null, seed: null, teamName: team.name, color: null, fromLosers: false, players: [player] };
 }

@@ -23,7 +23,7 @@
  * A crew battle is a set too: one with `crew` (lib/crew/crew-model.js) and no
  * start.gg link. Loading or clearing a set ends it, by construction. While it
  * is on, the scoreboard's sides are derived from it — each side's active
- * player, the crew's name as their prefix, and the crew's stocks left as the
+ * player, the crew's name as the team name, and the crew's stocks left as the
  * score — so everything that reads the sides (the overlays, the port map,
  * clips) works unchanged, and the game list stays empty: a game end applies
  * stocks instead (crewApplyGame), and ± moves the active player's stocks.

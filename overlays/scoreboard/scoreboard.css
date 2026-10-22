@@ -197,6 +197,22 @@ body {
     inset 0 1px 0 rgba(255,255,255,0.06);
 }
 
+/* A crew battle's crew: the pronoun's chip, pushed to the inner end of the
+   row (under the score). A long name ends in an ellipsis rather than reach
+   the pronoun. */
+.chip.crew       { min-width: 0; }
+.p1 .chip.crew   { margin-left: auto; }
+.p2 .chip.crew   { margin-right: auto; }   /* the row runs right to left */
+
+.chip.crew .text {
+  display:       block;
+  max-width:     320px;
+  line-height:   24px;
+  white-space:   nowrap;
+  overflow:      hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── Logo (players.html) ─────────────────────────────────── */
 .logo {
   position: absolute;

@@ -60,7 +60,7 @@ Built by `scoreboard()` in [lib/scoreboard/store.js](../app/lib/scoreboard/store
 **A crew battle is a set with `crew`** ([lib/crew/crew-model.js](../app/lib/crew/crew-model.js)). Starting one replaces the set on the scoreboard (`set-closing`, then `set-loaded`), and a set load or Clear set ends it. While it's on, everything a reader already uses is derived from it, so the scoreboard overlay, the port map and the dock's names need no crew branch:
 
 - `sides[i].score` is the crew's **stocks left**; `games` stays empty (a crew game moves stocks, it isn't recorded).
-- `sides[i].players[0]` is the player in, with the **crew's name as the `prefix`**, their pronoun, `main` = what they last played else their DB main, the live `character`, and `playerId: null` (no stats are fetched). With nobody in, it's `{ tag: <crew name>, prefix: "" }` — in the tag, because the scoreboard hides a name with no tag. `teamName` is the crew's name.
+- `sides[i].players[0]` is the player in, with their own sponsor `prefix` and pronoun, `main` = what they last played else their DB main, the live `character`, and `playerId: null` (no stats are fetched). With nobody in, it's `{ tag: <crew name>, prefix: "" }` — in the tag, because the scoreboard hides a name with no tag. `teamName` is the crew's name; the scoreboard overlay draws it from `crew` in a chip under the player in (none with nobody in — the name card is the crew's name then).
 - `round` is `"Crew Battle"` unless overridden; `bestOfLabel` is `""`; `isDoubles` is `false`; `losers` are both `false`; `setId` is `null`.
 
 ```js

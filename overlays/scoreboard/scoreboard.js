@@ -24,7 +24,7 @@
   const ROUND_MIN_PX = 12; // below this the round stops being legible on stream
 
   ov.select("scoreboard", (sb) => {
-    sb.sides.forEach((side, i) => drawSide(sides[i], side, sb.isDoubles));
+    sb.sides.forEach((side, i) => drawSide(sides[i], side, sb.isDoubles, crewChip(sb.crew, i)));
     drawRound(sb.round || "");
     // The dock's "None" is an empty label, which hides the pill entirely.
     text(q(bestOfPill, ".text"), sb.bestOfLabel || "", { emptyOn: bestOfPill });
@@ -39,7 +39,15 @@
     });
   }
 
-  function drawSide(el, side, isDoubles) {
+  /**
+   * A crew battle's crew name, for the chip under the player in. With nobody
+   * in, the name card is the crew's name already, so the chip would repeat it.
+   */
+  function crewChip(crew, i) {
+    return crew && crew.active[i] != null ? crew.teams[i].name : "";
+  }
+
+  function drawSide(el, side, isDoubles, crewName) {
     const p = side.players[0] ?? {};
 
     // Name: sponsor prefix + tag in singles; the team name (or the tags) in
@@ -85,6 +93,8 @@
 
     const chip = q(el.chips, ".pronoun");
     text(q(chip, ".text"), isDoubles ? "" : p.pronoun, { emptyOn: chip });
+    const crew = q(el.chips, ".crew");
+    text(q(crew, ".text"), crewName, { emptyOn: crew });
   }
 
   /* ── Optically centring the score digits ─────────────────────────────────
