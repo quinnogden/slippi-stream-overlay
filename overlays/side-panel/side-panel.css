@@ -1091,6 +1091,10 @@ body {
   flex:           1;
   min-height:     0;
   overflow:       hidden;
+  /* Room for the lit row's ring and glow, which overflow: hidden would cut
+     at the list's edge; the negative margin keeps every row where it was. */
+  padding:        16px;
+  margin:         -16px;
 }
 
 .crew-member {
