@@ -36,7 +36,7 @@ function winnerByStocks(game) {
   const lastFrame = game.getLatestFrame();
   if (!lastFrame?.players) return null;
   const surviving = Object.entries(lastFrame.players)
-    .filter(([, pf]) => (pf?.pre?.stocksRemaining ?? 0) > 0)
+    .filter(([, pf]) => (pf?.post?.stocksRemaining ?? 0) > 0)
     .map(([portStr]) => Number(portStr));
   return surviving[0] ?? null;
 }
@@ -242,4 +242,4 @@ function createFolderSource(config, detector) {
   return emitter;
 }
 
-module.exports = { createFolderSource, pickWinner, stocksByPort };
+module.exports = { createFolderSource, pickWinner, winnerByStocks, stocksByPort };
