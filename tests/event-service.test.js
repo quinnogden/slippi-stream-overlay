@@ -71,6 +71,16 @@ function setup(capture, { startgg, records, store } = {}) {
 
 const called = (gg, method) => gg.calls.filter((c) => c.method === method);
 
+/** Wait until `cond()` holds. */
+async function until(cond, what, ms = 1000) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (cond()) return;
+    await new Promise((r) => setTimeout(r, 5));
+  }
+  assert.fail(`timed out waiting for: ${what}`);
+}
+
 (async () => {
   console.log("event-service");
 
@@ -222,6 +232,30 @@ const called = (gg, method) => gg.calls.filter((c) => c.method === method);
     assert.strictEqual(svc.status().state, "ok");
     assert.ok(svc.openSets().length > 0);
     assert.strictEqual(store.tournament().kind, "singles", "kind kept across the reload");
+  });
+
+  await test("a saved event start.gg couldn't read at boot loads on a later poll", async () => {
+    // Venue Wi-Fi is often not up when the app starts. The poll has to keep
+    // trying the saved event, or the bracket and Up next stay empty until
+    // someone presses a button.
+    const before = setup("hundred-acres-51");
+    await before.svc.switchEvent("singles");
+    const store = new ScoreboardStore();
+    store.restore(JSON.parse(JSON.stringify(before.store.toJSON())));
+
+    const startgg = fakeStartgg("hundred-acres-51");
+    const realEvent = startgg.getEvent;
+    let down = true;
+    startgg.getEvent = async (...args) =>
+      (down ? { ok: false, error: "Network error contacting start.gg: ENOTFOUND" } : realEvent(...args));
+    const svc = new EventService({ config: CONFIG, startgg, store, playerDb: playerDb() }, { pollMs: 10, log: () => {} });
+    svc.start();
+    try {
+      await until(() => svc.status().state === "error", "the failed read at boot");
+      down = false;
+      await until(() => svc.status().state === "ok", "the saved event, on a later poll");
+      assert.ok(svc.openSets().length > 0);
+    } finally { svc.stop(); }
   });
 
   await test("an event start.gg can't read is an error the dock can show, not an empty list", async () => {

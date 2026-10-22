@@ -41,12 +41,14 @@ const PREWARM_SETS     = 3;      // how many playable sets' players to pre-fetch
 
 /**
  * @param {object} ctx — { config, store, event, startgg, io } (event: lib/event/event-service.js)
- * @param {{ cacheDir?: string|null, lucky?: LuckyStatsClient|null, log?: Function }} [opts]
+ * @param {{ cacheDir?: string|null, lucky?: LuckyStatsClient|null, log?: Function, retryMs?: number }} [opts]
  *   Default: a client with config.LUCKYSTATS_KEY. Null, or one with no key: no luckystats data.
+ *   retryMs: how long after a failed read the pair is loaded again (RETRY_MS).
  */
 function createPlayerStats(ctx, opts = {}) {
   const { store: scoreboard, event: eventService, startgg, io } = ctx;
   const log = opts.log ?? ((m) => console.log(`[stats] ${m}`));
+  const retryMs = opts.retryMs ?? RETRY_MS;
   const cacheDir = opts.cacheDir === undefined
     ? path.join(__dirname, "..", "..", "stats-cache")
     : opts.cacheDir;
@@ -135,22 +137,32 @@ function createPlayerStats(ctx, opts = {}) {
       emit();
     }
 
+    let ok = true;
     try {
-      if (pids.length > 0) await loadCards(my, t);
+      if (pids.length > 0) ok = await loadCards(my, t);
       // Its own request — a first-time head-to-head can take a minute.
       const ratings = loadLucky(my, t);
-      if (pids.length === 2) await loadH2h(my, t, force);
+      if (pids.length === 2) ok = (await loadH2h(my, t, force)) && ok;
       await ratings;
     } finally {
       if (my === gen) busy = false;
     }
-    if (my === gen) prewarm();
+    if (my !== gen) return;
+    // Either part failing is retried by forgetting the pair was loaded and
+    // looking again. The head-to-head is then mostly saved, so a retry for the
+    // cards alone costs little.
+    if (!ok) {
+      log(`retrying the pair in ${retryMs / 1000}s`);
+      retryTimer = setTimeout(() => { if (my === gen) { loadedKey = null; evaluate(); } }, retryMs);
+    }
+    prewarm();
   }
 
+  /** @returns {Promise<boolean>} false when start.gg didn't answer (a stale load says true: nothing to retry) */
   async function loadCards(my, t) {
     const pids = t.players.map((p) => p.playerId);
     const res = await startgg.backgroundQuery(playerCardsQuery(pids, eventSlug));
-    if (my !== gen) return;
+    if (my !== gen) return true;
 
     if (!res.ok) {
       log(`player cards failed: ${res.error}`);
@@ -159,7 +171,7 @@ function createPlayerStats(ctx, opts = {}) {
           playerId: p.playerId, name: p.name, state: "error", error: res.error };
       }
       emit();
-      return;
+      return false;
     }
 
     const ev = res.data?.ev;
@@ -178,8 +190,10 @@ function createPlayerStats(ctx, opts = {}) {
       };
     });
     emit();
+    return true;
   }
 
+  /** @returns {Promise<boolean>} false when a history couldn't be read (a stale load says true) */
   async function loadH2h(my, t, force) {
     const [a, b] = t.players;
     const label = `${a.name || a.playerId} vs ${b.name || b.playerId}`;
@@ -191,21 +205,19 @@ function createPlayerStats(ctx, opts = {}) {
     // Sequential: they share one rate budget, and the first answer is useless alone.
     const ra = await store.sync(a.playerId, { maxAgeMs });
     const rb = ra.ok ? await store.sync(b.playerId, { maxAgeMs }) : ra;
-    if (my !== gen) return;
+    if (my !== gen) return true;
 
     if (!ra.ok || !rb.ok) {
       const error = (ra.ok ? rb : ra).error;
-      log(`H2H ${label} failed: ${error} — retrying in ${RETRY_MS / 1000}s`);
+      log(`H2H ${label} failed: ${error}`);
       snap.h2h = { players: [a.playerId, b.playerId], state: "error", error, wins: {}, total: 0, recent: [] };
       emit();
-      // Retry by forgetting the pair was loaded and looking again.
-      retryTimer = setTimeout(() => { if (my === gen) { loadedKey = null; evaluate(); } }, RETRY_MS);
-      return;
+      return false;
     }
 
     const h2h = N.headToHead(ra.sets, rb.sets, a.playerId, b.playerId);
     const recent = await pillsFor(h2h.sets.slice(0, H2H_PILLS));
-    if (my !== gen) return;
+    if (my !== gen) return true;
 
     snap.h2h = {
       players: [a.playerId, b.playerId],
@@ -216,6 +228,7 @@ function createPlayerStats(ctx, opts = {}) {
     };
     log(`H2H ${label}: ${h2h.wins[a.playerId]}-${h2h.wins[b.playerId]} over ${h2h.sets.length} set(s)`);
     emit();
+    return true;
   }
 
   /** Lucky Ranks, classes, regions and the win probability, from luckystats.gg. */

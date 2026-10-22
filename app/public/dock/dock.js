@@ -905,12 +905,22 @@
     obs.title = (clip.obs && clip.obs.lastError) || "";
   });
 
+  let eventTitle = ""; // "<tournament> — <event>", from state.tournament
+
   function renderTournament(t) {
-    const name = [t && t.name, t && t.eventName].filter(Boolean).join(" — ");
-    $("event-name").textContent = name || "No event loaded";
-    if (!bracketBusy && !bracketMsg) {
-      $("bracket-hint").textContent = name ? `Loaded: ${name}` : "No event loaded — press Singles or Doubles.";
-    }
+    eventTitle = [t && t.name, t && t.eventName].filter(Boolean).join(" — ");
+    $("event-name").textContent = eventTitle || "No event loaded";
+    renderBracketHint();
+  }
+
+  /**
+   * The Bracket tab's line under Singles / Doubles, unless a switch is running
+   * or left a message. Also drawn when a switch ends: its tournament patch
+   * lands mid-switch, and a re-press of the loaded event sends none.
+   */
+  function renderBracketHint() {
+    if (bracketBusy || bracketMsg) return;
+    $("bracket-hint").textContent = eventTitle ? `Loaded: ${eventTitle}` : "No event loaded — press Singles or Doubles.";
   }
 
   // ── Tabs ────────────────────────────────────────────────────────────────────
@@ -1090,6 +1100,8 @@
     if (r.warning) {
       bracketMsg = r.warning;
       $("bracket-hint").textContent = r.warning;
+    } else {
+      renderBracketHint();
     }
     const what = (r.tournamentName ? r.tournamentName + " — " : "") + (r.eventName || fallbackName);
     toast(r.refreshed ? `${what} was already loaded — re-read it` : `Loaded ${what}`, true);

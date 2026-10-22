@@ -67,7 +67,11 @@ class EventService extends EventEmitter {
 
   // ── Lifecycle ───────────────────────────────────────────────────────────────
 
-  /** Reload the event restored from the last run, then refresh on a timer. */
+  /**
+   * Reload the event restored from the last run, then refresh on a timer —
+   * which also keeps trying that reload if start.gg couldn't be reached at
+   * boot (venue Wi-Fi often isn't up yet).
+   */
   start() {
     if (this._store.tournament().eventSlug) {
       this.refresh().then((r) => { if (!r.ok) this._log(`Couldn't reload the saved event: ${r.error}`); });
@@ -83,7 +87,8 @@ class EventService extends EventEmitter {
   _schedule() {
     clearTimeout(this._timer);
     this._timer = setTimeout(async () => {
-      if (this._event) await this.refresh({ background: true });
+      // A saved event not read yet goes through refresh() too, as a reload.
+      if (this._event || this._store.tournament().eventSlug) await this.refresh({ background: true });
       this._schedule();
     }, this._pollMs);
     this._timer.unref?.();

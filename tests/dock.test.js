@@ -150,6 +150,15 @@ async function rig() {
     // The real entrant list, over the preview graph.
     players: () => EventService.prototype.players.call({ _groups: [{ graph: pgraph }] }),
     refresh: async () => ({ ok: true }),
+    // This week's event, as the real one loads it: the tournament reaches the
+    // store — and the dock, as a patch — while the bracket reads are still going.
+    switchEvent: async (kind) => {
+      const t = { name: "Hundred Acres #51", eventName: "Melee Singles", eventSlug: "tournament/hundred-acres-51/event/melee-singles", kind };
+      const refreshed = store.tournament().eventSlug === t.eventSlug;
+      store.setTournament(t);
+      await sleep(30);
+      return { ok: true, refreshed, tournamentName: t.name, eventName: t.eventName };
+    },
     loadSet: async (id) => {
       calls.loadSet.push(id);
       store.loadSet(loadPayload(pgraph, id));
@@ -413,6 +422,21 @@ async function rig() {
       fire(fullKey, "click");
       await until(() => r.store.view().bracketView === "full", "the bracket overlay's view");
       await until(() => fullKey.classList.contains("lit"), "the key lights from the patch");
+    } finally { r.close(); }
+  });
+
+  await test("Singles / Doubles: the hint under them says what loaded, a re-press included", async () => {
+    const r = await rig();
+    try {
+      const hint = r.page.$("#bracket-hint");
+      const singles = r.page.$("#btn-bracket-singles");
+      fire(singles, "click");
+      await until(() => hint.textContent === "Loaded: Hundred Acres #51 — Melee Singles", "the hint after the load");
+      // The same event again: a re-read, so no tournament patch comes.
+      fire(singles, "click");
+      assert.ok(singles.disabled, "busy while it reads");
+      await until(() => !singles.disabled, "the re-read to finish");
+      assert.strictEqual(hint.textContent, "Loaded: Hundred Acres #51 — Melee Singles");
     } finally { r.close(); }
   });
 

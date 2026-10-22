@@ -341,6 +341,32 @@ function set(id, sides, winnerSide, extra = {}) {
     stats.stop();
   });
 
+  await test("failed player cards are retried, and luckystats follows them", async () => {
+    // The head-to-head succeeding mustn't leave the cards on their error for
+    // the whole set — nor luckystats, which needs the user ids they carry.
+    const gf = payloadNamed("Grand Final");
+    const [a, b] = pidsOf(gf);
+    const gg = cardsGg({ [a]: "501", [b]: "502" });
+    const answer = gg.backgroundQuery;
+    let cardReads = 0;
+    gg.backgroundQuery = async (q) => {
+      if (q.includes("playerSets")) return answer(q);
+      return ++cardReads === 1 ? { ok: false, error: "start.gg rate limit hit" } : answer(q);
+    };
+    const store = new ScoreboardStore();
+    const lucky = fakeLucky();
+    const stats = createPlayerStats({ store, event: null, startgg: gg, io: { emit() {} } },
+      { cacheDir: null, lucky, log() {}, retryMs: 20 });
+    stats.start();
+    try {
+      store.loadSet(gf);
+      await until(() => stats.snapshot().players[a]?.state === "done", "the cards, on the retry");
+      assert.strictEqual(cardReads, 2);
+      await until(() => stats.snapshot().lucky?.state === "done", "luckystats, with the retried cards' user ids");
+      assert.deepStrictEqual(lucky.calls, [["501", "502"]]);
+    } finally { stats.stop(); }
+  });
+
   await test("with no luckystats key nothing is asked and the snapshot has no lucky section", async () => {
     const gf = payloadNamed("Grand Final");
     const [a, b] = pidsOf(gf);

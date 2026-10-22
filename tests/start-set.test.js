@@ -86,6 +86,35 @@ const ctxFor = (startgg) => ({ startgg });
     assert.strictEqual(evaluateStartability(ctx, "set-broken").canStart, false);
   });
 
+  await test("a failed lookup is asked again after a while — not on every tick, and not never", async () => {
+    // Reloading the same set doesn't clear it (same id), so without a retry one
+    // timeout would leave Start off for the rest of the set.
+    let calls = 0;
+    const gg = {
+      enabled: true,
+      async getSetState() {
+        calls++;
+        return calls === 1 ? { ok: false, error: "Network error contacting start.gg: ETIMEDOUT" } : { ok: true, state: 1 };
+      },
+    };
+    const ctx = ctxFor(gg);
+    evaluateStartability(ctx, "set-blip");
+    await new Promise((r) => setImmediate(r));
+    for (let i = 0; i < 5; i++) assert.match(evaluateStartability(ctx, "set-blip").reason, /ETIMEDOUT/);
+    assert.strictEqual(calls, 1, "re-asked on the next tick — that spends the rate limit");
+
+    const realNow = Date.now;
+    Date.now = () => realNow() + 16000;
+    try {
+      evaluateStartability(ctx, "set-blip");
+      await new Promise((r) => setImmediate(r));
+      assert.strictEqual(evaluateStartability(ctx, "set-blip").canStart, true);
+      assert.strictEqual(calls, 2);
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
   // Each of these must short-circuit before the network — no token, no set and a
   // preview id all mean there is nothing to start.
   await test("no token / no set / preview never touch start.gg", async () => {

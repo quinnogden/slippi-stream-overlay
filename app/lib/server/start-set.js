@@ -16,6 +16,12 @@ const { startggSetGate } = require("./set-gate");
 // started", which is exactly when the button applies. 2 = in progress, 3 = done.
 const NOT_STARTED = new Set([1, 6]);
 
+// A failed lookup (a timeout, a 429) is asked again after this long. Without
+// it one blip would leave Start off for the rest of the set: reloading the
+// same set is the same id, so it never misses the cache. Long enough that
+// start.gg being down costs a request every 15s, not one per tick.
+const RETRY_AFTER_MS = 15000;
+
 /**
  * The last state we fetched, keyed by set id.
  *
@@ -23,12 +29,14 @@ const NOT_STARTED = new Set([1, 6]);
  * the set id is what makes it self-invalidating — loading another set simply
  * misses, and the miss is what schedules the next fetch.
  *
- * @type {{ setId: string|null, state: number|null, error: string|null, pending: boolean }}
+ * @type {{ setId: string|null, state: number|null, error: string|null, pending: boolean, at: number }}
+ *   at: when the answer landed (Date.now()), for retrying an error
  */
-let cache = { setId: null, state: null, error: null, pending: false };
+let cache = { setId: null, state: null, error: null, pending: false, at: 0 };
 
 /**
- * Fetch the set's state once, in the background.
+ * Fetch the set's state once, in the background — and again once a failed
+ * fetch is RETRY_AFTER_MS old.
  *
  * evaluateStartability() runs on the 2s status tick, so this must never be
  * awaited there — the tick would inherit start.gg's latency, and one query
@@ -37,8 +45,9 @@ let cache = { setId: null, state: null, error: null, pending: false };
  * `pending` rather than firing a second query.
  */
 function ensureState(startgg, setId) {
-  if (cache.setId === setId) return;
-  cache = { setId, state: null, error: null, pending: true };
+  const retry = cache.error && Date.now() - cache.at >= RETRY_AFTER_MS;
+  if (cache.setId === setId && !retry) return;
+  cache = { setId, state: null, error: null, pending: true, at: 0 };
 
   startgg.getSetState(setId).then((r) => {
     if (cache.setId !== setId) return;   // a different set loaded while in flight
@@ -47,10 +56,11 @@ function ensureState(startgg, setId) {
       state: r.ok ? r.state : null,
       error: r.ok ? null : r.error,
       pending: false,
+      at: Date.now(),
     };
   }).catch((err) => {
     if (cache.setId !== setId) return;
-    cache = { setId, state: null, error: err.message, pending: false };
+    cache = { setId, state: null, error: err.message, pending: false, at: Date.now() };
   });
 }
 
@@ -101,11 +111,11 @@ function createStartSet(ctx, refreshControlStatus) {
       // Whatever we believed about this set was wrong, or start.gg is unhappy.
       // Drop the cached state so the next tick re-reads it rather than leaving
       // the button enabled against a set that can't be started.
-      cache = { setId: null, state: null, error: null, pending: false };
+      cache = { setId: null, state: null, error: null, pending: false, at: 0 };
       return result;
     }
 
-    cache = { setId: String(setId), state: result.state ?? 2, error: null, pending: false };
+    cache = { setId: String(setId), state: result.state ?? 2, error: null, pending: false, at: Date.now() };
     refreshControlStatus();
     return result;
   }
