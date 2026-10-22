@@ -20,6 +20,14 @@
  *     never disagree with the scoreboard, and a switch of sides flips both at
  *     once by construction.
  *
+ * A crew battle is a set too: one with `crew` (lib/crew/crew-model.js) and no
+ * start.gg link. Loading or clearing a set ends it, by construction. While it
+ * is on, the scoreboard's sides are derived from it — each side's active
+ * player, the crew's name as their prefix, and the crew's stocks left as the
+ * score — so everything that reads the sides (the overlays, the port map,
+ * clips) works unchanged, and the game list stays empty: a game end applies
+ * stocks instead (crewApplyGame), and ± moves the active player's stocks.
+ *
  * The `bracket` section is the exception to "the store owns it": the event
  * service publishes the graph the bracket overlay draws (setBracket), and it
  * is not saved — it is re-read from start.gg on boot. It lives here so the
@@ -34,6 +42,7 @@
 
 const { EventEmitter } = require("events");
 const { bestOfLabel, losersMarks } = require("./set-text");
+const Crew = require("../crew/crew-model");
 
 const STATE_VERSION = 1;
 
@@ -60,6 +69,8 @@ function emptySet() {
     sides: [emptySide(), emptySide()],
     // { winnerSide: 0|1, characters: [[char…], [char…]] | null, manual: boolean }
     games: [],
+    // A crew battle (lib/crew/crew-model.js), or null for a normal set.
+    crew: null,
   };
 }
 
@@ -90,23 +101,35 @@ class ScoreboardStore extends EventEmitter {
   /** The overlay-facing scoreboard, with every derived field filled in. */
   scoreboard() {
     const s = this._set;
-    const scores = [0, 1].map((i) => s.games.filter((g) => g.winnerSide === i).length);
-    const losers = losersMarks(s, s.overrides.losers);
+    const crew = s.crew;
+    const scores = crew
+      ? crew.teams.map(Crew.teamTotal)
+      : [0, 1].map((i) => s.games.filter((g) => g.winnerSide === i).length);
+    const losers = crew ? [false, false] : losersMarks(s, s.overrides.losers);
     return {
       setId: s.setId,
       phaseGroupId: s.phaseGroupId,
-      round: s.overrides.round ?? s.roundName,
+      round: s.overrides.round ?? (crew ? Crew.CREW_ROUND : s.roundName),
       identifier: s.identifier,
-      bestOfLabel: bestOfLabel(s, { ...this._setText, override: s.overrides.bestOf }),
+      bestOfLabel: crew ? "" : bestOfLabel(s, { ...this._setText, override: s.overrides.bestOf }),
       isGrandFinal: s.isGrandFinal,
       isReset: s.isReset,
       isPreview: s.isPreview,
-      isDoubles: s.doubles,
-      sides: s.sides.map((side, i) => ({ ...clone(side), score: scores[i], losers: losers[i] })),
+      isDoubles: crew ? false : s.doubles,
+      sides: s.sides.map((side, i) => ({
+        ...clone(side),
+        ...(crew ? clone(Crew.sideView(crew, i, side.players[0]?.character)) : {}),
+        score: scores[i],
+        losers: losers[i],
+      })),
       games: clone(s.games),
       overrides: clone(s.overrides),
+      crew: crew ? Crew.crewView(crew) : null,
     };
   }
+
+  /** Whether a crew battle is on the scoreboard. */
+  isCrew() { return !!this._set.crew; }
 
   /** The loaded start.gg event: { name, slug, eventName, eventSlug, kind }. */
   tournament() { return clone(this._tournament); }
@@ -237,6 +260,81 @@ class ScoreboardStore extends EventEmitter {
     return true;
   }
 
+  // ── Crew battles ────────────────────────────────────────────────────────────
+  // Each returns { ok, error } (or crewApplyGame's outcome) rather than
+  // throwing: the dock shows the refusal. Validated input only — the routes
+  // (server/api/crew.js) check the shapes first.
+
+  /**
+   * Put a crew battle on the scoreboard, replacing the set there: it closes
+   * (`set-closing`) like any other, and the port map starts over (`set-loaded`).
+   * @param {{ teams: Array<{ name: string, members: Array<object> }>, stocksEach?: number }} battle
+   */
+  startCrew(battle) {
+    const next = emptySet();
+    next.crew = Crew.createCrew(battle);
+    this.closeSet();
+    this._set = next;
+    this._changed(["scoreboard"]);
+    this.emit("set-loaded", { setId: null });
+  }
+
+  /**
+   * Send a member in, or nobody (id null). The side shows what they last
+   * played (else their main) until Slippi says otherwise — unless a game is
+   * running, where Slippi's character is the true one (`keepCharacter`).
+   */
+  crewPick(side, id, { keepCharacter = false } = {}) {
+    const crew = this._crew();
+    if (!crew) return { ok: false, error: "No crew battle on the scoreboard" };
+    const r = Crew.pick(crew, side, id);
+    if (!r.ok || !r.changed) return r;
+    if (!keepCharacter) {
+      const m = Crew.activeOf(crew, side);
+      this._set.sides[side].players[0].character = clone(m ? m.character ?? m.main : null);
+    }
+    this._changed(["scoreboard"]);
+    return r;
+  }
+
+  /** ± one stock for a member. */
+  crewStock(side, id, delta) {
+    const crew = this._crew();
+    if (!crew) return { ok: false, error: "No crew battle on the scoreboard" };
+    const r = Crew.bumpStock(crew, side, id, delta);
+    if (r.ok && r.changed) {
+      if (crew.active[side] == null) this._set.sides[side].players[0].character = null;
+      this._changed(["scoreboard"]);
+    }
+    return r;
+  }
+
+  /**
+   * A finished crew game (game-end.js): the winner keeps the stocks they ended
+   * on, the loser is out and their side waits for the next pick.
+   * @param {{ winnerSide: 0|1, winnerStocks?: number|null, characters?: Array }} game
+   */
+  crewApplyGame(game) {
+    this._side(game.winnerSide);
+    const crew = this._crew();
+    if (!crew) return { applied: false, reason: "No crew battle on the scoreboard" };
+    const r = Crew.applyResult(crew, game);
+    if (!r.applied) return r;
+    this._set.sides[1 - game.winnerSide].players[0].character = null;
+    this._changed(["scoreboard"]);
+    return { applied: true, winner: clone(r.winner), loser: clone(r.loser), carried: r.carried };
+  }
+
+  /** A live roster edit: the crew's name and its members in order (crew-model.js editRoster). */
+  crewRoster(side, edit) {
+    this._side(side);
+    const crew = this._crew();
+    if (!crew) return { ok: false, error: "No crew battle on the scoreboard" };
+    const r = Crew.editRoster(crew, side, edit);
+    if (r.ok) this._changed(["scoreboard"]);
+    return r;
+  }
+
   /**
    * Edit a player's displayed fields (the dock's live strip / a typed name).
    * @param {0|1} side
@@ -244,6 +342,7 @@ class ScoreboardStore extends EventEmitter {
    * @param {{ tag?: string, prefix?: string, pronoun?: string, playerId?: string|null, main?: object|null }} fields
    */
   setPlayer(side, index, fields) {
+    if (this._set.crew) return; // the sides are the crews' (crewRoster)
     const p = this._player(side, index);
     for (const k of ["tag", "prefix", "pronoun", "playerId", "main"]) {
       if (fields[k] !== undefined) p[k] = fields[k];
@@ -270,7 +369,7 @@ class ScoreboardStore extends EventEmitter {
    */
   setDoubles(on) {
     const next = !!on;
-    if (this._set.doubles === next) return;
+    if (this._set.crew || this._set.doubles === next) return; // crew battles are singles
     this._set.doubles = next;
     for (const side of this._set.sides) {
       if (next) while (side.players.length < 2) side.players.push(emptyPlayer());
@@ -293,18 +392,25 @@ class ScoreboardStore extends EventEmitter {
    */
   recordGame({ winnerSide, characters = null }) {
     this._side(winnerSide);
+    if (this._set.crew) return; // a crew game moves stocks (crewApplyGame), not the game list
     this._set.games.push({ winnerSide, characters: clone(characters), manual: false });
     this._changed(["scoreboard"]);
   }
 
   /**
    * Manual score correction: +1 appends a game for that side; −1 removes the
-   * side's most recent game (never below zero).
+   * side's most recent game (never below zero). In a crew battle, ± one stock
+   * for the side's active player — nothing with nobody sent in.
    * @param {0|1} side
    * @param {1|-1} delta
    */
   bump(side, delta) {
     this._side(side);
+    const crew = this._set.crew;
+    if (crew) {
+      if (crew.active[side] != null) this.crewStock(side, crew.active[side], delta);
+      return;
+    }
     if (delta > 0) {
       this._set.games.push({ winnerSide: side, characters: null, manual: true });
     } else {
@@ -317,15 +423,16 @@ class ScoreboardStore extends EventEmitter {
     this._changed(["scoreboard"]);
   }
 
-  /** Back to 0–0 on the same set: every game goes, the names stay. */
+  /** Back to 0–0 on the same set: every game goes, the names stay. Not a crew battle's. */
   clearScore() {
-    if (!this._set.games.length) return;
+    if (this._set.crew || !this._set.games.length) return;
     this._set.games = [];
     this._changed(["scoreboard"]);
   }
 
-  /** Set a side's score outright (the dock's typed score), via bump. */
+  /** Set a side's score outright (the dock's typed score), via bump. Not a crew battle's. */
   setScore(side, score) {
+    if (this._set.crew) return;
     const target = Math.max(0, Math.floor(Number(score) || 0));
     let now = this._set.games.filter((g) => g.winnerSide === side).length;
     while (now < target) { this.bump(side, 1); now++; }
@@ -340,6 +447,7 @@ class ScoreboardStore extends EventEmitter {
     const s = this._set;
     s.sides.reverse();
     s.overrides.losers.reverse();
+    if (s.crew) Crew.flip(s.crew);
     for (const g of s.games) {
       g.winnerSide = 1 - g.winnerSide;
       if (g.characters) g.characters.reverse();
@@ -439,6 +547,8 @@ class ScoreboardStore extends EventEmitter {
   _side(side) {
     if (side !== 0 && side !== 1) throw new Error(`side must be 0 or 1, got ${side}`);
   }
+
+  _crew() { return this._set.crew; }
 
   /** A side's player, created (with any before it) if the index is new. */
   _player(side, index) {

@@ -50,6 +50,7 @@ function createModes(ctx) {
   function isDoublesGame(rawPlayers) {
     if (!isDoubles(rawPlayers)) return false;
     const sb = store.scoreboard();
+    if (sb.crew) return false; // crew battles are singles
     return sb.isDoubles || !sb.setId;
   }
 
@@ -94,6 +95,14 @@ function createModes(ctx) {
     // currentGameState.players drops characterId and teamId.
     state.currentRawPlayers = sorted;
     applyGame(sorted);
+
+    // A crew game's result can only be applied to whoever was sent in, so a
+    // side with nobody is said while there's still time to pick them.
+    const crew = store.scoreboard().crew;
+    const unpicked = crew ? [0, 1].filter((i) => crew.active[i] == null).map((i) => crew.teams[i].name) : [];
+    if (unpicked.length) {
+      io.emit("crew_notice", { ok: false, text: `Game started — nobody sent in for ${unpicked.join(" or ")}. Pick them before it ends` });
+    }
   }
 
   /** The live game's ports in the dock's terms. */

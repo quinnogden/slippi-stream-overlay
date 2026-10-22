@@ -13,6 +13,10 @@
  * Rank, Class and Region to the player cards and the win probability to the
  * head-to-head, and every card showing it says so ("Powered by Lucky Stats").
  *
+ * A crew battle (the scoreboard's `crew` section) swaps the stats cards for
+ * the two crews' rosters, each after a logo: every member with what they last
+ * played and their stocks left, the one playing now lit, the eliminated greyed.
+ *
  *   ?panel=<id>       hold one panel instead of rotating (for styling)
  *   ?animate=false    still the theme pack's background flair
  *
@@ -22,7 +26,7 @@
 (function (root) {
   "use strict";
 
-  const { h, fitText, fitGroup, param } = Overlay;
+  const { h, fitText, fitGroup, icon, param } = Overlay;
   const { ease, ms, restOf, pose } = Overlay.motion;
 
   // Animation durations are at tempo 1; Overlay.motion.ms() scales them by
@@ -37,10 +41,11 @@
   const H2H_SHOWN      = 7;       // the pair's newest sets on the head-to-head (the app sends 7)
   const HOLD_PANEL     = param("panel");
 
+  // A crew battle has only the logos and the crews; a set never has the crews.
   const PANEL_ORDER = [
-    "logo-primary",
+    "logo-primary", "crew-1",
     "player-1", "player-2", "recent-sets",
-    "logo-sponsor", "completed-sets",
+    "logo-sponsor", "crew-2", "completed-sets",
   ];
 
   // Resting states, as inline style. Motion lives in the keyframes below.
@@ -69,6 +74,13 @@
 
   const playerOf = (i) => sb?.sides?.[i]?.players?.[0] ?? null;
   const isDoubles = () => Boolean(sb?.isDoubles);
+  const isCrew = () => Boolean(sb?.crew);
+
+  /**
+   * A column's crew in a crew battle: { name, total, members: [{ id, tag,
+   * icon, stocks, status: "active"|"in"|"out" }] }, or null outside one.
+   */
+  function crewView(i) { return sb?.crew?.teams?.[i] ?? null; }
 
   function playerIdOf(i) {
     const id = playerOf(i)?.playerId;
@@ -177,10 +189,12 @@
     switch (id) {
       case "logo-primary":
       case "logo-sponsor":   return true;
-      case "player-1":       return !isDoubles() && hasPlayerCard(0);
-      case "player-2":       return !isDoubles() && hasPlayerCard(1);
-      case "recent-sets":    return !isDoubles() && h2hCardView() !== null;
-      case "completed-sets": return completedView().length > 0;
+      case "crew-1":         return crewView(0) !== null;
+      case "crew-2":         return crewView(1) !== null;
+      case "player-1":       return !isDoubles() && !isCrew() && hasPlayerCard(0);
+      case "player-2":       return !isDoubles() && !isCrew() && hasPlayerCard(1);
+      case "recent-sets":    return !isDoubles() && !isCrew() && h2hCardView() !== null;
+      case "completed-sets": return !isCrew() && completedView().length > 0;
       default:               return false;
     }
   }
@@ -558,6 +572,41 @@
     fitGroup(names);
   }
 
+  /** A roster row's character icon; with none, or one that fails to load, the slot stays empty. */
+  function crewIcon(character) {
+    const slot = h("i", "crew-icon");
+    const src = icon(character);
+    if (!src) return slot;
+    const img = slot.appendChild(h("img"));
+    img.alt = "";
+    img.addEventListener("error", () => img.remove());
+    img.src = src;
+    return slot;
+  }
+
+  /** A crew's card: its name and stocks left, then a row per member in roster order. */
+  function renderCrew(i) {
+    const panel = document.getElementById(`panel-crew-${i + 1}`);
+    const team = crewView(i);
+    if (!panel || !team) return;
+    const name = panel.querySelector(".crew-name");
+    name.textContent = team.name;
+    panel.querySelector(".crew-total-num").textContent = String(team.total);
+
+    const list = panel.querySelector(".crew-list");
+    list.replaceChildren();
+    const tags = [];
+    for (const m of team.members) {
+      const row = pill("crew-member " + m.status);
+      const tag = h("span", "pill-name", m.tag);
+      row.append(crewIcon(m.icon), tag, h("span", "crew-stocks", String(m.stocks)));
+      list.appendChild(row);
+      tags.push(tag);
+    }
+    fitText(name, 24);
+    fitGroup(tags, 16);
+  }
+
   // Each panel remembers the slice it last drew and skips the rebuild when
   // that slice is unchanged — a score bump must not swap the visible panel's
   // pills with no entrance, nor re-run fitText's measuring.
@@ -579,6 +628,8 @@
     renderIfChanged("player-2", [identity(1), historyView(1), runView(1), luckyLine(1)], () => renderPlayerCard(1));
     renderIfChanged("recent-sets", [h2hCardView(), identity(0), identity(1)], renderRecentSets);
     renderIfChanged("completed-sets", completedView(), renderCompletedSets);
+    renderIfChanged("crew-1", crewView(0), () => renderCrew(0));
+    renderIfChanged("crew-2", crewView(1), () => renderCrew(1));
     // After rendering: buildSlots can restart the rotation, and the panel it
     // fades in should already hold the new content.
     rotator.buildSlots();
@@ -656,6 +707,6 @@
 
   // For tests/side-panel.test.js, and for poking at from OBS's devtools.
   root.SidePanel = {
-    rotator, historyView, runView, h2hView, completedView, luckyPlayer, projectionView, slotHasContent, scoreLabels,
+    rotator, historyView, runView, h2hView, completedView, luckyPlayer, projectionView, crewView, slotHasContent, scoreLabels,
   };
 })(window);

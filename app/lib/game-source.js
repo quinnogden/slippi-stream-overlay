@@ -5,7 +5,9 @@
  *   'game-start'  → (rawPlayers, stageId)
  *                   rawPlayers: array (same shape as slippi-js getSettings())
  *                   stageId:    Slippi stage ID (number | null when unavailable)
- *   'game-end'    → { winnerPlayerIndex, isHandwarmer }
+ *   'game-end'    → { winnerPlayerIndex, isHandwarmer, stocks }
+ *                   stocks: { [playerIndex]: stocks left on the last frame }
+ *                   (a crew battle carries the winner's over)
  *   'highlight'   → one detected combo (when a detector is supplied and the
  *                   clipper is enabled)
  *
@@ -37,6 +39,22 @@ function winnerByStocks(game) {
     .filter(([, pf]) => (pf?.pre?.stocksRemaining ?? 0) > 0)
     .map(([portStr]) => Number(portStr));
   return surviving[0] ?? null;
+}
+
+/**
+ * Each port's stocks on a frame: { [playerIndex]: stocks }. A port with no
+ * entry (a player who is out has a null one in doubles) is left out rather
+ * than dropping the rest — never filter(Boolean) the frame's players.
+ * @param {object|null} frame — game.getLatestFrame()
+ * @returns {Object<number, number>}
+ */
+function stocksByPort(frame) {
+  const out = {};
+  for (const [port, pf] of Object.entries(frame?.players ?? {})) {
+    const n = pf?.post?.stocksRemaining;
+    if (Number.isInteger(n)) out[Number(port)] = n;
+  }
+  return out;
 }
 
 /**
@@ -191,7 +209,9 @@ function createFolderSource(config, detector) {
           const winnerPlayerIndex = pickWinner(
             gameEnd, game.getSettings(), isHandwarmer, () => winnerByStocks(game));
 
-          emitter.emit("game-end", { winnerPlayerIndex, isHandwarmer });
+          const stocks = stocksByPort(game.getLatestFrame());
+
+          emitter.emit("game-end", { winnerPlayerIndex, isHandwarmer, stocks });
           knownFiles.add(currentFile);
           currentFile = null;
           game        = null;
@@ -222,4 +242,4 @@ function createFolderSource(config, detector) {
   return emitter;
 }
 
-module.exports = { createFolderSource, pickWinner };
+module.exports = { createFolderSource, pickWinner, stocksByPort };

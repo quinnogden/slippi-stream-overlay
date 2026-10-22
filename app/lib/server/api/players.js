@@ -9,7 +9,7 @@
  */
 
 const { characterByName } = require("../../char_map");
-const { characterList, pickCharacter, sameName, bad, isSide, isIndex } = require("./scoreboard");
+const { characterList, pickCharacter, sameName, bad, isSide, isIndex, CREW_SIDES } = require("./scoreboard");
 
 const FIELD_MAX = 40;
 const LIST_ALL = 150; // an empty name field lists this many of the player list
@@ -133,6 +133,7 @@ function register(app, { store, playerDb, event = null, iconsDir, refreshControl
   app.post("/api/players/assign", (req, res) => {
     const { side, index = 0, playerId } = req.body ?? {};
     if (!isSide(side) || !isIndex(index)) return bad(res, "side (0|1) and index (0-3) required");
+    if (store.isCrew()) return bad(res, CREW_SIDES, 409);
 
     let fields;
     let rec;
@@ -204,4 +205,4 @@ function register(app, { store, playerDb, event = null, iconsDir, refreshControl
   });
 }
 
-module.exports = { register };
+module.exports = { register, asCharacter };

@@ -19,6 +19,7 @@ Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/si
 | `clip:saved` | app → both | The `slippi_clip_saved` payload |
 | `stats` | app → overlay | The `player_stats` payload |
 | `status` / `clip:error` | app → dock | The `control_status` / `slippi_clip_error` payloads |
+| `crew:notice` | app → dock | The `crew_notice` payload: a crew game that changed no stocks, or started with a side nobody was sent in for. Never on the broadcast |
 | `theme` | app → both | `{ pack }` (from `theme_changed`), after `POST /api/theme` changed the pack. **An overlay fades out and reloads** — `connect()` and `followTheme()` both listen; the dock only updates its select. Not sticky: a page that loads later reads the new `theme.css` anyway |
 
 - **`from` is what keeps a source honest.** A page applies a patch only when `from` ≤ its own rev. A larger `from` means it missed one, and it must send `state:resync` rather than apply it: every later patch carries only the sections that changed, so a source that missed one would otherwise show the old score indefinitely while looking healthy. A patch whose `rev` it already has (it connected mid-burst, and its `state:full` was newer) is ignored. `state:full` is always taken, even at a lower rev — the app may have restarted. `tests/overlay-patch.test.js` pins all three.
@@ -50,10 +51,34 @@ Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/si
   ],
   games: [ { winnerSide: 0, characters: [[…], […]] | null, manual: false } ],  // the score IS this list
   overrides: { round: null, bestOf: null, losers: [null, null] },              // null = derived
+  crew: null,                      // a crew battle — see below
 }
 ```
 
-Built by `scoreboard()` in [lib/scoreboard/store.js](../app/lib/scoreboard/store.js); every write is a store command. The other sections: `tournament` `{ name, slug, eventName, eventSlug, kind }`, `casters` `[{ tag, prefix, pronoun, twitter }]`, `view` `{ bracketView, bracketPhaseGroupId }`.
+Built by `scoreboard()` in [lib/scoreboard/store.js](../app/lib/scoreboard/store.js); every write is a store command.
+
+**A crew battle is a set with `crew`** ([lib/crew/crew-model.js](../app/lib/crew/crew-model.js)). Starting one replaces the set on the scoreboard (`set-closing`, then `set-loaded`), and a set load or Clear set ends it. While it's on, everything a reader already uses is derived from it, so the scoreboard overlay, the port map and the dock's names need no crew branch:
+
+- `sides[i].score` is the crew's **stocks left**; `games` stays empty (a crew game moves stocks, it isn't recorded).
+- `sides[i].players[0]` is the player in, with the **crew's name as the `prefix`**, their pronoun, `main` = what they last played else their DB main, the live `character`, and `playerId: null` (no stats are fetched). With nobody in, it's `{ tag: <crew name>, prefix: "" }` — in the tag, because the scoreboard hides a name with no tag. `teamName` is the crew's name.
+- `round` is `"Crew Battle"` unless overridden; `bestOfLabel` is `""`; `isDoubles` is `false`; `losers` are both `false`; `setId` is `null`.
+
+```js
+crew: {
+  stocksEach: 4,                   // 1–9
+  active: [memberId | null, …],    // who's in, per column; nobody goes in by themselves
+  teams: [                         // [left, right] — switchSides() reverses it with the sides
+    { name: "ACRES", total: 6,
+      members: [ { id: 1, tag: "Zodd", prefix: "", pronoun: "",
+                   icon: { codename, name, skin } | null,   // last played, else the DB main
+                   stocks: 2, played: true,
+                   status: "active" | "in" | "out" } ] },  // in now / stocks left / none left
+    { … },
+  ],
+}
+```
+
+At game end the winner keeps their last-frame stocks, capped at what they carried in (a forgotten SD can't gain one) and at least one; the loser goes to 0 and their column's `active` to `null`. A handwarmer, a winner the port map can't place, or a column with nobody in applies nothing and sends `crew_notice`. `POST /api/score` ± (and the score hotkeys) is one stock for the player in. The other sections: `tournament` `{ name, slug, eventName, eventSlug, kind }`, `casters` `[{ tag, prefix, pronoun, twitter }]`, `view` `{ bracketView, bracketPhaseGroupId }`.
 
 ### The `bracket` section
 
@@ -119,6 +144,14 @@ The whole `currentGameState`. Emitted on game start, on a port swap or re-detect
 ```
 
 `winner: null` is normal — a handwarmer, an LRA-start with no winner, or a port the map can't place.
+
+### `crew_notice`
+
+```js
+{ ok: false, text: "No one sent in for SALTY — no stocks changed" }
+```
+
+Dock only (`crew:notice`), shown as a toast. Sent during a crew battle when a game starts with a column nobody was sent in for, and when a game ends without moving any stocks (a handwarmer, no winner, an unmapped winner, a column with nobody in) — the operator then fixes the stocks by hand in the Crew tab.
 
 ### `slippi_clip_saved` / `slippi_clip_error`
 
@@ -244,7 +277,7 @@ The dock's status snapshot. Identical shape to `GET /api/status`. Rebuilt every 
 
 ## HTTP routes
 
-All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the same convention as `lib/startgg-client.js` — except `/api/status` and `/api/state`, which return their object directly. The routes live in `lib/server/api/` by what they act on (`status`, `scoreboard`, `event`, `players`, `casters`, `clipper`, `setup`), and there is **no CORS**: the dock and every overlay are served from the app's own origin.
+All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the same convention as `lib/startgg-client.js` — except `/api/status` and `/api/state`, which return their object directly. The routes live in `lib/server/api/` by what they act on (`status`, `scoreboard`, `crew`, `event`, `players`, `casters`, `clipper`, `setup`), and there is **no CORS**: the dock and every overlay are served from the app's own origin.
 
 | Method | Route | Purpose |
 |---|---|---|
@@ -265,14 +298,22 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `POST` | `/api/swap-sides` | The two sides trade columns — names, scores, entrant ids and the game list together. Same as the switch-sides hotkey |
 | `POST` | `/api/reresolve` | Throw the port map away and re-derive it from the players' mains. No body. Needs a live game |
 | `GET` | `/api/characters` | The picker's 26 characters in Melee's select-screen order: `[{ id, codename, name, skins }]`, `skins` counted from the icons on disk |
-| `POST` | `/api/score` | `{ side, delta: 1 \| -1 }` adds or removes one game; `{ side, score }` (0–9) sets it. The score is the game list, so ± is a game, not a number |
-| `POST` | `/api/player` | `{ side, index, tag?, prefix?, pronoun? }` — the names shown. **A changed tag or prefix unlinks the scoreboard from its start.gg set** (`store.detachSet()`: set id, entrants, seeds and team name go; names, score and round stay; nothing to report) and a changed tag clears that slot's `playerId`. Capitalisation alone is a correction and changes neither. Replies `{ ok, detached }` |
+| `POST` | `/api/score` | `{ side, delta: 1 \| -1 }` adds or removes one game; `{ side, score }` (0–9) sets it. The score is the game list, so ± is a game, not a number. **In a crew battle** ± is one stock for that column's player in; `score`, or ± with nobody in, is a 409 |
+| `POST` | `/api/player` | `{ side, index, tag?, prefix?, pronoun? }` — the names shown. **A changed tag or prefix unlinks the scoreboard from its start.gg set** (`store.detachSet()`: set id, entrants, seeds and team name go; names, score and round stay; nothing to report) and a changed tag clears that slot's `playerId`. Capitalisation alone is a correction and changes neither. Replies `{ ok, detached }`. 409 during a crew battle (as are `/api/doubles` and `/api/players/assign`): its names are the roster's |
 | `POST` | `/api/character` | `{ side, index, codename, skin }`, or `codename: null` for none. Also becomes the player's `main` for the set, which the port map matches the next game's Slippi characters against |
 | `POST` | `/api/set-text` | `{ round?, bestOf?, losers?: [bool\|null, bool\|null] }` — overrides; `null` goes back to derived. `bestOf: "None"` makes `bestOfLabel` `""`: the scoreboard hides its best-of pill. Send **both** `losers` entries: JSON turns a missing one into `null`, which clears that side's override |
 | `POST` | `/api/clear-set` | An empty scoreboard, for a set that isn't on start.gg. Always singles. The outgoing set's mains are learned first (as on any load) |
-| `POST` | `/api/clear-score` | Back to 0–0 on the loaded set: the game list is emptied, names and entrants stay. Same as the clear-score hotkey |
+| `POST` | `/api/clear-score` | Back to 0–0 on the loaded set: the game list is emptied, names and entrants stay. Same as the clear-score hotkey. 409 during a crew battle (the hotkey does nothing) |
 | `POST` | `/api/doubles` | `{ on: boolean }` — singles or doubles by hand. On gives each side a second player; off **drops** the second player (the dock asks first when one has a name). A doubles game with no start.gg set loaded turns it on by itself |
 | `POST` | `/api/side-color` | `{ side, color: "red" \| "blue" \| "green" \| null }` — a doubles side's team colour (Melee's three, stored as the hex Slippi's would be). The next doubles game start sets it again from Slippi's teams |
+| `POST` | `/api/crew/start` | `{ stocksEach?: 1–9 (4), teams: [{ name, members: [member…] } ×2] }`, `teams[0]` the left column, 1–10 members each. A member is `{ tag, prefix?, pronoun?, ref? }`: the DB record is the one at `ref` while its tag matches, else a lookup by tag; a blank prefix or pronoun and the main come from it. Replaces the set on the scoreboard (the dock asks first over one with games) |
+| `POST` | `/api/crew/end` | Takes the crew battle off; the scoreboard is left blank. 409 with none on |
+| `POST` | `/api/crew/pick` | `{ side, id }` sends that member in, `id: null` nobody. 409 for a member who is out. Mid-game the column keeps Slippi's character |
+| `POST` | `/api/crew/stock` | `{ side, id, delta: 1 \| -1 }` — one stock for any member, 0 to `stocksEach`. 0 takes them out (and off `active`); above 0 brings them back |
+| `POST` | `/api/crew/roster` | `{ side, name, members: [{ id?, …member }] }` — the crew's name and its members in their new order. With an `id` it's that member (stocks kept); without, a new one on full stocks; left out, taken off — **409 for anyone who has played, lost a stock or is in** |
+| `GET` | `/api/crews` | The saved crews, A–Z: `{ crews: [{ name, members: [{ tag, prefix, pronoun }] }] }` (`app/data/crews.json`) |
+| `POST` | `/api/crews/save` | `{ name, members }` — replaces a saved crew of the same name, in any case. Only the typed fields are kept; mains are looked up at start. `{ ok, replaced, crews }` |
+| `POST` | `/api/crews/delete` | `{ name }` → `{ ok, removed, crews }` |
 | `GET` / `POST` | `/api/casters` | `{ casters: [{ tag, prefix, pronoun, twitter }] }`, up to 4. An empty tag hides that caster's card |
 | `GET` | `/api/players[?q=]` | The player DB: tags starting with `q`, then containing it; no `q` = the scoreboard's players. Each `{ ref, tag, prefix, pronoun, twitter, startggPlayerId, main, pinnedMain, learnedMains, onAir }`, mains as `{ codename, name, skin }` |
 | `POST` | `/api/players/update` | `{ ref, tag, prefix?, pronoun?, twitter? }`. **`tag` must match the record at `ref`** (409 otherwise — a stale search can't edit someone else). A player on the scoreboard shows a prefix/pronoun change at once |

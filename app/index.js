@@ -38,6 +38,7 @@ const { createClipRecorder } = require("./lib/clip-recorder");
 const { installHotkeys }     = require("./lib/hotkey");
 const { lanDockUrls }        = require("./lib/lan-urls");
 const { createMainsLearning } = require("./lib/players/mains-learning");
+const { SavedCrews }          = require("./lib/crew/saved-crews");
 const { OVERLAYS, activeThemePack, themePacks } = require("./lib/server/api/setup");
 const { createServer }        = require("./lib/server/app");
 const { createControlStatus } = require("./lib/server/control-status");
@@ -129,9 +130,18 @@ function swapPorts() {
 // The global hotkeys (config.HOTKEYS). They land blind — the operator is
 // looking at OBS or the game — so each one says what it did in the console.
 const scoreLine = () => store.scoreboard().sides.map((s) => s.score).join("–");
+// In a crew battle ± is a stock for the side's active player (store.bump), so
+// the line names them — read before the bump, since their last stock takes
+// them off the active slot.
 function hotkeyScore(side, delta) {
+  const id = store.scoreboard().crew?.active[side] ?? null;
   store.bump(side, delta);
-  console.log(`[hotkey] ${side === 0 ? "Left" : "Right"} ${delta > 0 ? "+1" : "−1"} → ${scoreLine()}`);
+  const what = `[hotkey] ${side === 0 ? "Left" : "Right"} ${delta > 0 ? "+1" : "−1"}`;
+  const crew = store.scoreboard().crew;
+  const m = crew?.teams[side].members.find((x) => x.id === id);
+  if (!crew) console.log(`${what} → ${scoreLine()}`);
+  else if (!m) console.log(`${what} — nobody sent in for ${crew.teams[side].name}; nothing changed`);
+  else console.log(`${what} → ${m.tag} on ${m.stocks}${m.stocks ? "" : " (out)"} · stocks ${scoreLine()}`);
   controlStatus.refresh();
 }
 const hotkeys = installHotkeys(config.HOTKEYS, {
@@ -149,6 +159,7 @@ const hotkeys = installHotkeys(config.HOTKEYS, {
   leftMinus:  () => hotkeyScore(0, -1),
   rightMinus: () => hotkeyScore(1, -1),
   clearScore: () => {
+    if (store.isCrew()) return console.log("[hotkey] Clear score — does nothing in a crew battle");
     store.clearScore();
     console.log(`[hotkey] Clear score → ${scoreLine()}`);
     controlStatus.refresh();
@@ -165,6 +176,8 @@ registerRoutes(app, {
   store,
   event: ctx.event,
   playerDb: ctx.playerDb,
+  // Crew rosters the Crew tab saves, beside the scoreboard's save.
+  savedCrews: new SavedCrews(path.join(__dirname, "data", "crews.json")),
   clipperSettings,
   obs: ctx.obs,
   refreshControlStatus: controlStatus.refresh,
