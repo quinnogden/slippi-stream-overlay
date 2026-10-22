@@ -20,6 +20,6 @@ iframe{position:absolute;border:0;height:1080px;background:transparent}
 </div><script>
 const base=`http://localhost:${new URLSearchParams(location.search).get("port")}`;
 const cam=document.getElementById("cam"); cam.style.top="78px"; cam.style.height="330px"; // side-panel.css --cam-top / --cam-h
-document.getElementById("panel").src=base+"/o/side-panel?panel=completed-sets&animate=false";
+document.getElementById("panel").src=base+"/o/side-panel?panel=recent-sets&animate=false";
 document.getElementById("board").src=base+"/o/scoreboard?animate=false";
 </script></body></html>

@@ -12,7 +12,7 @@ serves every OBS overlay, and gives the stream operator one panel to drive it al
 ![OBS 28+](https://img.shields.io/badge/OBS-28%2B-302E31)
 ![start.gg](https://img.shields.io/badge/brackets-start.gg-E0393E)
 
-<img src="docs/images/hero.png" alt="The scoreboard over the game capture, with the side panel beside the webcam" width="100%">
+<img src="docs/images/hero.png" alt="The scoreboard over the game capture, with the side panel's head-to-head card and win projection beside the webcam" width="100%">
 
 <sub>The scoreboard and side panel on stream. The game capture and webcam are placeholders.</sub>
 
@@ -25,6 +25,8 @@ serves every OBS overlay, and gives the stream operator one panel to drive it al
 - 🎮 **Scores update by themselves.** Characters, costumes and the winner of each game come straight from Slippi as the game is played.
 - 🏆 **The bracket comes from start.gg.** Load the next set in one tap, then press **Report** when it's done. Nobody has to open the bracket page.
 - 🖥️ **Six OBS overlays, one look.** The scoreboard, side panel, bracket, casters and replay frame all share a theme pack you can swap.
+- 📊 **Player stats on stream.** The side panel shows each player's recent results, their run through today's bracket and their head-to-head. Add a [luckystats.gg](https://luckystats.gg) key for rankings and a win projection.
+- ⚔️ **Crew battles built in.** Stocks carry from game to game and are scored from Slippi, just like a normal set.
 - 🎬 **Combos clip themselves.** When a big combo lands, OBS saves its replay buffer, and the clips play back on your break scene.
 - 🧠 **It learns your players.** Pronouns and mains are kept in a player database, and mains are learned from what people actually play.
 
@@ -39,7 +41,8 @@ It replaced [Tournament Stream Helper (TSH)](https://github.com/joaorb64/Tournam
 | [Requirements](#requirements) | [The dock](#the-dock) | [Theme packs](#theme-packs) |
 | [Quick start](#quick-start) | [How scoring works](#how-scoring-works) | [Combo clipper](#combo-clipper) |
 | [Adding it to OBS](#adding-it-to-obs) | [Reporting to start.gg](#reporting-to-startgg) | [Troubleshooting](#troubleshooting) |
-| | [The overlays](#the-overlays) | [For developers](#for-developers) |
+| | [Crew battles](#crew-battles) | [For developers](#for-developers) |
+| | [The overlays](#the-overlays) | |
 
 ---
 
@@ -80,7 +83,7 @@ module.exports = {
 - **`SLP_FOLDER`**: the folder Slippi writes live games into. The app won't start if this folder doesn't exist.
 
 > [!WARNING]
-> Put the token in `config.local.js` only, never in `config.js`. `config.local.js` is gitignored; `config.js` is committed.
+> Put the token (and any other key) in `config.local.js` only, never in `config.js`. `config.local.js` is gitignored; `config.js` is committed.
 
 <details>
 <summary><b>Other settings</b> (all optional, with working defaults)</summary>
@@ -89,6 +92,7 @@ module.exports = {
 
 | Setting | Where | What it does |
 |---|---|---|
+| `LUCKYSTATS_KEY` | `config.local.js` | A [luckystats.gg](https://luckystats.gg) API key (from your account settings there). Adds Lucky Rank, class, region and a win projection to the [side panel](#side-panel). |
 | `BRACKETS` | `config.js` | Your series' start.gg short link, for the [Singles / Doubles buttons](#switching-brackets). |
 | `PLAYERS_FILE` | `config.js` | Moves the player database. The default is `app/data/local_players.json`. |
 | `HOTKEYS` | `config.local.js` | Changes the [global hotkeys](#hotkeys). |
@@ -160,9 +164,10 @@ It also works in a browser, where it widens into columns, or **on a phone**. Use
 
 This strip stays pinned at the top and shows:
 
-- **Both players**: tag, prefix and character. Tap a character to open a picker laid out like the character-select screen. Hold or right-click a character to choose a costume.
+- **Both players**: tag, prefix and character. Typing a tag suggests players from the loaded event. Tap a character to open a picker laid out like the character-select screen; hold or right-click it to choose a costume.
 - **The score**, with **−** / **+** for each side.
 - **The round, best-of and [L] marks**. Each can be overridden, and **Auto** puts them back.
+- **Doubles**, which gives each side two players and a team colour.
 
 And these buttons:
 
@@ -171,7 +176,7 @@ And these buttons:
 | **⇆ Sides** | The players swap columns on the scoreboard. Use it to match where they actually sit. |
 | **⇄ Ports** | Fixes ports that are the wrong way round, before a point goes to the wrong player. The scoreboard doesn't move. |
 | **↻ Detect** | Matches the ports to the players' characters again. |
-| **Start** / **Report** | start.gg's "Start match" and the result report. See [Reporting](#reporting-to-startgg). |
+| **Start** / **Report** | start.gg's "Start match" and the result report, for sets loaded from start.gg. See [Reporting](#reporting-to-startgg). |
 
 ### The tabs
 
@@ -182,7 +187,8 @@ And these buttons:
 | **Casters** | Up to four casters. Edits are a draft until you press **Put on stream**. |
 | **Players** | Search the player database, fix a prefix or pronoun, and **pin** a player's main. |
 | **Clips** | The combo clipper: on/off, the OBS connection, thresholds, recent clips, and **Test clip**. |
-| **Setup** | Every OBS URL, the phone URLs, the hotkeys, and where the files are. |
+| **Crew** | Build two crews and run a [crew battle](#crew-battles). |
+| **Setup** | Every OBS URL, the phone URLs, the hotkeys, the [theme](#theme-packs), and where the files are. |
 
 <br clear="right">
 
@@ -252,16 +258,17 @@ When a set loaded from start.gg is finished, press **Report**. The dock shows th
 **Start** handles the other end: it presses start.gg's "Start match" for the set you just loaded. It only shows while start.gg still lists the set as not started or called.
 
 <details>
-<summary>Why is Report greyed out?</summary>
+<summary>Why is Report greyed out, or missing?</summary>
 
 <br>
 
 The dock always shows the reason. The usual causes are:
 
 - No start.gg token.
-- A manual set (not loaded from start.gg).
 - **The bracket hasn't been started on start.gg yet.** Until the TO starts it, every set is a `preview_…` placeholder. Load the set again once the bracket starts.
 - The score is tied.
+
+**Start** and **Report** only appear for a set loaded from start.gg. Changing a player's tag on the live strip unlinks the set, so they disappear; load it again from the **Set** tab to bring them back.
 
 </details>
 
@@ -272,6 +279,27 @@ If your stream switches between singles and doubles, the Bracket tab's **Singles
 `BRACKETS` in `config.js` holds your series' **short link** (e.g. `start.gg/100-acres`, hyphenated exactly as it appears) and a few keywords per format. The TO points that short link at each new tournament, and the app follows it. If the keywords match two events, the app **refuses and names both** rather than guessing.
 
 Switching never touches the scoreboard, so a set in progress is safe.
+
+---
+
+## Crew battles
+
+<table>
+<tr>
+<td align="center"><img src="docs/images/dock-crew.png" alt="The dock's Crew tab: each crew's roster with In buttons and stock counts" width="300"><br><sub>The dock's <b>Crew</b> tab</sub></td>
+<td align="center"><img src="docs/images/crew-panel.png" alt="The side panel's crew card: the crew's name, its stocks left, and each member with their character and stocks" width="300"><br><sub>The side panel's crew card</sub></td>
+</tr>
+</table>
+
+Two crews of up to 10 players. Everyone starts on the same number of stocks (4 by default). The winner of each game stays in with the stocks they have left, and a crew is out when its stocks run out.
+
+1. Build both crews in the dock's **Crew** tab. Pick tags from the suggestions to bring in pronouns and mains. **Save** keeps a crew for next time.
+2. Press **Start crew battle**. It replaces whatever set is on the scoreboard.
+3. Press **In** to send each crew's player in. The app never picks who plays next.
+
+Slippi does the rest. When a game ends, the winner keeps the stocks they finished on, the loser is out, and that crew sends in someone new. Each side's score is its crew's stocks left. **−** / **+** and the score hotkeys fix the stocks of whoever is in.
+
+On stream, the scoreboard shows the player who's in with their crew's name beneath, and the side panel rotates through each crew's roster instead of player stats. Crew battles aren't reported to start.gg, and mains aren't learned from them.
 
 ---
 
@@ -295,23 +323,28 @@ The same information in a bar along the bottom, with the tournament logo above t
 
 ### Side panel
 
-<img src="docs/images/side-panel.png" alt="Side panel: tournament header, webcam cutout, and a Just Finished list of results" width="230" align="right">
+<table>
+<tr>
+<td align="center"><img src="docs/images/side-panel-player.png" alt="Side panel player card: tag, character, Lucky Rank, class and region, current run and recent results" width="250"><br><sub>Player card</sub></td>
+<td align="center"><img src="docs/images/side-panel-h2h.png" alt="Side panel head-to-head card: the 6–5 record, a win projection bar, and the seven most recent sets between the two players" width="250"><br><sub>Head-to-head</sub></td>
+<td align="center"><img src="docs/images/side-panel.png" alt="Side panel Just Finished card: the event's most recent results" width="250"><br><sub>Just finished</sub></td>
+</tr>
+</table>
 
 A 611 × 1080 panel that sits beside the webcam. The header shows the tournament name. The bottom card rotates every 20 seconds through:
 
-- the tournament logo
-- each player's recent placements and current run
-- their head-to-head record
-- the sponsor logo
-- the event's just-finished sets
+- the tournament and sponsor logos
+- each player's **current run** and **recent results**
+- their **head-to-head** record and latest sets
+- the event's **just-finished** sets
 
-Player stats come from start.gg. Each player's full set history is downloaded once and saved, so a regular's card appears seconds after their set loads.
+Player stats come from start.gg and need the token. Each player's full set history is downloaded once and saved, so a regular's card appears seconds after their set loads.
+
+**With a [luckystats.gg](https://luckystats.gg) key** (`LUCKYSTATS_KEY`), the player cards also show each player's Lucky Rank, class and region, and the head-to-head adds a win projection. Anything luckystats doesn't know is simply left off.
 
 When the combo clipper saves a clip, a pill naming the player and the combo slides in over the bottom card.
 
-Doubles skips the player cards and head-to-head.
-
-<br clear="right">
+Doubles skips the player cards and head-to-head. A [crew battle](#crew-battles) shows each crew's roster instead.
 
 ### Bracket
 
@@ -446,7 +479,8 @@ Whenever you switch to the scene, it builds a playlist from the newest clips.
 | **Points go to the wrong player** | Press **⇄ Ports** (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>). If the *names* are on the wrong sides, use **⇆ Sides** instead. |
 | **Players have no character or pronouns** | There's no player file; the console warns about this at startup. See [the player database](#3--set-up-the-player-database-optional). |
 | **An overlay has no styling or is missing a logo** | `overlays/theme.css` names a theme pack that isn't there. Preflight tells you which. |
-| **Report or Start is greyed out** | The dock shows why. See [Why is Report greyed out?](#reporting-to-startgg) |
+| **Report or Start is greyed out or missing** | The dock shows why. See [Why is Report greyed out, or missing?](#reporting-to-startgg) |
+| **The side panel has no player cards** | They need `STARTGG_TOKEN`. A player's first set can take a minute while their history downloads. Lucky Rank and the win projection also need `LUCKYSTATS_KEY`. |
 | **No clips are saved** | Most likely causes, in order: it's a doubles set, the replay buffer isn't running, or the thresholds are too high. **Test clip** tells an OBS problem apart from a threshold problem. |
 | **Clips start partway through the combo** | The replay buffer is shorter than 20 seconds. |
 | **The highlights frame doesn't line up** | Add `?guides=1` and compare the labels with OBS's Edit Transform values. |
