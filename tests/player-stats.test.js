@@ -150,6 +150,7 @@ function set(id, sides, winnerSide, extra = {}) {
     assert.strictEqual(ratings[A].rank, 167);
     assert.strictEqual(ratings[A].className, "Regional Threat");
     assert.strictEqual(ratings[B].rank, 355);
+    assert.deepStrictEqual([ratings[A].elo, ratings[B].elo], [2514, 2248], "Elo is luckystats' elo, rounded");
     assert.ok(matchup, "both players were found, so there's a matchup");
   });
 
@@ -172,18 +173,24 @@ function set(id, sides, winnerSide, extra = {}) {
     let r = luckyFromResponse(body, { 9001: A, 9002: B }).ratings[A];
     assert.strictEqual(r.region, "Region A Melee");
     assert.strictEqual(r.regionImage, body.players[0].displayRegion.imageUrl);
-    assert.strictEqual(r.regionRank, null, "no region rank in the answer, but one was shown");
+    assert.strictEqual(r.regionRank, 2, "the place isn't the Region's crew ranking");
     // displayRegion falls back to a crew; the card labels it "Region".
     body.players[0].displayRegion = { name: "Some Crew", imageUrl: "https://luckystats.gg/crew.png", url: null, source: "crew" };
     r = luckyFromResponse(body, { 9001: A, 9002: B }).ratings[A];
     assert.deepStrictEqual([r.region, r.regionImage], ["Region A", null], "a crew was shown as the region");
-    // The rank in the region's ranking is the player's own field, beside
-    // primaryRegion — not inside displayRegion.
-    body.players[1].regionRank = 10;
-    body.players[0].displayRegion.rank = 3;
-    const both = luckyFromResponse(body, { 9001: A, 9002: B }).ratings;
-    assert.strictEqual(both[B].regionRank, 10);
-    assert.strictEqual(both[A].regionRank, null, "displayRegion.rank isn't luckystats' field, but it was shown");
+    assert.strictEqual(r.regionRank, null, "a crew's ranking was shown beside a calculated region");
+    // The place is the shown Region's crew ranking (its `regions` entry), never
+    // the top-level regionRank — the calculated region's power ranking.
+    const fresh = LUCKY_PAIR();
+    fresh.players[0].regionRank = 15;
+    fresh.players[1].regionRank = 10;
+    fresh.players[0].displayRegion.rank = 3;
+    const both = luckyFromResponse(fresh, { 9001: A, 9002: B }).ratings;
+    assert.strictEqual(both[A].regionRank, 2, "the top-level regionRank was shown, not the crew ranking");
+    assert.strictEqual(both[B].regionRank, null, "a Region with no ranking this season showed a place");
+    // A ranking for a Region other than the one shown isn't this one's.
+    fresh.players[0].regions[0].url = "https://luckystats.gg/crews/elsewhere";
+    assert.strictEqual(luckyFromResponse(fresh, { 9001: A, 9002: B }).ratings[A].regionRank, null, "another Region's ranking was shown");
   });
 
   await test("a malformed value is dropped, never shown", () => {
@@ -193,13 +200,15 @@ function set(id, sides, winnerSide, extra = {}) {
       playerClass: { key: "regional-threat", name: "  ", svgUrl: 42 },
       primaryRegion: { name: "Region A" },
       regionRank: 0,
+      elo: "2513",
+      regions: [{ name: "Region A Melee", url: null, ranking: { rank: 0 } }],
       displayRegion: { name: "", imageUrl: "https://example.public.blob.vercel-storage.com/a.jpg", url: null, source: "region" },
     });
     body.players[1].luckyRank = { rank: "-3" };
     const { ratings } = luckyFromResponse(body, { 9001: A, 9002: B });
     assert.deepStrictEqual(
-      [ratings[A].rank, ratings[A].className, ratings[A].classSvg, ratings[A].region, ratings[A].regionImage, ratings[A].regionRank],
-      [null, null, null, null, null, null]);
+      [ratings[A].rank, ratings[A].className, ratings[A].classSvg, ratings[A].region, ratings[A].regionImage, ratings[A].regionRank, ratings[A].elo],
+      [null, null, null, null, null, null, null]);
     assert.strictEqual(ratings[B].rank, null);
   });
 

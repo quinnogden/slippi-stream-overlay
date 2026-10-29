@@ -213,7 +213,8 @@ The side panel's player cards, head-to-head and Just Finished, from start.gg and
                 badge: "/assets/luckystats/class-regional-threat.svg" | null,   // the app's copy; null if it couldn't be saved
                 region: "MD/VA Melee",               // their public Region, else their calculated primaryRegion — never a crew
                 regionIcon: "/assets/luckystats/region-306be3064a1e1bdd.jpg" | null,  // the Region's artwork (app's copy)
-                regionRank: 1 | null },              // their place in their region's ranking (luckystats' per-player regionRank)
+                regionRank: 2 | null,                // their place in the shown Region's crew ranking (regions[].ranking.rank); null for a calculated region
+                elo: 2514 | null },                  // luckystats' Elo (its Glicko μ), rounded
     },
     matchup: {                     // null unless both players were found
       winProbability: { "1097": 0.958, "1069": 0.042 },   // glickoOnly — never blended
@@ -235,7 +236,7 @@ Consumer rules — each is a way to put a healthy-looking wrong number on stream
 - **`scores` can be null** for a winner-only report. Derive W/L from `winner`.
 - **`completedSets`** is the loaded event's finished sets, newest first (12), from the event service's 90s reads — not a query of its own.
 - **A `lucky.matchup` for any other pair is not this pair's** — the same rule as `h2h`: show the projection only when `lucky.players` contains both column ids. `ratings` are per player, so a player carried over from the last set keeps theirs.
-- **Credit luckystats.** Any card drawing from `lucky` says "Powered by Lucky Stats"; that was the condition of the endpoint.
+- **Credit luckystats.** Any card drawing from `lucky` says "Powered by LuckyStats.gg" (with the clover); that was the condition of the endpoint.
 - **Any `ratings` field can be null** (unranked, no class, no region, an image that couldn't be saved): show nothing for it and leave no room for it.
 - **Images are the app's.** `badge` and `regionIcon` are paths the app serves; luckystats' own urls never reach a source (venue Wi-Fi).
 - **Where both sources answer, show start.gg's** — the head-to-head is start.gg's (luckystats' undercounts); `lucky` carries only what start.gg has no answer for.

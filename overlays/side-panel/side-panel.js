@@ -10,8 +10,9 @@
  * by the app, plus luckystats.gg's ratings, all keyed by start.gg player id).
  * There is no second source to fall back to: a pair the stats haven't
  * finished shows no card rather than someone else's numbers. luckystats adds
- * Rank, Class and Region to the player cards and the win probability to the
- * head-to-head, and every card showing it says so ("Powered by Lucky Stats").
+ * Rank, Class and Region to the player cards and the win probability and Elo
+ * to the head-to-head, and every card showing it says so ("Powered by
+ * LuckyStats.gg").
  *
  * A crew battle (the scoreboard's `crew` section) swaps the stats cards for
  * the two crews' rosters, each after a logo: every member with what they last
@@ -177,7 +178,11 @@
    */
   function h2hCardView() {
     const record = h2hView();
-    return record ? { record, prob: projectionView() } : null;
+    if (!record) return null;
+    const prob = projectionView();
+    // Each player's Elo, beside their chance; a side luckystats has none for is blank.
+    const elo = prob ? [0, 1].map((i) => luckyPlayer(i)?.elo ?? null) : null;
+    return { record, prob, elo };
   }
 
   function hasPlayerCard(i) {
@@ -494,21 +499,29 @@
     return slot;
   }
 
-  /** Each player's chance either side of the bar; its colours meet at the left player's. */
-  function projectionRow(prob) {
+  /**
+   * Each player's chance either side of the bar (its colours meet at the left
+   * player's), and their Elo under it, level with the bar's caption.
+   */
+  function projectionRow(prob, elo) {
     const bar = h("div", "prob-bar");
     bar.style.setProperty("--p", pct(prob[0]));
     bar.appendChild(h("i", "prob-marker"));
-    const mid = h("div", "h2h-projection-mid");
-    mid.append(bar, h("div", "h2h-subtitle", "Win Projection"));
     // The number and its sign apart: a pack's score font may draw "%" large.
     const side = (p, cls) => {
       const el = h("span", cls, pct(p).slice(0, -1));
       el.appendChild(h("span", "prob-pct-sign", "%"));
       return el;
     };
+    const rating = (r, cls) => {
+      const el = h("div", cls);
+      if (r != null) el.append(h("span", "prob-elo-val", String(r)), h("span", "prob-elo-label", "Elo"));
+      return el;
+    };
     const row = h("div", "h2h-projection");
-    row.append(side(prob[0], "prob-pct"), mid, side(prob[1], "prob-pct right"));
+    row.append(
+      side(prob[0], "prob-pct"), bar, side(prob[1], "prob-pct right"),
+      rating(elo?.[0], "prob-elo"), h("div", "h2h-subtitle", "Win Projection"), rating(elo?.[1], "prob-elo right"));
     return row;
   }
 
@@ -531,7 +544,7 @@
     mid.append(h("div", "h2h-subtitle", "Head to Head"), h("span", "h2h-score", `${h2h.wins[0]} – ${h2h.wins[1]}`));
     row.append(left, mid, right);
     head.appendChild(row);
-    if (v.prob) head.appendChild(projectionRow(v.prob));
+    if (v.prob) head.appendChild(projectionRow(v.prob, v.elo));
     list.appendChild(head);
 
     const subs = [], rounds = [];

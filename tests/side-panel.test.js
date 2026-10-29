@@ -273,11 +273,15 @@ const plain = (v) => JSON.parse(JSON.stringify(v)); // the page's arrays are ano
     const env = await setup(GRAND_FINAL, statsFor(GRAND_FINAL, { lucky: true }));
     const p = LUCKY_PAIR().matchup.winProbability.glickoOnly; // player1 is the left column's player
     const shown = () => env.page.$$("#panel-recent-sets .prob-pct").map((el) => el.textContent);
+    const elo = () => env.page.$$("#panel-recent-sets .prob-elo-val").map((el) => el.textContent);
+    const [e1, e2] = LUCKY_PAIR().players.map((pl) => String(Math.round(pl.elo)));
     assert.deepStrictEqual(shown(), [pct(p.player1), pct(p.player2)]);
+    assert.deepStrictEqual(elo(), [e1, e2], "each player's Elo isn't under their percentage");
     assert.strictEqual(env.page.$("#panel-recent-sets .prob-bar").style["--p"], pct(p.player1));
     env.store.switchSides();
     await env.settle();
     assert.deepStrictEqual(shown(), [pct(p.player2), pct(p.player1)], "after Switch Sides the projection didn't follow the players");
+    assert.deepStrictEqual(elo(), [e2, e1], "after Switch Sides the Elo didn't follow the players");
     assert.strictEqual(env.page.$("#panel-recent-sets .prob-bar").style["--p"], pct(p.player2));
   });
 
@@ -290,7 +294,7 @@ const plain = (v) => JSON.parse(JSON.stringify(v)); // the page's arrays are ano
   await test("player cards: the Lucky Rank under the character, class and region boxed beside the tag — credited, and none of it without luckystats", async () => {
     const env = await setup(GRAND_FINAL, statsFor(GRAND_FINAL, { lucky: true }));
     assert.deepStrictEqual(visibleText(env.page, "#panel-player-1 .player-rank"), ["#167"]);
-    assert.deepStrictEqual(visibleText(env.page, "#panel-player-1 .player-lucky"), ["Class", "Regional Threat", "Region", "Region A Melee"]);
+    assert.deepStrictEqual(visibleText(env.page, "#panel-player-1 .player-lucky"), ["Class", "Regional Threat", "Region", "Region A Melee", "#2"]);
     assert.deepStrictEqual(visibleText(env.page, "#panel-player-2 .player-rank"), ["#355"]);
     assert.strictEqual(env.page.$("#panel-player-1 .lucky-icon.region img").src, "/assets/luckystats/region-0123456789abcdef.jpg");
     assert.strictEqual(env.page.$("#panel-player-1 .lucky-icon.class img").src, "/assets/luckystats/class-regional-threat.svg");
