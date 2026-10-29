@@ -11,8 +11,8 @@
  *     pans). The tour turns pages; dots under the title count them.
  *   - **Up Next**: every live or ready set in the event, as cards in a grid.
  *   - **The Board**: the classic connected bracket, steered from the dock —
- *     near moves glide, far jumps crossfade, round headers stay pinned to the
- *     top edge, and a minimap shows where the camera is.
+ *     near moves glide, far jumps crossfade, and round headers stay pinned to
+ *     the top edge.
  *
  * The view follows the dock (state `view.bracketView`) unless ?view= pins
  * this source; a pinned source tours its own view's pages by itself. A switch
@@ -254,38 +254,6 @@
     }
   }
 
-  /** The Board's minimap: every card, the live one marked, and the camera's box. */
-  function drawMinimap(layer, lay, cam) {
-    let mini = layer.el.querySelector(".minimap");
-    if (!mini) {
-      mini = layer.el.appendChild(h("div", "minimap"));
-      const svg = document.createElementNS(SVG, "svg");
-      svg.setAttribute("viewBox", `0 0 ${lay.width} ${lay.height}`);
-      svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-      for (const [id, c] of Object.entries(lay.cards)) {
-        const r = document.createElementNS(SVG, "rect");
-        r.setAttribute("x", c.x);
-        r.setAttribute("y", c.y);
-        r.setAttribute("width", METRICS.cardW);
-        r.setAttribute("height", METRICS.rowH * 2);
-        r.setAttribute("rx", 10);
-        r.setAttribute("class", `m-card ${feed.sets[id].state}`);
-        svg.appendChild(r);
-      }
-      const box = document.createElementNS(SVG, "rect");
-      box.setAttribute("class", "m-cam");
-      svg.appendChild(box);
-      mini.appendChild(svg);
-    }
-    const box = mini.querySelector(".m-cam");
-    const t = L.cameraTransform(lay, cam, VIEWPORT);
-    box.setAttribute("x", -t.x / t.scale);
-    box.setAttribute("y", -t.y / t.scale);
-    box.setAttribute("width", VIEWPORT.w / t.scale);
-    box.setAttribute("height", VIEWPORT.h / t.scale);
-    presence(mini, !cam?.overview);
-  }
-
   function place(layer, t, { glide = false } = {}) {
     const board = layer.board;
     const from = glide && animated() ? transformOf(board) : null;
@@ -310,7 +278,7 @@
   function render() {
     if (PINNED) localTour();
     const s = shotNow();
-    renderTitle(s);
+    renderTitle();
     renderDots(s);
 
     const board = s.mode === "board";
@@ -377,11 +345,9 @@
       layer.feedRef = feed;
       layer.lay = lay;
       draw(layer.board, lay);
-      layer.el.querySelector(".minimap")?.remove();
     }
     place(layer, t, { glide: !fresh });
     pinHeaders(layer, t);
-    drawMinimap(layer, lay, cam);
     layer.cam = t;
   }
 
@@ -415,14 +381,10 @@
     }
   }
 
-  function renderTitle(s) {
+  function renderTitle() {
     const title = viewName === "full" && feed?.label ? feed.label : VIEW_TITLES[viewName];
     text(document.querySelector(".title-main .text"), title);
-    let sub = "";
-    if (feed) {
-      const names = viewName === "upnext" ? [feed.tournamentName] : [feed.tournamentName, feed.eventName];
-      sub = [s.mode !== "board" ? s.page?.label : "", ...names].filter(Boolean).join(" · ");
-    }
+    const sub = feed ? [feed.tournamentName, feed.eventName].filter(Boolean).join(" · ") : "";
     text(document.querySelector(".title-sub .text"), sub, { emptyOn: null });
   }
 

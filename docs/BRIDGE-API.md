@@ -100,7 +100,7 @@ What the bracket overlay draws, published by [lib/event/bracket-feed.js](../app/
   views: { winners, losers, top8, top16, full },  // each { rounds, setIds, fedFromOutside }
   pages: {                         // what each view is shown on (layout.js paginate / paginateList)
     [view]: [ { key: "WW1-W2x2",   //   stable across score changes: a refresh mid-hold doesn't jump
-                label: "Winners · Rounds 1–2",  // the overlay's subtitle ("" for a one-page view)
+                label: "Winners · Rounds 1–2",  // a readable name for the page ("" for a one-page view)
                 short: "W R1–R2",  //   the dock's page key
                 setIds: [ … ],     //   the sets on it, in round order
                 wrap: { W: 2 } } ] //   k-up per side, as layoutPage lays it out

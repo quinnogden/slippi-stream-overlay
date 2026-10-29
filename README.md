@@ -353,7 +353,7 @@ Doubles skips the player cards and head-to-head. A [crew battle](#crew-battles) 
 One source with six views: **Winners · Losers · Top 8 · Top 16 · Full · Up Next**. Switch between them from the dock, and the overlay crossfades. Add `?view=top8` to a source's URL to keep it on one view.
 
 - Each view **scales to fit**. One too big to read whole is shown as **pages** instead: groups of rounds laid out on their own, so a 51-player bracket fits on 4 readable pages. The overlay tours them (dots under the title count them down), or holds the one you pick in the dock. Empty rounds further ahead than the next one aren't drawn.
-- **Board** mode shows the classic connected bracket. You steer it from the dock with arrows, zoom, an Overview of the whole thing, or a tap on the minimap. Round names stay pinned at the top, and a minimap in the corner shows where you are.
+- **Board** mode shows the classic connected bracket. You steer it from the dock with arrows, zoom, an Overview of the whole thing, or a tap on the minimap. Round names stay pinned at the top. The minimap is in the dock only, so the stream stays clean.
 - **Up Next** lists every set being played or ready to play, across every pool, with the set on stream first.
 - Sets show seeds, scores and character icons. The winners' paths light up in the theme's accent colour.
 - A player dropping into losers gets a small tag ("from W-R2") instead of a line across the screen.

@@ -437,7 +437,7 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
     assert.ok(!page.animations.slice(anims).some(({ el }) => el.classList.contains("layer")), "a data change crossfaded");
   });
 
-  await test("the tour turns the pages, opening on the action; the dots and the subtitle follow", async () => {
+  await test("the tour turns the pages, opening on the action; the dots follow; the title stays the event", async () => {
     const { store, page, tick } = await pageEnv("", "hundred-acres-50");
     store.setBracketView("full");
     await sleep(60);
@@ -450,7 +450,9 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
     assert.strictEqual(store.bracketShot().holdMs, L.holdMs(pageUp(store)));
     assert.strictEqual(page.$$(".page-dots i").length, pages.length);
     assert.ok(!page.$(".page-dots").classList.contains("empty"));
-    assert.ok(page.$(".title-sub .text").textContent.startsWith(pageUp(store).label), "the subtitle names the page");
+    const b0 = store.bracket();
+    assert.strictEqual(page.$(".title-sub .text").textContent, [b0.tournamentName, b0.eventName].filter(Boolean).join(" · "),
+      "the subtitle is the tournament and event, not the page");
 
     assert.ok(await tick(), "the tour should have a turn pending");
     const i = pages.findIndex((p) => p.key === first);
@@ -500,7 +502,7 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
     assert.ok(b.pages.full.some((p) => p.key === store.bracketShot().page), "still pointing at a page that exists");
   });
 
-  await test("the Board: steered from the dock, the whole board with a minimap; Overview fits it; Auto goes back", async () => {
+  await test("the Board: steered from the dock, the whole board; Overview fits it; Auto goes back", async () => {
     const { store, page, director } = await pageEnv("", "hundred-acres-50");
     store.setBracketView("full");
     await sleep(60);
@@ -511,7 +513,7 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
     await sleep(60);
     const board = L.prunedView(store.bracket(), "full");
     assert.strictEqual(cardsOn(page), board.setIds.length, "the Board is the whole (pruned) bracket");
-    assert.ok(page.$(".layer .minimap"), "a minimap shows where the camera is");
+    assert.ok(!page.$(".layer .minimap"), "no minimap on stream — it is the dock's");
     assert.ok(page.$(".page-dots").classList.contains("empty"), "no page dots on the Board");
 
     director.command({ action: "pan", dir: "down" });
@@ -528,7 +530,6 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
     await sleep(80);
     assert.strictEqual(store.bracketShot().mode, "tour");
     assert.strictEqual(cardsOn(page), pageUp(store).setIds.length);
-    assert.ok(!page.$(".layer .minimap"));
     assert.strictEqual(director.command({ action: "pan", dir: "sideways" }).status, 400);
   });
 

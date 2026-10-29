@@ -362,30 +362,6 @@ body.no-animate .round-head { transition: none; }
               0 0 48px 12px rgba(var(--trim-rgb, var(--text-color-rgb)), 0.45);
 }
 
-.minimap {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 300px;
-  height: 190px;
-  padding: 10px;
-  background: var(--score-bg-color);
-  border: 1px solid rgba(var(--text-color-rgb), 0.14);
-  border-radius: min(var(--border-radius), 12px);
-  box-shadow: var(--shadow-raised);
-}
-.minimap.empty { display: none; }
-.minimap svg { width: 100%; height: 100%; display: block; }
-.minimap .m-card { fill: rgba(var(--text-color-rgb), 0.22); }
-.minimap .m-card.done { fill: rgba(var(--text-color-rgb), 0.42); }
-.minimap .m-card.live { fill: var(--trim-color, var(--text-color)); }
-.minimap .m-cam {
-  fill: rgba(var(--text-color-rgb), 0.08);
-  stroke: var(--text-color);
-  stroke-width: 18;
-  vector-effect: non-scaling-stroke;
-}
-
 /* ── Up Next ─────────────────────────────────────────────────── */
 
 .ucard {
