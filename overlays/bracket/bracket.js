@@ -1,27 +1,31 @@
 /**
- * bracket.js — draws the bracket overlay from the state's `bracket` section.
+ * bracket.js — draws the bracket overlay from the state's `bracket` and
+ * `bracketShot` sections.
  *
- * layout.js decides where everything goes at 1080p size; this builds the
- * cards, headers and connectors, then fits the board into the viewport:
+ * layout.js decides where everything goes at 1080p size and how a view too
+ * big for the screen is cut into pages; the app (bracket-director.js) decides
+ * what is up. This draws one of three things:
  *
- *   - It scales down to fit, but never below the legibility floor (names
- *     ≈22px). A Top 8 fits whole.
- *   - Past the floor it pans: from the round being played (or the most
- *     recent), to the far end, to the near end, and back — holding at each
- *     stop and gliding between them.
+ *   - **A page** of a bracket view: its round bands laid out together, scaled
+ *     to fit (every page fits at or above the legibility floor — nothing
+ *     pans). The tour turns pages; dots under the title count them.
+ *   - **Up Next**: every live or ready set in the event, as cards in a grid.
+ *   - **The Board**: the classic connected bracket, steered from the dock —
+ *     near moves glide, far jumps crossfade, and round headers stay pinned to
+ *     the top edge.
  *
  * The view follows the dock (state `view.bracketView`) unless ?view= pins
- * this source. A view switch crossfades through depth to a freshly drawn
- * board (the old one recedes, the new one settles forward); a data
- * change (a reported set, a score) redraws the board in place and keeps the
- * pan going unless the board changed size.
+ * this source; a pinned source tours its own view's pages by itself. A switch
+ * of view or page crossfades through depth to a freshly drawn board; a data
+ * change (a reported set, a score) redraws the board in place.
  */
 (function () {
   "use strict";
 
-  const { h, text, icon, fitGroup, param } = Overlay;
+  const { h, text, icon, fitGroup, param, presence } = Overlay;
   const { ease, ms } = Overlay.motion;
-  const { layoutBracket, fitScale, METRICS } = BracketLayout;
+  const L = BracketLayout;
+  const { METRICS, VIEWPORT } = L;
 
   const VIEW_TITLES = {
     winners: "Winners Bracket",
@@ -29,30 +33,32 @@
     top8:    "Top 8",
     top16:   "Top 16",
     full:    "Bracket",
+    upnext:  "Up Next",
   };
   const PINNED = VIEW_TITLES[param("view")] ? param("view") : null;
 
-  const PAN_SPEED   = 90;    // screen px per second
-  const PAN_MIN_MS  = 1800;
-  const FOCUS_HOLD  = 7000;  // at the live round
-  const END_HOLD    = 4500;  // at each end
+  const GLIDE_MS    = 1000;
   const FADE_IN_MS  = 760;
   const FADE_OUT_MS = 380;
+  const STATUS_TEXT = { onstream: "On Stream", live: "Live", ready: "Ready" };
 
   const SVG = "http://www.w3.org/2000/svg";
   const viewport = document.querySelector(".viewport");
+  const dots = document.querySelector(".page-dots");
   const animated = () => !document.body.classList.contains("no-animate");
 
   let feed = null;
+  let shot = null;
   let viewName = PINNED || "top8";
-  let current = null;   // { el, board, key, size, pan }
+  let current = null;   // { el, board, key, size, lay, mini }
+  const local = { page: null, since: 0, holdMs: 0, timer: null }; // a pinned source's own tour
 
   // ── Cards ───────────────────────────────────────────────────────────────────
 
   /** @param tag — layout.js's tagOf: { label, loser } or null */
-  function entrantRow(set, i, tag) {
+  function entrantRow(set, i, tag, entrants) {
     const slot = set.slots[i];
-    const ent = slot.entrantId ? feed.entrants[slot.entrantId] : null;
+    const ent = slot.entrantId ? entrants[slot.entrantId] : null;
     const decided = set.state === "done" && set.winner != null;
     const row = h("div", "row" + (!ent ? " empty" : decided ? (set.winner === i ? " win" : " lose") : ""));
 
@@ -94,19 +100,22 @@
     return "";
   }
 
-  // ── Drawing a board ─────────────────────────────────────────────────────────
-
-  function draw(board, lay) {
+  function sizeBoard(board, width, height, entrants) {
     const m = METRICS;
     board.replaceChildren();
-    board.style.width = `${lay.width}px`;
-    board.style.height = `${lay.height}px`;
+    board.style.width = `${width}px`;
+    board.style.height = `${height}px`;
     board.style.setProperty("--card-w", `${m.cardW}px`);
     board.style.setProperty("--row-h", `${m.rowH}px`);
     board.style.setProperty("--head-h", `${m.headerH}px`);
     board.style.setProperty("--name-size", `${m.nameSize}px`);
-    const anyChar = Object.values(feed.entrants).some((e) => e.character);
-    board.classList.toggle("no-chars", !anyChar);
+    board.classList.toggle("no-chars", !Object.values(entrants).some((e) => e.character));
+  }
+
+  // ── Drawing a bracket board ─────────────────────────────────────────────────
+
+  function draw(board, lay) {
+    sizeBoard(board, lay.width, lay.height, feed.entrants);
 
     // Connectors first, so the cards sit on top. Lit ones last, with a glow
     // under them (CSS filters don't apply inside an SVG).
@@ -130,6 +139,8 @@
         const head = h("div", "round-head");
         head.style.left = `${col.x}px`;
         head.style.top = `${section.top}px`;
+        head.dataset.top = section.top;
+        head.dataset.bottom = section.bottom;
         const plate = head.appendChild(h("div", "plate"));
         plate.appendChild(h("span", null, col.name));
         if (col.setIds.every((id) => feed.sets[id].conditional)) plate.appendChild(h("span", "maybe", "if needed"));
@@ -144,7 +155,7 @@
       card.style.left = `${pos.x}px`;
       card.style.top = `${pos.y}px`;
       const tags = lay.tags[id] ?? [];
-      card.append(entrantRow(set, 0, tags[0]), entrantRow(set, 1, tags[1]));
+      card.append(entrantRow(set, 0, tags[0], feed.entrants), entrantRow(set, 1, tags[1], feed.entrants));
       board.appendChild(card);
       names.push(...card.querySelectorAll(".name"));
     }
@@ -153,94 +164,104 @@
     fitGroup(names, Math.round(METRICS.nameSize * 0.7));
   }
 
-  // ── Fit and pan ─────────────────────────────────────────────────────────────
+  // ── Drawing Up Next ─────────────────────────────────────────────────────────
 
-  function geometry(lay) {
-    const vw = viewport.clientWidth;
-    const vh = viewport.clientHeight;
-    const fit = fitScale(lay.width, lay.height, vw, vh);
-    const w = lay.width * fit.scale;
-    const ht = lay.height * fit.scale;
-    // The translate range on each axis: centred when it fits, [view − board, 0] when it pans.
-    const range = (size, view, pans) => (pans ? [view - size, 0] : [(view - size) / 2, (view - size) / 2]);
-    const [minX, maxX] = range(w, vw, fit.panX);
-    const [minY, maxY] = range(ht, vh, fit.panY);
-    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-    const focus = lay.focus
-      ? { x: clamp(vw / 2 - lay.focus.x * fit.scale, minX, maxX), y: clamp(vh / 2 - lay.focus.y * fit.scale, minY, maxY) }
-      : { x: maxX, y: maxY };
-    return { ...fit, minX, maxX, minY, maxY, focus };
+  function drawList(board, rows) {
+    const grid = L.layoutList(rows.length);
+    const entrants = feed.upNextEntrants ?? {};
+    sizeBoard(board, grid.width, grid.height, entrants);
+    board.style.setProperty("--list-head-h", `${L.LIST.headH}px`);
+    const names = [];
+    rows.forEach((row, i) => {
+      const cell = grid.cells[i];
+      const item = h("div", `ucard ${row.status}`);
+      item.style.left = `${cell.x}px`;
+      item.style.top = `${cell.y}px`;
+      const head = item.appendChild(h("div", "uhead"));
+      head.appendChild(h("span", "uround", [row.round, row.group].filter(Boolean).join(" · ")));
+      head.appendChild(h("span", "chip", STATUS_TEXT[row.status]));
+      const card = item.appendChild(h("div", `card ${row.state}`));
+      card.append(entrantRow(row, 0, null, entrants), entrantRow(row, 1, null, entrants));
+      board.appendChild(item);
+      names.push(...card.querySelectorAll(".name"));
+    });
+    fitGroup(names, Math.round(METRICS.nameSize * 0.7));
+    return grid;
   }
 
-  const transformAt = (p, scale) => `translate(${p.x}px, ${p.y}px) scale(${scale})`;
+  // ── What's up ───────────────────────────────────────────────────────────────
+
+  const pagesNow = () => feed?.pages?.[viewName] ?? [];
+
+  /** The shot this source shows: the app's, or a pinned source's own tour. */
+  function shotNow() {
+    const pages = pagesNow();
+    if (PINNED) {
+      const page = pages.find((p) => p.key === local.page) ?? pages[0] ?? null;
+      return { mode: "tour", page, since: local.since, holdMs: local.holdMs, camera: null };
+    }
+    const s = shot && shot.view === viewName ? shot : null;
+    if (s?.mode === "board" && viewName !== "upnext") return { mode: "board", page: null, camera: s.camera };
+    const page = pages.find((p) => p.key === s?.page) ?? pages[0] ?? null;
+    return { mode: s?.mode === "page" ? "page" : "tour", page, since: s?.since ?? 0, holdMs: s?.holdMs ?? 0, camera: null };
+  }
+
+  /** A pinned source turns its own pages, on the same holds as the app's tour. */
+  function localTour() {
+    clearTimeout(local.timer);
+    const pages = pagesNow();
+    if (!pages.some((p) => p.key === local.page)) {
+      local.page = pages[0]?.key ?? null;
+      local.since = Date.now();
+      local.holdMs = L.holdMs(pages[0]);
+    }
+    if (pages.length < 2) return;
+    local.timer = setTimeout(() => {
+      const i = pages.findIndex((p) => p.key === local.page);
+      const next = pagesNow()[(i + 1) % pagesNow().length];
+      local.page = next?.key ?? null;
+      local.since = Date.now();
+      local.holdMs = L.holdMs(next);
+      schedule();
+    }, Math.max(0, local.since + local.holdMs - Date.now()));
+  }
+
+  // ── Placing a board ─────────────────────────────────────────────────────────
+
+  const transformAt = (t) => `translate(${t.x}px, ${t.y}px) scale(${t.scale})`;
+
+  /** Centred in the viewport at `scale`. */
+  function centred(width, height, scale) {
+    return { scale, x: (VIEWPORT.w - width * scale) / 2, y: (VIEWPORT.h - height * scale) / 2 };
+  }
 
   /** Where the board is right now, mid-glide included. */
-  function positionOf(board) {
+  function transformOf(board) {
     const m = /matrix\(([^)]+)\)/.exec(getComputedStyle(board).transform || "");
     if (!m) return null;
     const v = m[1].split(",").map(Number);
-    return { x: v[4], y: v[5] };
+    return { scale: v[0], x: v[4], y: v[5] };
   }
 
-  /**
-   * The pan's stops: the focus, the end farther from it, the other end. Each
-   * axis that doesn't pan stays centred.
-   */
-  function stopsOf(g) {
-    const far = (v, lo, hi) => (v - lo > hi - v ? lo : hi);
-    const a = { x: far(g.focus.x, g.minX, g.maxX), y: far(g.focus.y, g.minY, g.maxY) };
-    const b = { x: a.x === g.minX ? g.maxX : g.minX, y: a.y === g.minY ? g.maxY : g.minY };
-    const stops = [g.focus];
-    for (const p of [a, b]) {
-      const last = stops[stops.length - 1];
-      if (Math.hypot(p.x - last.x, p.y - last.y) > 2) stops.push(p);
+  /** The Board's round headers stay on screen while their side does. */
+  function pinHeaders(layer, t) {
+    const topEdge = -t.y / t.scale;
+    const overview = layer.el.classList.contains("overview");
+    for (const head of layer.board.querySelectorAll(".round-head")) {
+      const top = Number(head.dataset.top), bottom = Number(head.dataset.bottom);
+      const pinned = overview ? top : Math.min(Math.max(top, topEdge), bottom - METRICS.headerH);
+      head.style.top = `${Math.max(top, pinned)}px`;
     }
-    return stops;
   }
 
-  function stopPan(layer) {
-    layer.pan.gen++;
-    clearTimeout(layer.pan.timer);
-    layer.board.getAnimations?.().forEach((a) => a.cancel());
-  }
-
-  /** Fit the board, and pan it if the floor still doesn't fit. */
-  function startPan(layer, lay, { from = null } = {}) {
+  function place(layer, t, { glide = false } = {}) {
     const board = layer.board;
-    const start = from ?? positionOf(board);
-    stopPan(layer);
-    const gen = layer.pan.gen;
-    const g = geometry(lay);
-
-    if ((!g.panX && !g.panY) || !animated()) {
-      board.style.transform = transformAt(g.focus, g.scale);
-      return;
-    }
-
-    const stops = stopsOf(g);
-    const hold = (ms, then) => { layer.pan.timer = setTimeout(() => { if (gen === layer.pan.gen) then(); }, ms); };
-    const glide = (a, b, then) => {
-      const ms = Math.max(PAN_MIN_MS, (Math.hypot(b.x - a.x, b.y - a.y) / PAN_SPEED) * 1000);
-      const anim = board.animate([{ transform: transformAt(a, g.scale) }, { transform: transformAt(b, g.scale) }],
-        { duration: ms, easing: "ease-in-out", fill: "forwards" });
-      anim.finished.then(() => {
-        if (gen !== layer.pan.gen) return;
-        board.style.transform = transformAt(b, g.scale);
-        anim.cancel();
-        then();
-      }, () => {});
-    };
-    const visit = (i) => {
-      const next = (i + 1) % stops.length;
-      hold(i === 0 ? FOCUS_HOLD : END_HOLD, () => glide(stops[i], stops[next], () => visit(next)));
-    };
-
-    // From wherever the board is (a restart mid-glide) to the focus, then loop.
-    if (start && Math.hypot(start.x - stops[0].x, start.y - stops[0].y) > 2 && board.style.transform) {
-      glide(start, stops[0], () => visit(0));
-    } else {
-      board.style.transform = transformAt(stops[0], g.scale);
-      visit(0);
+    const from = glide && animated() ? transformOf(board) : null;
+    board.getAnimations?.().forEach((a) => a.cancel());
+    board.style.transform = transformAt(t);
+    if (from && Math.hypot(from.x - t.x, from.y - t.y) + Math.abs(from.scale - t.scale) * 1000 > 1) {
+      board.animate([{ transform: transformAt(from) }, { transform: transformAt(t) }],
+        { duration: ms(GLIDE_MS), easing: ease("out") });
     }
   }
 
@@ -251,42 +272,101 @@
     const board = h("div", "board");
     el.appendChild(board);
     viewport.appendChild(el);
-    return { el, board, key: null, size: null, pan: { gen: 0, timer: null } };
+    return { el, board, key: null, lay: null, cam: null, feedRef: undefined };
   }
 
   function render() {
+    if (PINNED) localTour();
+    const s = shotNow();
     renderTitle();
-    const key = feed ? `${feed.phaseGroupId}:${viewName}` : "none";
-    const lay = feed ? layoutBracket(feed, viewName) : null;
+    renderDots(s);
+
+    const board = s.mode === "board";
+    const key = !feed ? "none" : `${feed.phaseGroupId}:${viewName}:${board ? "board" : s.page?.key ?? "-"}`;
 
     if (current && current.key === key) {
-      // Same view, new data: redraw in place. The pan carries on unless the
-      // board changed size (a round added, a phase finishing).
-      draw(current.board, lay ?? emptyLayout());
-      const size = `${lay?.width}x${lay?.height}`;
-      if (size !== current.size) {
-        current.size = size;
-        startPan(current, lay ?? emptyLayout(), { from: positionOf(current.board) });
-      }
+      if (board) return redrawBoard(current, s.camera);
+      paint(current, s);
       return;
     }
 
     const old = current;
     const layer = newLayer();
     layer.key = key;
-    layer.size = `${lay?.width}x${lay?.height}`;
     current = layer;
+    if (board) redrawBoard(layer, s.camera, { fresh: true });
+    else paint(layer, s);
+    crossfade(old, layer);
+  }
 
-    if (!lay || lay.sections.length === 0) {
-      layer.el.appendChild(h("div", "placeholder", feed ? "No sets in this view yet" : "No bracket loaded"));
-    } else {
-      draw(layer.board, lay);
-      startPan(layer, lay);
+  /** A page, or Up Next, drawn into `layer` and fitted. A shot change alone (the tour's mode) redraws nothing. */
+  function paint(layer, s) {
+    if (layer.feedRef === feed && feed) return;
+    layer.feedRef = feed;
+    layer.el.querySelector(".placeholder")?.remove();
+    layer.el.classList.toggle("list", viewName === "upnext");
+    if (!feed) return placeholder(layer, "No bracket loaded");
+    if (viewName === "upnext") {
+      const rows = (feed.upNext ?? []).filter((r) => s.page?.setIds.includes(r.setId));
+      if (rows.length === 0) { layer.board.replaceChildren(); return placeholder(layer, "No sets ready right now"); }
+      const grid = drawList(layer.board, rows);
+      return place(layer, centred(grid.width, grid.height, grid.scale));
     }
+    if (!s.page) { layer.board.replaceChildren(); return placeholder(layer, "No sets in this view yet"); }
+    const lay = L.layoutPage(feed, s.page);
+    draw(layer.board, lay);
+    place(layer, centred(lay.width, lay.height, Math.min(1, VIEWPORT.w / lay.width, VIEWPORT.h / lay.height)));
+  }
 
+  /**
+   * The Board: the camera glided to — or crossfaded, for a long jump. The
+   * cards are redrawn only when the data changed, so a camera move keeps
+   * them (and the pinned headers slide with it).
+   */
+  function redrawBoard(layer, cam, { fresh = false } = {}) {
+    const lay = layer.feedRef === feed && layer.lay ? layer.lay : L.layoutView(feed, L.prunedView(feed, viewName));
+    if (!lay.width) {
+      layer.board.replaceChildren();
+      return placeholder(layer, "No sets in this view yet");
+    }
+    layer.el.querySelector(".placeholder")?.remove();
+    const t = L.cameraTransform(lay, cam, VIEWPORT);
+    if (!fresh && layer.cam && farJump(layer, t)) {
+      // A long way off: a fresh board crossfades in rather than a whoosh across this one.
+      const next = newLayer();
+      next.key = layer.key;
+      current = next;
+      redrawBoard(next, cam, { fresh: true });
+      crossfade(layer, next);
+      return;
+    }
+    layer.el.classList.toggle("overview", !!cam?.overview);
+    if (layer.feedRef !== feed || fresh) {
+      layer.feedRef = feed;
+      layer.lay = lay;
+      draw(layer.board, lay);
+    }
+    place(layer, t, { glide: !fresh });
+    pinHeaders(layer, t);
+    layer.cam = t;
+  }
+
+  /** More than about a screen away, or in or out of the Overview. */
+  function farJump(layer, t) {
+    const a = layer.cam;
+    const dist = Math.hypot((a.x / a.scale) - (t.x / t.scale), (a.y / a.scale) - (t.y / t.scale));
+    return dist > VIEWPORT.w || Math.abs(a.scale - t.scale) > 0.3;
+  }
+
+  function placeholder(layer, msg) {
+    layer.el.querySelector(".placeholder")?.remove();
+    layer.el.appendChild(h("div", "placeholder", msg));
+  }
+
+  function crossfade(old, layer) {
     if (old && animated()) {
       // Scale and blur on the layer, never the board: the board's transform
-      // is the pan's. The blur is light — the layer is most of the canvas.
+      // is the camera's. The blur is light — the layer is most of the canvas.
       layer.el.animate([
         { opacity: 0, transform: "scale(1.02)", filter: "blur(6px)" },
         { opacity: 1, transform: "scale(1)",    filter: "blur(0px)" },
@@ -295,14 +375,11 @@
         { opacity: 1, transform: "scale(1)",     filter: "blur(0px)" },
         { opacity: 0, transform: "scale(0.985)", filter: "blur(4px)" },
       ], { duration: ms(FADE_OUT_MS), easing: ease("in"), fill: "forwards" })
-        .finished.then(() => { stopPan(old); old.el.remove(); }, () => {});
+        .finished.then(() => old.el.remove(), () => {});
     } else if (old) {
-      stopPan(old);
       old.el.remove();
     }
   }
-
-  const emptyLayout = () => ({ width: 0, height: 0, sections: [], cards: {}, links: [], tags: {}, focus: null });
 
   function renderTitle() {
     const title = viewName === "full" && feed?.label ? feed.label : VIEW_TITLES[viewName];
@@ -311,9 +388,31 @@
     text(document.querySelector(".title-sub .text"), sub, { emptyOn: null });
   }
 
+  /** A dot per page, the one up lit — filling over its hold while the tour runs. */
+  function renderDots(s) {
+    const pages = pagesNow();
+    const show = s.mode !== "board" && pages.length > 1;
+    presence(dots, show);
+    if (!show) return;
+    const sig = `${pages.map((p) => p.key).join(",")}|${s.page?.key}|${s.mode}|${s.since}`;
+    if (dots.dataset.sig === sig) return;
+    dots.dataset.sig = sig;
+    dots.replaceChildren(...pages.map((p) => {
+      const dot = h("i", p.key === s.page?.key ? "on" : null);
+      if (p.key === s.page?.key) {
+        const fill = dot.appendChild(h("b", s.mode === "tour" ? "fill" : "full"));
+        if (s.mode === "tour" && s.holdMs > 0) {
+          fill.style.animationDuration = `${s.holdMs}ms`;
+          fill.style.animationDelay = `${-Math.min(s.holdMs, Math.max(0, Date.now() - s.since))}ms`;
+        }
+      }
+      return dot;
+    }));
+  }
+
   // ── Wiring ──────────────────────────────────────────────────────────────────
 
-  // A full state runs both selectors back to back; draw once, after both.
+  // A full state runs every selector back to back; draw once, after all.
   let scheduled = false;
   function schedule() {
     if (scheduled) return;
@@ -323,6 +422,7 @@
 
   const ov = Overlay.connect({ tag: "bracket" });
   ov.select("bracket", (b) => { feed = b; schedule(); });
+  ov.select("bracketShot", (s) => { shot = s; if (!PINNED) schedule(); });
   ov.select("view.bracketView", (v) => {
     if (PINNED || !VIEW_TITLES[v] || v === viewName) return;
     viewName = v;

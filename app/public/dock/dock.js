@@ -1128,7 +1128,8 @@
 
   let view = null;
   let bracket = null;
-  const VIEW_NAMES = { winners: "Winners", losers: "Losers", top8: "Top 8", top16: "Top 16", full: "Full" };
+  let shot = null;
+  const VIEW_NAMES = { winners: "Winners", losers: "Losers", top8: "Top 8", top16: "Top 16", full: "Full", upnext: "Up Next" };
 
   const renderBracketTab = guard("bracket", () => {
     document.querySelectorAll("#bracket-views .key").forEach((b) =>
@@ -1157,6 +1158,120 @@
 
   document.querySelectorAll("#bracket-views .key").forEach((b) => b.addEventListener("click", () =>
     act("/api/bracket-view", { view: b.dataset.view }, null, "View switch failed")));
+
+  // What the overlay is pointed at: the page tour, a held page, or the Board
+  // (the classic bracket, steered). The minimap is the Board's, drawn with the
+  // overlay's own layout.js, so a tap lands where the overlay will look.
+  const BL = window.BracketLayout;
+  const camera = (body) => act("/api/bracket-camera", body, null, "Bracket camera");
+  let boardFor = null; // { bracket, view, lay }
+
+  function boardLayout() {
+    const v = view && view.bracketView;
+    if (!bracket || !BL || !v || v === "upnext") return null;
+    if (!boardFor || boardFor.bracket !== bracket || boardFor.view !== v) {
+      boardFor = { bracket, view: v, lay: BL.layoutView(bracket, BL.prunedView(bracket, v)) };
+    }
+    return boardFor.lay.width ? boardFor.lay : null;
+  }
+
+  const renderCamera = guard("bracket-camera", () => {
+    const v = view && view.bracketView;
+    const pages = (bracket && bracket.pages && bracket.pages[v]) || [];
+    const s = shot && shot.view === v ? shot : null;
+    const mode = (s && s.mode) || "tour";
+    $("btn-cam-auto").classList.toggle("lit", mode === "tour");
+    ["btn-cam-auto", "btn-cam-prev", "btn-cam-next", "btn-cam-live"].forEach((id) => { $(id).disabled = !pages.length; });
+
+    const strip = $("bracket-pages");
+    const want = pages.map((p) => `${p.key}=${p.short}`).join("|");
+    if (strip.dataset.keys !== want) {
+      strip.replaceChildren(...pages.map((p) => {
+        const b = h("button", "key mini", p.short);
+        b.type = "button";
+        b.dataset.page = p.key;
+        b.title = p.label || p.short;
+        b.addEventListener("click", () => camera({ action: "page", page: p.key }));
+        return b;
+      }));
+      strip.dataset.keys = want;
+    }
+    strip.querySelectorAll(".key").forEach((b) =>
+      b.classList.toggle("lit", mode !== "board" && !!s && b.dataset.page === s.page));
+
+    const at = s ? pages.findIndex((p) => p.key === s.page) : -1;
+    $("bracket-shot-hint").textContent = !bracket ? ""
+      : mode === "board" ? (s.camera && s.camera.overview ? "Board · Overview" : "Board · steered")
+      : pages.length === 0 ? "nothing to show yet"
+      : `${mode === "tour" ? "Touring" : "Held"} · page ${at + 1} of ${pages.length}`;
+
+    const lay = boardLayout();
+    document.querySelectorAll("#bracket-dpad .key").forEach((b) => { b.disabled = !lay; });
+    $("btn-cam-overview").classList.toggle("lit", mode === "board" && !!(s.camera && s.camera.overview));
+    drawCamMap(lay, s, pages[at]);
+  });
+
+  /** Every card of the Board, and a box for what's on stream: the camera, or the page up. */
+  function drawCamMap(lay, s, page) {
+    const map = $("bracket-minimap");
+    if (!lay) { map.replaceChildren(); map.dataset.sig = ""; return; }
+    const M = BL.METRICS;
+    const SVGNS = "http://www.w3.org/2000/svg";
+    const el = (tag, attrs) => {
+      const n = document.createElementNS(SVGNS, tag);
+      for (const [k, val] of Object.entries(attrs)) n.setAttribute(k, val);
+      return n;
+    };
+    const sig = `${lay.width}x${lay.height}:${bracket.phaseGroupId}:${Object.keys(lay.cards).length}`;
+    let svg = map.querySelector("svg");
+    if (!svg || map.dataset.sig !== sig) {
+      svg = el("svg", { viewBox: `0 0 ${lay.width} ${lay.height}`, preserveAspectRatio: "xMidYMid meet" });
+      for (const [id, c] of Object.entries(lay.cards)) {
+        svg.appendChild(el("rect", { x: c.x, y: c.y, width: M.cardW, height: M.rowH * 2, rx: 10,
+          class: `m-card ${bracket.sets[id] ? bracket.sets[id].state : ""}` }));
+      }
+      svg.appendChild(el("rect", { class: "m-box" }));
+      map.replaceChildren(svg);
+      map.dataset.sig = sig;
+    }
+    const box = svg.querySelector(".m-box");
+    let r = null;
+    if (s && s.mode === "board") {
+      const t = BL.cameraTransform(lay, s.camera, BL.VIEWPORT);
+      r = { x: -t.x / t.scale, y: -t.y / t.scale, w: BL.VIEWPORT.w / t.scale, h: BL.VIEWPORT.h / t.scale };
+    } else if (page) {
+      const cs = page.setIds.map((id) => lay.cards[id]).filter(Boolean);
+      if (cs.length) {
+        const x0 = Math.min(...cs.map((c) => c.x)), y0 = Math.min(...cs.map((c) => c.y));
+        r = { x: x0, y: y0, w: Math.max(...cs.map((c) => c.x + M.cardW)) - x0, h: Math.max(...cs.map((c) => c.y + M.rowH * 2)) - y0 };
+      }
+    }
+    box.setAttribute("visibility", r ? "visible" : "hidden");
+    if (r) ["x", "y"].concat(["width", "height"]).forEach((k, i) => box.setAttribute(k, [r.x, r.y, r.w, r.h][i]));
+  }
+
+  // A tap on the map frames that spot (board pixels, through the SVG's own fit).
+  $("bracket-minimap").addEventListener("click", (e) => {
+    const lay = boardLayout();
+    const svg = $("bracket-minimap").querySelector("svg");
+    if (!lay || !svg || !svg.getBoundingClientRect) return;
+    const rect = svg.getBoundingClientRect();
+    const k = Math.min(rect.width / lay.width, rect.height / lay.height);
+    if (!k) return;
+    const cx = (e.clientX - rect.left - (rect.width - lay.width * k) / 2) / k;
+    const cy = (e.clientY - rect.top - (rect.height - lay.height * k) / 2) / k;
+    camera({ action: "goto", cx, cy });
+  });
+
+  $("btn-cam-auto").addEventListener("click", () => camera({ action: "auto" }));
+  $("btn-cam-prev").addEventListener("click", () => camera({ action: "prev" }));
+  $("btn-cam-next").addEventListener("click", () => camera({ action: "next" }));
+  $("btn-cam-live").addEventListener("click", () => camera({ action: "live" }));
+  $("btn-cam-overview").addEventListener("click", () => camera({ action: "overview" }));
+  document.querySelectorAll("#bracket-dpad [data-pan]").forEach((b) =>
+    b.addEventListener("click", () => camera({ action: "pan", dir: b.dataset.pan })));
+  document.querySelectorAll("#bracket-dpad [data-zoom]").forEach((b) =>
+    b.addEventListener("click", () => camera({ action: "zoom", dir: b.dataset.zoom })));
 
   $("bracket-group").addEventListener("change", () =>
     act("/api/bracket-view", { phaseGroupId: $("bracket-group").value || null }, null, "Group switch failed"));
@@ -2326,8 +2441,9 @@
     eventSlug = slug;
   });
 
-  ov.select("view", (v) => { view = v; renderBracketTab(); });
-  ov.select("bracket", (b) => { bracket = b; renderBracketTab(); });
+  ov.select("view", (v) => { view = v; renderBracketTab(); renderCamera(); });
+  ov.select("bracket", (b) => { bracket = b; renderBracketTab(); renderCamera(); });
+  ov.select("bracketShot", (s) => { shot = s; renderCamera(); });
 
   ov.on("status", (s) => {
     status = s;

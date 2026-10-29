@@ -99,6 +99,7 @@ const place = (v) => {
   return Number.isInteger(n) && n > 0 ? n : null;
 };
 const text = (v) => (typeof v === "string" && v.trim() ? v.trim() : null);
+const rating = (v) => (num(v) !== null && v > 0 ? Math.round(v) : null);
 
 /**
  * A luckystats answer, keyed by start.gg player id like everything else here.
@@ -116,8 +117,13 @@ const text = (v) => (typeof v === "string" && v.trim() ? v.trim() : null);
  * The region is the player's public Region — its name and its artwork — when
  * they're on one, else their calculated `primaryRegion`. Never a crew: the
  * card labels it "Region", and `displayRegion` falls back to a crew. Their
- * place in the region's ranking is the player's own `regionRank`, a sibling
- * of `primaryRegion` (not inside `displayRegion`).
+ * place beside it is that Region's own (crew) ranking — `ranking.rank` on the
+ * player's `regions` entry for it, this season's — not the top-level
+ * `regionRank` (the calculated region's power ranking). A calculated region
+ * has no crew, so no place.
+ *
+ * `elo` is luckystats' `elo` field (the Glicko-2 μ its site shows as Elo),
+ * rounded — the head-to-head card shows it beside the win probability.
  *
  * `classSvg` and `regionImage` are luckystats' urls, for the caller to save
  * and swap for the app's own (luckystats.js).
@@ -133,6 +139,9 @@ function luckyFromResponse(body, userToPlayer) {
     if (!pid) continue;
     const d = p.displayRegion;
     const region = d?.source === "region" && text(d.name) ? d : null;
+    // displayRegion has no id: its entry in `regions` is the one at its url, else by name.
+    const crew = region && (p.regions ?? []).find((r) =>
+      (text(region.url) && r?.url === region.url) || (!text(region.url) && r?.name === region.name));
     ratings[pid] = {
       rank: place(p.luckyRank?.rank),        // Lucky Rank; null when unranked
       className: text(p.playerClass?.name),
@@ -140,7 +149,8 @@ function luckyFromResponse(body, userToPlayer) {
       classSvg: text(p.playerClass?.svgUrl),
       region: text(region?.name) || text(p.primaryRegion) || (d?.source === "calculated" ? text(d.name) : null),
       regionImage: text(region?.imageUrl),
-      regionRank: place(p.regionRank),       // in their region's ranking; null without one
+      regionRank: place(crew?.ranking?.rank), // in their Region's crew ranking; null without one
+      elo: rating(p.elo),                    // luckystats' "Elo" is the Glicko μ, whole
     };
   }
 

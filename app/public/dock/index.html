@@ -117,6 +117,47 @@
       <!-- ── Bracket ── -->
       <div class="panel" id="panel-bracket">
         <div class="card">
+          <div class="card-head"><span class="label">Bracket overlay</span></div>
+          <div class="seg" id="bracket-views">
+            <button class="key" type="button" data-view="winners">Winners</button>
+            <button class="key" type="button" data-view="losers">Losers</button>
+            <button class="key" type="button" data-view="top8">Top 8</button>
+            <button class="key" type="button" data-view="top16">Top 16</button>
+            <button class="key" type="button" data-view="full">Full</button>
+            <button class="key" type="button" data-view="upnext">Up Next</button>
+          </div>
+          <label class="field">
+            <span>Phase group</span>
+            <select id="bracket-group"></select>
+          </label>
+          <div class="hint" id="bracket-view-hint"></div>
+
+          <div class="cam">
+            <div class="cam-head"><span class="label">Pages</span><span class="hint" id="bracket-shot-hint"></span></div>
+            <div class="cam-pages">
+              <button class="key mini" id="btn-cam-auto" type="button" title="Tour the pages">Auto</button>
+              <button class="key mini" id="btn-cam-prev" type="button" title="Previous page" aria-label="Previous page">◀</button>
+              <div class="seg" id="bracket-pages"></div>
+              <button class="key mini" id="btn-cam-next" type="button" title="Next page" aria-label="Next page">▶</button>
+              <button class="key mini" id="btn-cam-live" type="button" title="The page with the action">◎ Live</button>
+            </div>
+            <div class="cam-head"><span class="label">Board</span><span class="hint">steer the whole bracket · Auto returns to pages</span></div>
+            <div class="cam-board">
+              <div class="dpad" id="bracket-dpad">
+                <button class="key mini" type="button" data-pan="up" aria-label="Up">▲</button>
+                <button class="key mini" type="button" data-pan="left" aria-label="Left">◀</button>
+                <button class="key mini" type="button" data-pan="right" aria-label="Right">▶</button>
+                <button class="key mini" type="button" data-pan="down" aria-label="Down">▼</button>
+                <button class="key mini" type="button" data-zoom="out" aria-label="Zoom out">−</button>
+                <button class="key mini" type="button" data-zoom="in" aria-label="Zoom in">+</button>
+                <button class="key mini" id="btn-cam-overview" type="button">Overview</button>
+              </div>
+              <div class="cam-map" id="bracket-minimap" title="Tap to frame that spot"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
           <div class="card-head"><span class="label">This week's event</span></div>
           <div class="key-row">
             <button class="key" id="btn-bracket-singles" type="button" data-kind="singles">Singles</button>
@@ -130,22 +171,6 @@
             </div>
           </div>
           <div class="hint" id="bracket-hint">No event loaded — press Singles or Doubles.</div>
-        </div>
-
-        <div class="card">
-          <div class="card-head"><span class="label">Bracket overlay</span></div>
-          <div class="seg" id="bracket-views">
-            <button class="key" type="button" data-view="winners">Winners</button>
-            <button class="key" type="button" data-view="losers">Losers</button>
-            <button class="key" type="button" data-view="top8">Top 8</button>
-            <button class="key" type="button" data-view="top16">Top 16</button>
-            <button class="key" type="button" data-view="full">Full</button>
-          </div>
-          <label class="field">
-            <span>Phase group</span>
-            <select id="bracket-group"></select>
-          </label>
-          <div class="hint" id="bracket-view-hint"></div>
         </div>
       </div>
 
@@ -310,6 +335,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/o/shared/overlay-client.js"></script>
+  <script src="/o/bracket/layout.js"></script>
   <script src="/dock/dock.js"></script>
 </body>
 </html>

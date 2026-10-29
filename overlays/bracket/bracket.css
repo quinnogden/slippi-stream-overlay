@@ -1,9 +1,10 @@
 /* ============================================================
    bracket.css — the bracket overlay (1920 × 1080)
 
-   A title plate, and under it a viewport holding one "board": the
-   bracket at its natural (1080p) size, scaled to fit by bracket.js
-   and panned when even the legibility floor doesn't fit. Card and
+   A title plate, and under it a viewport holding one "board": a page
+   of the bracket at its natural (1080p) size, scaled to fit by
+   bracket.js (every page fits at or above the legibility floor), the
+   Up Next grid, or the steerable classic board. Card and
    row sizes come from layout.js's METRICS through the custom
    properties bracket.js sets on each board — change them there.
 
@@ -78,6 +79,41 @@ body {
   color: var(--darkened-text);
 }
 .title-sub .text.empty { display: none; }
+
+/* ── Page dots ───────────────────────────────────────────────── */
+
+/* One per page, under the title; the page up is lit and fills over
+   its hold while the tour runs. */
+.page-dots {
+  position: absolute;
+  top: 124px;
+  left: 50%;
+  --base-transform: translateX(-50%);
+  transform: var(--base-transform);
+  display: flex;
+  gap: 10px;
+  --enter-order: 1;
+}
+.page-dots.empty { display: none; }
+.page-dots i {
+  position: relative;
+  width: 26px;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(var(--text-color-rgb), 0.18);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+.page-dots i.on { width: 44px; background: rgba(var(--text-color-rgb), 0.28); }
+.page-dots b {
+  position: absolute;
+  inset: 0;
+  background: var(--trim-color, var(--text-color));
+  transform-origin: 0 50%;
+}
+.page-dots b.fill { animation: page-fill linear forwards; }
+@keyframes page-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+body.no-animate .page-dots b.fill { animation: none; }
 
 /* ── Viewport and boards ─────────────────────────────────────── */
 
@@ -310,6 +346,60 @@ body {
   color: rgba(var(--text-color-rgb), 0.38);
   text-shadow: none;
 }
+
+/* ── The Board ───────────────────────────────────────────────── */
+
+/* Round headers pinned to the top edge slide with the camera, over the
+   cards they've been pinned above (they're drawn first, so they'd be under). */
+.layer:not(.list) .round-head { z-index: 2; transition: top calc(1s * var(--motion-tempo)) var(--ease-out); }
+body.no-animate .round-head { transition: none; }
+
+/* Overview: the whole board, names too small to read — the set being
+   played glows so viewers can see where the action is. */
+.layer.overview .card.live {
+  border-color: var(--trim-color, var(--text-color));
+  box-shadow: 0 0 0 4px rgba(var(--trim-rgb, var(--text-color-rgb)), 0.55),
+              0 0 48px 12px rgba(var(--trim-rgb, var(--text-color-rgb)), 0.45);
+}
+
+/* ── Up Next ─────────────────────────────────────────────────── */
+
+.ucard {
+  position: absolute;
+  width: var(--card-w);
+  display: flex;
+  flex-direction: column;
+}
+.ucard .card { position: relative; }
+.uhead {
+  height: var(--list-head-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 4px 6px;
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--darkened-text);
+  white-space: nowrap;
+}
+.uround { overflow: hidden; text-overflow: ellipsis; min-width: 0; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.85); }
+.chip {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  border: 1px solid rgba(var(--text-color-rgb), 0.28);
+  background: var(--score-bg-color);
+}
+.ucard.onstream .chip {
+  color: var(--score-bg-color);
+  background: var(--trim-color, var(--text-color));
+  border-color: transparent;
+}
+.ucard.onstream .card { border-color: var(--trim-color, var(--text-color)); }
+.ucard.live .chip { color: var(--text-color); border-color: rgba(var(--trim-rgb, var(--text-color-rgb)), 0.6); }
 
 /* ── Nothing loaded ──────────────────────────────────────────── */
 

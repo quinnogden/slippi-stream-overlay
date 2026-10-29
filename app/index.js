@@ -30,6 +30,7 @@ const { PortMap }            = require("./lib/ports/port-map");
 const { PlayerDb }           = require("./lib/players/player-db");
 const { EventService }       = require("./lib/event/event-service");
 const { createBracketFeed }  = require("./lib/event/bracket-feed");
+const { createBracketDirector } = require("./lib/event/bracket-director");
 const { createOverlayChannel } = require("./lib/overlay/channel");
 
 const { createState }        = require("./lib/state");
@@ -93,6 +94,8 @@ const ctx = {
 ctx.event = new EventService(ctx);
 // …and the bracket overlay's slice of it, published into the store.
 const bracketFeed = createBracketFeed({ event: ctx.event, store, playerDb: ctx.playerDb });
+// …and what the overlay shows of it: the page tour, a held page, the Board camera.
+const bracketDirector = createBracketDirector({ store });
 // What each player played, into the player DB once their set is over.
 const mainsLearning = createMainsLearning({ store, playerDb: ctx.playerDb });
 
@@ -175,6 +178,7 @@ registerRoutes(app, {
   iconsDir: path.join(overlaysDir, "assets", "icons"),
   store,
   event: ctx.event,
+  bracketDirector,
   playerDb: ctx.playerDb,
   // Crew rosters the Crew tab saves, beside the scoreboard's save.
   savedCrews: new SavedCrews(path.join(__dirname, "data", "crews.json")),
@@ -260,6 +264,7 @@ ctx.obs.applySettings();
 
 ctx.event.start();
 bracketFeed.start();
+bracketDirector.start();
 playerStats.start();
 
 // Flush pending debounced writes on the way out, so the last score and the last

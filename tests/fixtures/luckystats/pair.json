@@ -28,7 +28,17 @@
           "id": "1",
           "name": "Region A Melee",
           "url": "https://luckystats.gg/crews/region-a-melee",
-          "imageUrl": "https://example.public.blob.vercel-storage.com/regions/1/avatar-1.jpg"
+          "imageUrl": "https://example.public.blob.vercel-storage.com/regions/1/avatar-1.jpg",
+          "ranking": {
+            "rank": 2,
+            "source": "provisional",
+            "season": {
+              "id": "115",
+              "name": "Fall 2026 - Winter 2027",
+              "startsAt": "2026-09-01",
+              "endsAt": "2027-02-28"
+            }
+          }
         }
       ],
       "displayRegion": {
@@ -85,7 +95,8 @@
           "id": "1",
           "name": "Region A Melee",
           "url": "https://luckystats.gg/crews/region-a-melee",
-          "imageUrl": "https://example.public.blob.vercel-storage.com/regions/1/avatar-1.jpg"
+          "imageUrl": "https://example.public.blob.vercel-storage.com/regions/1/avatar-1.jpg",
+          "ranking": null
         }
       ],
       "displayRegion": {

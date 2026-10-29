@@ -31,11 +31,12 @@ function eventFrom(name, eventMatch) {
 }
 
 /**
- * A StartggClient with the read methods answered from `captureName`.
+ * A StartggClient with the read methods answered from `captureName` — or from
+ * a capture already loaded (and, say, rewound to mid-event with rewind()).
  * `calls` records every method invoked, mutations included.
  */
 function fakeStartgg(captureName, { enabled = true } = {}) {
-  const capture = loadCapture(captureName);
+  const capture = typeof captureName === "string" ? loadCapture(captureName) : captureName;
   const calls = [];
   const rec = (method, args, result) => { calls.push({ method, args }); return Promise.resolve(result); };
   const events = capture.tournament.events;
@@ -71,4 +72,30 @@ function fakeStartgg(captureName, { enabled = true } = {}) {
   };
 }
 
-module.exports = { loadCapture, eventFrom, fakeStartgg };
+/**
+ * A finished capture wound back to mid-event: in every phase group, the sets
+ * finished after the `frac` point (by start.gg's completion times) become
+ * unplayed again, and a slot whose feeder is unplayed loses its entrant —
+ * exactly what start.gg showed at that moment, short of scores in progress.
+ * The first `live` ready sets of each group are then marked in progress.
+ * Mutates and returns `capture`.
+ */
+function rewind(capture, frac, { live = 0 } = {}) {
+  for (const sets of Object.values(capture.phaseGroupSets)) {
+    const times = sets.map((s) => s.completedAt).filter(Boolean).sort((a, b) => a - b);
+    const cut = times[Math.floor(times.length * frac)] ?? Infinity;
+    const done = new Set(sets.filter((s) => s.completedAt && s.completedAt < cut).map((s) => String(s.id)));
+    for (const s of sets) {
+      if (done.has(String(s.id))) continue;
+      Object.assign(s, { state: 1, winnerId: null, displayScore: null, completedAt: null });
+      s.slots = s.slots.map((slot) => {
+        const pending = slot.prereqType === "set" && sets.some((f) => String(f.id) === String(slot.prereqId)) && !done.has(String(slot.prereqId));
+        return { ...slot, standing: null, ...(pending ? { entrant: null, seed: null } : {}) };
+      });
+    }
+    sets.filter((s) => s.state === 1 && s.slots.every((x) => x.entrant)).slice(0, live).forEach((s) => { s.state = 2; });
+  }
+  return capture;
+}
+
+module.exports = { loadCapture, eventFrom, fakeStartgg, rewind };

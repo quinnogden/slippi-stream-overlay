@@ -701,7 +701,8 @@ body {
   text-shadow: 0 1px 3px rgba(0,0,0,0.6);
 }
 
-/* "Powered by Lucky Stats" — on every card that shows luckystats data. */
+/* "Powered by LuckyStats.gg ☘" — on every card that shows luckystats data.
+   Not uppercased: the name is written the way luckystats writes it. */
 .lucky-credit {
   flex-shrink:     0;
   display:         flex;
@@ -709,9 +710,8 @@ body {
   justify-content: center;
   gap:             10px;
   font-family:     var(--font);
-  font-size:       12px;
-  letter-spacing:  0.22em;
-  text-transform:  uppercase;
+  font-size:       13px;
+  letter-spacing:  0.08em;
   color:           var(--darkened-text);
   opacity:         0.8;
   text-shadow:     0 1px 3px rgba(0,0,0,0.6);
@@ -723,6 +723,15 @@ body {
   width:      28px;
   height:     1px;
   background: rgba(var(--trim-rgb, var(--text-color-rgb)), 0.4);
+}
+/* luckystats' clover, after the name, as on the Lucky Rank. */
+.lucky-credit-clover {
+  flex-shrink: 0;
+  width:       15px;
+  height:      15px;
+  margin-left: -4px;   /* closer to the name than the hairlines are */
+  background:  url("lucky-clover.svg") center / contain no-repeat;
+  filter:      drop-shadow(0 0 4px rgba(52,211,153,0.45));
 }
 
 
@@ -961,19 +970,40 @@ body {
   --prob-right: var(--prob-right-color, #3d9be0);
 }
 
+/* Two rows on one grid: the percentages either side of the bar, then each
+   player's Elo under theirs, level with the bar's caption. */
 .h2h-projection {
-  display:     flex;
-  align-items: center;
-  gap:         14px;
-  margin-top:  12px;
+  display:               grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items:           center;
+  column-gap:            14px;
+  row-gap:               7px;
+  margin-top:            12px;
 }
+.h2h-projection > .h2h-subtitle { margin-top: 0; }
 
-.h2h-projection-mid {
-  flex:           1;
-  min-width:      0;
-  display:        flex;
-  flex-direction: column;
-  gap:            7px;
+.prob-elo {
+  display:     flex;
+  align-items: baseline;
+  gap:         6px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.prob-elo.right { justify-content: flex-end; }
+.prob-elo-val {
+  font-family:    var(--score-font, var(--font));
+  font-size:      20px;
+  letter-spacing: 0.02em;
+  color:          var(--text-color);
+  text-shadow:    0 1px 4px rgba(0,0,0,0.7);
+}
+.prob-elo-label {
+  font-family:    var(--font);
+  font-size:      11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color:          var(--darkened-text);
+  opacity:        0.65;
 }
 
 .prob-pct {

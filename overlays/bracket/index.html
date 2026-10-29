@@ -7,9 +7,10 @@
     <link rel="stylesheet" href="/o/shared/atmosphere.css" />
     <link rel="stylesheet" href="/o/bracket/bracket.css" />
   </head>
-  <!-- 1920 × 1080. The view (Winners · Losers · Top 8 · Top 16 · Full) follows
-       the dock; ?view=<name> pins this source to one. ?animate=false holds the
-       pan at its starting point and switches views without a crossfade. -->
+  <!-- 1920 × 1080. The view (Winners · Losers · Top 8 · Top 16 · Full · Up Next)
+       follows the dock, and so does what's up (the page tour, a held page, the
+       Board); ?view=<name> pins this source to one view, which then tours its
+       own pages. ?animate=false switches without a crossfade or glide. -->
   <body>
     <header class="title-bar fade_down">
       <div class="title-atm title-light"></div>
@@ -21,6 +22,8 @@
         <div class="title-sub"><span class="text"></span></div>
       </div>
     </header>
+
+    <nav class="page-dots empty"></nav>
 
     <main class="viewport fade"></main>
 

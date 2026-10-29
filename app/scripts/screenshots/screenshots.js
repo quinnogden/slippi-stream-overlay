@@ -18,6 +18,12 @@
  *         the invented records below and luckystats stood in for by its
  *         scrubbed fixture — no network, and stats-cache/ is never written.
  *   crew  A crew battle two games in, started and picked through /api/crew/*.
+ *   mid   The same event wound back to mid-bracket (tests' rewind()), two
+ *         sets in progress and a ready one loaded on stream — for Up Next.
+ *         start.gg answers from the rewound copy from then on, so it's last.
+ *
+ * A shot's `before(app)` points the bracket overlay (the view, a held page)
+ * through the store and the real bracket director before it's taken.
  *
  * Then drives headless Chrome over the DevTools protocol (Node's global
  * WebSocket), in real time: a --virtual-time-budget screenshot runs ahead of
@@ -74,7 +80,7 @@ const readFileSync = fs.readFileSync;
 fs.readFileSync = function (file, ...rest) {
   return String(file).endsWith(`${CAPTURE}.json`) ? capture : readFileSync.call(this, file, ...rest);
 };
-const { fakeStartgg } = require(path.join(REPO, "tests", "helpers", "fake-startgg.js"));
+const { fakeStartgg, rewind } = require(path.join(REPO, "tests", "helpers", "fake-startgg.js"));
 
 // ── The player file ───────────────────────────────────────────────────────────
 const MAINS = {
@@ -227,7 +233,11 @@ const SHOTS = [
   { name: "side-panel", w: 367, h: 648, url: frame("/o/side-panel?panel=completed-sets&animate=false", "&fw=611&w=611&h=1080&s=0.6"), wait: 9000 },
   { name: "side-panel-player", w: 367, h: 648, url: frame("/o/side-panel?panel=player-1&animate=false", "&fw=611&w=611&h=1080&s=0.6"), wait: 9000 },
   { name: "side-panel-h2h", w: 367, h: 648, url: frame("/o/side-panel?panel=recent-sets&animate=false", "&fw=611&w=611&h=1080&s=0.6"), wait: 9000 },
-  { name: "bracket", w: 1155, h: 657, url: frame("/o/bracket?animate=false", "&x=190&y=12&w=1540&h=876&s=0.75"), wait: 8000 },
+  { name: "bracket", w: 1155, h: 657, url: frame("/o/bracket?animate=false", "&x=190&y=12&w=1540&h=876&s=0.75"), wait: 8000,
+    before: ({ store }) => store.setBracketView("top8") },
+  // A page of the full bracket: winners rounds 1–2, wrapped two-up.
+  { name: "bracket-page", w: 1152, h: 648, url: frame("/o/bracket?animate=false", "&s=0.6"), wait: 8000,
+    before: ({ store, director }) => { store.setBracketView("full"); director.command({ action: "page", page: "WW1-W2x2" }); } },
   { name: "casters", w: 712, h: 86, url: frame("/o/casters?animate=false", "&x=615&y=10&w=712&h=86") },
   { name: "highlights", w: 960, h: 540, url: frame("/o/highlights?guides=1&animate=false", "&s=0.5") },
   { name: "theme-hundred-acres-panel", theme: "hundred-acres", w: 244, h: 432, url: frame("/o/side-panel?panel=logo-primary&animate=false", "&fw=611&w=611&h=1080&s=0.4"), wait: 9000 },
@@ -239,6 +249,12 @@ const SHOTS = [
   { name: "crew-panel", scene: "crew", w: 367, h: 648, url: frame("/o/side-panel?panel=crew-1&animate=false", "&fw=611&w=611&h=1080&s=0.6"), wait: 9000 },
   { name: "dock-crew", scene: "crew", w: 440, h: 900, url: `http://localhost:${PORT}/dock`, wait: 3000,
     script: `document.querySelector('[data-tab="crew"]').click()`, after: 2000 },
+  // Up Next mid-event, and the dock's Bracket tab pointing at it.
+  { name: "bracket-upnext", scene: "mid", w: 1152, h: 648, url: frame("/o/bracket?animate=false", "&s=0.6"), wait: 8000,
+    before: ({ store }) => store.setBracketView("upnext") },
+  { name: "dock-bracket", scene: "mid", w: 440, h: 1000, url: `http://localhost:${PORT}/dock`, wait: 3000,
+    before: ({ store, director }) => { store.setBracketView("full"); director.command({ action: "auto" }); },
+    script: `document.querySelector('[data-tab="bracket"]').click()`, after: 2000 },
 ];
 
 function fileUrl(name) {
@@ -259,6 +275,7 @@ const { PlayerDb }             = r("lib/players/player-db");
 const { SavedCrews }           = r("lib/crew/saved-crews");
 const { EventService }         = r("lib/event/event-service");
 const { createBracketFeed }    = r("lib/event/bracket-feed");
+const { createBracketDirector } = r("lib/event/bracket-director");
 const { createOverlayChannel } = r("lib/overlay/channel");
 const { createState }          = r("lib/state");
 const { createModes }          = r("lib/modes");
@@ -270,6 +287,8 @@ const { createStartSet }       = r("lib/server/start-set");
 const { registerRoutes }       = r("lib/server/routes");
 const { registerOverlays }     = r("lib/server/overlays");
 const { createPlayerStats }    = r("lib/stats");
+
+const EVENT = "tournament/hundred-acres-51/event/melee-singles-flex-bo5";
 
 function bootApp() {
   const { app, io, start } = createServer(config);
@@ -287,6 +306,7 @@ function bootApp() {
   ctx.event = new EventService(ctx);
   startgg.backgroundQuery = statsAnswers(() => ctx.event.rawSets());
   const bracketFeed = createBracketFeed({ event: ctx.event, store, playerDb: ctx.playerDb });
+  const director = createBracketDirector({ store });
   const modes = createModes(ctx);
   const controlStatus = createControlStatus(ctx, modes.portInfo);
   const clipRecorder = createClipRecorder(ctx, controlStatus.refresh);
@@ -300,7 +320,7 @@ function bootApp() {
   registerOverlays(app, { overlaysDir });
   registerRoutes(app, {
     publicDir: path.join(APP, "public"), iconsDir: path.join(overlaysDir, "assets", "icons"),
-    store, event: ctx.event, playerDb: ctx.playerDb, clipperSettings, obs: ctx.obs,
+    store, event: ctx.event, bracketDirector: director, playerDb: ctx.playerDb, clipperSettings, obs: ctx.obs,
     savedCrews: new SavedCrews(path.join(TMP, "crews.json")),
     refreshControlStatus: controlStatus.refresh, clipperSnapshot: controlStatus.clipperSnapshot,
     reportCurrentSet: reportSet.reportCurrentSet, startCurrentSet,
@@ -354,6 +374,17 @@ function bootApp() {
       await post("/api/crew/pick", { side: 1, id: 7 });
       gameStarts();
     },
+    async mid() {
+      const { getEvent, getPhaseGroupSets, getSet } = fakeStartgg(rewind(JSON.parse(capture), 0.6, { live: 2 }));
+      Object.assign(startgg, { getEvent, getPhaseGroupSets, getSet });
+      const ev = await ctx.event.loadEvent(EVENT, { kind: "singles" });
+      if (!ev.ok) throw new Error(`reloading the event: ${ev.error}`);
+      const next = ctx.event.openSets().find((row) => row.status === "playable");
+      const set = await ctx.event.loadSet(next.setId);
+      if (!set.ok) throw new Error(`loading ${next.setId}: ${set.error}`);
+      store.setScore(0, 1);
+      gameStarts();
+    },
   };
   let scene = null;
   const useScene = async (name) => {
@@ -364,13 +395,14 @@ function bootApp() {
   };
 
   return (async () => {
-    const ev = await ctx.event.loadEvent("tournament/hundred-acres-51/event/melee-singles-flex-bo5", { kind: "singles" });
+    const ev = await ctx.event.loadEvent(EVENT, { kind: "singles" });
     if (!ev.ok) throw new Error(`loading the event: ${ev.error}`);
     bracketFeed.start();
+    director.start();
     playerStats.start();
     store.setCasters([{ tag: "Mossback", pronoun: "she/her" }, { tag: "Kestrel", pronoun: "he/him" }]);
     store.setBracketView("top8");
-    return { overlaysDir, useScene };
+    return { overlaysDir, useScene, store, director };
   })();
 }
 
@@ -431,7 +463,8 @@ async function devtools() {
   const unknown = ONLY.filter((n) => !SHOTS.some((s) => s.name === n));
   if (unknown.length) throw new Error(`no image named ${unknown.join(", ")} — have: ${SHOTS.map((s) => s.name).join(", ")}`);
 
-  const { overlaysDir, useScene } = await bootApp();
+  const app = await bootApp();
+  const { overlaysDir, useScene } = app;
   const themeFile = path.join(overlaysDir, "theme.css");
   const themeBytes = readFileSync(themeFile);
   const onAir = activeThemePack(overlaysDir);
@@ -441,6 +474,7 @@ async function devtools() {
     for (const s of SHOTS) {
       if (ONLY.length && !ONLY.includes(s.name)) continue;
       await useScene(s.scene ?? "set");
+      if (s.before) { await s.before(app); await sleep(100); }
       const pack = s.theme ?? onAir;
       if (activeThemePack(overlaysDir) !== pack) {
         const res = setThemePack(overlaysDir, pack);
