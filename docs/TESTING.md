@@ -167,8 +167,10 @@ The app serves every page, so there is nothing to stub: open `http://localhost:5
 
 ### Bracket
 
-- Check the biggest captured fixture in all five views (`POST /api/bracket-view {"view":"full"}` …): Top 8 fits with no pan; a 64+ entrant Full view reaches the legibility floor and pans.
-- Tune pan speed and holds in OBS, not only in Chrome.
+- Check the big captures (`hundred-acres-50`: one 51-player bracket; `bair-necessities`: four pools and a Top 16) in all six views (`POST /api/bracket-view {"view":"full"}` …), and **mid-event**: `rewind(capture, frac, { live })` in `tests/helpers/fake-startgg.js` winds a finished capture back to any point, so pruning, the live sets and Up Next have something to show. Every page is readable and none pans; Top 8 is one page.
+- Step the shot from the API: `POST /api/bracket-camera {"action":"next"}`, `{"action":"pan","dir":"down"}`, `{"action":"overview"}`, `{"action":"auto"}`. Watch a Board move glide, a far jump crossfade, and the round headers stay pinned.
+- The overlay's background is transparent: in Chrome, paint `html` dark from the console to see it.
+- Tune the page holds (`layout.js` `HOLD`) in OBS, not only in Chrome.
 
 ### Highlights (replay scene frame)
 

@@ -3,13 +3,13 @@
  * singles/doubles switch, and what the bracket overlay shows.
  */
 
-const { VIEWS } = require("../../event/bracket-model");
+const { BRACKET_VIEWS: VIEWS } = require("../../event/bracket-feed");
 
 /**
  * @param {import("express").Express} app
- * @param {object} deps — { store, event, refreshControlStatus }
+ * @param {object} deps — { store, event, bracketDirector, refreshControlStatus }
  */
-function register(app, { store, event, refreshControlStatus }) {
+function register(app, { store, event, bracketDirector, refreshControlStatus }) {
   // The set picker: playable sets first. Answered from the event service's
   // last read (refreshed every 90s); ?refresh=1 is the dock's ↻ and re-reads
   // start.gg first.
@@ -79,6 +79,19 @@ function register(app, { store, event, refreshControlStatus }) {
     const v = store.view();
     res.json({ ok: true, view: v.bracketView, phaseGroupId: v.bracketPhaseGroupId,
       showing: store.bracket()?.phaseGroupId ?? null });
+  });
+
+  // What the bracket overlay is pointed at (bracket-director.js):
+  //   { action: "auto" | "next" | "prev" | "live" }   the page tour, or a held page
+  //   { action: "page", page }                        hold one page (a key from bracket.pages[view])
+  //   { action: "pan", dir: "up"|"down"|"left"|"right" } | { action: "zoom", dir: "in"|"out" }
+  //   { action: "overview" } | { action: "goto", cx, cy }   the Board camera (board pixels)
+  app.post("/api/bracket-camera", (req, res) => {
+    if (!bracketDirector) return res.status(503).json({ ok: false, error: "The bracket director isn't running" });
+    const b = req.body ?? {};
+    const r = bracketDirector.command({ ...b, cx: b.cx == null ? b.cx : Number(b.cx), cy: b.cy == null ? b.cy : Number(b.cy) });
+    if (!r.ok) return res.status(r.status).json({ ok: false, error: r.error });
+    res.json(r);
   });
 }
 

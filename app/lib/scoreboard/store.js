@@ -76,6 +76,14 @@ function emptySet() {
 
 const emptyTournament = () => ({ name: "", slug: "", eventName: "", eventSlug: "", kind: null });
 
+/**
+ * mode: "tour" (pages in turn) | "page" (held on one) | "board" (the classic
+ * board, steered); page: a page key from bracket.pages[view]; since/holdMs: when
+ * the page went up and how long the tour holds it; camera: the Board camera
+ * (overlays/bracket/layout.js).
+ */
+const emptyShot = () => ({ mode: "tour", view: null, group: null, page: null, since: 0, holdMs: 0, camera: null });
+
 const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
 
 class ScoreboardStore extends EventEmitter {
@@ -92,6 +100,9 @@ class ScoreboardStore extends EventEmitter {
     // bracketPhaseGroupId null = follow the set on the scoreboard (bracket-feed.js)
     this._view = { bracketView: "top8", bracketPhaseGroupId: null };
     this._bracket = null;
+    // What the bracket overlay is showing (bracket-director.js). Not saved: the
+    // tour ticks every few seconds, and a restart starting on the tour is right.
+    this._shot = emptyShot();
   }
 
   get rev() { return this._rev; }
@@ -137,13 +148,15 @@ class ScoreboardStore extends EventEmitter {
   view() { return clone(this._view); }
   /** What the bracket overlay draws (bracket-feed.js), or null with no event. */
   bracket() { return clone(this._bracket); }
+  /** The bracket overlay's shot: { mode, view, group, page, since, holdMs, camera } (bracket-director.js). */
+  bracketShot() { return clone(this._shot); }
 
   /** Everything the overlays get, keyed by section. */
   snapshot() {
     return {
       v: STATE_VERSION, rev: this._rev,
       tournament: this.tournament(), scoreboard: this.scoreboard(), casters: this.casters(), view: this.view(),
-      bracket: this.bracket(),
+      bracket: this.bracket(), bracketShot: this.bracketShot(),
     };
   }
 
@@ -516,6 +529,14 @@ class ScoreboardStore extends EventEmitter {
     if (JSON.stringify(next) === JSON.stringify(this._bracket)) return;
     this._bracket = clone(next);
     this._changed(["bracket"]);
+  }
+
+  /** What the bracket overlay shows: the tour, a held page, or the Board camera. */
+  setBracketShot(shot) {
+    const next = { ...emptyShot(), ...(shot ?? {}) };
+    if (JSON.stringify(next) === JSON.stringify(this._shot)) return;
+    this._shot = clone(next);
+    this._changed(["bracketShot"]);
   }
 
   // ── Persistence ─────────────────────────────────────────────────────────────

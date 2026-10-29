@@ -12,7 +12,7 @@ Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/si
 
 | Event | Direction | Payload |
 |---|---|---|
-| `state:full` | app → page | The store's snapshot: `{ v, rev, tournament, scoreboard, casters, view, bracket }`. Sent on connect and on request |
+| `state:full` | app → page | The store's snapshot: `{ v, rev, tournament, scoreboard, casters, view, bracket, bracketShot }`. Sent on connect and on request |
 | `state:patch` | app → page | `{ from, rev, ops: [{ path, value }] }` — whole top-level sections. One per tick, however many store commands ran in it |
 | `state:resync` | page → app | No payload. Asks for `state:full` |
 | `game:start` / `game:end` | app → both | The `slippi_game_start` / `slippi_game_end` payloads below |
@@ -98,10 +98,37 @@ What the bracket overlay draws, published by [lib/event/bracket-feed.js](../app/
                       character } },   // singles only: Slippi's for the two on air, else the DB main
   rounds: [ … ],
   views: { winners, losers, top8, top16, full },  // each { rounds, setIds, fedFromOutside }
-}
+  pages: {                         // what each view is shown on (layout.js paginate / paginateList)
+    [view]: [ { key: "WW1-W2x2",   //   stable across score changes: a refresh mid-hold doesn't jump
+                label: "Winners · Rounds 1–2",  // the overlay's subtitle ("" for a one-page view)
+                short: "W R1–R2",  //   the dock's page key
+                setIds: [ … ],     //   the sets on it, in round order
+                wrap: { W: 2 } } ] //   k-up per side, as layoutPage lays it out
+  },                               //   — upnext included: { key: "U1", … }, a screenful of rows each
+  upNext: [ { setId, status: "onstream" | "live" | "ready", state, round, group,  // every live or
+              winner: null, slots: [ { entrantId, seed, score, dq, from } ] } ],   //   ready set in the
+  upNextEntrants: { [id]: { … } }, // EVENT (all pools), the set on air first with its live score;
+}                                  //   entrants as above, from whichever group
 ```
 
-The layout (card positions, connectors) is computed in the page by [overlays/bracket/layout.js](../overlays/bracket/layout.js), because it depends on the fit scale. Which view a source shows is `view.bracketView` (`POST /api/bracket-view`), unless its url pins one with `?view=`.
+The layout (card positions, connectors) is computed by [overlays/bracket/layout.js](../overlays/bracket/layout.js), which is pure and loads in the page, the dock and Node alike: the feed cuts the pages with it so the dock's page strip and every source agree, and the page lays each one out. **Every page fits the viewport at or above the legibility floor**; a view that fits whole is one page keyed `"all"`. A view that doesn't is first pruned (rounds past the next one with anybody in it are dropped), so a set id in `views[v]` may be on no page. Which view a source shows is `view.bracketView` (`POST /api/bracket-view`), unless its url pins one with `?view=` — and a pinned source tours its own view's pages, ignoring `bracketShot`.
+
+### The `bracketShot` section
+
+What the bracket overlay is showing right now, owned by [lib/event/bracket-director.js](../app/lib/event/bracket-director.js) (which runs the tour's clock). **Not saved**: the tour ticks every few seconds, and a restart opening on the tour is right.
+
+```js
+{
+  mode: "tour" | "page" | "board",  // turning the pages · held on one until Auto · the classic board, steered
+  view: "full", group: "3441449",   // what it was set for: a switch of either opens the new view's
+                                    //   action page — touring if it was, held otherwise
+  page: "WW1-W2x2",                 // a key from bracket.pages[view] (kept in board mode: ◀ ▶ go on from it)
+  since: 1790000000000, holdMs: 14750,  // tour only: when the page went up and its hold — the dots fill over it
+  camera: null                      // board only: { x, y, zoom } (board pixels at the top-left, scale)
+}                                   //   or { overview: true }; the page clamps it to the board it draws
+```
+
+A page that disappears (the pages were cut again — a round got somebody in it) gives way to the page with the action, in the same mode. Up Next has no Board.
 
 ---
 
@@ -292,7 +319,8 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `POST` | `/api/load-set` | `{ setId }` → re-read that set from start.gg, fill pronouns and mains from the player DB, put it on the scoreboard. The outgoing set's mains are learned first |
 | `POST` | `/api/bracket` | `{ kind: "singles" \| "doubles" }` → load this week's event of that kind |
 | `POST` | `/api/bracket-url` | `{ url }` → load the event a pasted start.gg URL names. Same reply as `/api/bracket` |
-| `POST` | `/api/bracket-view` | `{ view?, phaseGroupId? }` — what every bracket source not pinned with `?view=` shows. `phaseGroupId: null` goes back to following the set on air. 400 for an unknown view or a group not in the loaded event |
+| `POST` | `/api/bracket-view` | `{ view?, phaseGroupId? }` — what every bracket source not pinned with `?view=` shows: `winners`, `losers`, `top8`, `top16`, `full` or `upnext`. `phaseGroupId: null` goes back to following the set on air. 400 for an unknown view or a group not in the loaded event |
+| `POST` | `/api/bracket-camera` | What the bracket overlay is pointed at (`bracketShot`): `{ action: "auto" }` (tour from the action page), `"next"` / `"prev"` / `"live"` (hold a page), `{ action: "page", page }`, and the Board: `{ action: "pan", dir: "up"\|"down"\|"left"\|"right" }`, `{ action: "zoom", dir: "in"\|"out" }`, `{ action: "overview" }` (again: back to a readable zoom at the action), `{ action: "goto", cx, cy }` (board pixels — the dock's minimap). The first Board press frames the page that was up rather than moving. `{ ok, shot }`; 400 for a bad action, page or direction, 409 with no bracket or for the Board in Up Next |
 | `POST` | `/api/start-set` | Mark the loaded set in progress on start.gg (`markSetInProgress`). No body |
 | `POST` | `/api/report` | Report the loaded set to start.gg: winner plus every game's winner. Manual trigger only. A success also learns the players' mains and reloads the stats and the bracket |
 | `POST` | `/api/swap` | The ports are the wrong way round: flip which side each port plays for. The scoreboard doesn't move. Same as the swap-ports hotkey |
@@ -330,7 +358,7 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `POST` | `/api/clipper/test` | Save the replay buffer now; proves the OBS chain |
 | `GET` | `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters[?i=N]` | OBS browser sources. `?animate=false` skips the entrances |
 | `GET` | `/o/side-panel[?panel=<id>]` | The 611×1080 panel beside the cam. `?panel=` holds one panel (for styling) |
-| `GET` | `/o/bracket[?view=…]` | The bracket. Follows the dock's view unless `?view=` pins it |
+| `GET` | `/o/bracket[?view=…]` | The bracket (and Up Next). Follows the dock's view and shot unless `?view=` pins a view, which then tours its own pages |
 | `GET` | `/o/highlights` | The replay-scene frame. `?clip= ?cam= ?camx= ?pad= ?guides=1` |
 | `GET` | `/assets/icons/chara_2_<codename>_<NN>.png` | The stock character icons |
 
