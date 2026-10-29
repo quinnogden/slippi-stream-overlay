@@ -183,7 +183,7 @@ And these buttons:
 | Tab | What's in it |
 |---|---|
 | **Set** | The event's sets, with **playable sets first**. Tap one to put it on the scoreboard. Use **Clear set** for friendlies. |
-| **Bracket** | **Singles** / **Doubles** for this week's event, and which view the bracket overlay shows. |
+| **Bracket** | What the [bracket overlay](#bracket) shows: the view, **Auto** or a held page, and the Board's arrows, zoom and minimap. Below that, **Singles** / **Doubles** for this week's event. |
 | **Casters** | Up to four casters. Edits are a draft until you press **Put on stream**. |
 | **Players** | Search the player database, fix a prefix or pronoun, and **pin** a player's main. |
 | **Clips** | The combo clipper: on/off, the OBS connection, thresholds, recent clips, and **Test clip**. |
@@ -352,11 +352,39 @@ Doubles skips the player cards and head-to-head. A [crew battle](#crew-battles) 
 
 One source with six views: **Winners · Losers · Top 8 · Top 16 · Full · Up Next**. Switch between them from the dock, and the overlay crossfades. Add `?view=top8` to a source's URL to keep it on one view.
 
-- Each view **scales to fit**. One too big to read whole is shown as **pages** instead: groups of rounds laid out on their own, so a 51-player bracket fits on 4 readable pages. The overlay tours them (dots under the title count them down), or holds the one you pick in the dock. Empty rounds further ahead than the next one aren't drawn.
-- **Board** mode shows the classic connected bracket. You steer it from the dock with arrows, zoom, an Overview of the whole thing, or a tap on the minimap. Round names stay pinned at the top. The minimap is in the dock only, so the stream stays clean.
-- **Up Next** lists every set being played or ready to play, across every pool, with the set on stream first.
-- Sets show seeds, scores and character icons. The winners' paths light up in the theme's accent colour.
-- A player dropping into losers gets a small tag ("from W-R2") instead of a line across the screen.
+Sets show seeds, scores and character icons. The winners' paths light up in the theme's accent colour, and a player dropping into losers gets a small tag ("from W-R2") instead of a line across the screen.
+
+#### Big brackets are shown as pages
+
+<img src="docs/images/bracket-page.png" alt="A page of the full bracket: winners rounds 1 and 2, split into two side-by-side halves, with three page dots under the title" width="100%">
+
+A view that fits on screen at a readable size is shown whole, like the Top 8 above. A bigger one is never shrunk to tiny names or panned across. Instead it's cut into **pages**:
+
+- **A page is a group of rounds**, laid out on its own so there's no empty space where later rounds would be. A tall group of rounds is split down the middle and shown side by side, like the page above. A short winners group and a short losers group can share a page.
+- **Nothing is cut off.** Every page fits at a readable size (names stay around 22px or bigger), and no line inside a page runs off the edge. A 51-player bracket comes out as 4 pages.
+- **Empty rounds aren't drawn** further ahead than the next one anybody is in. Finished and live sets get the room instead.
+- **Auto tours the pages**, starting on the one with the set on stream (or the live round). Each page stays up for 10 seconds plus half a second per set, up to 30 seconds. The dots under the title show how many pages there are and fill up as each one plays.
+- **Holding a page:** tap a page in the dock, ◀ ▶, or **◎ Live** for the page with the action. It stays there until you press **Auto** again.
+
+#### Up Next
+
+<img src="docs/images/bracket-upnext.png" alt="Up Next: six sets in a grid, each with its round, an On Stream, Live or Ready chip, both players' seeds, characters and tags, and the on-stream set's score" width="100%">
+
+**Up Next** lists every set that's being played or ready to play, across **every pool**, so people at the venue can see who's on next. The set on stream comes first with its live score, then the other sets in progress, then the ready ones in bracket order. Each card is the bracket's own card under its round (and pool) and an **On Stream** / **Live** / **Ready** chip. A few sets are shown big; a lot are paged like the bracket.
+
+#### Steering it from the dock
+
+<img src="docs/images/dock-bracket.png" alt="The dock's Bracket tab: the view keys, the phase group, Auto, the page keys and Live, then the Board's arrows, zoom, Overview and minimap" width="300" align="right">
+
+The dock's **Bracket** tab has the controls (there are no hotkeys for them):
+
+- **The view keys** and the **phase group** (or *Follow the set on air*).
+- **Pages:** **Auto**, ◀ ▶, a key for each page, and **◎ Live**.
+- **Board:** the classic connected bracket, for when you want to point at something. The arrows move a column or a card at a time and settle on clean edges. − / + zoom between readable sizes. **Overview** shows the whole bracket at once, with the live sets glowing. Tap the **minimap** to jump to a spot. Round names stay pinned to the top as you move. The Board only moves when you press something; **Auto** goes back to the page tour.
+
+The minimap is in the dock only, so the stream stays clean.
+
+<br clear="right">
 
 ### Casters
 
