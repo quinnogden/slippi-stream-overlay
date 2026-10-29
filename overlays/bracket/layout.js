@@ -58,7 +58,7 @@
   const LIST = { headH: 34, gapX: 40, gapY: 28, maxScale: 1.4 };
 
   /** How long the tour holds a page: a base, plus a little per set, capped. */
-  const HOLD = { baseMs: 6000, perSetMs: 250, maxMs: 15000 };
+  const HOLD = { baseMs: 10000, perSetMs: 500, maxMs: 30000 };
 
   const MAX_WRAP = 6;
   const MAX_PARTS = 6;
