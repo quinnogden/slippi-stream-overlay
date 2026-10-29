@@ -344,9 +344,10 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `POST` | `/api/crews/save` | `{ name, members }` — replaces a saved crew of the same name, in any case. Only the typed fields are kept; mains are looked up at start. `{ ok, replaced, crews }` |
 | `POST` | `/api/crews/delete` | `{ name }` → `{ ok, removed, crews }` |
 | `GET` / `POST` | `/api/casters` | `{ casters: [{ tag, prefix, pronoun, twitter }] }`, up to 4. An empty tag hides that caster's card |
-| `GET` | `/api/players[?q=]` | The player DB: tags starting with `q`, then containing it; no `q` = the scoreboard's players. Each `{ ref, tag, prefix, pronoun, twitter, startggPlayerId, main, pinnedMain, learnedMains, onAir }`, mains as `{ codename, name, skin }` |
+| `GET` | `/api/players[?q=]` | The player DB: tags starting with `q`, then containing it; no `q` = the scoreboard's players. Each `{ ref, tag, prefix, pronoun, twitter, startggPlayerId, main, learnedMains, onAir }`; `main` is what their sets open on (learned, else stored), mains as `{ codename, name, skin }` |
 | `POST` | `/api/players/update` | `{ ref, tag, prefix?, pronoun?, twitter? }`. **`tag` must match the record at `ref`** (409 otherwise — a stale search can't edit someone else). A player on the scoreboard shows a prefix/pronoun change at once |
-| `POST` | `/api/players/pin` | `{ ref, tag, codename, skin }` pins the main a player's sets open on (beats learned); `codename: null` unpins. Doesn't change the set on air |
+| `POST` | `/api/players/main` | `{ ref, tag, codename, skin }` makes that character the first of the player's stored mains (TSH's `mains.ssbm`) — what their sets open on **until Slippi has learned one, which wins**. `{ playerId, codename, skin }` for an entrant of the loaded event (the roster) instead of `ref, tag` — upserted into the DB if new, 404 if not an entrant. Doesn't change the set on air |
+| `GET` | `/api/players/event` | The Players tab's roster: every entrant of the loaded event, by seed. `{ event, players }` — `event` is the event's name (`null` with none loaded), each player as `/api/players/suggest`'s plus `learnedMains`; `ref` is `null` for an entrant not in the DB. An entrant with no start.gg id is matched by tag and carries the record's tag, so `{ ref, tag }` finds it |
 | `GET` | `/api/players/suggest[?q=][&scope=list]` | The name fields' autocomplete. **While an event is loaded, only its entrants** (from the bracket graphs — everyone in a set read so far), filled in from the DB; with none, or `scope=list` (the casters), the DB (`playerDb.search`). `{ scope: "event"\|"list", total, players }`, each as `/api/players` plus `team` (doubles) and `seed`; `ref` is `null` for an entrant not in the DB. No `q` (the field was just clicked): every entrant by seed, or the DB A–Z capped at 150 — `total` is the uncapped count |
 | `POST` | `/api/players/assign` | Puts a suggested player in one slot, like a set load: tag, prefix, pronoun, `playerId` and the preferred main. `{ side, index, playerId }` for an entrant of the loaded event (upserted into the DB), `{ side, index, ref, tag }` for a DB record (409 rules as `update`). `playerId` is overwritten — `null` for a record with no start.gg id — so the side panel can't show the previous player's stats under the new name. A different player in the slot unlinks the start.gg set, as `/api/player` does; `{ ok, tag, detached }`. The main also becomes the shown character **unless a game is running**; a player with no main leaves the character alone |
 | `GET` | `/api/players/values` | `{ prefixes, pronouns }`: each distinct value in the DB, most used first — the prefix and pronoun suggestions |
@@ -383,7 +384,7 @@ For a set loaded after its game 1 had started, or ports the operator suspects. L
 { ok: false, error: "No game in progress — the next game start will re-derive on its own" }
 ```
 
-- It matches each port's character against the players' mains (pinned, then learned, then what the set opened on), so it is only as good as the player DB.
+- It matches each port's character against the players' mains (learned, then stored, then what the set opened on), so it is only as good as the player DB.
 - `method: "positional"` means no character matched — a coin flip, and the dock says so.
 - `port` is 0-based; `summary` prints it 1-based, the way the players and Slippi count.
 

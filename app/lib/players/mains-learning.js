@@ -23,8 +23,8 @@
  *     and a typo shouldn't become a player;
  *   - a crew battle: it stays out of the normal flow (and has no game list).
  *
- * A pinned main (the dock's Players tab) still wins on load; learning only
- * reorders `learnedMains`.
+ * What this learns beats a main set by hand in the dock's Players tab (TSH's
+ * `mains` list) on load; learning only reorders `learnedMains`.
  */
 
 /**

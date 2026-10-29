@@ -109,17 +109,37 @@ test("upsert fills only what's missing — never a hand-typed field", () => {
   assert.strictEqual(db.size, 4);
 });
 
-test("preferred main: pinned, then most recently learned, then TSH's mains list", () => {
+test("preferred main: most recently learned, then TSH's mains list — where a main set by hand goes", () => {
   const { db } = dbWith(RECORDS);
   const alpha = db.find({ tag: "Ålpha" });
   assert.deepStrictEqual(db.preferredMain(alpha), { name: "Fox", skin: 2 });
+  db.setMain(alpha, { name: "Falco", skin: 3 });
+  assert.deepStrictEqual(db.preferredMain(alpha), { name: "Falco", skin: 3 }, "set by hand, nothing learned");
+  assert.deepStrictEqual(alpha.mains.ssbm, [["Falco", 3, ""], ["Fox", 2, ""]], "first, one entry per character, TSH's shape");
   db.learnMain(alpha, { name: "Sheik", skin: 1 });
-  assert.deepStrictEqual(db.preferredMain(alpha), { name: "Sheik", skin: 1 });
-  db.pinMain(alpha, { name: "Falco", skin: 0 });
-  assert.deepStrictEqual(db.preferredMain(alpha), { name: "Falco", skin: 0 });
-  db.pinMain(alpha, null);
-  assert.deepStrictEqual(db.preferredMain(alpha), { name: "Sheik", skin: 1 });
+  assert.deepStrictEqual(db.preferredMain(alpha), { name: "Sheik", skin: 1 }, "what Slippi learned beats it");
+  db.setMain(alpha, { name: "Marth", skin: 0 });
+  assert.deepStrictEqual(db.preferredMain(alpha), { name: "Sheik", skin: 1 }, "and still does after another set");
   assert.strictEqual(db.preferredMain(db.find({ tag: "Bravo 🎮" })), null, "mains: \"{}\" is no main");
+  const bravo = db.find({ tag: "Bravo 🎮" });
+  db.setMain(bravo, { name: "Peach", skin: 1 });
+  assert.deepStrictEqual(bravo.mains, { ssbm: [["Peach", 1, ""]] }, "a record with TSH's \"{}\" gets a real mains list");
+});
+
+test("a pin from before becomes the first stored main, below what Slippi learns", () => {
+  const { file, db } = dbWith([
+    { ...RECORDS[0], pinnedMain: ["Sheik", 0] },
+    { ...RECORDS[2], pinnedMain: ["Marth", 2], learnedMains: [["Fox", 0]] },
+    RECORDS[1],
+  ]);
+  const alpha = db.find({ tag: "Ålpha" });
+  assert.ok(!("pinnedMain" in alpha));
+  assert.deepStrictEqual(alpha.mains.ssbm, [["Sheik", 0, ""], ["Fox", 2, ""], ["Falco", 0, ""]]);
+  assert.deepStrictEqual(db.preferredMain(db.find({ tag: "Charlie" })), { name: "Fox", skin: 0 }, "learned beats the old pin");
+  db.flush();
+  const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+  assert.ok(saved.every((r) => !("pinnedMain" in r)), "and the file no longer has it");
+  assert.deepStrictEqual(saved[1].mains.ssbm[0], ["Marth", 2, ""]);
 });
 
 test("learned mains: newest first, one entry per character, at most five", () => {

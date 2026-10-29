@@ -19,8 +19,11 @@
  *     cancels (the old confirm came back on the next redraw);
  *   - a malformed status never freezes the dock;
  *   - the casters are a draft until Put on stream, and a push doesn't undo it;
- *   - a player-list edit to someone on stream shows on stream; a pin lands in
- *     the DB through the same picker; a stale search can't edit someone else;
+ *   - a player-list edit to someone on stream shows on stream; a main set
+ *     through the same picker lands in the DB; a stale search can't edit
+ *     someone else;
+ *   - the event roster lists the entrants by seed and sets a main on one the
+ *     player list doesn't have yet, by start.gg id — and only an entrant;
  *   - the Setup tab's urls are the full ones OBS needs, and the bound chords
  *     reach the strip's keys;
  *   - Start and Report never show on a manual set; doubles swaps characters
@@ -677,7 +680,7 @@ async function rig() {
     } finally { r.close(); }
   });
 
-  await test("players: an edit to someone on stream shows on stream; a pin goes through the picker", async () => {
+  await test("players: an edit to someone on stream shows on stream; a main goes through the picker", async () => {
     const r = await rig();
     try {
       r.store.loadSet(fresh(LOSERS_FINAL));
@@ -698,15 +701,16 @@ async function rig() {
       await until(() => !row().querySelector(".pl-edit"), "the editor closes");
 
       fire(row().querySelector(".char"), "click");
-      assert.strictEqual(r.page.$("#picker-title").textContent, "Pinned main");
+      assert.strictEqual(r.page.$("#picker-title").textContent, "Main");
       const marth = r.page.$$("#picker-grid .tile").find((t) => t.dataset.codename === "marth");
       fire(marth, "click");
-      await until(() => r.db.find({ tag: "Player2" }).pinnedMain, "pinned in the DB");
-      assert.deepStrictEqual(r.db.find({ tag: "Player2" }).pinnedMain, ["Marth", 0]);
+      await until(() => r.db.find({ tag: "Player2" }).mains.ssbm.length, "saved in the DB");
+      assert.deepStrictEqual(r.db.find({ tag: "Player2" }).mains.ssbm[0], ["Marth", 0, ""]);
       await until(() => !r.page.$("#picker").classList.contains("open"), "the picker closes");
-      assert.ok(row().querySelector(".char").classList.contains("pinned"));
+      assert.strictEqual(row().querySelector(".char img").src, "/assets/icons/chara_2_fox_02.png",
+        "what Slippi learned still comes first");
       assert.deepStrictEqual(r.store.scoreboard().sides[0].players[0].character, null,
-        "pinning is for the next set — the one on stream keeps its character");
+        "a main is for the next set — the one on stream keeps its character");
 
       r.page.$("#player-search").value = "play";
       fire(r.page.$("#player-search"), "input");
@@ -721,6 +725,41 @@ async function rig() {
       });
       assert.strictEqual(stale.status, 409);
       assert.strictEqual(r.db.find({ tag: "Commentator" }).pronoun, "he/him");
+    } finally { r.close(); }
+  });
+
+  await test("players: the event roster sets a main on an entrant the list doesn't have yet", async () => {
+    const r = await rig();
+    try {
+      const entrants = EventService.prototype.players.call({ _groups: [{ graph: pgraph }] });
+      const bySeed = [...entrants].sort((a, b) => a.seed - b.seed);
+      r.store.setTournament({ name: "100 Acres", eventName: "Melee Singles", eventSlug: "tournament/x/event/melee-singles", kind: "singles" });
+      r.Dock.showTab("players");
+      const rows = () => r.page.$$("#roster-list .pl-row");
+      await until(() => rows().length === entrants.length, "every entrant");
+      assert.deepStrictEqual(rows().map((x) => x.querySelector(".pl-tag").textContent), bySeed.map((p) => p.tag), "by seed");
+
+      const pick = bySeed.find((p) => !r.db.find(p));
+      assert.ok(pick, "an entrant who isn't in the player list");
+      const rowOf = () => rows().find((x) => x.querySelector(".pl-tag").textContent === pick.tag);
+      fire(rowOf().querySelector(".pl-name"), "click");
+      assert.strictEqual(r.page.$("#picker-title").textContent, "Main");
+      const before = rows().filter((x) => !x.querySelector(".char.empty")).length;
+      fire(r.page.$$("#picker-grid .tile").find((t) => t.dataset.codename === "sheik"), "click");
+      await until(() => r.db.find({ playerId: pick.playerId }), "added to the list by start.gg id");
+      assert.deepStrictEqual(r.db.find({ playerId: pick.playerId }).mains.ssbm, [["Sheik", 0, ""]]);
+      await until(() => rowOf().querySelector(".char img").src === "/assets/icons/chara_2_sheik_00.png", "the row shows it");
+      assert.strictEqual(r.page.$("#roster-stamp").textContent, `${before + 1}/${entrants.length} with a main`);
+
+      r.page.$("#roster-missing").checked = true;
+      fire(r.page.$("#roster-missing"), "change");
+      await until(() => rows().length === entrants.length - before - 1, "No main only hides everyone with one");
+
+      const outsider = await fetch(`${r.base}/api/players/main`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId: "999999999", codename: "fox" }),
+      });
+      assert.strictEqual(outsider.status, 404, "a main by start.gg id is for the loaded event's players only");
     } finally { r.close(); }
   });
 

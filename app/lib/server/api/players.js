@@ -1,7 +1,8 @@
 /**
  * The player DB (local_players.json), for the dock's Players tab and the
  * casters' autocomplete: find a player, correct their prefix / pronoun /
- * twitter, pin the main shown when their sets load.
+ * twitter, set the main their sets open on until Slippi learns one — one at a
+ * time, or down the loaded event's roster before anyone is on stream.
  *
  * A record is addressed by `ref` (its position, PlayerDb.refOf) plus its tag,
  * sent back together: the tag is the check that the ref still means the
@@ -13,6 +14,7 @@ const { characterList, pickCharacter, sameName, bad, isSide, isIndex, CREW_SIDES
 
 const FIELD_MAX = 40;
 const LIST_ALL = 150; // an empty name field lists this many of the player list
+const NOT_ENTRANT = "That player isn't in the loaded event — search again";
 
 /** A DB main ({ name, skin }) as an icon-ready { codename, name, skin }. */
 const asCharacter = (m) => (m ? characterByName(m.name, m.skin) : null);
@@ -30,7 +32,6 @@ function register(app, { store, playerDb, event = null, iconsDir, refreshControl
     return {
       ...d,
       main: asCharacter(d.main),
-      pinnedMain: asCharacter(d.pinnedMain),
       learnedMains: d.learnedMains.map(asCharacter).filter(Boolean),
       onAir: onAir.has(rec),
     };
@@ -80,6 +81,40 @@ function register(app, { store, playerDb, event = null, iconsDir, refreshControl
     return list.length ? list : null;
   }
 
+  const bySeed = (a, b) => (a.seed ?? 1e9) - (b.seed ?? 1e9) || a.tag.localeCompare(b.tag);
+
+  /** The loaded event's entrant with this start.gg player id, or null. */
+  const entrant = (playerId) => (eventPlayers() ?? []).find((x) => x.playerId === String(playerId)) ?? null;
+
+  // The loaded event's players by seed, each with the main their sets open
+  // on: the Players tab's roster, for pinning mains before anyone is on
+  // stream. An entrant the player list doesn't have yet has ref null — setting
+  // a main by start.gg id adds them, as their first set load would. One with
+  // no start.gg id is matched by tag, so its tag is the record's (the check).
+  app.get("/api/players/event", (req, res) => {
+    const t = store.tournament();
+    const inEvent = eventPlayers();
+    if (!inEvent) return res.json({ ok: true, event: t?.eventSlug ? t.eventName : null, players: [] });
+    const onAir = onAirRecords();
+    const players = [...inEvent].sort(bySeed).map((p) => {
+      const rec = playerDb.find(p);
+      const d = rec ? entry(rec, onAir) : null;
+      return {
+        ref: d ? d.ref : null,
+        tag: d && p.playerId == null ? d.tag : p.tag,
+        prefix: p.prefix || (d ? d.prefix : ""),
+        pronoun: d ? d.pronoun : "",
+        startggPlayerId: p.playerId,
+        main: d ? d.main : null,
+        learnedMains: d ? d.learnedMains : [],
+        onAir: d ? d.onAir : false,
+        team: p.team,
+        seed: p.seed,
+      };
+    });
+    res.json({ ok: true, event: t.eventName, players });
+  });
+
   // The name fields' autocomplete: while an event is loaded,
   // only its entrants (with pronoun and main from the player list); with
   // none, or with ?scope=list (the casters, who aren't entrants), the whole
@@ -99,7 +134,6 @@ function register(app, { store, playerDb, event = null, iconsDir, refreshControl
     }
     const tag = (p) => p.tag.toLowerCase();
     const full = (p) => `${p.prefix} ${p.tag}`.trim().toLowerCase();
-    const bySeed = (a, b) => (a.seed ?? 1e9) - (b.seed ?? 1e9) || a.tag.localeCompare(b.tag);
     const hits = q
       ? [...inEvent.filter((p) => tag(p).startsWith(q)).sort(bySeed),
         ...inEvent.filter((p) => !tag(p).startsWith(q) && (tag(p).includes(q) || full(p).includes(q))).sort(bySeed)]
@@ -138,8 +172,8 @@ function register(app, { store, playerDb, event = null, iconsDir, refreshControl
     let fields;
     let rec;
     if (playerId != null) {
-      const p = (eventPlayers() ?? []).find((x) => x.playerId === String(playerId));
-      if (!p) return bad(res, "That player isn't in the loaded event — search again", 404);
+      const p = entrant(playerId);
+      if (!p) return bad(res, NOT_ENTRANT, 404);
       rec = playerDb.upsert({ playerId: p.playerId, tag: p.tag, prefix: p.prefix });
       fields = { tag: p.tag, prefix: p.prefix || rec?.prefix || "", pronoun: rec?.pronoun ?? "", playerId: p.playerId };
     } else {
@@ -188,19 +222,24 @@ function register(app, { store, playerDb, event = null, iconsDir, refreshControl
     res.json({ ok: true, player: entry(rec, onAirRecords()) });
   });
 
-  // { ref, tag, codename, skin } pins the main shown on set load (it beats
-  // what Slippi has taught); { ref, tag, codename: null } unpins.
-  app.post("/api/players/pin", (req, res) => {
-    const rec = recordFor(req.body, res);
-    if (!rec) return;
-    const { codename, skin = 0 } = req.body;
-    if (codename == null) {
-      playerDb.pinMain(rec, null);
+  // { ref, tag, codename, skin } sets the main a player's sets open on — the
+  // first of their stored mains, which what Slippi learns beats. The roster
+  // sends { playerId } (an entrant of the loaded event) for { ref, tag },
+  // adding them to the player list if they're new.
+  app.post("/api/players/main", (req, res) => {
+    const { codename, skin = 0 } = req.body ?? {};
+    const { ch, error } = pickCharacter(characters, codename, skin);
+    if (error) return bad(res, error);
+    let rec;
+    if (req.body.playerId != null) {
+      const p = entrant(req.body.playerId);
+      if (!p) return bad(res, NOT_ENTRANT, 404);
+      rec = playerDb.upsert({ playerId: p.playerId, tag: p.tag, prefix: p.prefix });
     } else {
-      const { ch, error } = pickCharacter(characters, codename, skin);
-      if (error) return bad(res, error);
-      playerDb.pinMain(rec, { name: ch.name, skin });
+      rec = recordFor(req.body, res);
     }
+    if (!rec) return;
+    playerDb.setMain(rec, { name: ch.name, skin });
     res.json({ ok: true, player: entry(rec, onAirRecords()) });
   });
 }

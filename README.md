@@ -238,7 +238,7 @@ The winner is read **at the end of the game**. So if you fix the ports or load t
 
 ### Mains are learned
 
-When a singles set ends, the characters each player used are saved to the player database, most-played first. Their next set opens on the right character, and game 1's ports match the first time. A **pinned** main (set in the Players tab) always wins.
+When a singles set ends, the characters each player used are saved to the player database, most-played first. Their next set opens on the right character, and game 1's ports match the first time. A main set by hand in the Players tab is only used until Slippi has seen that player play.
 
 ### Warm-ups and rage quits
 

@@ -31,6 +31,7 @@
   const TAB_KEY = "dock.tab";
   const FOLD_KEY = "dock.stripFolded";
   const WAITING_KEY = "dock.hideWaiting";
+  const ROSTER_KEY = "dock.rosterOpen";
   const HOLD_MS = 450;        // a long-press on a character opens its costumes
   const SETS_POLL_MS = 90000; // the app re-reads start.gg every 90s; this only picks that up
   const STALE_MS = 12000;     // no status for this long = the app has stopped talking
@@ -932,6 +933,8 @@
     store(TAB_KEY, name);
     // Read when looked at: neither changes on its own mid-set.
     if (name === "players" && !playersFetched) fetchPlayers();
+    // The roster each time: a main set elsewhere or a bracket refresh may have changed it.
+    if (name === "players" && rosterOpen()) fetchRoster();
     if (name === "setup") fetchSetup();
     if (name === "crew" && !savedCrews) fetchSavedCrews();
   }
@@ -1897,14 +1900,8 @@
     const open = editingRef === p.ref;
     const row = h("div", "pl-row" + (p.onAir ? " air" : "") + (open ? " open" : ""));
 
-    const shown = p.pinnedMain || p.main;
-    const charBtn = button("char" + (shown ? "" : " empty") + (p.pinnedMain ? " pinned" : ""));
-    charBtn.title = p.pinnedMain ? `Pinned: ${p.pinnedMain.name} — change` : "Pin the main their sets open on";
-    const img = h("img");
-    img.alt = "";
-    if (shown) img.src = icon(shown);
-    charBtn.append(img);
-    charBtn.addEventListener("click", () => openPinPicker(p));
+    const charBtn = mainButton(p);
+    charBtn.addEventListener("click", () => openMainPicker(p));
 
     const name = button("pl-name");
     name.title = open ? "Close" : "Edit";
@@ -1912,7 +1909,6 @@
     name.append(h("span", "pl-tag", p.tag || "?"));
     if (p.pronoun) name.append(h("span", "chip", p.pronoun));
     if (p.onAir) name.append(h("span", "chip air", "On stream"));
-    if (p.pinnedMain) name.append(h("span", "chip pin", "Pinned"));
     name.addEventListener("click", () => {
       editingRef = open ? null : p.ref;
       renderPlayers();
@@ -1966,11 +1962,6 @@
     const cancel = key("Cancel");
     cancel.addEventListener("click", () => { editingRef = null; renderPlayers(); });
     keys.append(ok, cancel);
-    if (p.pinnedMain) {
-      const unpin = key("Unpin main");
-      unpin.addEventListener("click", () => pinMain(p, null));
-      keys.append(unpin);
-    }
     box.append(keys);
     return box;
   }
@@ -1979,18 +1970,134 @@
     if (!entry) return;
     players = players.map((x) => (x.ref === entry.ref ? entry : x));
     renderPlayers();
+    replaceRosterEntry(entry);
   }
 
-  async function pinMain(p, codename, skin) {
-    const r = await api("/api/players/pin", { ref: p.ref, tag: p.tag, codename, skin });
+  /**
+   * A player's main as a character button: what their sets open on, from
+   * Slippi when it has learned one (which beats a main set here).
+   */
+  function mainButton(p) {
+    const b = button("char" + (p.main ? "" : " empty"));
+    const learned = (p.learnedMains || [])[0];
+    b.title = learned ? `${learned.name}, learned from Slippi — a main set here only counts until Slippi learns one`
+      : p.main ? `${p.main.name} — change` : "Set the main their sets open on";
+    const img = h("img");
+    img.alt = "";
+    if (p.main) img.src = icon(p.main);
+    b.append(img);
+    return b;
+  }
+
+  /** p from either list: a roster row says how to find it (findAs), a list entry is { ref, tag }. */
+  async function setMain(p, codename, skin) {
+    const r = await api("/api/players/main", { ...(p.findAs || { ref: p.ref, tag: p.tag }), codename, skin });
     if (!r.ok) {
-      toast(`Couldn't pin that: ${r.error}`, false);
+      toast(`Couldn't set that: ${r.error}`, false);
       return r;
     }
-    toast(r.player.pinnedMain ? `${p.tag}'s sets open on ${r.player.pinnedMain.name}` : `${p.tag}: back to learned mains`, true);
+    const set = characters.find((c) => c.codename === codename);
+    const learned = (r.player.learnedMains || [])[0];
+    toast(learned ? `Saved ${set ? set.name : codename} for ${p.tag} — Slippi's ${learned.name} still comes first`
+      : `${p.tag}'s sets open on ${r.player.main ? r.player.main.name : "?"}`, true);
     replacePlayer(r.player);
     return r;
   }
+
+  // ── Players tab: the event roster ──
+
+  let roster = [];           // the last /api/players/event answer's players
+  let rosterEvent = null;    // its event's name, or null with none loaded
+  let rosterError = null;
+  let rosterFetched = false;
+  let rosterReq = 0;
+
+  const rosterOpen = () => $("roster").classList.contains("open");
+
+  /** Read when looked at: the tab shown or the card opened, and a new event. */
+  async function fetchRoster() {
+    const req = ++rosterReq;
+    const r = await api("/api/players/event");
+    if (req !== rosterReq) return;
+    rosterFetched = true;
+    rosterError = r.ok ? null : (r.error || "no answer from the app");
+    if (r.ok) {
+      rosterEvent = r.event;
+      // An entrant is found by start.gg id (added to the list if new); one
+      // without is a list record, matched by tag.
+      roster = (r.players || []).map((p) => ({
+        ...p,
+        findAs: p.startggPlayerId ? { playerId: p.startggPlayerId } : p.ref != null ? { ref: p.ref, tag: p.tag } : null,
+      }));
+    }
+    renderRoster();
+  }
+
+  /** A main set from either list, onto the roster row of the same player. */
+  function replaceRosterEntry(entry) {
+    const same = (x) => (x.startggPlayerId && x.startggPlayerId === entry.startggPlayerId) || (x.ref != null && x.ref === entry.ref);
+    if (!roster.some(same)) return;
+    roster = roster.map((x) => (same(x)
+      ? { ...x, ref: entry.ref, main: entry.main, learnedMains: entry.learnedMains }
+      : x));
+    renderRoster();
+  }
+
+  const renderRoster = guard("roster", () => {
+    const list = $("roster-list");
+    const q = $("roster-search").value.trim().toLowerCase();
+    const missingOnly = $("roster-missing").checked;
+    const done = roster.filter((p) => p.main).length;
+    $("roster-stamp").textContent = roster.length ? `${done}/${roster.length} with a main` : "";
+    if (rosterError) return list.replaceChildren(h("div", "empty-note", `Couldn't read the roster: ${rosterError}`));
+    if (!roster.length) {
+      return list.replaceChildren(h("div", "empty-note", rosterEvent
+        ? `No players read from ${rosterEvent} yet.`
+        : "No event loaded — pick this week's on the Set tab and its players are listed here."));
+    }
+    const shown = roster.filter((p) => (!missingOnly || !p.main)
+      && (!q || p.tag.toLowerCase().includes(q) || playerName(p).toLowerCase().includes(q)));
+    if (!shown.length) {
+      return list.replaceChildren(h("div", "empty-note", missingOnly && !q
+        ? "Everyone in the event has a main."
+        : `Nobody in the event matches “${q}”.`));
+    }
+    list.replaceChildren(...shown.map(rosterRow));
+  });
+
+  function rosterRow(p) {
+    const row = h("div", "pl-row roster-row" + (p.onAir ? " air" : ""));
+    const charBtn = mainButton(p);
+
+    const name = button("pl-name");
+    if (p.prefix) name.append(h("span", "pl-prefix", p.prefix));
+    name.append(h("span", "pl-tag", p.tag || "?"));
+    if (p.onAir) name.append(h("span", "chip air", "On stream"));
+
+    if (p.findAs) {
+      name.title = charBtn.title;
+      for (const b of [charBtn, name]) b.addEventListener("click", () => openMainPicker(p));
+    } else {
+      charBtn.disabled = name.disabled = true;
+      charBtn.title = name.title = "No start.gg id and not in the player list — set their main once their set has loaded";
+    }
+
+    row.append(charBtn, name, h("span", "pl-seed", p.seed != null ? `#${p.seed}` : ""));
+    return row;
+  }
+
+  function setRosterOpen(open) {
+    $("roster").classList.toggle("open", open);
+    const btn = $("btn-roster-fold");
+    btn.setAttribute("aria-expanded", String(open));
+    btn.title = open ? "Fold the roster" : "Open the roster";
+    store(ROSTER_KEY, open ? "1" : "0");
+    if (open && $("panel-players").classList.contains("on")) fetchRoster();
+  }
+  $("btn-roster-fold").addEventListener("click", () => setRosterOpen(!rosterOpen()));
+  $("roster-search").addEventListener("input", renderRoster);
+  $("roster-missing").addEventListener("change", renderRoster);
+  setRosterOpen(store(ROSTER_KEY) !== "0");
 
   $("player-search").addEventListener("input", () => {
     clearTimeout(fetchPlayers.timer);
@@ -2268,15 +2375,15 @@
 
   /**
    * Who the picker is choosing for, and which character's costumes it shows:
-   * a player on the strip ({ side, index }), or a player-list entry whose main
-   * is being pinned ({ pin: entry }).
+   * a player on the strip ({ side, index }), or a player-list or roster entry
+   * whose main is being set ({ main: entry }).
    */
-  let picking = null; // { side, index, pin, costumesFor: codename|null }
+  let picking = null; // { side, index, main, costumesFor: codename|null }
 
   /** The character the picker marks as current. */
   function pickingCurrent() {
     if (!picking) return null;
-    if (picking.pin) return picking.pin.pinnedMain || null;
+    if (picking.main) return picking.main.main || null;
     const p = sb ? sb.sides[picking.side].players[picking.index] : null;
     return (p && p.character) || null;
   }
@@ -2336,10 +2443,11 @@
 
   const renderPicker = guard("picker", () => {
     if (!picking) return;
-    if (picking.pin) {
-      $("picker-title").textContent = "Pinned main";
-      $("picker-who").textContent = `${playerName(picking.pin) || "?"} — their sets open on this`;
-      $("picker-none").textContent = "Unpin";
+    // A main is only ever replaced, not cleared: no "No character".
+    $("picker-none").style.display = picking.main ? "none" : "";
+    if (picking.main) {
+      $("picker-title").textContent = "Main";
+      $("picker-who").textContent = `${playerName(picking.main) || "?"} — their sets open on this until Slippi learns what they play`;
     } else {
       const p = sb ? sb.sides[picking.side].players[picking.index] : null;
       const where = `${picking.side === 0 ? "Left" : "Right"}${sb && sb.isDoubles ? ` · player ${picking.index + 1}` : ""}`;
@@ -2368,14 +2476,14 @@
 
   function openPicker(side, index) {
     if (!sb) return;
-    picking = { side, index, pin: null, costumesFor: null };
+    picking = { side, index, main: null, costumesFor: null };
     renderPicker();
     $("picker").classList.add("open");
   }
 
-  /** The picker, choosing a player-list entry's pinned main. */
-  function openPinPicker(entry) {
-    picking = { pin: entry, costumesFor: null };
+  /** The picker, choosing a player-list or roster entry's main. */
+  function openMainPicker(entry) {
+    picking = { main: entry, costumesFor: null };
     renderPicker();
     $("picker").classList.add("open");
   }
@@ -2385,11 +2493,11 @@
     $("picker").classList.remove("open");
   }
 
-  /** Set the character (null = none, or unpin) and close. */
+  /** Set the character (null = none) or the main, and close. */
   async function pick(codename, skin) {
     if (!picking) return;
-    if (picking.pin) {
-      const r = await pinMain(picking.pin, codename, skin);
+    if (picking.main) {
+      const r = await setMain(picking.main, codename, skin);
       if (r.ok) closePicker();
       return;
     }
@@ -2437,7 +2545,10 @@
     renderTournament(t || {});
     // A different event is a different set list.
     const slug = (t && t.eventSlug) || "";
-    if (eventSlug !== undefined && slug !== eventSlug) fetchSets();
+    if (eventSlug !== undefined && slug !== eventSlug) {
+      fetchSets();
+      if (rosterFetched) fetchRoster();
+    }
     eventSlug = slug;
   });
 
@@ -2504,6 +2615,6 @@
     get crewDraft() { return crewDraft; },
     get savedCrews() { return savedCrews; },
     get setup() { return setup; },
-    openPicker, openPinPicker, closePicker, pick, fetchSets, fetchPlayers, fetchSetup, showTab, CLIP_FIELDS,
+    openPicker, openMainPicker, closePicker, pick, fetchSets, fetchPlayers, fetchSetup, showTab, CLIP_FIELDS,
   };
 })();

@@ -929,10 +929,6 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 }
 .pl-row.air { border-color: rgba(255, 59, 48, .55); }
 .pl-row.open { border-color: rgba(var(--d-accent-rgb), .6); }
-.pl-row .char.pinned {
-  border-color: rgba(var(--d-accent-rgb), 1);
-  box-shadow: 0 0 8px rgba(var(--d-accent-rgb), .4);
-}
 
 .pl-name {
   display: flex;
@@ -949,7 +945,6 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 .pl-prefix { font-size: 12px; color: var(--d-ink-dim); }
 .pl-tag { font: 600 16px/1.2 var(--d-text); overflow-wrap: anywhere; }
 .pl-name .chip { align-self: center; }
-.chip.pin { color: var(--d-accent); background: rgba(var(--d-accent-rgb), .13); }
 
 .pl-learned { display: flex; gap: 1px; }
 .pl-learned img { width: 22px; height: 22px; object-fit: contain; opacity: .7; }
@@ -964,6 +959,30 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 }
 .pl-edit .key-row { grid-column: 1 / -1; margin: 10px 0 2px; }
 @media (max-width: 480px) { .pl-edit { grid-template-columns: 1fr 1fr; } }
+
+/* The event roster: a folding card of the loaded event's players, a tap to set each one's main. */
+.roster-fold {
+  width: 100%;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.roster-fold:hover .label { color: var(--d-ink); }
+.roster:not(.open) .roster-fold { margin-bottom: 0; }
+.roster:not(.open) .fold-chev::before { transform: rotate(-90deg); }
+.roster:not(.open) .roster-body { display: none; }
+
+.roster-tools { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.roster-tools .filter { flex: 1 1 auto; min-width: 0; margin-bottom: 0; }
+.roster-tools .field.check { flex: none; min-height: 0; margin-bottom: 0; }
+
+.roster .player-list { max-height: 50vh; }
+.pl-row.roster-row { margin-bottom: 4px; padding: 4px 8px; }
+.roster-row .char:disabled { cursor: default; opacity: .5; }
+.pl-seed { font: 500 12px/1 var(--d-mono); color: var(--d-ink-faint); }
 
 /* ── Setup ── */
 

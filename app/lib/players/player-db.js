@@ -10,8 +10,9 @@
  * Rules that keep it handable-back:
  *   - **Unknown fields round-trip.** A record is kept as the object it was read
  *     as and only the fields this app owns are written into it.
- *   - The app's own additions go in keys TSH ignores: `startggPlayerId`,
- *     `learnedMains` (most recent first, `[displayName, skin]`) and `pinnedMain`.
+ *   - The app's own additions go in keys TSH ignores: `startggPlayerId` and
+ *     `learnedMains` (most recent first, `[displayName, skin]`). A main set in
+ *     the dock is TSH's own `mains.ssbm`, first entry.
  *   - A fresh TSH ships the file as `{}` rather than `[]`; both read as empty.
  *   - TSH has written `mains` as the string "{}" and `prefix`/`name` as null;
  *     readers tolerate all of it rather than "fixing" records they don't touch.
@@ -66,6 +67,24 @@ class PlayerDb {
       return;
     }
     this._records = Array.isArray(raw) ? raw.filter((r) => r && typeof r === "object") : [];
+    this._foldPins();
+  }
+
+  /**
+   * A `pinnedMain` (the dock's pin, which used to beat learned mains) becomes
+   * the record's first `mains.ssbm` entry, below what Slippi learns — so the
+   * operator's correction still stands until Slippi has seen them play.
+   */
+  _foldPins() {
+    let changed = false;
+    for (const rec of this._records) {
+      if (!("pinnedMain" in rec)) continue;
+      const pin = pickMain(rec.pinnedMain);
+      delete rec.pinnedMain;
+      if (pin) this._putMain(rec, pin);
+      changed = true;
+    }
+    if (changed) this._scheduleSave();
   }
 
   // ── Lookup ──────────────────────────────────────────────────────────────────
@@ -163,19 +182,17 @@ class PlayerDb {
       twitter: rec.twitter ?? "",
       startggPlayerId: rec.startggPlayerId ?? null,
       main: this.preferredMain(rec),
-      pinnedMain: pickMain(rec.pinnedMain),
       learnedMains: (Array.isArray(rec.learnedMains) ? rec.learnedMains : []).map(pickMain).filter(Boolean),
     };
   }
 
   /**
-   * The character to prefill for a player on set load: pinned beats learned
-   * beats TSH's mains list.
+   * The character to prefill for a player on set load: what Slippi learned
+   * beats TSH's mains list (where the dock's Set main goes).
    * @returns {{ name: string, skin: number } | null}
    */
   preferredMain(rec) {
-    return pickMain(rec?.pinnedMain)
-      ?? pickMain(rec?.learnedMains?.[0])
+    return pickMain(rec?.learnedMains?.[0])
       ?? pickMain(this._tshMains(rec)[0])
       ?? null;
   }
@@ -225,12 +242,22 @@ class PlayerDb {
     this._scheduleSave();
   }
 
-  /** Pin (or with null, unpin) the main shown on set load. */
-  pinMain(rec, main) {
-    if (!rec) return;
-    if (main) rec.pinnedMain = [main.name, Number(main.skin) || 0];
-    else delete rec.pinnedMain;
+  /**
+   * Make `main` the first of TSH's mains list — what a player's sets open on
+   * until Slippi has learned what they play, which then wins.
+   * @param {{ name: string, skin: number }} main
+   */
+  setMain(rec, main) {
+    if (!rec || !main?.name) return;
+    this._putMain(rec, main);
     this._scheduleSave();
+  }
+
+  /** TSH's entry is [name, skin, variant]; one per character, the new skin wins. A malformed `mains` is replaced. */
+  _putMain(rec, main) {
+    const mains = rec.mains && typeof rec.mains === "object" && !Array.isArray(rec.mains) ? rec.mains : (rec.mains = {});
+    const list = Array.isArray(mains[GAME]) ? mains[GAME] : [];
+    mains[GAME] = [[main.name, Number(main.skin) || 0, ""], ...list.filter((e) => !Array.isArray(e) || e[0] !== main.name)];
   }
 
   /**

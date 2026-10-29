@@ -100,8 +100,7 @@ Then replace the three sample players with your own. **Don't leave them in**: a 
 |---|---|
 | `gamerTag`, `prefix` | Players are matched by tag (with or without prefix). `prefix` may be `""`. |
 | `pronoun`, `twitter` | Shown on the overlays. `""` for none. |
-| `mains.ssbm` | `[[character, costume, ""], …]`, first entry = main. `character` must be the display name exactly as in [char_map.js](../app/lib/char_map.js) (`"Fox"`, `"Captain Falcon"`, `"Mr. Game & Watch"`, `"Dr. Mario"` …). `costume` is the in-game colour index from 0. The third slot is TSH's and is always `""`. |
-| `pinnedMain` | `[character, costume]`. Wins over everything else. The Players tab's pin sets it. |
+| `mains.ssbm` | `[[character, costume, ""], …]`, first entry = main (the Players tab sets it), used until Slippi has learned what they play. `character` must be the display name exactly as in [char_map.js](../app/lib/char_map.js) (`"Fox"`, `"Captain Falcon"`, `"Mr. Game & Watch"`, `"Dr. Mario"` …). `costume` is the in-game colour index from 0. The third slot is TSH's and is always `""`. |
 | `learnedMains` | Written by the app (most recent first). Don't hand-write it. |
 | `startggPlayerId` | Written by the app on a set load. Don't hand-write it: it's matched before the tag, so a wrong id shows someone else's pronouns and mains. |
 | `name`, `custom_textbox`, `country_code`, `state_code` | TSH's fields. The app ignores them but keeps them, so the file can go back to TSH. |

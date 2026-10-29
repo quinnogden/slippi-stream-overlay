@@ -195,6 +195,24 @@
 
       <!-- ── Players ── -->
       <div class="panel" id="panel-players">
+        <!-- The loaded event's players, to set each one's main before they're
+             on stream. Folds away; remembered. -->
+        <div class="card roster open" id="roster">
+          <button class="card-head roster-fold" id="btn-roster-fold" type="button" aria-expanded="true" aria-controls="roster-body" title="Fold the roster">
+            <span class="fold-chev" aria-hidden="true"></span>
+            <span class="label">Event roster</span>
+            <span class="card-meta" id="roster-stamp"></span>
+          </button>
+          <div class="roster-body" id="roster-body">
+            <div class="roster-tools">
+              <input class="filter" id="roster-search" type="search" placeholder="Filter by tag…" spellcheck="false" />
+              <label class="field check"><input type="checkbox" id="roster-missing" /> <span>No main only</span></label>
+            </div>
+            <div class="player-list" id="roster-list"></div>
+            <div class="hint">Everyone in the loaded event, by seed. Tap a player to set the character their sets open on — hold a character for costumes. Once Slippi has learned what someone plays, that wins over what you set here.</div>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-head">
             <span class="label">Player list</span>
@@ -202,7 +220,7 @@
           </div>
           <input class="filter" id="player-search" type="search" placeholder="Find a player by tag…" spellcheck="false" />
           <div class="player-list" id="players-list"></div>
-          <div class="hint">The icon is the main a player's sets open on: <b>pinned</b> (tap it to pin one) beats what Slippi has <b>learned</b>, which is updated when each set is reported or replaced.</div>
+          <div class="hint">The icon is the main a player's sets open on: what Slippi has <b>learned</b> (updated when each set is reported or replaced) beats a main set by hand (tap the icon to set one).</div>
         </div>
       </div>
 
