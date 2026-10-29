@@ -117,22 +117,6 @@
       <!-- ── Bracket ── -->
       <div class="panel" id="panel-bracket">
         <div class="card">
-          <div class="card-head"><span class="label">This week's event</span></div>
-          <div class="key-row">
-            <button class="key" id="btn-bracket-singles" type="button" data-kind="singles">Singles</button>
-            <button class="key" id="btn-bracket-doubles" type="button" data-kind="doubles">Doubles</button>
-          </div>
-          <div class="field">
-            <span>Or any event by URL</span>
-            <div class="url-load">
-              <input type="text" id="bracket-url" placeholder="start.gg/tournament/…/event/…" autocomplete="off" spellcheck="false" aria-label="start.gg event URL">
-              <button class="key" id="btn-bracket-url" type="button">Load</button>
-            </div>
-          </div>
-          <div class="hint" id="bracket-hint">No event loaded — press Singles or Doubles.</div>
-        </div>
-
-        <div class="card">
           <div class="card-head"><span class="label">Bracket overlay</span></div>
           <div class="seg" id="bracket-views">
             <button class="key" type="button" data-view="winners">Winners</button>
@@ -171,6 +155,22 @@
               <div class="cam-map" id="bracket-minimap" title="Tap to frame that spot"></div>
             </div>
           </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><span class="label">This week's event</span></div>
+          <div class="key-row">
+            <button class="key" id="btn-bracket-singles" type="button" data-kind="singles">Singles</button>
+            <button class="key" id="btn-bracket-doubles" type="button" data-kind="doubles">Doubles</button>
+          </div>
+          <div class="field">
+            <span>Or any event by URL</span>
+            <div class="url-load">
+              <input type="text" id="bracket-url" placeholder="start.gg/tournament/…/event/…" autocomplete="off" spellcheck="false" aria-label="start.gg event URL">
+              <button class="key" id="btn-bracket-url" type="button">Load</button>
+            </div>
+          </div>
+          <div class="hint" id="bracket-hint">No event loaded — press Singles or Doubles.</div>
         </div>
       </div>
 
