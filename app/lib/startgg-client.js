@@ -34,7 +34,7 @@
 
 const axios = require("axios");
 
-const { EVENT_QUERY, PHASE_GROUP_SETS_QUERY, SET_QUERY, SET_CONTEXT_QUERY, PAGE_SIZES } = require("./event/queries");
+const { EVENT_QUERY, PHASE_GROUP_SETS_QUERY, SET_QUERY, SET_CONTEXT_QUERY, SET_RESULT_QUERY, PAGE_SIZES } = require("./event/queries");
 
 const ENDPOINT = "https://api.start.gg/gql/alpha";
 const WEB_BASE = "https://www.start.gg";
@@ -525,6 +525,28 @@ class StartggClient {
       return { ok: false, error: `start.gg doesn't recognise set ${setId}` };
     }
     return { ok: true, set };
+  }
+
+  /**
+   * A set's result as start.gg has it now: its state (3 = completed), the
+   * winner, and each entrant's score (-1 = DQ). Background, falls back keyless
+   * — the replays' completion watch asks every few minutes, never the operator.
+   * @param {string|number} setId
+   * @returns {Promise<{ ok: true, state: number, winnerId: string|null, scores: Object<string, number|null> }
+   *                  | { ok: false, error: string }>}
+   */
+  async getSetResult(setId) {
+    const res = await this.backgroundQuery(SET_RESULT_QUERY, { id: String(setId) }, { fallback: true });
+    if (!res.ok) return res;
+    const set = res.data?.set;
+    if (set?.state == null) return { ok: false, error: `start.gg doesn't recognise set ${setId}` };
+    const scores = {};
+    for (const slot of set.slots ?? []) {
+      if (slot?.entrant?.id == null) continue;
+      const v = slot.standing?.stats?.score?.value;
+      scores[String(slot.entrant.id)] = Number.isFinite(v) ? v : null;
+    }
+    return { ok: true, state: Number(set.state), winnerId: set.winnerId == null ? null : String(set.winnerId), scores };
   }
 }
 

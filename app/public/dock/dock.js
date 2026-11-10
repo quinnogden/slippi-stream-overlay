@@ -2161,7 +2161,17 @@
     if (set.problem) return { text: set.problem, err: true };
     if (!u) {
       if (!upload.enabled) return { text: set.reported ? "Reported" : "Not reported here" };
-      return { text: set.reported ? "Reported — not uploaded" : "Not reported here — Upload sends it anyway" };
+      if (set.reported) return { text: "Reported — not uploaded" };
+      // Reported on start.gg instead (a TO): it uploads by itself once start.gg agrees.
+      const sg = set.startgg;
+      if (sg && sg.verdict === "mismatch") {
+        const s = set.entrantIds.map((id) => (sg.scores && id != null ? sg.scores[id] : null));
+        const said = s.every((v) => v != null) ? `${s[0]}–${s[1]}` : "a different winner";
+        return { text: `start.gg was reported ${said}, the replays say ${set.score[0]}–${set.score[1]} — fix the games, or Upload anyway`, err: true };
+      }
+      if (sg && sg.verdict === "dq") return { text: "Reported on start.gg as a DQ — nothing to upload" };
+      if (sg && sg.error) return { text: `Waiting for start.gg to show it reported (${sg.error})` };
+      return { text: "Not reported here — it uploads by itself once start.gg shows it reported" };
     }
     if (u.state === "uploading") {
       const pct = u.totalBytes ? Math.round((u.sentBytes / u.totalBytes) * 100) : 0;

@@ -93,4 +93,15 @@ query setContext($id: ID!) {
   }
 }`.trim();
 
-module.exports = { PAGE_SIZES, EVENT_QUERY, PHASE_GROUP_SETS_QUERY, SET_QUERY, SET_CONTEXT_QUERY };
+// Whether a stream set has been reported on start.gg (by anyone), and with
+// what score — so a set a TO reported from start.gg can upload its replays
+// (lib/replays/). Tiny: one set, its two slots.
+const SET_RESULT_QUERY = `
+query setResult($id: ID!) {
+  set(id: $id) {
+    id state winnerId
+    slots { entrant { id } standing { stats { score { value } } } }
+  }
+}`.trim();
+
+module.exports = { PAGE_SIZES, EVENT_QUERY, PHASE_GROUP_SETS_QUERY, SET_QUERY, SET_CONTEXT_QUERY, SET_RESULT_QUERY };

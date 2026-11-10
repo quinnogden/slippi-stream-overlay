@@ -9,8 +9,10 @@
  *             round, stream), read once by set id (context.js metaFromStartgg)
  *   archive   REPLAY_ARCHIVE_FOLDER set: the bundle copied there, re-copied
  *             when a correction changes it (archive.js)
- *   upload    LUCKYSTATS_UPLOAD_KEY set: a reported set is queued at once; any
- *             other from the Replays tab (uploader.js)
+ *   upload    LUCKYSTATS_UPLOAD_KEY set: a set reported here is queued at once;
+ *             one reported on start.gg instead (a TO's own report) is queued
+ *             once start.gg shows it completed with the same score as its
+ *             replays (checkCompletion); any other from the Replays tab
  *
  * A set's files are finished by Slippi a moment after GAME!, and start.gg's
  * details arrive in the background, so archiving waits and tries again
@@ -29,6 +31,10 @@ const { LuckyStatsUploads } = require("./uploader");
 const { readReplay, recentFiles, isFinished } = require("./slp-file");
 const { CHAR_MAP } = require("../char_map");
 
+const COMPLETED = 3;                          // start.gg's set state
+const COMPLETION_POLL_MS = 2 * 60 * 1000;     // a closed, unreported set: ask start.gg this often
+const COMPLETION_RETRY_MS = 60 * 1000;        // after a failed read
+const COMPLETION_WATCH_MS = 12 * 3600 * 1000; // and stop after this long
 const SETTLE_RETRY_MS = 15000;
 const SETTLE_TRIES = 40;          // ~10 minutes of a file still being written
 const EMIT_DEBOUNCE_MS = 150;
@@ -135,7 +141,85 @@ function createReplays(ctx, opts = {}) {
     return res;
   }
 
-  store.on("set-closing", (sb) => { capture(sb); });
+  store.on("set-closing", (sb) => {
+    const res = capture(sb);
+    // Not reported from here: maybe a TO reported it on start.gg. Ask now,
+    // and keep asking until it shows as completed (watchCompletion).
+    if (res.ok && !res.record.reported) checkCompletion(res.record.setId);
+  });
+
+  // ── Reported somewhere else ─────────────────────────────────────────────────
+  // A TO can report a stream set straight on start.gg. A kept set nobody
+  // reported here is watched: once start.gg shows it completed with the same
+  // games the replays have, it uploads by itself, as if Report had been
+  // pressed. A different score (a game the app didn't see, a game it counted
+  // that start.gg didn't) or a DQ never uploads by itself — the Replays tab
+  // shows why, and Upload is still there.
+
+  /** start.gg's result against the set's games: "match" | "mismatch" | "dq" | "waiting". */
+  function verdictOf(record, result) {
+    if (result.state !== COMPLETED) return "waiting";
+    const byEntrant = record.sides.map((s) => (s.entrantId == null ? undefined : result.scores[String(s.entrantId)]));
+    if (byEntrant.some((v) => v === -1)) return "dq";
+    const ours = [0, 1].map((side) => record.games.filter((g) => g.winnerSide === side).length);
+    if (byEntrant.every((v) => Number.isFinite(v))) {
+      return byEntrant[0] === ours[0] && byEntrant[1] === ours[1] ? "match" : "mismatch";
+    }
+    // Winner only (no score reported): the winners must agree.
+    const ourWinner = ours[0] === ours[1] ? null : record.sides[ours[0] > ours[1] ? 0 : 1].entrantId;
+    return ourWinner != null && String(ourWinner) === String(result.winnerId) ? "match" : "mismatch";
+  }
+
+  /** Queue the upload of a set start.gg shows completed with its games, if nothing has yet. */
+  function maybeAutoUpload(setId) {
+    const r = sets.get(setId);
+    if (!r || !uploads.enabled || r.reported || r.upload) return false;
+    if (r.startgg?.verdict !== "match" || contextProblem(r)) return false;
+    console.log(`[replays] Set ${setId} was reported on start.gg — uploading its replays`);
+    uploads.enqueue(setId);
+    return true;
+  }
+
+  const checking = new Set();
+
+  /** Ask start.gg once whether a kept set has been reported, and act on it. */
+  async function checkCompletion(setId) {
+    if (!uploads.enabled || checking.has(String(setId))) return;
+    const r = sets.get(setId);
+    if (!r || r.reported || r.upload) return;
+    checking.add(String(setId));
+    try {
+      const res = await startgg.getSetResult(setId);
+      const now = Date.now();
+      if (!res.ok) {
+        sets.update(setId, { startgg: { ...(r.startgg ?? {}), error: res.error, checkedAt: now, nextCheckAt: now + COMPLETION_RETRY_MS } });
+        return;
+      }
+      const fresh = sets.get(setId);
+      const verdict = verdictOf(fresh, res);
+      sets.update(setId, { startgg: {
+        state: res.state, winnerId: res.winnerId, scores: res.scores, verdict, error: null,
+        checkedAt: now, nextCheckAt: verdict === "waiting" ? now + COMPLETION_POLL_MS : null,
+      } });
+      if (verdict === "match") maybeAutoUpload(setId);
+      else if (verdict === "mismatch") console.warn(`[replays] Set ${setId} is reported on start.gg with a different score than its replays — not uploading it by itself`);
+    } catch (err) {
+      sets.update(setId, { startgg: { ...(r.startgg ?? {}), error: err.message, nextCheckAt: Date.now() + COMPLETION_RETRY_MS } });
+    } finally {
+      checking.delete(String(setId));
+    }
+  }
+
+  /** Every kept set still waiting on start.gg, while it's recent enough to be tonight's. */
+  function watchCompletion() {
+    if (!uploads.enabled) return;
+    const now = Date.now();
+    for (const r of sets.list()) {
+      if (r.reported || r.upload || now - (r.capturedAt ?? 0) > COMPLETION_WATCH_MS) continue;
+      if (r.startgg && r.startgg.nextCheckAt == null) continue; // settled: match, mismatch or DQ
+      if ((r.startgg?.nextCheckAt ?? 0) <= now) checkCompletion(r.setId);
+    }
+  }
 
   /**
    * The set on the scoreboard was just reported: keep it, and queue its upload.
@@ -159,7 +243,15 @@ function createReplays(ctx, opts = {}) {
       return { ok: false, error: "This set is still on the scoreboard — fix it on the strip, then it's kept when the set closes" };
     }
     const res = sets.editGame(setId, index, edit);
-    if (res.ok) settle(setId);
+    if (res.ok) {
+      settle(setId);
+      // A fix can make the games agree with what start.gg was reported.
+      const r = sets.get(setId);
+      if (r?.startgg?.state === COMPLETED) {
+        sets.update(setId, { startgg: { ...r.startgg, verdict: verdictOf(r, r.startgg) } });
+        maybeAutoUpload(setId);
+      }
+    }
     return res;
   }
 
@@ -250,6 +342,8 @@ function createReplays(ctx, opts = {}) {
         players: g.replay?.players ?? null,
       })),
       problem: contextProblem(r),
+      startgg: r.startgg ? { verdict: r.startgg.verdict ?? null, scores: r.startgg.scores ?? null, error: r.startgg.error ?? null } : null,
+      entrantIds: r.sides.map((s) => s.entrantId ?? null),
       meta: !!r.meta,
       metaError: r.metaError ?? null,
       archive: r.archive ?? null,
@@ -288,11 +382,15 @@ function createReplays(ctx, opts = {}) {
     uploads.start?.();
     // Anything a restart interrupted: archive copies and queued uploads resume.
     for (const r of sets.list()) if (archiveRoot && !r.archive?.digest) settle(r.setId);
+    watchCompletion();
+    const t = setInterval(watchCompletion, 30000);
+    t.unref?.();
     emitSoon();
   }
 
   return {
     sets, uploads, snapshot, start, onSetReported, editGame, attachFile, files, forget, ensureMeta, settle,
+    checkCompletion, watchCompletion,
     upload: (setId) => uploads.enqueue(setId),
     flush: () => sets.flush(),
   };

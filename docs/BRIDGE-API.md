@@ -198,6 +198,8 @@ Dock only (`replays`), sticky, debounced; sent on every change to the stream-set
     sides: [{ name }, { name }], score: [a, b],
     games: [{ winnerSide, manual, file /* basename */ | null, characters, players }],
     problem: null | "Game 2 has no replay file" | …,   // why there's no context.json yet
+    startgg: null | { verdict: "waiting"|"match"|"mismatch"|"dq", scores: { [entrantId]: n }, error },  // not reported here: start.gg's result
+    entrantIds: [id, id],                                 // the sides' start.gg entrants, to read `scores`
     meta: boolean, metaError, archive: null | { digest, dir, at, error },
     upload: null | { state: "queued"|"uploading"|"staged"|"retry"|"failed"|"blocked"|"cancelled",
                      error, revision, stagedAt, sentBytes, totalBytes, nextTryAt, remote },
@@ -206,6 +208,7 @@ Dock only (`replays`), sticky, debounced; sent on every change to the stream-set
 ```
 
 - **`staged` is not imported.** LuckyStats holds every set until the tournament is finished (`POST /api/replays/collection { action: "complete" }`, or its own auto-finish). `remote` is `GET /uploads/:id` cut down (handoff, import, analytics), read only on ↻.
+- **A set reported on start.gg instead** (`startgg`, sets not reported here only): `waiting` until start.gg shows it completed; `match` queues the upload by itself; `mismatch` (a different score) and `dq` never do.
 - **`blocked`** is a set that can't be bundled until it's fixed (`problem`); **`retry`** waits for `nextTryAt` (a file still being written, start.gg's details still loading, a 429 or a 5xx).
 
 ### `slippi_clip_saved` / `slippi_clip_error`

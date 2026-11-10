@@ -466,6 +466,73 @@ function playSet(store, { winners, files }) {
     } finally { fake.server.close(); }
   });
 
+  // ── Reported on start.gg instead (a TO's own report) ───────────────────────
+
+  const { createReplays } = require("../app/lib/replays");
+  let replaysNo = 0;
+
+  /** The real replays module over a stand-in start.gg (results by turn) and uploader. */
+  function replaysRig(results) {
+    const store = loadedStore();
+    const asked = [];
+    const queued = [];
+    const startgg = {
+      getSetContext: async () => ({ ok: false, error: "offline" }),
+      getSetResult: async (id) => { asked.push(String(id)); return results.shift() ?? { ok: false, error: "no more answers" }; },
+    };
+    const uploads = { enabled: true, enqueue: (id) => { queued.push(id); return { ok: true }; }, start() {}, currentCollection: () => null };
+    const replays = createReplays({ config: {}, store, startgg, io: quiet }, { file: path.join(TMP, `auto-${++replaysNo}.json`), uploads });
+    return { store, replays, asked, queued };
+  }
+  const settle = () => new Promise((r) => setTimeout(r, 20));
+  // Alpha is entrant 24866248, Beta 24851427.
+  const result = (state, alpha, beta, winnerId = alpha > beta ? "24866248" : "24851427") =>
+    ({ ok: true, state, winnerId, scores: { 24866248: alpha, 24851427: beta } });
+
+  await test("a set the TO reports on start.gg uploads once start.gg shows it completed with the same games", async () => {
+    const r = replaysRig([result(2, null, null), result(3, 2, 0)]);
+    playSet(r.store, { winners: [2, 2], files: ["a.slp", "b.slp"] });
+    r.store.clearSet(); // the next set: this one closes, unreported
+    await settle();
+    assert.deepStrictEqual(r.queued, [], "still in progress on start.gg");
+    assert.strictEqual(r.replays.sets.get("108404138").startgg.verdict, "waiting");
+    r.replays.sets.update("108404138", (x) => ({ startgg: { ...x.startgg, nextCheckAt: 0 } })); // two minutes later
+    r.replays.watchCompletion();
+    await settle();
+    assert.deepStrictEqual(r.queued, ["108404138"]);
+  });
+
+  await test("a start.gg score that differs from the replays never uploads by itself — until the games are fixed", async () => {
+    const r = replaysRig([result(3, 2, 0)]);
+    playSet(r.store, { winners: [2, 0, 2], files: ["a.slp", "b.slp", "c.slp"] }); // the app saw 2–1
+    r.store.clearSet();
+    await settle();
+    assert.strictEqual(r.replays.sets.get("108404138").startgg.verdict, "mismatch");
+    assert.deepStrictEqual(r.queued, []);
+    // Game 2 was a handwarmer that counted: take it out, and the set agrees with start.gg.
+    assert.ok(r.replays.editGame("108404138", 1, { op: "remove" }).ok);
+    assert.deepStrictEqual(r.queued, ["108404138"]);
+  });
+
+  await test("a DQ on start.gg, or a set reported from the app, isn't watched", async () => {
+    const dq = replaysRig([result(3, -1, 0, "24851427")]);
+    playSet(dq.store, { winners: [2, 2], files: ["a.slp", "b.slp"] });
+    dq.store.clearSet();
+    await settle();
+    assert.strictEqual(dq.replays.sets.get("108404138").startgg.verdict, "dq");
+    assert.deepStrictEqual(dq.queued, []);
+
+    const here = replaysRig([]);
+    playSet(here.store, { winners: [2, 2], files: ["a.slp", "b.slp"] });
+    here.replays.onSetReported();
+    here.store.clearSet();
+    await settle();
+    here.replays.watchCompletion();
+    await settle();
+    assert.deepStrictEqual(here.asked, [], "a set reported here never asks start.gg");
+    assert.deepStrictEqual(here.queued, ["108404138"], "queued once, by the report");
+  });
+
   fs.rmSync(TMP, { recursive: true, force: true });
   say(failed ? `\n${failed} failed` : "\nall passed");
   process.exit(failed ? 1 : 0);
