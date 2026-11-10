@@ -341,7 +341,18 @@ body {
   z-index:  3;
 }
 
-/* Base panel — hidden by default; side-panel.js animates opacity/scale */
+/* The info panels' shared tint. Not on .info-panel itself: a panel's own
+   opacity is animated, and the card's colour would blink with it. */
+.panel-surface {
+  position:       absolute;
+  inset:          0;
+  opacity:        0;
+  background:     rgba(var(--score-bg-color-rgb), 0.65);
+  border-radius:  var(--border-radius);
+  pointer-events: none;
+}
+
+/* Base panel — hidden by default; side-panel.js shows it and animates its rows */
 .info-panel {
   position:   absolute;
   inset:      0;
@@ -350,7 +361,6 @@ body {
   flex-direction: column;
   gap:        8px;
   padding:    20px 18px;
-  background: rgba(var(--score-bg-color-rgb), 0.65);
   border-radius: var(--border-radius);
   overflow:   hidden;
   pointer-events: none;
@@ -366,6 +376,7 @@ body {
 
 .panel-pill {
   display:        flex;
+  position:       relative;   /* for the W/L edge bars */
   align-items:    center;
   flex:           1;
   min-height:     0;
@@ -417,6 +428,11 @@ body {
     transparent
   );
 }
+
+/* Origins for the hairlines' draw-in (side-panel.js): each grows outward
+   from the label it frames. */
+.panel-header::before, .lucky-credit::before { transform-origin: right center; }
+.panel-header::after,  .lucky-credit::after  { transform-origin: left center; }
 
 /* H2H header block — centered, no pill container */
 .h2h-header {
@@ -489,9 +505,25 @@ body {
   margin-top:     2px;
 }
 
-/* W/L left-edge accent bars */
-.panel-pill.win  { border-left: 3px solid var(--win-color);  padding-left: 18px; }
-.panel-pill.loss { border-left: 3px solid var(--loss-color); padding-left: 18px; }
+/* W/L edge accents: 3px bars, ::before on the left and ::after on the
+   right, coloured by --edge-l / --edge-r (none where unset). Bars rather
+   than borders so side-panel.js can wipe them down after their pill lands;
+   each side's padding is the old 3px border + 18px. */
+.panel-pill::before,
+.panel-pill::after {
+  content:          "";
+  position:         absolute;
+  top:              0;
+  bottom:           0;
+  width:            3px;
+  transform-origin: top;
+  pointer-events:   none;
+}
+.panel-pill::before { left:  0; background: var(--edge-l, transparent); }
+.panel-pill::after  { right: 0; background: var(--edge-r, transparent); }
+
+.panel-pill.win  { --edge-l: var(--win-color);  padding-left: 21px; }
+.panel-pill.loss { --edge-l: var(--loss-color); padding-left: 21px; }
 
 /* Secondary line inside a pill (tournament, date, round) */
 .pill-line-2 {
@@ -839,12 +871,9 @@ body {
 
 /* Run pills: accent on both left and right edges */
 .run-list .panel-pill.win,
-.run-list .panel-pill.loss {
-  border-right:  3px solid;
-  padding-right: 18px;
-}
-.run-list .panel-pill.win  { border-right-color: var(--win-color); }
-.run-list .panel-pill.loss { border-right-color: var(--loss-color); }
+.run-list .panel-pill.loss { padding-right: 21px; }
+.run-list .panel-pill.win  { --edge-r: var(--win-color); }
+.run-list .panel-pill.loss { --edge-r: var(--loss-color); }
 
 .run-list .pill-run-score {
   flex:        1;
@@ -857,8 +886,8 @@ body {
 /* ── Recent Sets panel overrides ──────────────────────────── */
 
 /* Right border is the opposite (P2's result) */
-#panel-recent-sets .panel-pill.win  { border-right: 3px solid var(--loss-color); padding-right: 18px; }
-#panel-recent-sets .panel-pill.loss { border-right: 3px solid var(--win-color);  padding-right: 18px; }
+#panel-recent-sets .panel-pill.win  { --edge-r: var(--loss-color); padding-right: 21px; }
+#panel-recent-sets .panel-pill.loss { --edge-r: var(--win-color);  padding-right: 21px; }
 
 /* Scores fill the pill height — large and bold */
 #panel-recent-sets .pill-score-val {
@@ -921,14 +950,14 @@ body {
 
 /* p1 won: green left, red right */
 .completed-set-pill.p1win {
-  border-left:   3px solid var(--win-color);  padding-left:  18px;
-  border-right:  3px solid var(--loss-color); padding-right: 18px;
+  --edge-l: var(--win-color);  padding-left:  21px;
+  --edge-r: var(--loss-color); padding-right: 21px;
 }
 
 /* p2 won: red left, green right */
 .completed-set-pill.p2win {
-  border-left:   3px solid var(--loss-color); padding-left:  18px;
-  border-right:  3px solid var(--win-color);  padding-right: 18px;
+  --edge-l: var(--loss-color); padding-left:  21px;
+  --edge-r: var(--win-color);  padding-right: 21px;
 }
 
 .completed-set-info {
@@ -1018,6 +1047,14 @@ body {
 }
 .prob-pct.right { color: var(--prob-right); text-align: right; }
 .prob-pct-sign  { font-size: 0.6em; margin-left: 0.08em; }
+
+/* Registered so it can animate: side-panel.js fills the bar from 50% to the
+   left player's chance as the row arrives. Inherited, so the marker follows. */
+@property --p {
+  syntax:        "<percentage>";
+  inherits:      true;
+  initial-value: 50%;
+}
 
 .prob-bar {
   --p:           50%;
@@ -1162,6 +1199,16 @@ body {
   line-height: 1;
   color:       var(--text-color);
   text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+
+/* Clipped so a change rolls like the scoreboard's score (Overlay.swap
+   "roll"); the padding keeps the glyph and its shadow inside the clip
+   without moving it. */
+.crew-stocks,
+.crew-total-num {
+  overflow:      hidden;
+  padding-block: 0.12em;
+  margin-block:  -0.12em;
 }
 
 /* Playing now: lit in the trim. */

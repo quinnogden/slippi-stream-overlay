@@ -365,17 +365,20 @@
 
   function crossfade(old, layer) {
     if (old && animated()) {
-      // Scale and blur on the layer, never the board: the board's transform
-      // is the camera's. The blur is light — the layer is most of the canvas.
-      layer.el.animate([
-        { opacity: 0, transform: "scale(1.02)", filter: "blur(6px)" },
-        { opacity: 1, transform: "scale(1)",    filter: "blur(0px)" },
-      ], { duration: ms(FADE_IN_MS), delay: ms(FADE_OUT_MS / 2), easing: ease("out"), fill: "backwards" });
+      // One after the other, not on top of each other: on --ease-out the old
+      // board is ~97% gone half-way through its fade, and only then does the
+      // new one come in. No blur — these layers are most of the canvas, and a
+      // full-canvas blur is the costliest thing OBS's browser can be asked for.
+      // Scale on the layer, never the board: the board's transform is the camera's.
       old.el.animate([
-        { opacity: 1, transform: "scale(1)",     filter: "blur(0px)" },
-        { opacity: 0, transform: "scale(0.985)", filter: "blur(4px)" },
-      ], { duration: ms(FADE_OUT_MS), easing: ease("in"), fill: "forwards" })
+        { opacity: 1, transform: "scale(1)" },
+        { opacity: 0, transform: "scale(0.985)" },
+      ], { duration: ms(FADE_OUT_MS), easing: ease("out"), fill: "forwards" })
         .finished.then(() => old.el.remove(), () => {});
+      layer.el.animate([
+        { opacity: 0, transform: "scale(1.01)" },
+        { opacity: 1, transform: "scale(1)" },
+      ], { duration: ms(FADE_IN_MS), delay: ms(FADE_OUT_MS) * 0.5, easing: ease("out"), fill: "backwards" });
     } else if (old) {
       old.el.remove();
     }

@@ -191,8 +191,9 @@
   //
   // The script half of overlay.css's motion tokens: everything that appears
   // rises a few px, settles on --ease-out and pulls into focus from a slight
-  // blur; everything that leaves accelerates away on --ease-in. Theme-agnostic
-  // on purpose — a pack changes colours and type, never how things move.
+  // blur; everything that leaves goes on the same curve, quickly — fast
+  // first, so a hide answers at once. Theme-agnostic on purpose — a pack
+  // changes colours and type, never how things move.
   //
   // Every keyframe is built on the element's RESTING transform and filter, by
   // the same conventions as overlay.css's entrances: --base-transform if the
@@ -203,7 +204,6 @@
 
   const EASE_FALLBACK = {
     out:    "cubic-bezier(0.16, 1, 0.3, 1)",
-    in:     "cubic-bezier(0.3, 0, 0.8, 0.15)",
     spring: "cubic-bezier(0.34, 1.4, 0.64, 1)",
   };
 
@@ -262,12 +262,12 @@
     roll: { out: { y: -22, blur: 2 },       in: { y: 26, blur: 2 } },
     pop:  { out: { scale: 0.82, blur: 4 },  in: { scale: 1.16, blur: 6 } },
   };
-  const SWAP_OUT_MS = 200;
+  const SWAP_OUT_MS = 160;
   const SWAP_IN_MS  = 480;
 
   // presence(): something that comes and goes whole (a chip, a pill, a card).
   const SHOW = { from: { y: 10, scale: 0.94, blur: 6 }, ms: 560 };
-  const HIDE = { to:   { y: 6,  scale: 0.96, blur: 4 }, ms: 260 };
+  const HIDE = { to:   { y: 6,  scale: 0.96, blur: 4 }, ms: 220 };
 
   function stopSwap(el) {
     if (el.__ovAnim) el.__ovAnim.cancel();
@@ -294,7 +294,7 @@
     const body = document.body;
     if (!body || !body.animate || body.classList.contains("no-animate")) return root.location.reload();
     body.animate([{ opacity: getComputedStyle(body).opacity }, { opacity: 0 }],
-      { duration: ms(THEME_FADE_MS), easing: ease("in"), fill: "forwards" })
+      { duration: ms(THEME_FADE_MS), easing: ease("out"), fill: "forwards" })
       .onfinish = () => root.location.reload();
   }
 
@@ -343,7 +343,7 @@
     const rest = restOf(el);
     const out = el.__ovAnim = el.animate(
       [pose(rest, { opacity: from }), pose(rest, { ...m.out, opacity: 0 })],
-      { duration: ms(SWAP_OUT_MS), easing: ease("in"), fill: "forwards" });
+      { duration: ms(SWAP_OUT_MS), easing: ease("out"), fill: "forwards" });
     el.__ovPhase = "out";
 
     out.finished.then(() => {
@@ -409,7 +409,7 @@
     const rest = restOf(el);
     const anim = el.__ovPresAnim = el.animate(
       [pose(rest, { opacity: from === null ? 1 : from }), pose(rest, { ...HIDE.to, opacity: 0 })],
-      { duration: ms(HIDE.ms), easing: ease("in"), fill: "forwards" });
+      { duration: ms(HIDE.ms), easing: ease("out"), fill: "forwards" });
     anim.finished.then(() => {
       if (el.__ovPresAnim !== anim) return;
       el.classList.add(cls);

@@ -27,18 +27,12 @@
 (function (root) {
   "use strict";
 
-  const { h, fitText, fitGroup, icon, param } = Overlay;
+  const { h, fitText, fitGroup, icon, param, swap } = Overlay;
   const { ease, ms, restOf, pose } = Overlay.motion;
 
   // Animation durations are at tempo 1; Overlay.motion.ms() scales them by
   // overlay.css's --motion-tempo. The interval is a dwell, and doesn't.
   const PANEL_INTERVAL = 20000;   // ms per slot, logos included
-  const OUT_MS         = 380;     // the outgoing panel lifts away…
-  const IN_MS          = 760;     // …the incoming one settles in
-  const IN_OVERLAP     = 180;     // starting this long before the old one is gone
-  const PILL_MS        = 680;     // each pill's rise
-  const PILL_DELAY     = 120;     // after the panel starts coming in
-  const PILL_STAGGER   = 55;      // between pills
   const H2H_SHOWN      = 7;       // the pair's newest sets on the head-to-head (the app sends 7)
   const HOLD_PANEL     = param("panel");
 
@@ -53,14 +47,36 @@
   const HIDDEN = { opacity: "0", transform: "", filter: "" };
   const SHOWN  = { opacity: "1", transform: "", filter: "" };
 
-  // The poses (Overlay.motion). A panel rises into place out of a soft focus
-  // and leaves upward; a logo focuses in from slightly small and leaves by
+  // A logo comes and goes whole: it focuses in from slightly small and leaves
   // drifting forward — artwork reads better growing than sliding.
-  const PANEL_IN   = { y: 16, scale: 0.985, blur: 10 };
-  const PANEL_OUT  = { y: -12, blur: 6 };
-  const LOGO_IN    = { scale: 0.92, blur: 12 };
-  const LOGO_OUT   = { scale: 1.04, blur: 8 };
-  const PILL_IN    = { y: 14, blur: 4 };
+  const LOGO_IN_MS  = 760;
+  const LOGO_OUT_MS = 300;
+  const LOGO_IN     = { scale: 0.92, blur: 12 };
+  const LOGO_OUT    = { scale: 1.04, blur: 8 };
+
+  // An info panel itself never moves. Its rows — "beats": the identity, each
+  // header, each pill, the projection, the credit — come in one after another,
+  // top to bottom, each rising a little out of a soft focus.
+  const BEAT_IN_MS   = 440;
+  const BEAT_IN      = { y: 10, blur: 3 };
+  const BAR_MS       = 900;     // the projection bar filling from even to the odds
+  const EDGE_MS      = 420;     // a result pill's W/L edges wiping down
+  const EDGED        = ["win", "loss", "p1win", "p2win"];
+  const RULE_MS      = 560;     // a header's hairlines drawing out from its label
+  // The stagger speeds up: each gap is GAP_DECAY of the last, down to a
+  // floor, and a long panel's cascade is squeezed to fit its cap — a wave,
+  // not a metronome, and about as long on every panel.
+  const CASCADE_IN = { gap: 70, min: 28, max: 480 };
+  const GAP_DECAY  = 0.85;
+
+  // They leave the same way, top first, quicker: each drifts up and away.
+  const BEAT_OUT_MS = 200;
+  const BEAT_OUT    = { y: -8, blur: 2 };
+  const CASCADE_OUT = { gap: 36, min: 14, max: 240 };
+
+  // The panels' shared tint (.panel-surface).
+  const SURFACE_IN_MS  = 440;
+  const SURFACE_OUT_MS = 300;
 
   let sb = null;     // state.scoreboard
   let stats = null;  // the last `stats` event
@@ -221,8 +237,16 @@
   // readable from its style. Only opacity is committed: the transform and
   // blur are motion, and a logo's own CSS filter must stay the stylesheet's.
 
+  /**
+   * Cancel what's animating on `el` itself — its ::before / ::after included
+   * (getAnimations() alone leaves those out), never its children's: an
+   * Overlay.swap() cancelled from outside would never draw its new content.
+   */
   function stopAnims(el) {
-    if (el?.getAnimations) el.getAnimations().forEach((a) => a.cancel());
+    if (!el?.getAnimations) return;
+    el.getAnimations({ subtree: true }).forEach((a) => {
+      if (!a.effect || a.effect.target === el) a.cancel();
+    });
   }
 
   function tween(el, frames, rest, { duration, delay = 0, easing }) {
@@ -236,6 +260,131 @@
     Object.assign(el.style, styles);
   }
 
+  // ── Beats ───────────────────────────────────────────────────────────────────
+  //
+  // An info panel animates as its rows, never as a whole. Each row that's
+  // showing is a beat; the lists (and the head-to-head's header block) open
+  // up into their own rows.
+
+  const BEAT_GROUPS = ["run-list", "history-list", "sets-list", "completed-list", "crew-list", "h2h-header"];
+
+  /** Element children only (the test sandbox's `children` holds text nodes too). */
+  const elementsOf = (el) => Array.from(el.children).filter((c) => c.nodeType === 1);
+
+  /** A panel's beats, in reading order. */
+  function beatsOf(el) {
+    const out = [];
+    for (const child of elementsOf(el)) {
+      if (child.style.display === "none") continue;
+      if (BEAT_GROUPS.some((c) => child.classList.contains(c))) out.push(...beatsOf(child));
+      else out.push(child);
+    }
+    return out;
+  }
+
+  /**
+   * Bring beats in, beat i starting at delays[i] (ms, already at tempo). Each
+   * holds invisible until its turn (fill: both) and commits its rest once in.
+   */
+  function beatsIn(beats, delays) {
+    beats.forEach((b, i) => {
+      stopAnims(b);
+      const rest = restOf(b);
+      tween(b, [pose(rest, { ...BEAT_IN, opacity: 0 }), pose(rest)], SHOWN,
+        { duration: ms(BEAT_IN_MS), delay: delays[i], easing: ease("out") });
+      if (b.classList.contains("panel-header") || b.classList.contains("lucky-credit")) drawRules(b, delays[i]);
+      if (b.classList.contains("h2h-projection")) fillBar(b, delays[i]);
+      if (EDGED.some((c) => b.classList.contains(c))) wipeEdges(b, delays[i]);
+    });
+  }
+
+  /** A header's hairlines draw outward from its label, once the label is arriving. */
+  function drawRules(el, delay) {
+    for (const pseudoElement of ["::before", "::after"]) {
+      el.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }],
+        { pseudoElement, duration: ms(RULE_MS), delay: delay + ms(BEAT_IN_MS) * 0.3, easing: ease("out"), fill: "backwards" });
+    }
+  }
+
+  /** The projection bar fills from even to the left player's chance once its row is arriving. */
+  function fillBar(row, delay) {
+    const bar = row.querySelector(".prob-bar");
+    const to = bar ? bar.style.getPropertyValue("--p") : "";
+    if (!to) return;
+    stopAnims(bar);
+    bar.animate([{ "--p": "50%" }, { "--p": to }],
+      { duration: ms(BAR_MS), delay: delay + ms(BEAT_IN_MS) * 0.35, easing: ease("out"), fill: "backwards" });
+  }
+
+  /** A result pill's W/L edges wipe down once the pill has landed. */
+  function wipeEdges(pill, delay) {
+    for (const pseudoElement of ["::before", "::after"]) {
+      pill.animate([{ transform: "scaleY(0)" }, { transform: "scaleY(1)" }],
+        { pseudoElement, duration: ms(EDGE_MS), delay: delay + ms(BEAT_IN_MS) * 0.5, easing: ease("out"), fill: "backwards" });
+    }
+  }
+
+  /** When each of n beats starts, from the first (tempo-1 ms). */
+  function cascadeOffsets(n, { gap, min, max }) {
+    const raw = [];
+    let t = 0;
+    let g = gap;
+    for (let i = 0; i < n; i++) {
+      raw.push(t);
+      t += g;
+      g = Math.max(min, g * GAP_DECAY);
+    }
+    const last = raw.length ? raw[raw.length - 1] : 0;
+    const k = last > max ? max / last : 1;
+    return raw.map((x) => x * k);
+  }
+
+  /**
+   * Take beats out, beat i starting at delays[i] (ms, already at tempo), each
+   * from wherever it is now. They hold invisible (fill: both) until the
+   * caller hides their panel. Returns the animations.
+   */
+  function beatsOut(beats, delays) {
+    return beats.map((b, i) => {
+      const from = getComputedStyle(b).opacity;
+      stopAnims(b);
+      const rest = restOf(b);
+      return b.animate([pose(rest, { opacity: from }), pose(rest, { ...BEAT_OUT, opacity: 0 })],
+        { duration: ms(BEAT_OUT_MS), delay: delays[i], easing: ease("out"), fill: "both" });
+    });
+  }
+
+  /** A node's vertical extent, or null where nothing is laid out. */
+  function spanOf(el) {
+    const r = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+    return r && r.height > 0 ? { top: r.top, bottom: r.bottom } : null;
+  }
+
+  /**
+   * When each incoming beat starts, given where the outgoing rows were
+   * (outSpans) and when each has gone (outEnds, ms at tempo): a beat waits
+   * until every old row it would be drawn over has gone, and the cascade
+   * (own: its offsets, ms at tempo) carries on from the first beat's start,
+   * never out of reading order. Where anything can't be measured, every
+   * beat waits for the whole exit.
+   */
+  function handoff(beats, own, outSpans, outEnds) {
+    const allGone = outEnds.length ? Math.max(...outEnds) : 0;
+    const blind = outSpans.some((s) => !s);
+    const waits = beats.map((b) => {
+      const s = blind ? null : spanOf(b);
+      if (!s) return allGone;
+      let w = 0;
+      outSpans.forEach((o, j) => {
+        if (o.top < s.bottom + 4 && o.bottom > s.top - 4) w = Math.max(w, outEnds[j]);
+      });
+      return w;
+    });
+    const base = waits.length ? waits[0] : allGone;
+    let prev = 0;
+    return beats.map((_, i) => (prev = Math.max(prev, base + own[i], waits[i])));
+  }
+
   // ── Rotation ────────────────────────────────────────────────────────────────
 
   class Rotator {
@@ -245,6 +394,8 @@
       this._timer   = null;
       this._current = null;
       this._run     = 0;   // bumped per transition; a stale one's onDone is dropped
+      this._busy    = {};  // panel id → a token while its beats are leaving
+      this._pending = {};  // panel id → its newest render, held while the panel's rows are leaving
     }
 
     buildSlots() {
@@ -274,7 +425,7 @@
     /**
      * Cancel the pending advance and any transition in flight, force every
      * panel but the visible one hidden, and rotate from the top. The current
-     * panel is kept so it still fades out rather than cutting.
+     * panel is kept so it still leaves rather than cutting.
      */
     restart() {
       clearTimeout(this._timer);
@@ -287,16 +438,55 @@
     /**
      * Panels are absolutely stacked and only opacity separates them, so a
      * panel abandoned mid-fade would stay visible under the next one. This
-     * sets the hidden state outright rather than trusting a fade to finish.
+     * sets the hidden state outright rather than trusting a fade to finish,
+     * and puts its beats back at rest for the next time it shows.
      */
     _hideAllExcept(keep) {
       for (const id of PANEL_ORDER) {
         if (keep.includes(id)) continue;
         const el = this._el(id);
-        if (!el) continue;
-        el.querySelectorAll(".panel-pill").forEach(stopAnims);
-        setStyle(el, HIDDEN);
+        if (el) this._settleHidden(id, el);
       }
+    }
+
+    /** A panel off screen: hidden outright, its beats back at rest, and any render it was holding drawn now. */
+    _settleHidden(id, el) {
+      delete this._busy[id];
+      setStyle(el, HIDDEN);
+      beatsOf(el).forEach((b) => setStyle(b, SHOWN));
+      this._flush(id);
+    }
+
+    /**
+     * Draw a panel's new content. Off screen: at once. Leaving: once it's
+     * hidden. On screen: `patch` first, if given (true = it updated the rows
+     * in place); else between two cascades — the rows leave, the new ones are
+     * drawn and come in — so data landing mid-dwell never pops.
+     */
+    render(id, fn, patch) {
+      if (this._busy[id]) { this._pending[id] = fn; return; }
+      if (id !== this._current) { delete this._pending[id]; fn(); return; }
+      if (patch && patch()) return;
+
+      const el = this._el(id);
+      const token = this._busy[id] = {};
+      this._pending[id] = fn;
+      const beats = beatsOf(el);
+      const anims = beatsOut(beats, cascadeOffsets(beats.length, CASCADE_OUT).map(ms));
+      Promise.all(anims.map((a) => a.finished)).then(() => {
+        if (this._busy[id] !== token) return; // a transition or restart took it over
+        delete this._busy[id];
+        this._flush(id);
+        const fresh = beatsOf(el);
+        beatsIn(fresh, cascadeOffsets(fresh.length, CASCADE_IN).map(ms));
+      }, () => {});
+    }
+
+    _flush(id) {
+      const fn = this._pending[id];
+      if (!fn) return;
+      delete this._pending[id];
+      fn();
     }
 
     _advance() {
@@ -332,37 +522,83 @@
       this._current = id;
       const run = ++this._run;
 
-      let delay = 0;
+      // Out: a logo drifts away whole; an info panel stays put while its beats
+      // cascade out, top first. outSpans / outEnds: where each outgoing thing
+      // was and when it has gone, for the handoff below.
+      let outSpans = [];
+      let outEnds = [];
       if (outgoing && outgoing !== incoming) {
-        const from = getComputedStyle(outgoing).opacity;
-        stopAnims(outgoing);
-        const rest = restOf(outgoing);
-        const away = this._isLogo(leaving) ? LOGO_OUT : PANEL_OUT;
-        tween(outgoing, [pose(rest, { opacity: from }), pose(rest, { ...away, opacity: 0 })], HIDDEN,
-          { duration: ms(OUT_MS), easing: ease("in") });
-        delay = ms(Math.max(0, OUT_MS - IN_OVERLAP));
+        const token = this._busy[leaving] = {};
+        let anims;
+        if (this._isLogo(leaving)) {
+          const from = getComputedStyle(outgoing).opacity;
+          stopAnims(outgoing);
+          const rest = restOf(outgoing);
+          anims = [outgoing.animate([pose(rest, { opacity: from }), pose(rest, { ...LOGO_OUT, opacity: 0 })],
+            { duration: ms(LOGO_OUT_MS), easing: ease("out"), fill: "forwards" })];
+          // The logo stands for the whole card, gone half-way (--ease-out: ~97%).
+          outSpans = [{ top: -Infinity, bottom: Infinity }];
+          outEnds = [ms(LOGO_OUT_MS) * 0.5];
+        } else {
+          const beats = beatsOf(outgoing);
+          outSpans = beats.map(spanOf); // before anything moves
+          const delays = cascadeOffsets(beats.length, CASCADE_OUT).map(ms);
+          anims = beatsOut(beats, delays);
+          outEnds = delays.map((d) => d + ms(BEAT_OUT_MS));
+        }
+        // Settled once everything has gone — unless the panel was taken over
+        // meanwhile (shown again, or hidden outright by a restart).
+        Promise.all(anims.map((a) => a.finished)).then(() => {
+          if (this._busy[leaving] === token) this._settleHidden(leaving, outgoing);
+        }, () => {});
       }
+      delete this._busy[id];
+      this._flush(id); // a render held while it was leaving is drawn before it shows
+      const allGone = outEnds.length ? Math.max(...outEnds) : 0;
 
-      stopAnims(incoming);
-      const rest = restOf(incoming);
+      // In. A logo arrives whole once everything has gone. An info panel
+      // appears at once (it has no surface of its own) and each of its beats
+      // takes its place as soon as the old rows there have left.
       const logo = this._isLogo(id);
-      tween(incoming, [pose(rest, { ...(logo ? LOGO_IN : PANEL_IN), opacity: 0 }), pose(rest)], SHOWN,
-        { duration: ms(IN_MS), delay, easing: ease("out") })
-        .finished.then(() => { if (run === this._run) onDone(); }, () => {});
-
-      // The pills rise in top to bottom as the panel settles.
-      if (!logo) {
-        incoming.querySelectorAll(".panel-pill").forEach((pill, i) => {
-          stopAnims(pill);
-          const pr = restOf(pill);
-          tween(pill, [pose(pr, { ...PILL_IN, opacity: 0 }), pose(pr)], SHOWN,
-            { duration: ms(PILL_MS), delay: delay + ms(PILL_DELAY + i * PILL_STAGGER), easing: ease("out") });
-        });
+      let end;
+      if (logo) {
+        this._surface(false, 0);
+        stopAnims(incoming);
+        const rest = restOf(incoming);
+        tween(incoming, [pose(rest, { ...LOGO_IN, opacity: 0 }), pose(rest)], SHOWN,
+          { duration: ms(LOGO_IN_MS), delay: allGone, easing: ease("out") });
+        end = allGone + ms(LOGO_IN_MS);
+      } else {
+        setStyle(incoming, SHOWN);
+        const beats = beatsOf(incoming);
+        const delays = handoff(beats, cascadeOffsets(beats.length, CASCADE_IN).map(ms), outSpans, outEnds);
+        this._surface(true, delays.length ? delays[0] : allGone);
+        beatsIn(beats, delays);
+        end = (delays.length ? delays[delays.length - 1] : allGone) + ms(BEAT_IN_MS);
       }
+      // On a timer, not an animation's promise: a beat cancelled later (a
+      // re-render) must never stall the rotation.
+      setTimeout(() => { if (run === this._run) onDone(); }, end);
     }
 
     _isLogo(id) {
       return Boolean(id) && id.startsWith("logo-");
+    }
+
+    /**
+     * The panels' shared tint: in under an info panel, out under a logo,
+     * left alone between two of the same kind. `delay` lines its fade-in
+     * up with the incoming panel.
+     */
+    _surface(on, delay) {
+      const el = document.querySelector(".panel-surface");
+      if (!el || el.__on === on) return;
+      el.__on = on;
+      const from = getComputedStyle(el).opacity;
+      const to = on ? "1" : "0";
+      stopAnims(el);
+      tween(el, [{ opacity: from }, { opacity: to }], { opacity: to },
+        { duration: ms(on ? SURFACE_IN_MS : SURFACE_OUT_MS), delay: on ? delay : 0, easing: ease("out") });
     }
   }
 
@@ -597,6 +833,9 @@
     return slot;
   }
 
+  /** A count that rolls when it changes, like the scoreboard's score (a new element's first draw is instant). */
+  const rollNum = (el, n) => swap(el, String(n), (node) => { node.textContent = String(n); }, { motion: "roll" });
+
   /** A crew's card: its name and stocks left, then a row per member in roster order. */
   function renderCrew(i) {
     const panel = document.getElementById(`panel-crew-${i + 1}`);
@@ -604,15 +843,19 @@
     if (!panel || !team) return;
     const name = panel.querySelector(".crew-name");
     name.textContent = team.name;
-    panel.querySelector(".crew-total-num").textContent = String(team.total);
+    rollNum(panel.querySelector(".crew-total-num"), team.total);
 
     const list = panel.querySelector(".crew-list");
     list.replaceChildren();
     const tags = [];
     for (const m of team.members) {
       const row = pill("crew-member " + m.status);
+      row.dataset.memberId = String(m.id);
+      row.dataset.icon = icon(m.icon) || "";
       const tag = h("span", "pill-name", m.tag);
-      row.append(crewIcon(m.icon), tag, h("span", "crew-stocks", String(m.stocks)));
+      const stocks = h("span", "crew-stocks");
+      row.append(crewIcon(m.icon), tag, stocks);
+      rollNum(stocks, m.stocks);
       list.appendChild(row);
       tags.push(tag);
     }
@@ -620,15 +863,47 @@
     fitGroup(tags, 16);
   }
 
+  /**
+   * The same members in the same order, wearing the same icons: update the
+   * card in place — a stock lost rolls its number instead of rebuilding
+   * (and re-cascading) the roster. False when the roster itself changed.
+   */
+  function patchCrew(i) {
+    const panel = document.getElementById(`panel-crew-${i + 1}`);
+    const team = crewView(i);
+    const list = panel?.querySelector(".crew-list");
+    if (!list || !team) return false;
+    const rows = elementsOf(list);
+    const same = rows.length === team.members.length && team.members.every((m, k) =>
+      rows[k].dataset.memberId === String(m.id) && rows[k].dataset.icon === (icon(m.icon) || ""));
+    if (!same) return false;
+
+    const name = panel.querySelector(".crew-name");
+    if (name.textContent !== team.name) { name.textContent = team.name; fitText(name, 24); }
+    rollNum(panel.querySelector(".crew-total-num"), team.total);
+    const tags = [];
+    team.members.forEach((m, k) => {
+      const row = rows[k];
+      for (const s of ["active", "in", "out"]) row.classList.toggle(s, s === m.status);
+      const tag = row.querySelector(".pill-name");
+      if (tag.textContent !== m.tag) tag.textContent = m.tag;
+      tags.push(tag);
+      rollNum(row.querySelector(".crew-stocks"), m.stocks);
+    });
+    fitGroup(tags, 16);
+    return true;
+  }
+
   // Each panel remembers the slice it last drew and skips the rebuild when
-  // that slice is unchanged — a score bump must not swap the visible panel's
-  // pills with no entrance, nor re-run fitText's measuring.
+  // that slice is unchanged — a score bump must not re-cascade the visible
+  // panel, nor re-run fitText's measuring. A change goes through the rotator,
+  // which draws it at once off screen and between two cascades on screen.
   const lastRendered = {};
-  function renderIfChanged(key, slice, render) {
+  function renderIfChanged(key, slice, render, patch) {
     const json = JSON.stringify(slice === undefined ? null : slice);
     if (lastRendered[key] === json) return;
     lastRendered[key] = json;
-    render();
+    rotator.render(key, render, patch);
   }
 
   const identity = (i) => {
@@ -641,8 +916,8 @@
     renderIfChanged("player-2", [identity(1), historyView(1), runView(1), luckyLine(1)], () => renderPlayerCard(1));
     renderIfChanged("recent-sets", [h2hCardView(), identity(0), identity(1)], renderRecentSets);
     renderIfChanged("completed-sets", completedView(), renderCompletedSets);
-    renderIfChanged("crew-1", crewView(0), () => renderCrew(0));
-    renderIfChanged("crew-2", crewView(1), () => renderCrew(1));
+    renderIfChanged("crew-1", crewView(0), () => renderCrew(0), () => patchCrew(0));
+    renderIfChanged("crew-2", crewView(1), () => renderCrew(1), () => patchCrew(1));
     // After rendering: buildSlots can restart the rotation, and the panel it
     // fades in should already hold the new content.
     rotator.buildSlots();
@@ -663,7 +938,7 @@
   // concurrent — restarting a visible pill reads as a flicker — and only the
   // newest waiting clip is kept.
 
-  const TOAST_IN = 520, TOAST_HOLD = 3200, TOAST_OUT = 360;
+  const TOAST_IN = 520, TOAST_HOLD = 3200, TOAST_OUT = 300;
   const toast = { busy: false, pending: null };
 
   function showClipToast(clip) {
@@ -688,7 +963,7 @@
     const anim = el.animate([
       { ...at(160, 0.9, 6, 0), offset: 0, easing: ease("spring") },
       { ...shown, offset: tIn / total },
-      { ...shown, offset: (tIn + TOAST_HOLD) / total, easing: ease("in") },
+      { ...shown, offset: (tIn + TOAST_HOLD) / total, easing: ease("out") },
       { ...at(40, 0.96, 6, 0), offset: 1 },
     ], { duration: total });
 
@@ -720,6 +995,6 @@
 
   // For tests/side-panel.test.js, and for poking at from OBS's devtools.
   root.SidePanel = {
-    rotator, historyView, runView, h2hView, completedView, luckyPlayer, projectionView, crewView, slotHasContent, scoreLabels,
+    rotator, historyView, runView, h2hView, completedView, luckyPlayer, projectionView, crewView, slotHasContent, scoreLabels, cascadeOffsets,
   };
 })(window);

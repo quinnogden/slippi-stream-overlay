@@ -36,15 +36,16 @@
 
   /* ── Motion ──────────────────────────────────────────────────
      One vocabulary for every overlay, whatever the pack. overlay-client.js
-     reads the three curves from here, so a JS animation and a CSS one
-     can't drift apart.
+     reads these curves from here, so a JS animation and a CSS one can't
+     drift apart.
 
-       out     arrives fast, settles long — everything that appears
-       in      leaves by accelerating away — everything that goes
+       out     starts at full speed and settles long — everything that
+               appears AND everything that goes. An exit on it answers at
+               once and is ~97% gone half-way through, so a hide never
+               lingers and two states never read on top of each other.
        spring  a little overshoot, for the one thing that should pop (the
                clip toast) */
   --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in:     cubic-bezier(0.3, 0, 0.8, 0.15);
   --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
 
   /* How slowly everything shows and hides: every duration below, and every

@@ -43,8 +43,8 @@ const unplayed = () => {
   return { ...p, sides: p.sides.map((x) => ({ ...x, score: 0 })) };
 };
 
-// Comfortably past each animation (overlay-client.js: exit 200 + entrance
-// 480 for a swap, 260 for a hide — each × --motion-tempo, which the sandbox
+// Comfortably past each animation (overlay-client.js: exit 160 + entrance
+// 480 for a swap, 220 for a hide — each × --motion-tempo, which the sandbox
 // can't read from overlay.css and so takes as TEMPO_FALLBACK, 1.5).
 const SWAP_DONE = 1300;
 const HIDE_DONE = 700;
