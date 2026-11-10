@@ -69,6 +69,7 @@
         <div class="strip-tools">
           <button class="key ghost mini" id="btn-clear-score" type="button" title="Back to 0–0 on this set. The names stay">Clear score</button>
           <button class="key ghost mini" id="btn-clear-set" type="button" title="An empty scoreboard, for a set that isn't on start.gg: type the names in. Nothing is reported">Clear set</button>
+          <button class="key ghost mini gone" id="btn-dq" type="button" title="Report this set to start.gg as a DQ: pick who advances (asks first)">DQ…</button>
         </div>
         <div id="report-confirm"></div>
         <div id="clear-confirm"></div>
@@ -83,6 +84,7 @@
         <button class="tab" type="button" data-tab="casters">Casters</button>
         <button class="tab" type="button" data-tab="players">Players</button>
         <button class="tab" type="button" data-tab="clips">Clips</button>
+        <button class="tab" type="button" data-tab="replays">Replays</button>
         <button class="tab" type="button" data-tab="crew">Crew</button>
         <button class="tab" type="button" data-tab="setup">Setup</button>
       </nav>
@@ -289,6 +291,27 @@
             <div class="hint">Nobody goes in by themselves — tap <b>In</b> for each crew's first player, and for whoever replaces a loser. At game end the winner keeps the stocks they have left and the loser is out. <b>−</b>/<b>+</b> fixes anyone's stocks; the strip's ± and the score hotkeys move whoever is in.</div>
           </div>
         </div>
+      </div>
+
+      <!-- ── Replays ── -->
+      <div class="panel" id="panel-replays">
+        <div class="card">
+          <div class="card-head">
+            <span class="label">LuckyStats uploads</span>
+            <span class="badge" id="replays-badge">—</span>
+          </div>
+          <div class="hint" id="replays-status">—</div>
+          <div class="hint" id="replays-collection"></div>
+          <div class="key-row">
+            <button class="key" id="btn-replays-check" type="button" title="Check the upload key with LuckyStats">Check key</button>
+            <button class="key" id="btn-replays-status" type="button" title="Read this tournament's upload status from LuckyStats">↻ Status</button>
+            <button class="key arm" id="btn-replays-finish" type="button" title="Tell LuckyStats the tournament is over: it imports every uploaded set (asks first)">Finish tournament</button>
+            <button class="key ghost mini" id="btn-replays-reopen" type="button" title="Let LuckyStats take late sets and corrections again">Reopen</button>
+          </div>
+          <div id="replays-confirm"></div>
+          <div class="hint">Every start.gg set played on stream is kept here with its replays. A reported set uploads by itself; <b>Upload</b> sends one reported somewhere else. Nothing is imported until the tournament is finished — here, or by LuckyStats on its own a few hours after the event.</div>
+        </div>
+        <div class="replay-list" id="replays-list"></div>
       </div>
 
       <!-- ── Setup ── -->

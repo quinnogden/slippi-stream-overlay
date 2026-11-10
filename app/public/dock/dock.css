@@ -575,7 +575,7 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 .strip-actions { display: flex; gap: 5px; }
 .strip-actions .key { flex: 1 1 0; min-width: 0; min-height: 36px; padding: 0 4px; font-size: 13px; }
 /* Start and Report only exist for a start.gg set; the rest take the room. */
-.strip-actions .key.gone { display: none; }
+.strip-actions .key.gone, .strip-tools .key.gone { display: none; }
 
 .strip-tools { display: flex; gap: 5px; }
 .strip-tools .key { flex: 1 1 0; }
@@ -811,6 +811,38 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 .clip-row .what { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .clip-row .when { flex: 0 0 auto; font: 500 11px/1 var(--d-mono); color: var(--d-ink-faint); }
 .clip-row.failed .what { color: #ff8a80; }
+
+/* ── Replays ── */
+
+.badge.err { color: #ff8a80; background: rgba(255, 59, 48, .16); }
+.replay-list { display: flex; flex-direction: column; gap: 10px; }
+.replay-set .card-head .label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.replay-set.live { box-shadow: inset 3px 0 0 var(--d-accent); }
+.replay-who { font-size: 14px; margin: 2px 0 6px; }
+.replay-who b { font-weight: 700; }
+.replay-games { display: flex; flex-direction: column; margin: 4px 0 8px; }
+.replay-game {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--d-line);
+  font-size: 13px;
+}
+.replay-game:last-child { border-bottom: 0; }
+.replay-game .num { flex: 0 0 auto; font: 600 11px/1 var(--d-mono); color: var(--d-ink-faint); width: 22px; }
+.replay-game .chars { flex: 0 0 auto; display: flex; gap: 2px; align-items: center; }
+.replay-game .chars img { width: 22px; height: 22px; }
+.replay-game .chars .vs { font-size: 10px; color: var(--d-ink-faint); margin: 0 3px; }
+.replay-game .chars .win { outline: 2px solid var(--d-green); outline-offset: -1px; border-radius: 3px; }
+.replay-game .file { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 11px/1.2 var(--d-mono); color: var(--d-ink-dim); }
+.replay-game .file.missing { color: var(--d-amber); }
+.replay-game .tools { flex: 0 0 auto; display: flex; gap: 4px; }
+.replay-state { font-size: 12px; color: var(--d-ink-dim); margin-bottom: 6px; }
+.replay-state.err { color: #ff8a80; }
+.replay-files { max-height: 30vh; overflow-y: auto; margin: 6px 0; }
+.replay-files .clip-row { cursor: pointer; }
+.replay-files .clip-row.used .what { color: var(--d-ink-faint); }
 
 /* ── Casters ── */
 

@@ -184,6 +184,10 @@ The app serves every page, so there is nothing to stub: open `http://localhost:5
 - **Typing test:** type into a name, a caster or a clipper threshold and wait through several pushes — it must not be overwritten mid-word.
 - Both widths: one column in a narrow OBS dock, several from ~760px.
 
+### Stream-set replays (Replays tab)
+
+`tests/replays.test.js` covers the context.json and the upload journal against a stand-in LuckyStats. What it can't: LuckyStats' real importer. Without uploading anything, `buildBundle()` (`lib/replays/bundle.js`) can be pointed at a record built from two finished replays in `SLP_FOLDER` (`readReplay()` gives each file's ports and characters) to read the context.json a set would send. **An upload goes to the real tournament collection** — test it on a set from a tournament you run, and Cancel it from the Replays tab if it was only a test (before the tournament is finished). Preflight's `Upload key` line is the safe live check.
+
 ---
 
 ## Regression checklist for the risky areas

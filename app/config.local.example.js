@@ -22,6 +22,17 @@ module.exports = {
   // (the account must be claimed). Without it those cards just don't appear.
   LUCKYSTATS_KEY: "",
 
+  // Optional: a luckystats.gg UPLOAD key (begins l7u_) — each reported stream
+  // set's replays and context.json go to LuckyStats for its advanced
+  // analytics. Create one under Account → API → App uploads. Your LuckyStats
+  // account needs the start.gg account that admins the tournament connected
+  // (its game data tab). A player-data key above can't upload.
+  LUCKYSTATS_UPLOAD_KEY: "",
+
+  // Optional: a folder to copy each stream set's replays into, one folder per
+  // set with its context.json (Replay Reporter for Slippi's layout).
+  // REPLAY_ARCHIVE_FOLDER: "D:/Replays/Stream",
+
   // Optional: point the dock's Singles/Doubles buttons at a different series.
   // The merge is shallow, so this replaces the WHOLE object from config.js —
   // copy both event kinds across, not just the one you're changing.

@@ -23,8 +23,10 @@ function createState() {
     // The raw slippi-js player records for the live game, sorted by port.
     // Written by modes/index.js at each game start and read by its re-detect and
     // port swap, which re-run resolution from the same input — currentGameState
-    // drops characterId and teamId, which the port map needs. Deliberately not
-    // cleared at game end: nothing reads it without a live currentGameState.
+    // drops characterId and teamId, which the port map needs — and by
+    // modes/game-end at game end, for each port's character id and costume in
+    // the game's replay record (lib/replays/). Deliberately not cleared at game
+    // end: nothing else reads it without a live currentGameState.
     currentRawPlayers: null,
 
     // ── Combo clipper rate limiting ────────────────────────────────────────────

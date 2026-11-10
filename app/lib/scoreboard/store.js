@@ -67,7 +67,11 @@ function emptySet() {
     doubles: false,
     overrides: { round: null, bestOf: null, losers: [null, null] },
     sides: [emptySide(), emptySide()],
-    // { winnerSide: 0|1, characters: [[char…], [char…]] | null, manual: boolean }
+    // { winnerSide: 0|1, characters: [[char…], [char…]] | null, manual: boolean,
+    //   replay: null | { file, startMs, lastFrame, stageId,
+    //                    players: [[{ port, characterId, costume }…], […]], teamIds: [id|null, id|null] } }
+    // `replay` is Slippi's game: which .slp it is and which port played in each
+    // side's slots (lib/replays/ bundles them). A manual game has none.
     games: [],
     // A crew battle (lib/crew/crew-model.js), or null for a normal set.
     crew: null,
@@ -226,7 +230,7 @@ class ScoreboardStore extends EventEmitter {
       next.doubles = next.sides.some((x) => x.players.length > 1);
       for (const i of [0, 1]) {
         for (let n = 0; n < (payload.sides?.[i]?.score ?? 0); n++) {
-          next.games.push({ winnerSide: i, characters: null, manual: true });
+          next.games.push({ winnerSide: i, characters: null, manual: true, replay: null });
         }
       }
     }
@@ -401,12 +405,12 @@ class ScoreboardStore extends EventEmitter {
 
   /**
    * A finished game, from Slippi.
-   * @param {{ winnerSide: 0|1, characters?: Array<Array<object>>|null }} game
+   * @param {{ winnerSide: 0|1, characters?: Array<Array<object>>|null, replay?: object|null }} game
    */
-  recordGame({ winnerSide, characters = null }) {
+  recordGame({ winnerSide, characters = null, replay = null }) {
     this._side(winnerSide);
     if (this._set.crew) return; // a crew game moves stocks (crewApplyGame), not the game list
-    this._set.games.push({ winnerSide, characters: clone(characters), manual: false });
+    this._set.games.push({ winnerSide, characters: clone(characters), manual: false, replay: clone(replay) ?? null });
     this._changed(["scoreboard"]);
   }
 
@@ -425,7 +429,7 @@ class ScoreboardStore extends EventEmitter {
       return;
     }
     if (delta > 0) {
-      this._set.games.push({ winnerSide: side, characters: null, manual: true });
+      this._set.games.push({ winnerSide: side, characters: null, manual: true, replay: null });
     } else {
       const games = this._set.games;
       let i = games.length - 1;
@@ -464,6 +468,10 @@ class ScoreboardStore extends EventEmitter {
     for (const g of s.games) {
       g.winnerSide = 1 - g.winnerSide;
       if (g.characters) g.characters.reverse();
+      if (g.replay) {
+        g.replay.players?.reverse();
+        g.replay.teamIds?.reverse();
+      }
     }
     this._changed(["scoreboard"]);
     this.emit("sides-switched");

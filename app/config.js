@@ -45,9 +45,17 @@ const config = {
   // same file while both run.
   PLAYERS_FILE: null,
 
+  // Where each stream set's replays are copied, one folder per set with its
+  // context.json (Replay Reporter for Slippi's per-set layout) — e.g.
+  // "D:/Replays/Stream". null = no copy. The SLP_FOLDER files are never
+  // moved or deleted either way. Usually set per machine in config.local.js.
+  REPLAY_ARCHIVE_FOLDER: null,
+
   // ── Secrets (do NOT put real values here — this file is committed to git) ────
   // The start.gg personal access token lives in config.local.js (gitignored),
   // which is merged over this object below. See config.local.example.js.
+  // So do LUCKYSTATS_KEY (the side panel's ratings) and LUCKYSTATS_UPLOAD_KEY
+  // (stream sets' replays to luckystats.gg) — never here.
   STARTGG_TOKEN: "",
 };
 

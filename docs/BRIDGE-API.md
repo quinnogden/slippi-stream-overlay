@@ -20,6 +20,7 @@ Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/si
 | `stats` | app → overlay | The `player_stats` payload |
 | `status` / `clip:error` | app → dock | The `control_status` / `slippi_clip_error` payloads |
 | `crew:notice` | app → dock | The `crew_notice` payload: a crew game that changed no stocks, or started with a side nobody was sent in for. Never on the broadcast |
+| `replays` | app → dock | The `replays_state` payload: the Replays tab's whole picture. Sticky |
 | `theme` | app → both | `{ pack }` (from `theme_changed`), after `POST /api/theme` changed the pack. **An overlay fades out and reloads** — `connect()` and `followTheme()` both listen; the dock only updates its select. Not sticky: a page that loads later reads the new `theme.css` anyway |
 
 - **`from` is what keeps a source honest.** A page applies a patch only when `from` ≤ its own rev. A larger `from` means it missed one, and it must send `state:resync` rather than apply it: every later patch carries only the sections that changed, so a source that missed one would otherwise show the old score indefinitely while looking healthy. A patch whose `rev` it already has (it connected mid-burst, and its `state:full` was newer) is ignored. `state:full` is always taken, even at a lower rev — the app may have restarted. `tests/overlay-patch.test.js` pins all three.
@@ -49,7 +50,10 @@ Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/si
                    main } ] },     // what the port map matches game 1 against
     { … },
   ],
-  games: [ { winnerSide: 0, characters: [[…], […]] | null, manual: false } ],  // the score IS this list
+  games: [ { winnerSide: 0, characters: [[…], […]] | null, manual: false,       // the score IS this list
+             replay: null | { file, startMs, lastFrame, stageId,                  // Slippi's game (lib/replays/)
+                              players: [[{ port, characterId, costume }…], […]], // per side, by slot; port 0-based
+                              teamIds: [id|null, id|null] } } ],
   overrides: { round: null, bestOf: null, losers: [null, null] },              // null = derived
   crew: null,                      // a crew battle — see below
 }
@@ -180,6 +184,33 @@ The whole `currentGameState`. Emitted on game start, on a port swap or re-detect
 
 Dock only (`crew:notice`), shown as a toast. Sent during a crew battle when a game starts with a column nobody was sent in for, and when a game ends without moving any stocks (a handwarmer, no winner, an unmapped winner, a column with nobody in) — the operator then fixes the stocks by hand in the Crew tab.
 
+### `replays_state`
+
+Dock only (`replays`), sticky, debounced; sent on every change to the stream-set history or an upload (`lib/replays/index.js` `snapshot()`):
+
+```js
+{
+  archive: "D:/Replays/Stream" | null,            // REPLAY_ARCHIVE_FOLDER
+  upload: { enabled, connection: null | { ok, appId, scopes, limits } | { ok: false, error } },
+  collection: null | { id, status, collectionVersion, totalUploadedSets, inFlightUploads, … },  // LuckyStats' GET /tournaments/:id, as it answered
+  sets: [{                                        // newest first, up to 60
+    setId, round, tournament, capturedAt, reported, edited, onScoreboard,
+    sides: [{ name }, { name }], score: [a, b],
+    games: [{ winnerSide, manual, file /* basename */ | null, characters, players }],
+    problem: null | "Game 2 has no replay file" | …,   // why there's no context.json yet
+    startgg: null | { verdict: "waiting"|"match"|"mismatch"|"dq", scores: { [entrantId]: n }, error },  // not reported here: start.gg's result
+    entrantIds: [id, id],                                 // the sides' start.gg entrants, to read `scores`
+    meta: boolean, metaError, archive: null | { digest, dir, at, error },
+    upload: null | { state: "queued"|"uploading"|"staged"|"retry"|"failed"|"blocked"|"cancelled",
+                     error, revision, stagedAt, sentBytes, totalBytes, nextTryAt, remote },
+  }],
+}
+```
+
+- **`staged` is not imported.** LuckyStats holds every set until the tournament is finished (`POST /api/replays/collection { action: "complete" }`, or its own auto-finish). `remote` is `GET /uploads/:id` cut down (handoff, import, analytics), read only on ↻.
+- **A set reported on start.gg instead** (`startgg`, sets not reported here only): `waiting` until start.gg shows it completed; `match` queues the upload by itself; `mismatch` (a different score) and `dq` never do.
+- **`blocked`** is a set that can't be bundled until it's fixed (`problem`); **`retry`** waits for `nextTryAt` (a file still being written, start.gg's details still loading, a 429 or a 5xx).
+
 ### `slippi_clip_saved` / `slippi_clip_error`
 
 Same payload, split by outcome. **Only `slippi_clip_saved` reaches the broadcast overlay** — clip failures go to the operator's dock, never on stream. `slippi_clip_saved` is additionally suppressed when `notifySidePanel` is off.
@@ -305,7 +336,7 @@ The dock's status snapshot. Identical shape to `GET /api/status`. Rebuilt every 
 
 ## HTTP routes
 
-All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the same convention as `lib/startgg-client.js` — except `/api/status` and `/api/state`, which return their object directly. The routes live in `lib/server/api/` by what they act on (`status`, `scoreboard`, `crew`, `event`, `players`, `casters`, `clipper`, `setup`), and there is **no CORS**: the dock and every overlay are served from the app's own origin.
+All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the same convention as `lib/startgg-client.js` — except `/api/status` and `/api/state`, which return their object directly. The routes live in `lib/server/api/` by what they act on (`status`, `scoreboard`, `crew`, `event`, `players`, `casters`, `clipper`, `replays`, `setup`), and there is **no CORS**: the dock and every overlay are served from the app's own origin.
 
 | Method | Route | Purpose |
 |---|---|---|
@@ -322,7 +353,17 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `POST` | `/api/bracket-view` | `{ view?, phaseGroupId? }` — what every bracket source not pinned with `?view=` shows: `winners`, `losers`, `top8`, `top16`, `full` or `upnext`. `phaseGroupId: null` goes back to following the set on air. 400 for an unknown view or a group not in the loaded event |
 | `POST` | `/api/bracket-camera` | What the bracket overlay is pointed at (`bracketShot`): `{ action: "auto" }` (tour from the action page), `"next"` / `"prev"` / `"live"` (hold a page), `{ action: "page", page }`, and the Board: `{ action: "pan", dir: "up"\|"down"\|"left"\|"right" }`, `{ action: "zoom", dir: "in"\|"out" }`, `{ action: "overview" }` (again: back to a readable zoom at the action), `{ action: "goto", cx, cy }` (board pixels — the dock's minimap). The first Board press frames the page that was up rather than moving. `{ ok, shot }`; 400 for a bad action, page or direction, 409 with no bracket or for the Board in Up Next |
 | `POST` | `/api/start-set` | Mark the loaded set in progress on start.gg (`markSetInProgress`). No body |
-| `POST` | `/api/report` | Report the loaded set to start.gg: winner plus every game's winner. Manual trigger only. A success also learns the players' mains and reloads the stats and the bracket |
+| `POST` | `/api/report` | Report the loaded set to start.gg: winner plus every game's winner. Manual trigger only. A success also learns the players' mains, keeps the set in the stream-set history and queues its LuckyStats upload, and reloads the stats and the bracket |
+| `POST` | `/api/report-dq` | `{ winnerSide: 0 \| 1 }` → report the loaded set as a DQ (`isDQ`, no game data): that side advances. Same refusals as `/api/report`, except a tied or empty score is fine. Nothing is learned or uploaded |
+| `GET` | `/api/replays` | The `replays_state` picture above |
+| `GET` | `/api/replays/files` | The Slippi folder's newest `.slp` files: `{ files: [{ name, mtimeMs, size, usedBy }] }` — `usedBy` names the kept set and game a file already belongs to |
+| `POST` | `/api/replays/upload` | `{ setId }` → queue the set's upload. Same contents as its last upload: the same upload (same idempotency key); changed contents: a new revision |
+| `POST` | `/api/replays/cancel` | `{ setId }` → `DELETE /uploads/:id` on LuckyStats (before the tournament is finished); a later Upload starts afresh |
+| `POST` | `/api/replays/refresh` | `{ setId }` → read the upload's import and analytics state from LuckyStats |
+| `POST` | `/api/replays/game` | `{ setId, index, op }` — correct one game of a set that's **off the scoreboard** (409-style `ok: false` while it's on): `winner`, `remove`, `zelda-sheik` (`side`, `slot`), `attach` (`file`: a name in SLP_FOLDER, read and placed on the sides the set's other games had its ports). Marks the set `edited`, so a later capture can't undo it |
+| `POST` | `/api/replays/forget` | `{ setId }` → drop a kept set (its files stay). Not the set on the scoreboard, not mid-upload |
+| `POST` | `/api/replays/collection` | `{ action: "status" \| "complete" \| "reopen" }` on the tournament collection the latest upload went to. `complete`/`reopen` read a fresh `collectionVersion` first; `uploads_in_progress` comes back as a readable refusal |
+| `POST` | `/api/replays/connection` | Re-check the upload key (`GET /connection`) |
 | `POST` | `/api/swap` | The ports are the wrong way round: flip which side each port plays for. The scoreboard doesn't move. Same as the swap-ports hotkey |
 | `POST` | `/api/swap-sides` | The two sides trade columns — names, scores, entrant ids and the game list together. Same as the switch-sides hotkey |
 | `POST` | `/api/reresolve` | Throw the port map away and re-derive it from the players' mains. No body. Needs a live game |
