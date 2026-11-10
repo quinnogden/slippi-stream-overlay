@@ -53,7 +53,7 @@
      1 is brisk; raise it to slow the whole broadcast down at once. Dwell
      times (the side panel's 20s, the toast's hold, the bracket pan) aren't
      animation speed and don't follow it. */
-  --motion-tempo: 2;
+  --motion-tempo: 3;
 
   /* The page fade once the first state is drawn (see body below). */
   --reveal-time: calc(0.45s * var(--motion-tempo));

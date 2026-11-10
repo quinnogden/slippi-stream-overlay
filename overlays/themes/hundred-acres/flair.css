@@ -9,8 +9,9 @@
    470px and up).
 
      slot 1      contours   contours.svg
-     slots 2–4   fireflies  box-shadow points
+     slots 2–4   fireflies  two each, as ::before / ::after
      slot 5      canopy light (title bar and plate; always on)
+     slots 6–8   fireflies  (the side panel's card only)
 
    The contours are used as a MASK over a token-coloured fill, never as
    an image, so they follow the palette: the SVG is black on
@@ -19,8 +20,9 @@
    Chromium 103 needs it.
 
    Everything stays faint and behind the content (slots sit at
-   z-index 1; the cards' text is 2+). Motion is a slow drift, never a
-   pulse: a texture that breathes pulls the eye off the players.
+   z-index 1; the cards' text is 2+). Motion is slow: the contours
+   drift, and a firefly is mostly dark — a brief glow, seconds apart,
+   never two in step — so the eye isn't pulled off the players.
    ============================================================ */
 
 
@@ -71,101 +73,139 @@
 }
 
 
-/* ── Fireflies (slots 2–4) ────────────────────────────────────
-   Each slot is one invisible 3px point carrying its fireflies as
-   box-shadows (a tight core plus a soft halo each), so three elements
-   make a dozen lights. The three groups blink and wander on unrelated
-   16, 22 and 27 second periods, so no two lights ever pulse together. */
+/* ── Fireflies (slots 2–4, and 6–8 on the card) ───────────────
+   What makes a firefly read as one, and not as a fading dot:
+     - it is DARK most of the time; it glows for about five seconds (a
+       slow swell, a slower fade), then nothing for six to fifteen;
+     - it moves while dark, so the next glow is somewhere a little
+       different: a lazy, wandering drift, mostly upward;
+     - no two are ever in step.
+   So every firefly is its own pseudo-element with its own blink and its
+   own wander (two animations: opacity, and transform), on unrelated
+   periods. Each slot is a transparent full-size layer that only places
+   its two. Each is lit about a fifth of the time: the card mostly shows
+   one or two glows at once, a title bar one now and then.
+
+   Cost: only opacity and transform animate; each glow (box-shadow) is
+   painted once and composited. No `scale` / `translate` properties
+   (Chromium 103). */
 .flair-card  > i:nth-child(2), .flair-card  > i:nth-child(3), .flair-card  > i:nth-child(4),
+.flair-card  > i:nth-child(6), .flair-card  > i:nth-child(7), .flair-card  > i:nth-child(8),
 .flair-title > i:nth-child(2), .flair-title > i:nth-child(3), .flair-title > i:nth-child(4),
 .flair-plate > i:nth-child(2), .flair-plate > i:nth-child(3), .flair-plate > i:nth-child(4) {
-  display:  var(--flair-fireflies, none);
-  top:      0;
-  left:     0;
-  width:    3px;
-  height:   3px;
+  display: var(--flair-fireflies, none);
+  inset:   0;
+  /* Cold light, as a firefly's is: pale yellow-green at the core, a
+     greener halo; warm enough to sit with the cream lettering. */
+  --ff-core: 248, 255, 205;
+  --ff-glow: 204, 238, 110;
+}
+
+.flair > i:nth-child(n+2):not(:nth-child(5))::before,
+.flair > i:nth-child(n+2):not(:nth-child(5))::after {
+  content:       "";
+  position:      absolute;
+  width:         var(--ff-size, 4px);
+  height:        var(--ff-size, 4px);
+  margin:        calc(var(--ff-size, 4px) / -2) 0 0 calc(var(--ff-size, 4px) / -2);
   border-radius: 50%;
-  --ff:      255, 228, 150;
-  --ff-glow: 255, 205, 110;
-  --ff-core: 0.60;   /* peak alpha of each point, and of its halo */
-  --ff-halo: 0.16;
+  background:    rgb(var(--ff-core));
+  /* A hot core, a soft bloom and a wide faint haze. --ff-near dims the
+     far ones (0.6) so the swarm has depth. */
+  box-shadow:
+    0 0  4px  1px rgba(var(--ff-glow), calc(0.85 * var(--ff-near, 1))),
+    0 0 14px  5px rgba(var(--ff-glow), calc(0.26 * var(--ff-near, 1))),
+    0 0 34px 12px rgba(var(--ff-glow), calc(0.07 * var(--ff-near, 1)));
+  opacity:       0;
+  animation:
+    var(--ff-blink, ha-ff-glow) var(--ff-period, 9s) linear var(--ff-phase, 0s) infinite,
+    var(--ff-path, ha-ff-wander-a) var(--ff-drift, 46s) ease-in-out var(--ff-lag, 0s) infinite;
 }
 
-.flair-card > i:nth-child(2) {
-  box-shadow:
-     64px 132px 1px 1px rgba(var(--ff), var(--ff-core)),  64px 132px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
-    402px  96px 1px 1px rgba(var(--ff), var(--ff-core)), 402px  96px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
-    236px 388px 1px 1px rgba(var(--ff), var(--ff-core)), 236px 388px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
-    530px 520px 1px 1px rgba(var(--ff), var(--ff-core)), 530px 520px 10px 4px rgba(var(--ff-glow), var(--ff-halo));
-  animation: ha-ff-a 16s ease-in-out infinite 0s;
+/* One glow, on periods of 11–20s: a gentle swell of about 1.8s and a
+   longer fade of about 3.2s (5s in all), both eased at each end so the light never
+   pops on or snaps off; then dark. The curves are per step, in the
+   keyframes; the animation runs linear. */
+@keyframes ha-ff-glow {
+  0%    { opacity: 0;    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  11.3% { opacity: 1;    animation-timing-function: cubic-bezier(0.35, 0, 0.25, 1); }
+  32.4% { opacity: 0; }
+  100%  { opacity: 0; }
 }
-.flair-card > i:nth-child(3) {
-  box-shadow:
-    150px  40px 1px 1px rgba(var(--ff), var(--ff-core)), 150px  40px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
-    500px 250px 1px 1px rgba(var(--ff), var(--ff-core)), 500px 250px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
-     40px 470px 1px 1px rgba(var(--ff), var(--ff-core)),  40px 470px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
-    330px 590px 1px 1px rgba(var(--ff), var(--ff-core)), 330px 590px 10px 4px rgba(var(--ff-glow), var(--ff-halo));
-  animation: ha-ff-b 22s ease-in-out infinite -7s;
-}
-.flair-card > i:nth-child(4) {
-  box-shadow:
-    300px 180px 1px 1px rgba(var(--ff), var(--ff-core)), 300px 180px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
-    110px 300px 1px 1px rgba(var(--ff), var(--ff-core)), 110px 300px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
-    450px 420px 1px 1px rgba(var(--ff), var(--ff-core)), 450px 420px 10px 4px rgba(var(--ff-glow), var(--ff-halo)),
-    170px 610px 1px 1px rgba(var(--ff), var(--ff-core)), 170px 610px 10px 4px rgba(var(--ff-glow), var(--ff-halo));
-  animation: ha-ff-c 27s ease-in-out infinite -16s;
+/* A few glow twice, close together, as some species do. */
+@keyframes ha-ff-glow-twice {
+  0%    { opacity: 0;    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  8.1%  { opacity: 0.85; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  16%   { opacity: 0.15; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  24.3% { opacity: 1;    animation-timing-function: cubic-bezier(0.35, 0, 0.25, 1); }
+  45.3% { opacity: 0; }
+  100%  { opacity: 0; }
 }
 
-/* Title bar and plate: their width varies with the text, so one group
-   hangs off each end and one off the middle. */
-.flair-title > i:nth-child(2), .flair-plate > i:nth-child(2) {
-  box-shadow:
-     40px 22px 1px 1px rgba(var(--ff), var(--ff-core)),  40px 22px 8px 3px rgba(var(--ff-glow), var(--ff-halo)),
-    118px 58px 1px 1px rgba(var(--ff), var(--ff-core)), 118px 58px 8px 3px rgba(var(--ff-glow), var(--ff-halo));
-  animation: ha-ff-a 16s ease-in-out infinite -2s;
+/* Lazy loops, each closing where it began, rising more than they sink.
+   The card's three; the title bars' two are the same idea at a size a
+   78–92px band can hold. */
+@keyframes ha-ff-wander-a {
+  0%, 100% { transform: translate(0, 0); }
+  22%      { transform: translate(26px, -18px); }
+  48%      { transform: translate(44px, -52px); }
+  74%      { transform: translate(12px, -36px); }
 }
-.flair-title > i:nth-child(3), .flair-plate > i:nth-child(3) {
-  left: auto;
-  right: 3px;
-  box-shadow:
-     -52px 30px 1px 1px rgba(var(--ff), var(--ff-core)),  -52px 30px 8px 3px rgba(var(--ff-glow), var(--ff-halo)),
-    -140px 60px 1px 1px rgba(var(--ff), var(--ff-core)), -140px 60px 8px 3px rgba(var(--ff-glow), var(--ff-halo));
-  animation: ha-ff-b 22s ease-in-out infinite -12s;
+@keyframes ha-ff-wander-b {
+  0%, 100% { transform: translate(0, 0); }
+  28%      { transform: translate(-34px, -14px); }
+  54%      { transform: translate(-18px, -46px); }
+  80%      { transform: translate(16px, -20px); }
 }
-.flair-title > i:nth-child(4), .flair-plate > i:nth-child(4) {
-  left: 50%;
-  box-shadow:
-    -170px 14px 1px 1px rgba(var(--ff), var(--ff-core)), -170px 14px 8px 3px rgba(var(--ff-glow), var(--ff-halo)),
-     190px 64px 1px 1px rgba(var(--ff), var(--ff-core)),  190px 64px 8px 3px rgba(var(--ff-glow), var(--ff-halo));
-  animation: ha-ff-c 27s ease-in-out infinite -19s;
+@keyframes ha-ff-wander-c {
+  0%, 100% { transform: translate(0, 0); }
+  18%      { transform: translate(20px, 14px); }
+  44%      { transform: translate(-14px, -26px); }
+  70%      { transform: translate(-40px, -8px); }
+}
+@keyframes ha-ff-wander-band-a {
+  0%, 100% { transform: translate(0, 0); }
+  30%      { transform: translate(24px, -8px); }
+  60%      { transform: translate(40px, 4px); }
+  82%      { transform: translate(14px, 10px); }
+}
+@keyframes ha-ff-wander-band-b {
+  0%, 100% { transform: translate(0, 0); }
+  25%      { transform: translate(-20px, 9px); }
+  55%      { transform: translate(-36px, -6px); }
+  78%      { transform: translate(-12px, -11px); }
 }
 
-@keyframes ha-ff-a {
-  0%, 100% { opacity: 0.10; transform: translate(0, 0); }
-  18%      { opacity: 0.95; }
-  34%      { opacity: 0.15; transform: translate(10px, -14px); }
-  55%      { opacity: 0.80; }
-  72%      { opacity: 0.05; transform: translate(-6px, -22px); }
-}
-@keyframes ha-ff-b {
-  0%, 100% { opacity: 0.05; transform: translate(0, 0); }
-  25%      { opacity: 0.85; transform: translate(-12px, 6px); }
-  42%      { opacity: 0.10; }
-  64%      { opacity: 1;    transform: translate(-4px, -12px); }
-  80%      { opacity: 0.12; }
-}
-@keyframes ha-ff-c {
-  0%, 100% { opacity: 0.70; transform: translate(0, 0); }
-  20%      { opacity: 0.08; transform: translate(8px, 10px); }
-  48%      { opacity: 0.90; transform: translate(14px, -6px); }
-  66%      { opacity: 0.10; }
-  85%      { opacity: 0.60; transform: translate(4px, -14px); }
-}
+/* The side panel's card (587 × 650): twelve, spread out. Periods, phases
+   and drifts are unrelated on purpose; change one, keep it unlike the rest. */
+.flair-card > i:nth-child(2)::before { left: 12%; top: 18%; --ff-period: 12.5s; --ff-phase:  -1.8s; --ff-path: ha-ff-wander-a; --ff-drift: 44s; --ff-lag:  -9s; }
+.flair-card > i:nth-child(2)::after  { left: 70%; top: 62%; --ff-period: 15.9s; --ff-phase:  -9.3s; --ff-path: ha-ff-wander-b; --ff-drift: 52s; --ff-lag: -31s; --ff-size: 3px; --ff-near: 0.6; }
+.flair-card > i:nth-child(3)::before { left: 44%; top:  9%; --ff-period: 17.9s; --ff-phase:  -5.7s; --ff-path: ha-ff-wander-c; --ff-drift: 39s; --ff-lag:  -4s; --ff-size: 3px; --ff-near: 0.6; }
+.flair-card > i:nth-child(3)::after  { left: 88%; top: 34%; --ff-period: 13.7s; --ff-phase: -11.8s; --ff-path: ha-ff-wander-a; --ff-drift: 57s; --ff-lag: -22s; --ff-blink: ha-ff-glow-twice; }
+.flair-card > i:nth-child(4)::before { left: 26%; top: 48%; --ff-period: 16.8s; --ff-phase:  -0.5s; --ff-path: ha-ff-wander-b; --ff-drift: 41s; --ff-lag: -17s; --ff-size: 5px; }
+.flair-card > i:nth-child(4)::after  { left: 58%; top: 86%; --ff-period: 11.4s; --ff-phase:  -7.5s; --ff-path: ha-ff-wander-c; --ff-drift: 49s; --ff-lag: -40s; }
+.flair-card > i:nth-child(6)::before { left: 80%; top: 12%; --ff-period: 19.1s; --ff-phase: -14.1s; --ff-path: ha-ff-wander-b; --ff-drift: 55s; --ff-lag: -12s; --ff-size: 3px; --ff-near: 0.6; }
+.flair-card > i:nth-child(6)::after  { left:  8%; top: 74%; --ff-period: 14.8s; --ff-phase:  -3.8s; --ff-path: ha-ff-wander-a; --ff-drift: 37s; --ff-lag: -26s; }
+.flair-card > i:nth-child(7)::before { left: 52%; top: 38%; --ff-period: 14.3s; --ff-phase: -10.7s; --ff-path: ha-ff-wander-c; --ff-drift: 60s; --ff-lag: -48s; --ff-size: 3px; --ff-near: 0.6; }
+.flair-card > i:nth-child(7)::after  { left: 34%; top: 93%; --ff-period: 18.7s; --ff-phase:  -6.6s; --ff-path: ha-ff-wander-b; --ff-drift: 46s; --ff-lag:  -3s; --ff-blink: ha-ff-glow-twice; }
+.flair-card > i:nth-child(8)::before { left: 93%; top: 80%; --ff-period: 11.9s; --ff-phase:  -4.6s; --ff-path: ha-ff-wander-a; --ff-drift: 51s; --ff-lag: -35s; --ff-size: 5px; }
+.flair-card > i:nth-child(8)::after  { left: 19%; top: 32%; --ff-period: 16.2s; --ff-phase: -14.8s; --ff-path: ha-ff-wander-c; --ff-drift: 43s; --ff-lag: -19s; }
+
+/* Title bar and plate (78–92px tall, their width set by the text): six,
+   smaller, kept off the band's edges so a glow is never cut. */
+.flair-title > i:nth-child(2)::before, .flair-plate > i:nth-child(2)::before { left:  6%; top: 62%; --ff-period: 15.1s; --ff-phase:  -3.2s; --ff-path: ha-ff-wander-band-a; --ff-drift: 58s; --ff-lag: -14s; --ff-size: 3px; }
+.flair-title > i:nth-child(2)::after,  .flair-plate > i:nth-child(2)::after  { left: 31%; top: 34%; --ff-period: 18.7s; --ff-phase: -12.8s; --ff-path: ha-ff-wander-band-b; --ff-drift: 66s; --ff-lag: -40s; --ff-size: 3px; --ff-near: 0.6; }
+.flair-title > i:nth-child(3)::before, .flair-plate > i:nth-child(3)::before { left: 94%; top: 44%; --ff-period: 13.3s; --ff-phase:  -8.0s; --ff-path: ha-ff-wander-band-b; --ff-drift: 61s; --ff-lag: -27s; --ff-size: 3px; }
+.flair-title > i:nth-child(3)::after,  .flair-plate > i:nth-child(3)::after  { left: 70%; top: 64%; --ff-period: 17.0s; --ff-phase:  -1.3s; --ff-path: ha-ff-wander-band-a; --ff-drift: 72s; --ff-lag:  -8s; --ff-size: 3px; --ff-near: 0.6; }
+.flair-title > i:nth-child(4)::before, .flair-plate > i:nth-child(4)::before { left: 50%; top: 30%; --ff-period: 19.8s; --ff-phase: -16.4s; --ff-path: ha-ff-wander-band-a; --ff-drift: 69s; --ff-lag: -52s; --ff-size: 3px; --ff-blink: ha-ff-glow-twice; }
+.flair-title > i:nth-child(4)::after,  .flair-plate > i:nth-child(4)::after  { left: 84%; top: 30%; --ff-period: 15.7s; --ff-phase: -10.0s; --ff-path: ha-ff-wander-band-b; --ff-drift: 63s; --ff-lag: -33s; --ff-size: 3px; --ff-near: 0.6; }
 
 
 /* ── ?animate=false ──
-   overlay.css stops every animation; the contours simply hold still. The fireflies hold at a low, even glow rather than wherever
-   their blink happened to be. */
-body.no-animate .flair > i:nth-child(n+2):nth-child(-n+4) {
-  opacity: 0.45;
+   overlay.css stops every animation; the contours simply hold still. The
+   fireflies hold at a low, even glow rather than dark (where most of
+   their blink is). */
+body.no-animate .flair > i:nth-child(n+2):not(:nth-child(5))::before,
+body.no-animate .flair > i:nth-child(n+2):not(:nth-child(5))::after {
+  opacity: 0.35;
 }

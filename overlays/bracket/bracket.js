@@ -16,8 +16,10 @@
  *
  * The view follows the dock (state `view.bracketView`) unless ?view= pins
  * this source; a pinned source tours its own view's pages by itself. A switch
- * of view or page crossfades through depth to a freshly drawn board; a data
- * change (a reported set, a score) redraws the board in place.
+ * of view or page fades the old board out, then cascades the new one in left
+ * to right (cards and round headers by where they sit on screen, the
+ * connectors wiped on behind them); a data change (a reported set, a score)
+ * redraws the board in place.
  */
 (function () {
   "use strict";
@@ -40,6 +42,9 @@
   const GLIDE_MS    = 1000;
   const FADE_IN_MS  = 760;
   const FADE_OUT_MS = 380;
+  const SWEEP_MS    = 420;   // the new board's cascade, from the screen's left edge to its right
+  const CARD_IN_MS  = 360;   // each card (and round header) settling in
+  const CARD_IN_X   = -18;   // ...from this far left (px, at the board's scale)
   const STATUS_TEXT = { onstream: "On Stream", live: "Live", ready: "Ready" };
 
   const SVG = "http://www.w3.org/2000/svg";
@@ -123,15 +128,19 @@
     svg.setAttribute("class", "links");
     svg.setAttribute("width", lay.width);
     svg.setAttribute("height", lay.height);
-    const path = (d, cls) => {
+    // Each path knows the x of the card it leaves and the card it joins, so a
+    // switch's cascade can draw it between the two (cascadeIn).
+    const path = (l, cls) => {
       const p = document.createElementNS(SVG, "path");
-      p.setAttribute("d", d);
+      p.setAttribute("d", l.d);
       p.setAttribute("class", cls);
+      p.setAttribute("data-from-x", lay.cards[l.from]?.x ?? 0);
+      p.setAttribute("data-to-x", lay.cards[l.to]?.x ?? 0);
       svg.appendChild(p);
     };
-    for (const l of lay.links) if (!l.lit) path(l.d, "dim");
-    for (const l of lay.links) if (l.lit) path(l.d, "glow");
-    for (const l of lay.links) if (l.lit) path(l.d, "lit");
+    for (const l of lay.links) if (!l.lit) path(l, "dim");
+    for (const l of lay.links) if (l.lit) path(l, "glow");
+    for (const l of lay.links) if (l.lit) path(l, "lit");
     board.appendChild(svg);
 
     for (const section of lay.sections) {
@@ -259,6 +268,7 @@
     const from = glide && animated() ? transformOf(board) : null;
     board.getAnimations?.().forEach((a) => a.cancel());
     board.style.transform = transformAt(t);
+    layer.t = t;
     if (from && Math.hypot(from.x - t.x, from.y - t.y) + Math.abs(from.scale - t.scale) * 1000 > 1) {
       board.animate([{ transform: transformAt(from) }, { transform: transformAt(t) }],
         { duration: ms(GLIDE_MS), easing: ease("out") });
@@ -375,12 +385,69 @@
         { opacity: 0, transform: "scale(0.985)" },
       ], { duration: ms(FADE_OUT_MS), easing: ease("out"), fill: "forwards" })
         .finished.then(() => old.el.remove(), () => {});
-      layer.el.animate([
-        { opacity: 0, transform: "scale(1.01)" },
-        { opacity: 1, transform: "scale(1)" },
-      ], { duration: ms(FADE_IN_MS), delay: ms(FADE_OUT_MS) * 0.5, easing: ease("out"), fill: "backwards" });
+      cascadeIn(layer, ms(FADE_OUT_MS) * 0.5);
     } else if (old) {
       old.el.remove();
+    }
+  }
+
+  /**
+   * The new board comes in left to right: each card and round header settles
+   * in from the left on a delay set by where it sits on screen (a column
+   * arrives together; a k-up page sweeps across both halves), and each
+   * connector draws along its path from one card to the next as they arrive. The layer itself never fades, so
+   * nothing but its contents moves; a placeholder simply fades in.
+   */
+  function cascadeIn(layer, start) {
+    const t = layer.t;
+    const msg = layer.el.querySelector(".placeholder");
+    if (msg || !t) {
+      (msg ?? layer.el).animate([{ opacity: 0 }, { opacity: 1 }],
+        { duration: ms(FADE_IN_MS), delay: start, easing: ease("out"), fill: "backwards" });
+      return;
+    }
+    // One speed for every board: crossing the whole screen takes SWEEP_MS, and
+    // the sweep starts at the board's leftmost card, so a narrow centred board
+    // doesn't wait for it to arrive.
+    const perPx = ms(SWEEP_MS) / VIEWPORT.w;
+    const screenX = (boardX) => Math.min(VIEWPORT.w, Math.max(0, t.x + boardX * t.scale));
+    const kids = [...layer.board.children].filter((el) => el.classList);
+    const has = (el, ...cls) => cls.some((c) => el.classList.contains(c));
+    const items = kids.filter((k) => has(k, "card", "ucard", "round-head"))
+      .map((el) => ({ el, x: parseFloat(el.style.left) || 0 }));
+    if (!items.length) return;
+    const left = Math.min(...items.map((i) => i.x));
+    const lo = screenX(left);
+    for (const { el, x } of items) {
+      const to = getComputedStyle(el).opacity || "1"; // a "maybe" card rests at 0.5
+      el.animate([
+        { opacity: 0, transform: `translateX(${CARD_IN_X}px)` },
+        { opacity: to, transform: "none" },
+      ], { duration: ms(CARD_IN_MS), delay: start + (screenX(x) - lo) * perPx, easing: ease("out"), fill: "backwards" });
+    }
+    // Each connector is drawn along its own path, out of the card it leaves
+    // once that card has mostly settled, and into the card it joins as that
+    // one settles — so the bracket's branches grow round by round with the
+    // cards instead of appearing under them. The dash is held a little past
+    // the path's length at both ends so the round caps show no dot before it
+    // starts. Nothing is left set once it ends (fill: backwards).
+    const links = kids.find((k) => has(k, "links"));
+    if (!links) return;
+    const cardIn = ms(CARD_IN_MS);
+    const arrive = (x) => start + (screenX(x) - lo) * perPx;
+    for (const p of links.querySelectorAll("path")) {
+      const fromX = parseFloat(p.getAttribute("data-from-x")) || 0;
+      const toX = parseFloat(p.getAttribute("data-to-x")) || 0;
+      let len = 0;
+      try { len = p.getTotalLength(); } catch (_) { /* no layout (the test sandbox) */ }
+      if (!(len > 0)) len = Math.max(1, toX - fromX);
+      const begin = arrive(fromX) + cardIn * 0.45;
+      const end = arrive(toX) + cardIn * 0.6;
+      const dash = `${len} ${len + 24}`;
+      p.animate([
+        { strokeDasharray: dash, strokeDashoffset: len + 12 },
+        { strokeDasharray: dash, strokeDashoffset: 0 },
+      ], { duration: Math.max(end - begin, cardIn * 0.4), delay: begin, easing: ease("out"), fill: "backwards" });
     }
   }
 
