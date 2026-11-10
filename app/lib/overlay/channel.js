@@ -40,6 +40,9 @@ const RELAY = {
   // A crew game that changed no stocks, or started with a side unpicked: the
   // operator's to fix, never the broadcast's.
   crew_notice:       {                        dock: "crew:notice" },
+  // Stream-set replays and their LuckyStats uploads (lib/replays/): the
+  // Replays tab's whole picture, replayed to a dock that connects later.
+  replays_state:     {                        dock: "replays",    sticky: true },
 };
 
 const NAMESPACES = ["overlay", "dock"];

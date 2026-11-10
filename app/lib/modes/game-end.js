@@ -9,6 +9,11 @@
  * played: the score is derived from that list, the report sends it, and the
  * next game's port resolution matches against it.
  *
+ * Each recorded game also keeps which .slp it is and which port played in
+ * which slot of each side (`replay`), so the set's replays can be bundled
+ * with their context afterwards (lib/replays/). Read from the port map at
+ * game end, the same moment that decides the winner.
+ *
  * In a crew battle the same checks decide the winner, and the result moves
  * stocks instead (store.crewApplyGame). Whatever isn't applied — a handwarmer,
  * a side with nobody sent in — is said in the dock (`crew_notice`), since the
@@ -29,15 +34,42 @@ function createGameEnd(ctx) {
     return out.map((list) => Array.from(list, (c) => c ?? null));
   }
 
+  /**
+   * The game's replay, in the store's terms: the file, and each side's ports
+   * by slot with what each port played (Slippi's character id and costume).
+   * @param {{ file?: string, startMs?: number, lastFrame?: number|null, stageId?: number|null }|undefined} src
+   * @returns {object|null}
+   */
+  function replayOf(src) {
+    if (!src?.file) return null;
+    const raw = new Map((state.currentRawPlayers ?? []).map((p) => [p.playerIndex, p]));
+    const players = [[], []];
+    const teamIds = [null, null];
+    for (const { port, side, slot } of portMap.info().ports) {
+      if (side !== 0 && side !== 1) continue;
+      const p = raw.get(port);
+      players[side][slot] = { port, characterId: p?.characterId ?? null, costume: p?.characterColor ?? 0 };
+      if (p?.teamId != null) teamIds[side] = p.teamId;
+    }
+    return {
+      file: src.file,
+      startMs: src.startMs ?? null,
+      lastFrame: src.lastFrame ?? null,
+      stageId: src.stageId ?? null,
+      players: players.map((list) => Array.from(list, (x) => x ?? null)),
+      teamIds,
+    };
+  }
+
   /** A crew game that changed no stocks, said in the dock. */
   function crewNotice(text) {
     if (store.isCrew()) io.emit("crew_notice", { ok: false, text });
   }
 
   /**
-   * @param {{ winnerPlayerIndex: number|null, isHandwarmer: boolean, stocks?: Object<number, number> }} event
+   * @param {{ winnerPlayerIndex: number|null, isHandwarmer: boolean, stocks?: Object<number, number>, replay?: object }} event
    */
-  function onGameEnd({ winnerPlayerIndex, isHandwarmer, stocks = {} }) {
+  function onGameEnd({ winnerPlayerIndex, isHandwarmer, stocks = {}, replay }) {
     const game = state.currentGameState;
     state.currentGameState = null;
 
@@ -78,7 +110,7 @@ function createGameEnd(ctx) {
       return;
     }
 
-    store.recordGame({ winnerSide, characters: charactersBySide(game) });
+    store.recordGame({ winnerSide, characters: charactersBySide(game), replay: replayOf(replay) });
     console.log(`[bridge] Game over — ${winnerSide === 0 ? "left" : "right"} side wins (port ${winnerPlayerIndex + 1})`);
     io.emit("slippi_game_end", { winner: winnerSide + 1 });
   }

@@ -5,9 +5,12 @@
  *   'game-start'  → (rawPlayers, stageId)
  *                   rawPlayers: array (same shape as slippi-js getSettings())
  *                   stageId:    Slippi stage ID (number | null when unavailable)
- *   'game-end'    → { winnerPlayerIndex, isHandwarmer, stocks }
+ *   'game-end'    → { winnerPlayerIndex, isHandwarmer, stocks, replay }
  *                   stocks: { [playerIndex]: stocks left on the last frame }
  *                   (a crew battle carries the winner's over)
+ *                   replay: { file, startMs, lastFrame, stageId } — which .slp
+ *                   the game is, for the set's replay bundle (lib/replays/).
+ *                   The file is still open: Slippi finishes it after GAME!
  *   'highlight'   → one detected combo (when a detector is supplied and the
  *                   clipper is enabled)
  *
@@ -138,6 +141,9 @@ function createFolderSource(config, detector) {
   // makes a 500ms live conversion scan affordable.
   let game        = null;
   let errorStreak = 0;
+  // When the game was first seen — the replay's start time. A live file has no
+  // metadata yet (Slippi writes startAt when it closes the file).
+  let startedAt   = 0;
 
   setInterval(() => {
     try {
@@ -147,6 +153,7 @@ function createFolderSource(config, detector) {
 
         if (newFile) {
           currentFile = newFile;
+          startedAt   = Date.now();
           lastSize    = 0;
           gameStarted = false;
           gameEnded   = false;
@@ -211,7 +218,14 @@ function createFolderSource(config, detector) {
 
           const stocks = stocksByPort(game.getLatestFrame());
 
-          emitter.emit("game-end", { winnerPlayerIndex, isHandwarmer, stocks });
+          const replay = {
+            file: currentFile,
+            startMs: startedAt,
+            lastFrame: game.getLatestFrame()?.frame ?? null,
+            stageId: game.getSettings()?.stageId ?? null,
+          };
+
+          emitter.emit("game-end", { winnerPlayerIndex, isHandwarmer, stocks, replay });
           knownFiles.add(currentFile);
           currentFile = null;
           game        = null;

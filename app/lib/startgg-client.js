@@ -34,7 +34,7 @@
 
 const axios = require("axios");
 
-const { EVENT_QUERY, PHASE_GROUP_SETS_QUERY, SET_QUERY, PAGE_SIZES } = require("./event/queries");
+const { EVENT_QUERY, PHASE_GROUP_SETS_QUERY, SET_QUERY, SET_CONTEXT_QUERY, PAGE_SIZES } = require("./event/queries");
 
 const ENDPOINT = "https://api.start.gg/gql/alpha";
 const WEB_BASE = "https://www.start.gg";
@@ -68,8 +68,8 @@ const BACKGROUND_BUDGET = 50;
 const RATE_LIMIT_COOLDOWN_MS = 30000;
 
 const REPORT_MUTATION = `
-mutation reportSet($setId: ID!, $winnerId: ID!, $gameData: [BracketSetGameDataInput]) {
-  reportBracketSet(setId: $setId, winnerId: $winnerId, gameData: $gameData) {
+mutation reportSet($setId: ID!, $winnerId: ID!, $isDQ: Boolean, $gameData: [BracketSetGameDataInput]) {
+  reportBracketSet(setId: $setId, winnerId: $winnerId, isDQ: $isDQ, gameData: $gameData) {
     id
     state
   }
@@ -130,15 +130,17 @@ class StartggClient {
    * @param {string|number} setId          — start.gg set id
    * @param {string|number} winnerEntrantId — start.gg entrant id of the winning team
    * @param {Array<object>} [gameData]      — optional per-game detail (BracketSetGameDataInput)
+   * @param {{ isDQ?: boolean }} [opts]     — isDQ: the loser was disqualified (no game data)
    * @returns {Promise<{ ok: boolean, state?: number, error?: string }>}
    */
-  async reportSet(setId, winnerEntrantId, gameData) {
+  async reportSet(setId, winnerEntrantId, gameData, opts = {}) {
     if (setId == null || winnerEntrantId == null) {
       return { ok: false, error: "reportSet requires both a set id and a winner entrant id" };
     }
 
     const variables = { setId: String(setId), winnerId: String(winnerEntrantId) };
-    if (Array.isArray(gameData) && gameData.length > 0) {
+    if (opts.isDQ) variables.isDQ = true;
+    else if (Array.isArray(gameData) && gameData.length > 0) {
       variables.gameData = gameData;
     }
 
@@ -150,7 +152,7 @@ class StartggClient {
       return { ok: false, error: "start.gg returned no result (unexpected response shape)" };
     }
 
-    console.log(`[bridge] Reported set ${setId} to start.gg (state ${result.state})`);
+    console.log(`[bridge] Reported set ${setId} to start.gg${opts.isDQ ? " as a DQ" : ""} (state ${result.state})`);
     return { ok: true, state: result.state };
   }
 
@@ -504,6 +506,24 @@ class StartggClient {
     if (!res.ok) return res;
     const set = res.data?.set;
     if (!set) return { ok: false, error: `start.gg doesn't recognise set ${setId}` };
+    return { ok: true, set };
+  }
+
+  /**
+   * Where a set was played — tournament, event, phase, phase group, round and
+   * stream — for its replay bundle's context.json (lib/replays/context.js).
+   * Background: bundling is never what the operator is waiting on. Reads fall
+   * back to the web endpoint, so it works without a token.
+   * @param {string|number} setId — a real id
+   * @returns {Promise<{ ok: boolean, set?: object, error?: string }>}
+   */
+  async getSetContext(setId) {
+    const res = await this.backgroundQuery(SET_CONTEXT_QUERY, { id: String(setId) }, { fallback: true });
+    if (!res.ok) return res;
+    const set = res.data?.set;
+    if (!set?.phaseGroup?.phase?.event?.tournament) {
+      return { ok: false, error: `start.gg doesn't recognise set ${setId}` };
+    }
     return { ok: true, set };
   }
 }

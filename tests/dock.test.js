@@ -48,6 +48,7 @@ const { eventFrom } = require("./helpers/fake-startgg");
 const { loadOverlay, fakeIo, texts, sleep, fire } = require("./helpers/overlay-sandbox");
 const { activeThemePack } = require("../app/lib/server/api/setup");
 const { SavedCrews } = require("../app/lib/crew/saved-crews");
+const { createReplays } = require("../app/lib/replays");
 
 const ROOT = path.resolve(__dirname, "..");
 const PUBLIC = path.join(ROOT, "app", "public");
@@ -139,7 +140,7 @@ async function rig() {
   const store = new ScoreboardStore();
   const { io, nsps } = fakeIo();
   const channel = createOverlayChannel({ io, store });
-  const calls = { report: 0, loadSet: [], swapPorts: 0, gameLive: false };
+  const calls = { report: 0, loadSet: [], swapPorts: 0, gameLive: false, dq: [], upload: [] };
 
   // The event service's reads, over the preview graph.
   const event = {
@@ -166,6 +167,19 @@ async function rig() {
     },
   };
 
+  // The real stream-set history and Replays feed; LuckyStats stood in for.
+  const uploads = {
+    enabled: true, connection: { ok: true },
+    enqueue: (id) => { calls.upload.push(id); return { ok: true }; },
+    currentCollection: () => null, start() {}, checkConnection: async () => ({ ok: true }),
+    cancel: async () => ({ ok: true }), refresh: async () => ({ ok: true }),
+    tournamentStatus: async () => ({ ok: true }), collectionAction: async () => ({ ok: true }),
+  };
+  const replays = createReplays({
+    config: { SLP_FOLDER: TMP }, store, io: channel,
+    startgg: { getSetContext: async () => ({ ok: false, error: "offline" }) },
+  }, { file: path.join(TMP, `stream-sets-${dbNo + 1}.json`), uploads });
+
   const db = playerDb();
   const app = express();
   app.use(express.json());
@@ -184,6 +198,8 @@ async function rig() {
     refreshControlStatus: async () => ({}),
     clipperSnapshot: () => ({}),
     reportCurrentSet: async () => { calls.report++; return { ok: true, winnerName: "Player2", score: "2-0" }; },
+    reportDq: async (side) => { calls.dq.push(side); return { ok: true, winnerName: "Player3" }; },
+    replays,
     startCurrentSet: async () => ({ ok: true }),
     swapPorts: () => { calls.swapPorts++; return { ok: true }; },
     switchSides: () => store.switchSides(),
@@ -211,7 +227,7 @@ async function rig() {
   const button = (root, label) => root.querySelectorAll("button").find((b) => b.textContent === label);
   const status = (s) => channel.emit("control_status", s);
 
-  return { store, db, base, channel, nsps, page, Dock, calls, side, tagInput, scoreText, keys, button, status, close: () => server.close() };
+  return { store, db, base, channel, nsps, page, Dock, calls, side, tagInput, scoreText, keys, button, status, replays, close: () => server.close() };
 }
 
 (async () => {
@@ -1003,6 +1019,51 @@ async function rig() {
       assert.strictEqual(r.page.window.localStorage.getItem("dock.stripFolded"), "1", "remembered for the next load");
       fire(r.page.$("#btn-strip-fold"), "click");
       assert.ok(!r.page.$("#strip").classList.contains("folded"));
+    } finally { r.close(); }
+  });
+
+  await test("DQ asks who advances, and reports that side", async () => {
+    const r = await rig();
+    try {
+      r.store.loadSet(fresh(LOSERS_FINAL));
+      await until(() => !r.page.$("#btn-dq").classList.contains("gone"), "the DQ key on a start.gg set");
+      fire(r.page.$("#btn-dq"), "click");
+      const pick = r.page.$("#report-confirm").querySelectorAll("button").find((b) => b.textContent.startsWith("Player3"));
+      assert.ok(pick, "a key per side");
+      fire(pick, "click");
+      await until(() => r.calls.dq.length === 1, "the DQ report");
+      assert.deepStrictEqual(r.calls.dq, [1]);
+      r.store.clearSet();
+      await until(() => r.page.$("#btn-dq").classList.contains("gone"), "no DQ on a typed set");
+    } finally { r.close(); }
+  });
+
+  await test("a stream set's games land in the Replays tab when it closes; its fixes go through the real history", async () => {
+    const r = await rig();
+    try {
+      r.store.loadSet(fresh(LOSERS_FINAL));
+      r.store.recordGame({ winnerSide: 0, characters: [[{ codename: "fox", name: "Fox", skin: 0 }], [{ codename: "marth", name: "Marth", skin: 0 }]],
+        replay: { file: path.join(TMP, "Game_1.slp"), players: [[{ port: 0, characterId: 2, costume: 0 }], [{ port: 1, characterId: 9, costume: 0 }]], teamIds: [null, null] } });
+      r.store.bump(0, 1); // a game scored by hand
+      r.Dock.showTab("replays");
+      // On the scoreboard: listed only once it's reported or closed.
+      r.store.clearSet();
+      await until(() => r.page.$("#replays-list").querySelectorAll(".replay-set").length === 1, "the closed set in the list");
+      const card = r.page.$("#replays-list").querySelector(".replay-set");
+      assert.match(card.querySelector(".replay-who").textContent, /Player2 2–0 Player3/);
+      const files = card.querySelectorAll(".replay-game .file").map((f) => f.textContent);
+      assert.deepStrictEqual(files, ["Game_1.slp", "scored by hand — no replay"]);
+      assert.match(card.querySelector(".replay-state").textContent, /Game 2 has no replay file/);
+      assert.ok(!r.button(card, "Upload"), "an incomplete set can't be uploaded");
+      // Take the hand-scored game out: the set is complete, and Upload appears.
+      const remove = card.querySelectorAll(".replay-game")[1].querySelectorAll("button").find((b) => b.textContent === "✕");
+      fire(remove, "click");
+      await until(() => r.page.$("#replays-list").querySelectorAll(".replay-game").length === 1, "the game removed");
+      const after = r.page.$("#replays-list").querySelector(".replay-set");
+      fire(r.button(after, "Upload"), "click");
+      await until(() => r.calls.upload.length === 1, "the upload queued");
+      assert.strictEqual(r.calls.upload[0], String(LOSERS_FINAL.setId));
+      assert.strictEqual(r.replays.sets.get(LOSERS_FINAL.setId).edited, true);
     } finally { r.close(); }
   });
 

@@ -34,6 +34,8 @@ Config is [app/config.js](app/config.js) (committed defaults), with the gitignor
 - `PLAYERS_FILE` — the player DB; `null` = `app/data/local_players.json`.
 - `STARTGG_TOKEN` — **never in `config.js`**. Missing token: brackets still load (keyless fallback), Start/Report/stats are off.
 - `LUCKYSTATS_KEY` — **never in `config.js`**. A luckystats.gg API key (from a claimed account's settings). Missing key: no Lucky Rank, Elo or win projection on the side panel; nothing else changes.
+- `LUCKYSTATS_UPLOAD_KEY` — **never in `config.js`**. A luckystats.gg *upload* key (`l7u_…`, Account → API → App uploads; a player-data key can't upload). Missing key: stream sets are still kept (and archived), just not uploaded.
+- `REPLAY_ARCHIVE_FOLDER` — where each stream set's replays + context.json are copied, one folder per set. `null` = no copy.
 
 Three keys have their defaults in their module, not `config.js`, and are only set from `config.local.js`, merged per key: `HOTKEYS` (`lib/hotkey.js`), `CLIPPER` (`lib/clipper-settings.js`; starting values only — the Clips tab's gitignored `clipper-settings.json` wins) and `SET_TEXT` (`lib/scoreboard/set-text.js`: "Bo5" once the set's loser is guaranteed top 6, "Flex" before). `BRACKETS` overridden in `config.local.js` replaces the whole object, so `event-target.js`'s `normalizeBrackets` fills missing keys. A `config.local.js` that fails to load throws rather than being skipped.
 
@@ -53,6 +55,7 @@ modes/ ─ port-map ─→ ScoreboardStore ←── dock commands (/api/*), hot
    overlays/ (OBS)  +  the dock
 start.gg ←→ startgg-client.js  (event service reads, stats, Start, Report)
 OBS      ←→ obs-client.js      (replay buffer saves)
+LuckyStats ← replays/uploader.js (each stream set's .slp + context.json, after Report)
 ```
 
 ### `app/`
@@ -61,7 +64,7 @@ OBS      ←→ obs-client.js      (replay buffer saves)
 index.js                   composition root
 config.js                  committed defaults     config.local.js  gitignored (token, per-machine paths)
 clipper-settings.json      gitignored, written by the Clips tab — must stay at this path
-data/                      gitignored: live-state.json, crews.json, and local_players.json by default
+data/                      gitignored: live-state.json, crews.json, stream-sets.json, and local_players.json by default
 *.example.*                tracked samples of the per-machine files (config.local, clipper-settings,
                            data/local_players) — docs/FRESH-INSTALL.md "Starting from scratch"
 stats-cache/               gitignored, one start.gg set history per player
@@ -80,12 +83,13 @@ lib/
                            start-set.js  set-gate.js
     api/                   status  scoreboard  crew  event  players  casters  clipper  setup
   stats/                   index.js  set-history.js  normalize.js  queries.js  luckystats.js
+  replays/                 index.js  stream-sets.js  context.js  bundle.js  archive.js  uploader.js  slp-file.js
   game-source.js  combo-detector.js  clip-recorder.js  obs-client.js  clipper-settings.js
   startgg-client.js  hotkey.js  lan-urls.js  port-guard.js  handwarmer.js  char_map.js
   players.js  state.js
 ```
 
-**`index.js` is a composition root, not a god object.** It builds the services and hands a single `ctx` to each feature factory: `{ config, io, state, store, portMap, playerDb, startgg, clipperSettings, comboDetector, obs, event }`, where `io` is the overlay channel's `emit()`. Wiring is a DAG — store (+persist) → channel → event service → bracket feed, mains learning → modes → control status → clip recorder → stats → report/start → hotkeys → routes — so nothing needs a late binding. `modes` subscribes to the store's events, which is why it comes before anything that shows its port map.
+**`index.js` is a composition root, not a god object.** It builds the services and hands a single `ctx` to each feature factory: `{ config, io, state, store, portMap, playerDb, startgg, clipperSettings, comboDetector, obs, event }`, where `io` is the overlay channel's `emit()`. Wiring is a DAG — store (+persist) → channel → event service → bracket feed, mains learning → modes → control status → clip recorder → stats → replays → report/start → hotkeys → routes — so nothing needs a late binding. `modes` subscribes to the store's events, which is why it comes before anything that shows its port map.
 
 **`lib/state.js`** holds what isn't the scoreboard: the live game (`currentGameState`, `currentRawPlayers`), the clipper's counters, `lastControlStatus`, `source`. **The file documents which module writes which field — keep that current.**
 
@@ -192,9 +196,9 @@ one set, re-read fresh → enriched from the player DB → the store  loadSet(se
 
 ### The dock — `app/public/dock/`
 
-A pinned **live strip** that folds to one line (names and score; remembered in `localStorage`) — both sides' names, characters via a select-screen picker (tap sets, hold/right-click opens costumes), score ±, round / best-of / [L] overrides with Auto text, ⇆ Sides · ⇄ Ports · ↻ Detect · Start · Report, and Clear score · Clear set — over seven tabs: **Set · Bracket · Casters · Players · Clips · Crew · Setup**. Fed by the `/dock` namespace's state plus `status`. Fonts (Saira, Martian Mono) are self-hosted — venue Wi-Fi is unreliable.
+A pinned **live strip** that folds to one line (names and score; remembered in `localStorage`) — both sides' names, characters via a select-screen picker (tap sets, hold/right-click opens costumes), score ±, round / best-of / [L] overrides with Auto text, ⇆ Sides · ⇄ Ports · ↻ Detect · Start · Report, and Clear score · Clear set · DQ… — over eight tabs: **Set · Bracket · Casters · Players · Clips · Replays · Crew · Setup**. Fed by the `/dock` namespace's state plus `status`. Fonts (Saira, Martian Mono) are self-hosted — venue Wi-Fi is unreliable.
 
-- **The strip's modes.** A **Doubles** toggle (`/api/doubles`) gives each side two players, one line each (tag only — the overlay shows no prefixes in doubles), and swaps the characters for a red/blue/green **team colour** picker (`/api/side-color`) under them — the overlay shows the colour, not four icons. **Start and Report exist only for a set loaded from start.gg** (`setId`); a manual set has neither. **Changing a tag or prefix on the strip (typed or picked) unlinks the set** (`store.detachSet()`: set id, entrants, seeds, team name) — capitalisation alone doesn't, nor does a Players-tab edit; reload the set from Up next to relink. The side bars are violet (left) and yellow (right), deliberately none of Melee's team colours.
+- **The strip's modes.** A **Doubles** toggle (`/api/doubles`) gives each side two players, one line each (tag only — the overlay shows no prefixes in doubles), and swaps the characters for a red/blue/green **team colour** picker (`/api/side-color`) under them — the overlay shows the colour, not four icons. **Start, Report and DQ… exist only for a set loaded from start.gg** (`setId`); a manual set has none. **DQ…** asks which side advances and reports `isDQ` with no games (`/api/report-dq`). **Changing a tag or prefix on the strip (typed or picked) unlinks the set** (`store.detachSet()`: set id, entrants, seeds, team name) — capitalisation alone doesn't, nor does a Players-tab edit; reload the set from Up next to relink. The side bars are violet (left) and yellow (right), deliberately none of Melee's team colours.
 - **The Crew tab** drafts two crews (kept in `localStorage`, with Load/Save/✕ against the saved crews; tags suggest from the whole player list) and starts the battle, asking first over a set with games; during one it is the live rosters — **In** sends a player in, −/+ per member, tag/name edits, ↑ and ✕ go straight to `/api/crew/roster` — and End. Roster rows are rebuilt only when the member ids change, so a push can't take the focus from a tag. **The strip in a crew battle** (`#strip.crew`) shows each crew's name over the player in (a tap opens the tab), their character and the crew's stocks, ± off with nobody in; Doubles, best-of, [L] and the clear keys go, and a lit **Crew** chip takes Doubles' place. A load from Up next during one asks first. `crew:notice` is a toast.
 - **The Bracket tab** picks the view (five bracket views and **Up Next**) and group, and points the overlay (`/api/bracket-camera`): **Auto** (the tour), ◀ ▶, a key per page (its `short` label), **◎ Live**; then the Board — a D-pad, −/+, Overview, and a minimap of the pruned board (drawn with the overlay's own `layout.js`, so a tap's `goto` lands where the overlay will look) boxing the camera, or the page up. No global hotkeys for any of it.
 - **No `innerHTML`**: nodes are built with `Overlay.h()`. **Every renderer is wrapped in `guard()`**, so one that throws shows in the dock instead of freezing it. `tests/dock-static.test.js` checks every id the script looks up exists and every route it calls exists with that method.
@@ -252,6 +256,19 @@ Detects notable combos **live, mid-game** and asks OBS to save its replay buffer
 - **Settings** — `DEFAULTS` → `config.CLIPPER` → `clipper-settings.json`, merged per key, validated and clamped (values come from a browser form), written atomically. Keys: `enabled`, `obsUrl`, `obsPassword`, `autoStartBuffer`, `minMoves` (4), `minDamage` (30), `requireKill`, `comboWindowSec` (0 = whole conversion), `maxComboDurationSec` (0), `cooldownSec` (8), `saveDelayMs` (2500), `maxClipsPerGame` (0), `clipFolder`, `notifySidePanel`.
 
 `auto_replays.py` is descended from Melee-Ghost-Streamer's script, driven by `OBS_FRONTEND_EVENT_REPLAY_BUFFER_SAVED` + `obs_frontend_get_last_replay()` (folder polling is opt-in), handles `ffmpeg_source` as well as `vlc_source`, and releases every `obs_data` handle. **Its interpreter is whatever OBS's Tools → Scripts → Python Settings points at.**
+
+### Stream-set replays — `lib/replays/`
+
+Replay Reporter for Slippi's job (github.com/jmlee337/replay-manager-for-slippi), for the sets played on stream: each set's `.slp` files and a `context.json` in **Replay Reporter's own format**, as one folder — copied to `REPLAY_ARCHIVE_FOLDER` and uploaded to LuckyStats.gg, whose importer reads exactly what Replay Reporter writes and validates its event, tournament, games and scores. The plan, and what's deliberately left out (USB, parry.gg, Offline Mode, Enforcer), is [docs/PLAN-STREAM-REPLAYS.md](docs/PLAN-STREAM-REPLAYS.md).
+
+- **Each game remembers its file.** `game-source.js` adds `replay: { file, startMs, lastFrame, stageId }` to `game-end`; `game-end.js` adds each side's ports by slot with what each played (`characterId`, `costume`, from `state.currentRawPlayers`) — read from the port map at game end, like the winner — and `recordGame` keeps it on the game. `switchSides` reverses it with the characters. A ± game has `replay: null`; a handwarmer records nothing, so its file never joins a set.
+- **`stream-sets.js` (`StreamSets`)** — `data/stream-sets.json`, one record per real start.gg set id (no manual, preview or crew set), captured on a successful report and on `set-closing`. **An `edited` record keeps its games** (the Replays tab corrected it), and **a capture with no Slippi game never replaces one that has them** (a set reloaded later opens on start.gg's score as ± games). It is also the **upload journal**.
+- **`context.js`** — pure. The rules its format encodes, pinned by `tests/replays.test.js`: `scores[i]`'s two slots are in **game 1's port order** (slot 0 = the side holding game 1's lowest port, for the whole set), and each slot's `score` is the score **before** game i; `finalScore`; `bestOf = max(wins)·2−1`; `players.entrant1/2` in **start.gg's slot order**; ports 1-based; `players[].characters` in Replay Reporter's names ("Falcon", "Puff", "ICs"), first appearance first; `durationMs` from `(lastFrame + 124) / 0.05994`. `metaFromStartgg` turns `startgg.getSetContext()` (`SET_CONTEXT_QUERY`: the tournament, event, phase, group, round, stream and entrant order, by set id — background, falls back keyless) into the `startgg` block; `winnersTargetPhaseId` and `ordinal` are null (only start.gg's old REST API and Replay Reporter's own call order have them).
+- **`bundle.js`** — the folder (`<round> - <left> vs <right> (<set id>)`), one `context.json` beside the games, each file's size and SHA-256, and a `digest` over them: the same digest means "already done" for both the archive and the upload; a changed one is a new revision. **A file Slippi hasn't closed holds the bundle back** (`slp-file.js isFinished`: the header's raw length is 0 until then) — `waiting`, retried, never an error. Timing is refined from the finished file's metadata.
+- **`archive.js`** — copies, never moves: `SLP_FOLDER` is Slippi's. A re-archive removes only the `.slp`/`context.json` the old bundle had and the new one doesn't.
+- **`uploader.js` (`LuckyStatsUploads`) — the only module that sends uploads to luckystats.gg** (`lib/stats/luckystats.js` reads ratings with the other key). `Authorization: Bearer <LUCKYSTATS_UPLOAD_KEY>` + `X-App-Id: replay-reporter` — upload keys are issued for Replay Reporter's public app id, and the operator agreed to share it. `POST /uploads` (Idempotency-Key) → PUT each file to its signed link with the returned headers **exactly** (`putFile`, not fetch, which adds its own) → `POST /uploads/:id/complete` → `staged`. **The idempotency key and digest are journaled before the request**, so a restart resumes the same upload; the same contents keep the key, changed contents get a new one (a new revision LuckyStats swaps in atomically). One set at a time; 429 waits for `Retry-After`, 5xx/network back off with jitter, a 412 on a retried PUT means the object is already there, an expired link is refreshed once (`/links`). **Staged is not imported**: the tournament collection is finished from the Replays tab (`POST /tournaments/:id/complete` with a fresh `collectionVersion`) or by LuckyStats' auto-finish (6h idle after the event). All keys for the app id share one collection — a TO's Replay Reporter uploads from the other setups land in the same one, and the later revision of a set wins.
+- **`index.js` (`createReplays`)** — captures, reads the start.gg details once per set, archives when the files and details are in (`settle`, retried every 15s for ~10 min), queues a **reported** set's upload (anything else waits for the Replays tab's Upload), and sends the dock `replays_state` (sticky, `/dock` only). Nothing reaches the broadcast.
+- **The Replays tab** lists the kept sets: per game, the characters (winner outlined) and the file; for a set **off the scoreboard**, ⇄ W (winner), Zelda ⇄ Sheik, Attach… (a file from `SLP_FOLDER`, its ports placed where the set's other games had them, else positional) and ✕; per set Upload / Re-upload, Cancel upload, ↻ and Forget; and Check key · ↻ Status · Finish tournament · Reopen. The set on the scoreboard is the strip's to fix.
 
 ### Side panel stats — `lib/stats/`
 
@@ -311,7 +328,7 @@ Slippi character ids (0–25) → `{ codename, display }`; `CSS_ORDER` is Melee'
 
 - `config.js` is git-tracked — never put secrets there. The start.gg token and the luckystats key go in the gitignored `config.local.js`.
 - **`config.local.js` and `clipper-settings.json` stay at the `app/` root**, even though the code that reads them lives in `lib/`: `.gitignore` pins those exact paths, and moving either would start tracking the token or the OBS password.
-- **`app/data/` holds the player DB by default** as well as `live-state.json` and the saved crews (`crews.json`). When cleaning up after a test boot, delete `live-state.json`, never the folder.
+- **`app/data/` holds the player DB by default** as well as `live-state.json`, the saved crews (`crews.json`) and the stream-set history and upload journal (`stream-sets.json` — deleting it mid-event loses which sets were uploaded). When cleaning up after a test boot, delete `live-state.json`, never the folder.
 - **Never run TSH against the app's player file.** TSH rewrites the whole file on save and never re-reads it. Copy the file, don't share it.
 - `fs.watch` is intentionally not used — always poll.
 - The parser is **persistent per file**: anything added to the poll loop must tolerate a live file and must not assume a fresh parse each tick.

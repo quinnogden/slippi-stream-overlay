@@ -63,4 +63,34 @@ query set($id: ID!) {
   set(id: $id) { ${SET_FIELDS} }
 }`.trim();
 
-module.exports = { PAGE_SIZES, EVENT_QUERY, PHASE_GROUP_SETS_QUERY, SET_QUERY };
+// Everything a set's replay bundle says about where it was played
+// (lib/replays/context.js, Replay Reporter for Slippi's context.json): the
+// tournament, event, phase and phase group around one set, and the set's own
+// round, stream and entrant order. Read once per set, when it's bundled — by
+// id, so it doesn't depend on which event the dock has loaded by then. Small:
+// a tournament's events and an event's phases are a handful of objects each.
+const SET_CONTEXT_QUERY = `
+query setContext($id: ID!) {
+  set(id: $id) {
+    id round fullRoundText identifier
+    stream { id streamSource streamName }
+    slots { slotIndex entrant { id } }
+    phaseGroup {
+      id displayIdentifier bracketType
+      wave { id }
+      phase {
+        id name groupCount
+        event {
+          id name slug
+          phases { id }
+          tournament {
+            id name slug city addrState countryCode
+            events { id videogame { id } }
+          }
+        }
+      }
+    }
+  }
+}`.trim();
+
+module.exports = { PAGE_SIZES, EVENT_QUERY, PHASE_GROUP_SETS_QUERY, SET_QUERY, SET_CONTEXT_QUERY };

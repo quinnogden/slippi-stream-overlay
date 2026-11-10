@@ -183,6 +183,17 @@ function checkConfig() {
   if (luckyKey) pass("luckystats key", `set (${luckyKey.length} chars)`);
   else info("luckystats key", "not set — the side panel shows no Lucky Rank, Elo or win projection (optional)");
 
+  const uploadKey = config.LUCKYSTATS_UPLOAD_KEY ?? "";
+  if (!uploadKey) info("luckystats upload key", "not set — stream sets' replays aren't uploaded to LuckyStats (optional)");
+  else if (!uploadKey.startsWith("l7u_")) fail("luckystats upload key", "doesn't begin l7u_ — a player-data key (l7_) can't upload",
+    "Create one under luckystats.gg Account → API → App uploads, and put it in config.local.js as LUCKYSTATS_UPLOAD_KEY");
+  else pass("luckystats upload key", `set (${uploadKey.length} chars)`);
+
+  if (config.REPLAY_ARCHIVE_FOLDER) {
+    if (exists(config.REPLAY_ARCHIVE_FOLDER)) pass("REPLAY_ARCHIVE_FOLDER", config.REPLAY_ARCHIVE_FOLDER);
+    else warn("REPLAY_ARCHIVE_FOLDER", `doesn't exist yet: ${config.REPLAY_ARCHIVE_FOLDER} (the app creates it on the first set)`);
+  }
+
   if (!config.SLP_FOLDER) {
     fail("SLP_FOLDER", "not configured");
   } else if (!exists(config.SLP_FOLDER)) {
@@ -539,6 +550,26 @@ async function probeLuckystats(config) {
   }
 }
 
+/** The LuckyStats upload key, checked against LuckyStats' App uploads API. */
+async function probeLuckystatsUploads(config) {
+  const key = config.LUCKYSTATS_UPLOAD_KEY ?? "";
+  if (!key) { skip("Upload key", "not set"); return; }
+  try {
+    const { BASE_URL, APP_ID } = require("../lib/replays/uploader");
+    const res = await fetch(`${BASE_URL}/connection`, {
+      headers: { Authorization: `Bearer ${key}`, "X-App-Id": APP_ID },
+      signal: AbortSignal.timeout(10000),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (res.ok) pass("Upload key", `accepted (${(body.scopes ?? []).join(", ") || "no scopes listed"})`);
+    else if (res.status === 401 || res.status === 403) fail("Upload key", `rejected (HTTP ${res.status})`,
+      "Create a key under luckystats.gg Account → API → App uploads and put it in config.local.js as LUCKYSTATS_UPLOAD_KEY");
+    else warn("Upload key", `unexpected answer (HTTP ${res.status})`);
+  } catch (e) {
+    warn("Upload key", `couldn't check it — ${errText(e)}`);
+  }
+}
+
 /**
  * Direct OBS probe — independent of whether the app is up, and the only way to
  * check the replay buffer's *length*, which is the setting that quietly
@@ -653,6 +684,7 @@ function report() {
     await probeApp(config);
     await probeStartgg(config, depsOk);
     await probeLuckystats(config);
+    await probeLuckystatsUploads(config);
     await probeObs(clipper);
   }
 

@@ -48,6 +48,7 @@ const { createStartSet }      = require("./lib/server/start-set");
 const { registerRoutes }      = require("./lib/server/routes");
 const { registerOverlays }    = require("./lib/server/overlays");
 const { createPlayerStats }   = require("./lib/stats");
+const { createReplays }       = require("./lib/replays");
 const { IMAGE_DIR: luckyImageDir } = require("./lib/stats/luckystats");
 
 // ── Server ────────────────────────────────────────────────────────────────────
@@ -107,17 +108,30 @@ const modes         = createModes(ctx);
 const controlStatus = createControlStatus(ctx, modes.portInfo);
 const clipRecorder  = createClipRecorder(ctx, controlStatus.refresh);
 const playerStats   = createPlayerStats(ctx);
+// Each stream set's replays + context.json: archived, and uploaded to LuckyStats.
+const replays       = createReplays(ctx);
 const reportSet     = createReportSet(ctx, controlStatus.refresh);
 const { startCurrentSet }  = createStartSet(ctx, controlStatus.refresh);
 
 // A reported set changes the bracket (the picker, the next sets' entrants) and
 // the side panel's stats (both players' runs, their head-to-head, the event's
 // finished sets), so both reload after it — once start.gg has caught up. And
-// the set is over, so what its players played is learned.
+// the set is over, so what its players played is learned, and its replays
+// are bundled and queued for LuckyStats.
 async function reportCurrentSet() {
   const result = await reportSet.reportCurrentSet();
   if (result.ok) {
     mainsLearning.commit(undefined, "reported");
+    replays.onSetReported();
+    playerStats.onSetReported();
+    setTimeout(() => ctx.event.refresh({ background: true }), 3000).unref?.();
+  }
+  return result;
+}
+// A DQ: no games, so nothing to learn or bundle — the bracket still moves.
+async function reportDq(winnerSide) {
+  const result = await reportSet.reportDq(winnerSide);
+  if (result.ok) {
     playerStats.onSetReported();
     setTimeout(() => ctx.event.refresh({ background: true }), 3000).unref?.();
   }
@@ -187,7 +201,9 @@ registerRoutes(app, {
   refreshControlStatus: controlStatus.refresh,
   clipperSnapshot: controlStatus.clipperSnapshot,
   reportCurrentSet,
+  reportDq,
   startCurrentSet,
+  replays,
   swapPorts,
   switchSides: () => store.switchSides(),
   reresolvePorts: modes.reresolvePorts,
@@ -241,6 +257,10 @@ console.log(`[bridge] Brackets:       ${ctx.event.shortLink
 console.log(`[bridge] Event:          ${loadedEvent.eventSlug
   ? `${loadedEvent.name} — ${loadedEvent.eventName} (reloading from start.gg)`
   : "none yet — press Singles or Doubles in the dock's Bracket tab"}`);
+console.log(`[bridge] Replays:        ${[
+  config.LUCKYSTATS_UPLOAD_KEY ? "reported sets upload to LuckyStats" : "no LuckyStats uploads (no LUCKYSTATS_UPLOAD_KEY)",
+  config.REPLAY_ARCHIVE_FOLDER ? `archived to ${config.REPLAY_ARCHIVE_FOLDER}` : "no archive (REPLAY_ARCHIVE_FOLDER)",
+].join("; ")}`);
 console.log(`[bridge] Combo clipper:  ${clipper.enabled
   ? `enabled → OBS at ${clipper.obsUrl}`
   : "disabled (turn it on in the dock's Clips tab)"}`);
@@ -266,6 +286,7 @@ ctx.event.start();
 bracketFeed.start();
 bracketDirector.start();
 playerStats.start();
+replays.start();
 
 // Flush pending debounced writes on the way out, so the last score and the last
 // player-DB edit aren't lost to the debounce window. "exit" covers Ctrl+C in
@@ -275,5 +296,6 @@ playerStats.start();
 process.on("exit", () => {
   if (persist.pending) persist.saveNow();
   ctx.playerDb.flush();
+  replays.flush();
 });
 process.on("SIGINT", () => process.exit(0));

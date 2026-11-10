@@ -27,7 +27,7 @@
   const { h, icon } = window.Overlay;
   const $ = (id) => document.getElementById(id);
 
-  const TABS = ["set", "bracket", "casters", "players", "clips", "crew", "setup"];
+  const TABS = ["set", "bracket", "casters", "players", "clips", "replays", "crew", "setup"];
   const TAB_KEY = "dock.tab";
   const FOLD_KEY = "dock.stripFolded";
   const WAITING_KEY = "dock.hideWaiting";
@@ -830,6 +830,9 @@
     report.classList.toggle("gone", !fromStartgg);
     report.disabled = !fromStartgg || !cs.canReport;
     if (!fromStartgg) $("report-confirm").replaceChildren();
+    // A DQ needs a real start.gg set, not a winning score.
+    const dqable = fromStartgg && !sb.crew && !String(sb.setId).includes("preview");
+    $("btn-dq").classList.toggle("gone", !dqable);
     $("strip-hint").textContent = fromStartgg && !cs.canReport ? cs.reason || "" : "";
   });
 
@@ -882,6 +885,30 @@
         if (r.ok) fetchSets();
       },
     });
+  });
+
+  // A DQ: pick who advances, then it's reported with no games. Two steps, like Report.
+  $("btn-dq").addEventListener("click", () => {
+    if (!sb || !sb.setId) return;
+    const slot = $("report-confirm");
+    const box = h("div", "confirm");
+    const msg = h("div", "confirm-msg");
+    msg.append(...rich("Report a ", { b: "DQ" }, " to start.gg — who advances?"));
+    const row = h("div", "key-row");
+    [0, 1].forEach((i) => {
+      const k = key(`${sideName(sb.sides[i]) || (i ? "Right" : "Left")} advances`, "arm");
+      k.addEventListener("click", async () => {
+        slot.replaceChildren();
+        const r = await act("/api/report-dq", { winnerSide: i }, (x) => `Reported a DQ: ${x.winnerName} advances`, "DQ report failed");
+        if (r.ok) fetchSets();
+      });
+      row.append(k);
+    });
+    const no = key("Cancel");
+    no.addEventListener("click", () => slot.replaceChildren());
+    row.append(no);
+    box.append(msg, row);
+    slot.replaceChildren(box);
   });
 
   // ── Header ──────────────────────────────────────────────────────────────────
@@ -2112,6 +2139,261 @@
     toast(r.ok ? "Test clip saved" : `Test clip failed: ${r.error}`, r.ok);
   });
 
+  // ── Replays tab ─────────────────────────────────────────────────────────────
+  // Every stream set the app kept (lib/replays/), its games and their files,
+  // and its LuckyStats upload. Fed by the `replays` event, which the app sends
+  // on every change; nothing here is typed into, so a push can redraw it all.
+
+  let replays = null;       // the last `replays` picture
+  let attachFor = null;     // { setId, index } — the game whose file picker is open
+  let replayFiles = null;   // /api/replays/files, while the picker is open
+
+  const UPLOAD_BADGE = {
+    queued: ["Queued", ""], uploading: ["Uploading", "warn"], staged: ["Uploaded", "ok"],
+    retry: ["Retrying", "warn"], failed: ["Failed", "err"], blocked: ["Can't upload", "err"], cancelled: ["Canceled", ""],
+  };
+
+  const shortTime = (ms) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  /** The line under a set's names: what's wrong with it, or where its upload is. */
+  function uploadLine(set, upload) {
+    const u = set.upload;
+    if (set.problem) return { text: set.problem, err: true };
+    if (!u) {
+      if (!upload.enabled) return { text: set.reported ? "Reported" : "Not reported here" };
+      return { text: set.reported ? "Reported — not uploaded" : "Not reported here — Upload sends it anyway" };
+    }
+    if (u.state === "uploading") {
+      const pct = u.totalBytes ? Math.round((u.sentBytes / u.totalBytes) * 100) : 0;
+      return { text: `Uploading… ${pct}%` };
+    }
+    if (u.state === "staged") {
+      const r = u.remote;
+      const extra = r && r.analytics && r.analytics.state ? ` · analytics ${String(r.analytics.state).replace(/_/g, " ")}` : "";
+      return { text: `Uploaded${u.revision ? ` (revision ${u.revision})` : ""} at ${shortTime(u.stagedAt)} — waits for the tournament to finish${extra}` };
+    }
+    if (u.state === "retry") return { text: `${u.error || "Failed"} — trying again${u.nextTryAt ? ` at ${shortTime(u.nextTryAt)}` : ""}`, err: true };
+    if (u.state === "failed" || u.state === "blocked") return { text: u.error || "Failed", err: true };
+    if (u.state === "cancelled") return { text: "Upload canceled" };
+    return { text: "Queued for upload" };
+  }
+
+  /** One game's two sides of character icons, the winner's outlined. */
+  function gameChars(g) {
+    const wrap = h("span", "chars");
+    [0, 1].forEach((side) => {
+      if (side === 1) wrap.append(h("span", "vs", "vs"));
+      const list = (g.characters && g.characters[side]) || [];
+      if (!list.some(Boolean)) wrap.append(h("span", "vs", side === g.winnerSide ? "W" : "?"));
+      list.forEach((c) => {
+        if (!c) return;
+        const img = h("img", g.winnerSide === side ? "win" : "");
+        img.src = icon(c);
+        img.alt = c.name || "";
+        img.title = (c.name || "") + (g.winnerSide === side ? " — won" : "");
+        wrap.append(img);
+      });
+    });
+    return wrap;
+  }
+
+  /** Zelda/Sheik players in a game: [{ side, slot }]. */
+  function zeldaSheik(g) {
+    const out = [];
+    (g.players || []).forEach((list, side) => (list || []).forEach((p, slot) => {
+      if (p && (p.characterId === 18 || p.characterId === 19)) out.push({ side, slot });
+    }));
+    return out;
+  }
+
+  const replayGame = (setId, index, body, okMsg) =>
+    act("/api/replays/game", { setId, index, ...body }, okMsg, "Couldn't change the game");
+
+  async function openAttach(setId, index) {
+    attachFor = { setId, index };
+    replayFiles = null;
+    renderReplays();
+    const r = await api("/api/replays/files");
+    replayFiles = r.ok ? r.files : [];
+    renderReplays();
+  }
+
+  function closeAttach() {
+    attachFor = null;
+    replayFiles = null;
+    renderReplays();
+  }
+
+  function attachPicker(set) {
+    const box = h("div", "replay-files");
+    if (!replayFiles) {
+      box.append(h("div", "empty-note", "Reading the Slippi folder…"));
+    } else if (!replayFiles.length) {
+      box.append(h("div", "empty-note", "No replays in the Slippi folder."));
+    } else {
+      replayFiles.forEach((f) => {
+        const row = h("div", "clip-row" + (f.usedBy ? " used" : ""));
+        row.append(h("span", "what", f.name + (f.usedBy ? ` — in ${f.usedBy}` : "")), h("span", "when", shortTime(f.mtimeMs)));
+        row.title = f.usedBy ? "Already in another game" : "Use this replay for the game";
+        row.addEventListener("click", async () => {
+          const r = await replayGame(set.setId, attachFor.index, { op: "attach", file: f.name }, "Replay attached");
+          if (r.ok) closeAttach();
+        });
+        box.append(row);
+      });
+    }
+    const cancel = key("Cancel", "ghost mini");
+    cancel.addEventListener("click", closeAttach);
+    box.append(cancel);
+    return box;
+  }
+
+  /** One game's correction keys — only for a set that's off the scoreboard. */
+  function gameTools(set, g, i) {
+    const tools = h("span", "tools");
+    const flip = key("⇄ W", "ghost mini");
+    flip.title = "The other side won this game";
+    flip.addEventListener("click", () => replayGame(set.setId, i, { op: "winner" }, "Winner changed"));
+    tools.append(flip);
+    zeldaSheik(g).forEach(({ side, slot }) => {
+      const zs = key("Zelda ⇄ Sheik", "ghost mini");
+      zs.title = "Slippi records the character a game started on — swap it";
+      zs.addEventListener("click", () => replayGame(set.setId, i, { op: "zelda-sheik", side, slot }, "Character swapped"));
+      tools.append(zs);
+    });
+    if (!g.file) {
+      const at = key("Attach…", "ghost mini");
+      at.title = "Pick this game's replay from the Slippi folder";
+      at.addEventListener("click", () => openAttach(set.setId, i));
+      tools.append(at);
+    }
+    const rm = key("✕", "ghost mini");
+    rm.title = "Take this game out of the set (a handwarmer that counted)";
+    rm.addEventListener("click", () => replayGame(set.setId, i, { op: "remove" }, "Game removed"));
+    tools.append(rm);
+    return tools;
+  }
+
+  function replayCard(set, upload) {
+    const card = h("div", "card replay-set" + (set.onScoreboard ? " live" : ""));
+    const head = h("div", "card-head");
+    const [badgeText, badgeCls] = set.problem ? ["Incomplete", "warn"]
+      : set.upload ? (UPLOAD_BADGE[set.upload.state] || [set.upload.state, ""]) : [set.reported ? "Reported" : "Kept", ""];
+    head.append(h("span", "label", [set.round, set.tournament].filter(Boolean).join(" · ") || `Set ${set.setId}`),
+      h("span", "badge " + badgeCls, badgeText));
+    card.append(head);
+
+    const who = h("div", "replay-who");
+    who.append(h("b", "", set.sides[0].name || "?"), document.createTextNode(` ${set.score[0]}–${set.score[1]} `), h("b", "", set.sides[1].name || "?"));
+    if (set.onScoreboard) who.append(document.createTextNode(" · on the scoreboard"));
+    card.append(who);
+
+    const line = uploadLine(set, upload);
+    card.append(h("div", "replay-state" + (line.err ? " err" : ""), line.text));
+    if (set.archive && set.archive.dir) card.append(h("div", "replay-state", `Archived: ${set.archive.dir}`));
+    else if (set.archive && set.archive.error) card.append(h("div", "replay-state err", set.archive.error));
+
+    const games = h("div", "replay-games");
+    set.games.forEach((g, i) => {
+      const row = h("div", "replay-game");
+      row.append(h("span", "num", `G${i + 1}`), gameChars(g),
+        h("span", "file" + (g.file ? "" : " missing"), g.file || (g.manual ? "scored by hand — no replay" : "no replay")));
+      if (!set.onScoreboard) row.append(gameTools(set, g, i));
+      games.append(row);
+      if (attachFor && attachFor.setId === set.setId && attachFor.index === i) games.append(attachPicker(set));
+    });
+    card.append(games);
+
+    const keys = h("div", "key-row");
+    const u = set.upload;
+    if (upload.enabled && !set.problem && !(u && (u.state === "uploading" || u.state === "queued"))) {
+      const up = key(u && u.state === "staged" ? "Re-upload" : "Upload", u ? "" : "go");
+      up.title = u && u.state === "staged" ? "Send it again — only a changed set becomes a new revision" : "Upload this set's replays to LuckyStats";
+      up.addEventListener("click", () => act("/api/replays/upload", { setId: set.setId }, "Upload queued", "Couldn't queue it"));
+      keys.append(up);
+    }
+    if (u && ["staged", "uploading", "retry", "queued", "failed"].includes(u.state)) {
+      const cancel = key("Cancel upload", "ghost mini");
+      cancel.title = "Withdraw this set from LuckyStats (before the tournament is finished)";
+      cancel.addEventListener("click", () => act("/api/replays/cancel", { setId: set.setId }, "Upload canceled", "Couldn't cancel it"));
+      keys.append(cancel);
+    }
+    if (u && u.state === "staged") {
+      const ref = key("↻", "ghost mini");
+      ref.title = "Ask LuckyStats how this set's import is going";
+      ref.addEventListener("click", () => act("/api/replays/refresh", { setId: set.setId }, null, "Couldn't read it"));
+      keys.append(ref);
+    }
+    card.append(keys);
+    if (!set.onScoreboard) {
+      const slot = h("div");
+      const forget = key("Forget", "ghost mini");
+      forget.title = "Take this set off the list (its files stay where they are)";
+      forget.addEventListener("click", () => confirmIn(slot, {
+        html: rich("Forget ", { b: `${set.sides[0].name} vs ${set.sides[1].name}` }, "? It won't upload, and its replays stay in the Slippi folder."),
+        yes: "Forget it",
+        onYes: () => act("/api/replays/forget", { setId: set.setId }, "Set forgotten", "Couldn't forget it"),
+      }));
+      keys.append(forget);
+      card.append(slot);
+    }
+    return card;
+  }
+
+  const renderReplays = guard("replays", () => {
+    const r = replays;
+    if (!r) return;
+    const up = r.upload || {};
+    const conn = up.connection;
+    const badge = $("replays-badge");
+    if (!up.enabled) {
+      badge.textContent = "Off";
+      badge.className = "badge";
+      $("replays-status").textContent = "No upload key — add LUCKYSTATS_UPLOAD_KEY to config.local.js to send stream sets to LuckyStats."
+        + (r.archive ? ` Sets are still copied to ${r.archive}.` : "");
+    } else if (conn && !conn.ok) {
+      badge.textContent = "Key refused";
+      badge.className = "badge err";
+      $("replays-status").textContent = conn.error || "LuckyStats refused the key";
+    } else {
+      badge.textContent = conn ? "Connected" : "Checking";
+      badge.className = "badge " + (conn ? "ok" : "");
+      $("replays-status").textContent = "Reported stream sets upload by themselves." + (r.archive ? ` Copies go to ${r.archive}.` : "");
+    }
+    const c = r.collection;
+    $("replays-collection").textContent = c
+      ? `This tournament on LuckyStats: ${c.status || "collecting"}`
+        + (c.totalUploadedSets != null ? ` · ${c.totalUploadedSets} set(s) from every uploader` : "")
+        + (c.inFlightUploads ? ` · ${c.inFlightUploads} in flight` : "")
+      : "";
+    $("btn-replays-check").disabled = !up.enabled;
+    $("btn-replays-status").disabled = !up.enabled || !c;
+    $("btn-replays-finish").disabled = !up.enabled || !c;
+    $("btn-replays-reopen").disabled = !up.enabled || !c;
+
+    const list = $("replays-list");
+    if (!r.sets.length) {
+      list.replaceChildren(h("div", "empty-note", "No stream sets yet. A start.gg set lands here when it's reported, or when the next set is loaded."));
+      return;
+    }
+    list.replaceChildren(...r.sets.map((set) => replayCard(set, up)));
+  });
+
+  $("btn-replays-check").addEventListener("click", () => act("/api/replays/connection", {}, "LuckyStats accepted the key", "Key check failed"));
+  $("btn-replays-status").addEventListener("click", () => act("/api/replays/collection", { action: "status" }, null, "Couldn't read the status"));
+  $("btn-replays-reopen").addEventListener("click", () =>
+    act("/api/replays/collection", { action: "reopen" }, "Reopened — late sets are welcome again", "Couldn't reopen"));
+  $("btn-replays-finish").addEventListener("click", () => {
+    const pending = replays ? replays.sets.filter((s) => s.upload && ["queued", "uploading", "retry"].includes(s.upload.state)).length : 0;
+    confirmIn($("replays-confirm"), {
+      html: rich("Finish the tournament on LuckyStats? It imports the latest upload of ",
+        { b: "every set from every uploader" }, ". Reopen takes late sets afterwards.",
+        pending ? ` ${pending} set(s) here are still uploading — LuckyStats will refuse until they're done.` : ""),
+      yes: "Finish it",
+      onYes: () => act("/api/replays/collection", { action: "complete" }, "Tournament finished — LuckyStats is importing", "Couldn't finish it"),
+    });
+  });
+
   // ── Setup tab ───────────────────────────────────────────────────────────────
 
   let setup = null; // /api/setup
@@ -2467,6 +2749,7 @@
   ov.on("clip:error", (c) => toast(`Clip failed: ${(c && c.error) || "OBS didn't save it"}`, false));
   // A crew game that changed no stocks, or started with a side nobody sent in for.
   ov.on("crew:notice", (n) => toast((n && n.text) || "Crew battle: check the stocks", !!(n && n.ok)));
+  ov.on("replays", (r) => { replays = r; renderReplays(); });
 
   if (ov.socket) {
     ov.socket.on("connect", () => document.body.classList.remove("offline"));
@@ -2504,6 +2787,7 @@
     get crewDraft() { return crewDraft; },
     get savedCrews() { return savedCrews; },
     get setup() { return setup; },
+    get replays() { return replays; },
     openPicker, openPinPicker, closePicker, pick, fetchSets, fetchPlayers, fetchSetup, showTab, CLIP_FIELDS,
   };
 })();
