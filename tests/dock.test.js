@@ -27,7 +27,10 @@
  *   - the Setup tab's urls are the full ones OBS needs, and the bound chords
  *     reach the strip's keys;
  *   - Start and Report never show on a manual set; doubles swaps characters
- *     for a team colour, and back to singles asks before dropping a partner.
+ *     for a team colour, and back to singles asks before dropping a partner;
+ *   - folded, the strip's ⇆ ⇄ Report keys and every card's folded keys press
+ *     the real key and show its state — a proxy that drifts is a Report that
+ *     looks live and isn't — and a folded card opens for a question it asks.
  *
  * Usage: node tests/dock.test.js
  */
@@ -143,7 +146,7 @@ async function rig() {
   const store = new ScoreboardStore();
   const { io, nsps } = fakeIo();
   const channel = createOverlayChannel({ io, store });
-  const calls = { report: 0, loadSet: [], swapPorts: 0, gameLive: false, dq: [], upload: [] };
+  const calls = { report: 0, loadSet: [], swapPorts: 0, gameLive: false, upload: [] };
 
   // The event service's reads, over the preview graph.
   const event = {
@@ -201,7 +204,6 @@ async function rig() {
     refreshControlStatus: async () => ({}),
     clipperSnapshot: () => ({}),
     reportCurrentSet: async () => { calls.report++; return { ok: true, winnerName: "Player2", score: "2-0" }; },
-    reportDq: async (side) => { calls.dq.push(side); return { ok: true, winnerName: "Player3" }; },
     replays,
     startCurrentSet: async () => ({ ok: true }),
     swapPorts: () => { calls.swapPorts++; return { ok: true }; },
@@ -1061,19 +1063,105 @@ async function rig() {
     } finally { r.close(); }
   });
 
-  await test("DQ asks who advances, and reports that side", async () => {
+  await test("folded, the strip keeps ⇆ Sides, ⇄ Ports and Report, each the real key; there's no DQ", async () => {
     const r = await rig();
+    const proxy = (id) => r.page.$$(".strip-fold-keys [data-proxy]").find((b) => b.dataset.proxy === id);
     try {
       r.store.loadSet(fresh(LOSERS_FINAL));
-      await until(() => !r.page.$("#btn-dq").classList.contains("gone"), "the DQ key on a start.gg set");
-      fire(r.page.$("#btn-dq"), "click");
-      const pick = r.page.$("#report-confirm").querySelectorAll("button").find((b) => b.textContent.startsWith("Player3"));
-      assert.ok(pick, "a key per side");
-      fire(pick, "click");
-      await until(() => r.calls.dq.length === 1, "the DQ report");
-      assert.deepStrictEqual(r.calls.dq, [1]);
+      r.store.bump(0, 1);
+      r.status({ currentSet: { canReport: false, reason: "Score is tied" } });
+      await until(() => r.scoreText(0) === "1", "the set");
+      fire(r.page.$("#btn-strip-fold"), "click");
+      assert.deepStrictEqual(r.page.$$(".strip-fold-keys [data-proxy]").map((b) => b.dataset.proxy), ["btn-sides", "btn-ports", "btn-report"]);
+      assert.ok(!r.page.$("#btn-dq") && !r.page.$$("button").some((b) => /DQ/.test(b.textContent)), "no DQ key anywhere");
+      const dq = await fetch(r.base + "/api/report-dq", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{\"winnerSide\":0}" });
+      assert.strictEqual(dq.status, 404, "and no route behind one");
+
+      // Report mirrors the real key: off, with start.gg's reason as its tooltip.
+      await until(() => proxy("btn-report").disabled, "Report is off while it can't report");
+      assert.ok(!proxy("btn-report").classList.contains("gone"), "but shown: it's a start.gg set");
+      assert.match(proxy("btn-report").title, /Score is tied/);
+
+      fire(proxy("btn-sides"), "click");
+      await until(() => r.store.scoreboard().sides[0].players[0].tag === "Player3", "⇆ switched the sides");
+      fire(proxy("btn-ports"), "click");
+      await until(() => r.calls.swapPorts === 1, "⇄ swapped the ports");
+
+      r.status({ currentSet: { canReport: true } });
+      await until(() => !proxy("btn-report").disabled, "on once it can");
+      fire(proxy("btn-report"), "click");
+      assert.ok(r.page.$("#strip").classList.contains("folded"), "asks without unfolding the strip");
+      assert.ok(!r.page.$("#strip-body").querySelector("#report-confirm"), "the question sits outside the folded body");
+      assert.match(texts(r.page.$("#report-confirm")).join(""), /Player2.*1–0/);
+      fire(r.button(r.page.$("#report-confirm"), "Report it"), "click");
+      await until(() => r.calls.report === 1, "one report");
+
       r.store.clearSet();
-      await until(() => r.page.$("#btn-dq").classList.contains("gone"), "no DQ on a typed set");
+      await until(() => proxy("btn-report").classList.contains("gone"), "a manual set has no Report, folded or not");
+    } finally { r.close(); }
+  });
+
+  await test("every card folds to its header line, keeps a summary or its keys, and stays folded", async () => {
+    const r = await rig();
+    const card = (k) => r.page.$$("[data-fold]").find((c) => c.dataset.fold === k);
+    const fold = (c) => fire(c.querySelector(".fold-btn"), "click");
+    const folds = () => JSON.parse(r.page.window.localStorage.getItem("dock.folds") || "{}");
+    try {
+      const cards = r.page.$$("[data-fold]");
+      assert.ok(cards.length >= 17, `only ${cards.length} foldable cards`);
+      for (const c of cards) {
+        const btn = c.querySelector(".card-head .fold-btn");
+        assert.ok(btn, `${c.dataset.fold} has a fold key`);
+        assert.ok(btn.querySelector(".label"), `${c.dataset.fold}: its label is the fold key`);
+        fold(c);
+        assert.ok(c.classList.contains("folded"), `${c.dataset.fold} folds`);
+        assert.strictEqual(btn.getAttribute("aria-expanded"), "false");
+        assert.ok(c.querySelector(".fold-sum, .fold-keys, .card-meta, .badge, .switch"), `${c.dataset.fold} keeps something on its line`);
+      }
+      assert.strictEqual(Object.keys(folds()).length, cards.length, "each remembered");
+
+      // What a folded card says: the ports, as the map has them.
+      r.store.loadSet(fresh(LOSERS_FINAL));
+      r.status({ portMapping: { method: "character", ports: [{ port: 0, side: 0, slot: 0, name: "Player2" }, { port: 3, side: 1, slot: 0, name: "Player3" }] } });
+      await until(() => r.page.$("#sum-ports").textContent === "P1 Player2 · P4 Player3", "the ports on the folded line");
+
+      // Folded casters: the draft's tags, and Put on stream is the real key.
+      r.Dock.showTab("casters");
+      const put = card("casters.mic").querySelector("[data-proxy]");
+      assert.strictEqual(put.disabled, true, "nothing to put on stream");
+      fold(card("casters.mic")); // open it to type a tag
+      fire(r.page.$("#btn-caster-add"), "click");
+      const tag = r.page.$("#casters-list .c-tag");
+      tag.value = "Commentator";
+      fire(tag, "input");
+      fold(card("casters.mic"));
+      await until(() => !put.disabled, "a draft to send");
+      assert.strictEqual(r.page.$("#sum-casters").textContent, "Commentator");
+      fire(put, "click");
+      await until(() => r.store.casters().some((c) => c.tag === "Commentator"), "on stream from the folded card");
+
+      // A folded card opens for the question it asks: Start over a set with games.
+      r.store.bump(0, 1);
+      await until(() => r.scoreText(0) === "1", "a game on the set");
+      const start = card("crew.start");
+      assert.ok(start.classList.contains("folded"));
+      assert.match(r.page.$("#sum-crew-start").textContent, /stocks each/);
+      fire(start.querySelector("[data-proxy]"), "click");
+      assert.ok(!start.classList.contains("folded"), "it opened");
+      assert.match(texts(r.page.$("#crew-start-confirm")).join(""), /1–0/);
+
+      // Folded, This week's event keeps Singles and Doubles — off while a switch runs.
+      const ev = card("bracket.event").querySelectorAll("[data-proxy]");
+      assert.deepStrictEqual(ev.map((b) => b.textContent), ["Singles", "Doubles"]);
+      fire(ev[1], "click");
+      assert.ok(ev[0].disabled && ev[1].disabled, "both off mid-switch");
+      await until(() => r.store.tournament().kind === "doubles", "the doubles event loaded");
+      await until(() => !ev[0].disabled && !ev[1].disabled, "and back on");
+
+      // Opening one forgets it; the rest stay folded in the next dock.
+      assert.ok(!folds()["crew.start"], "opened by the question, and remembered open");
+      fold(card("set.ports"));
+      assert.ok(!folds()["set.ports"] && folds()["setup.machine"]);
     } finally { r.close(); }
   });
 

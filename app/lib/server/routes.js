@@ -15,7 +15,7 @@ const API = ["status", "scoreboard", "crew", "event", "players", "casters", "cli
  * @param {import("express").Express} app
  * @param {object} deps — {
  *   publicDir, iconsDir, store, event, playerDb, savedCrews, clipperSettings, obs,
- *   refreshControlStatus, clipperSnapshot, reportCurrentSet, reportDq, startCurrentSet, replays,
+ *   refreshControlStatus, clipperSnapshot, reportCurrentSet, startCurrentSet, replays,
  *   swapPorts, switchSides, reresolvePorts, gameLive, recordClip, playerStatsSnapshot,
  *   setupInfo, overlaysDir, emit
  * }

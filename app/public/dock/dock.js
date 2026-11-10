@@ -20,6 +20,10 @@
  *   - Nothing the operator is typing is overwritten by a push. A field that
  *     has focus, or has unsent edits, is left alone until it's committed.
  *   - No innerHTML. Names come from start.gg and from whoever typed them.
+ *
+ * Every card folds to its header line (foldable()), keeping a summary or a
+ * key or two there; a folded key is a proxy that presses the real one and
+ * mirrors its state (syncProxies(), run after every render).
  */
 (function () {
   "use strict";
@@ -30,8 +34,8 @@
   const TABS = ["set", "bracket", "casters", "players", "clips", "replays", "crew", "setup"];
   const TAB_KEY = "dock.tab";
   const FOLD_KEY = "dock.stripFolded";
+  const FOLDS_KEY = "dock.folds";     // { [card key]: 1 } for every folded card
   const WAITING_KEY = "dock.hideWaiting";
-  const ROSTER_KEY = "dock.rosterOpen";
   const HOLD_MS = 450;        // a long-press on a character opens its costumes
   const SETS_POLL_MS = 90000; // the app re-reads start.gg every 90s; this only picks that up
   const STALE_MS = 12000;     // no status for this long = the app has stopped talking
@@ -46,8 +50,40 @@
       } catch (err) {
         console.error(`[dock] ${name} failed`, err);
         return undefined;
+      } finally {
+        syncProxies();
       }
     };
+  }
+
+  /**
+   * A folded card's keys (and the folded strip's) are proxies: data-proxy
+   * names the real key, which a press clicks, so there is one handler and one
+   * set of rules. Each proxy shows what its key does now — disabled, gone,
+   * lit, its title. Run after every guarded render: those are what change them.
+   */
+  function syncProxies() {
+    try {
+      document.querySelectorAll("[data-proxy]").forEach((p) => {
+        const o = document.getElementById(p.dataset.proxy);
+        if (!o) return;
+        if (p.disabled !== o.disabled) p.disabled = o.disabled;
+        for (const c of ["gone", "lit"]) p.classList.toggle(c, o.classList.contains(c));
+        const title = o.title || o.dataset.tip || "";
+        if (p === tip.el) p.dataset.tip = title; // hovered: its title is the tooltip's
+        else if (p.title !== title) p.title = title;
+      });
+    } catch (err) {
+      console.error("[dock] proxies failed", err);
+    }
+  }
+
+  function wireProxies() {
+    document.querySelectorAll("[data-proxy]").forEach((p) => p.addEventListener("click", () => {
+      const o = document.getElementById(p.dataset.proxy);
+      if (o && !o.disabled) o.click();
+    }));
+    syncProxies();
   }
 
   /**
@@ -101,6 +137,8 @@
    * @param {{ html: Node[], yes: string, onYes: Function, onNo?: Function }} o — html is nodes, not a string
    */
   function confirmIn(slot, o) {
+    const folded = slot.closest ? slot.closest(".card.folded") : null;
+    if (folded) setFold(folded, false);
     const box = h("div", "confirm");
     const msg = h("div", "confirm-msg");
     msg.append(...o.html);
@@ -128,6 +166,125 @@
 
   /** A hardware key, built rather than written as markup. */
   const key = (label, cls) => button("key" + (cls ? " " + cls : ""), label);
+
+  // ── Folding cards ───────────────────────────────────────────────────────────
+
+  let folds = {};
+  try { folds = JSON.parse(store(FOLDS_KEY) || "{}") || {}; } catch (_) { folds = {}; }
+
+  /**
+   * Make a card fold to its header. The header's label (and its .fold-sum,
+   * the line a folded card shows) go into a fold key; the rest of the header
+   * stays — badges, a switch, .fold-only keys — and .open-only parts of it go
+   * when folded. Remembered per key in this browser. A card rebuilt with a new
+   * header is made foldable again; its state comes back from its key.
+   * @param {(open: boolean) => void} [onToggle] — after the operator folds or opens it
+   */
+  function foldable(card, foldKey, onToggle) {
+    const head = card.querySelector(".card-head");
+    if (!head || head.querySelector(".fold-btn")) return;
+    card.dataset.foldKey = foldKey;
+    if (onToggle) card.onFold = onToggle;
+    const label = head.querySelector(".label");
+    const sum = head.querySelector(".fold-sum");
+    const btn = button("fold-btn" + (label ? "" : " bare"));
+    btn.append(h("span", "fold-chev"));
+    if (label) btn.append(label);
+    if (sum) btn.append(sum);
+    head.replaceChildren(btn, ...Array.from(head.children));
+    btn.addEventListener("click", () => {
+      setFold(card, !card.classList.contains("folded"));
+      if (card.onFold) card.onFold(!card.classList.contains("folded"));
+    });
+    setFold(card, !!folds[foldKey], true);
+  }
+
+  function setFold(card, folded, quiet) {
+    card.classList.toggle("folded", folded);
+    const btn = card.querySelector(".fold-btn");
+    if (btn) btn.setAttribute("aria-expanded", String(!folded));
+    if (quiet) return;
+    const k = card.dataset.foldKey;
+    if (!k) return;
+    if (folded) folds[k] = 1;
+    else delete folds[k];
+    store(FOLDS_KEY, JSON.stringify(folds));
+  }
+
+  /** A folded card's one line. */
+  function setSum(id, text) {
+    const el = $(id);
+    if (el.textContent !== text) el.textContent = text;
+  }
+
+  // ── Tooltips ────────────────────────────────────────────────────────────────
+  //
+  // Every title="…" is drawn here instead of by the browser: OBS's dock browser
+  // cuts its native tooltips off at the dock's edge and through the text. The
+  // title moves to data-tip while the pointer is on it (so the native one
+  // never shows as well) and back when it leaves, so code reading .title sees
+  // what it set. Mouse only: a tap on a phone would leave one standing.
+
+  const TIP_DELAY_MS = 450;
+  const tip = { el: null, timer: null };
+
+  function tipPlace() {
+    const box = $("tip");
+    if (!tip.el || !box.classList.contains("on")) return;
+    const r = tip.el.getBoundingClientRect();
+    const vw = window.innerWidth || 400;
+    const vh = window.innerHeight || 600;
+    box.style.maxWidth = Math.max(120, Math.min(320, vw - 16)) + "px";
+    const b = box.getBoundingClientRect();
+    const below = r.bottom + 6;
+    const top = below + b.height <= vh - 8 ? below : Math.max(8, r.top - 6 - b.height);
+    const left = Math.max(8, Math.min(r.left + r.width / 2 - b.width / 2, vw - b.width - 8));
+    box.style.left = Math.round(left) + "px";
+    box.style.top = Math.round(top) + "px";
+  }
+
+  function tipHide() {
+    clearTimeout(tip.timer);
+    const el = tip.el;
+    tip.el = null;
+    $("tip").classList.remove("on");
+    if (!el) return;
+    // A render that set a new title meanwhile wins.
+    if (!el.getAttribute("title") && el.dataset.tip) el.setAttribute("title", el.dataset.tip);
+    delete el.dataset.tip;
+  }
+
+  function tooltips() {
+    document.addEventListener("pointerover", (e) => {
+      if (e.pointerType && e.pointerType !== "mouse") return;
+      const el = e.target && e.target.closest ? e.target.closest("[title], [data-tip]") : null;
+      if (el === tip.el) return;
+      tipHide();
+      const text = el && el.getAttribute("title");
+      if (!text) return;
+      tip.el = el;
+      el.dataset.tip = text;
+      el.removeAttribute("title");
+      tip.timer = setTimeout(() => {
+        if (tip.el !== el) return;
+        const box = $("tip");
+        box.textContent = el.dataset.tip || "";
+        box.style.left = "0px";
+        box.style.top = "0px";
+        box.classList.add("on");
+        tipPlace();
+      }, TIP_DELAY_MS);
+    });
+    document.addEventListener("pointerout", (e) => {
+      if (tip.el && !(e.relatedTarget && tip.el.contains(e.relatedTarget))) tipHide();
+    });
+    document.addEventListener("pointerdown", tipHide, true);
+    document.addEventListener("keydown", tipHide, true);
+    if (window.addEventListener) {
+      window.addEventListener("scroll", tipHide, true);
+      window.addEventListener("blur", tipHide);
+    }
+  }
 
   // ── Autocomplete ────────────────────────────────────────────────────────────
 
@@ -722,7 +879,6 @@
     const go = () => act("/api/doubles", { on }, on ? "Doubles — two players a side" : "Singles", "Couldn't switch");
     const partners = on ? [] : sb.sides.map((x) => x.players[1]).filter((p) => p && p.tag).map(playerName);
     if (!partners.length) return go();
-    if ($("strip").classList.contains("folded")) setFolded(false);
     confirmIn($("clear-confirm"), {
       html: rich("Back to singles? ", { b: partners.join(" and ") }, " come off the scoreboard."),
       yes: "Singles",
@@ -800,6 +956,10 @@
     badge.textContent = mapped ? pm.method || "—" : "—";
     badge.className = "badge" + (mapped && pm.method ? " " + pm.method : "");
 
+    setSum("sum-ports", mapped
+      ? pm.ports.map((p) => `P${p.port + 1} ${p.name || (p.side === 0 ? "Left" : "Right")}`).join(" · ")
+      : "No game yet");
+
     const list = $("ports-list");
     if (!pm.ports || !pm.ports.length) {
       list.replaceChildren(h("div", "empty-note", "No game yet — the ports are matched when one starts."));
@@ -830,11 +990,13 @@
     const report = $("btn-report");
     report.classList.toggle("gone", !fromStartgg);
     report.disabled = !fromStartgg || !cs.canReport;
+    // The folded strip has no hint line: its Report says why in its tooltip.
+    const why = fromStartgg && !cs.canReport ? cs.reason || "" : "";
+    const reportTitle = why ? `Can't report yet: ${why}` : "Report the result to start.gg (asks first)";
+    if (report === tip.el) report.dataset.tip = reportTitle; // hovered: the tooltip holds its title
+    else if (report.title !== reportTitle) report.title = reportTitle;
     if (!fromStartgg) $("report-confirm").replaceChildren();
-    // A DQ needs a real start.gg set, not a winning score.
-    const dqable = fromStartgg && !sb.crew && !String(sb.setId).includes("preview");
-    $("btn-dq").classList.toggle("gone", !dqable);
-    $("strip-hint").textContent = fromStartgg && !cs.canReport ? cs.reason || "" : "";
+    $("strip-hint").textContent = why;
   });
 
   $("btn-sides").addEventListener("click", () => act("/api/swap-sides", {}, "Sides switched", "Switch sides failed"));
@@ -888,29 +1050,6 @@
     });
   });
 
-  // A DQ: pick who advances, then it's reported with no games. Two steps, like Report.
-  $("btn-dq").addEventListener("click", () => {
-    if (!sb || !sb.setId) return;
-    const slot = $("report-confirm");
-    const box = h("div", "confirm");
-    const msg = h("div", "confirm-msg");
-    msg.append(...rich("Report a ", { b: "DQ" }, " to start.gg — who advances?"));
-    const row = h("div", "key-row");
-    [0, 1].forEach((i) => {
-      const k = key(`${sideName(sb.sides[i]) || (i ? "Right" : "Left")} advances`, "arm");
-      k.addEventListener("click", async () => {
-        slot.replaceChildren();
-        const r = await act("/api/report-dq", { winnerSide: i }, (x) => `Reported a DQ: ${x.winnerName} advances`, "DQ report failed");
-        if (r.ok) fetchSets();
-      });
-      row.append(k);
-    });
-    const no = key("Cancel");
-    no.addEventListener("click", () => slot.replaceChildren());
-    row.append(no);
-    box.append(msg, row);
-    slot.replaceChildren(box);
-  });
 
   // ── Header ──────────────────────────────────────────────────────────────────
 
@@ -938,6 +1077,7 @@
   function renderTournament(t) {
     eventTitle = [t && t.name, t && t.eventName].filter(Boolean).join(" — ");
     $("event-name").textContent = eventTitle || "No event loaded";
+    setSum("sum-event", eventTitle || "No event loaded");
     renderBracketHint();
   }
 
@@ -1006,6 +1146,13 @@
       ? (waiting ? `Show waiting (${waiting})` : "Show waiting")
       : "Hide waiting";
     filter.classList.toggle("gone", shown.length <= 8);
+
+    const ready = sets.filter((s) => s.status === "playable" && !isOnAir(s));
+    const next = ready[0];
+    setSum("sum-sets", setsError ? "Couldn't load sets"
+      : !sets.length ? "No open sets"
+      : next ? `${ready.length} ready · next ${next.names[0] || "TBD"} vs ${next.names[1] || "TBD"}`
+      : `${sets.length} ${showFinished ? "sets" : "open"} · none ready`);
 
     if (setsError) return list.replaceChildren(h("div", "empty-note", `Couldn't load sets: ${setsError}`));
     if (!sets.length) {
@@ -1117,10 +1264,12 @@
     bracketMsg = null;
     bracketBusy = true;
     BRACKET_KEYS.forEach((id) => { $(id).disabled = true; });
+    syncProxies(); // not a render: the folded card's Singles / Doubles go off with them
     $("bracket-hint").textContent = busyText;
     const r = await api(route, body);
     bracketBusy = false;
     BRACKET_KEYS.forEach((id) => { $(id).disabled = false; });
+    syncProxies();
     if (!r.ok) {
       bracketMsg = r.error; // stays up: it's usually a config fix or a wrong link
       $("bracket-hint").textContent = r.error;
@@ -1234,6 +1383,9 @@
       : mode === "board" ? (s.camera && s.camera.overview ? "Board · Overview" : "Board · steered")
       : pages.length === 0 ? "nothing to show yet"
       : `${mode === "tour" ? "Touring" : "Held"} · page ${at + 1} of ${pages.length}`;
+    setSum("sum-bracket", !bracket ? "No bracket yet"
+      : [VIEW_NAMES[v] || "?", mode === "board" ? "Board"
+        : pages.length ? `${mode === "tour" ? "touring" : "held"} ${at + 1}/${pages.length}` : ""].filter(Boolean).join(" · "));
 
     const lay = boardLayout();
     document.querySelectorAll("#bracket-dpad .key").forEach((b) => { b.disabled = !lay; });
@@ -1352,6 +1504,8 @@
     $("btn-casters-revert").disabled = !dirty;
     const live = casters.filter((c) => c.tag).length;
     $("casters-stamp").textContent = dirty ? "Not on stream yet" : live ? `${live} on stream` : "";
+    const tags = (casterDraft || casters).map((c) => String(c.tag || "").trim()).filter(Boolean);
+    setSum("sum-casters", tags.length ? tags.join(" · ") : "Nobody on the mic");
   }
 
   function casterRow(c, i) {
@@ -1581,13 +1735,21 @@
     savedSelects = [];
     $("crew-draft").replaceChildren(...crewDraft.teams.map(draftCard));
     $("crew-stocks").value = String(crewDraft.stocksEach);
+    renderCrewStartSum();
   });
+
+  /** The Crew battle card's folded line: what Start would put on. */
+  function renderCrewStartSum() {
+    const [a, b] = crewDraft.teams.map((t, i) => t.name.trim() || `${SIDE_NAMES[i]} crew`);
+    setSum("sum-crew-start", `${a} vs ${b} · ${crewDraft.stocksEach} stock${crewDraft.stocksEach === 1 ? "" : "s"} each`);
+  }
 
   function draftCard(team, i) {
     const card = h("div", `card crew-card s${i}`);
     const head = h("div", "card-head");
     const count = draftMembers(team).length;
-    head.append(h("span", "label", `${SIDE_NAMES[i]} crew`), h("span", "card-meta", count ? `${count} player${count === 1 ? "" : "s"}` : ""));
+    const sum = h("span", "fold-sum", team.name.trim() || "No name yet");
+    head.append(h("span", "label", `${SIDE_NAMES[i]} crew`), sum, h("span", "card-meta", count ? `${count} player${count === 1 ? "" : "s"}` : ""));
 
     const name = h("input", "crew-name-in");
     name.type = "text";
@@ -1595,7 +1757,12 @@
     name.spellcheck = false;
     name.maxLength = 40;
     name.value = team.name;
-    name.addEventListener("input", () => { team.name = name.value; saveCrewDraft(); });
+    name.addEventListener("input", () => {
+      team.name = name.value;
+      saveCrewDraft();
+      sum.textContent = team.name.trim() || "No name yet";
+      renderCrewStartSum();
+    });
 
     const list = h("div", "crew-members");
     team.members.forEach((m, n) => list.append(draftRow(team, m, n)));
@@ -1609,6 +1776,7 @@
       if (tags.length) tags[tags.length - 1].focus();
     });
     card.append(head, name, savedRow(i), list, add);
+    foldable(card, `crew.draft.${i}`);
     return card;
   }
 
@@ -1706,6 +1874,7 @@
   $("crew-stocks").addEventListener("change", () => {
     crewDraft.stocksEach = Number($("crew-stocks").value) || 4;
     saveCrewDraft();
+    renderCrewStartSum();
   });
 
   // Over a set with games, it asks first: starting replaces it, unreported.
@@ -1748,12 +1917,15 @@
 
   function renderRosters() {
     const crew = sb.crew;
+    setSum("sum-crew-live", crew.teams.map((t) => `${t.name} ${t.total}`).join(" – "));
     crew.teams.forEach((team, i) => {
       const k = team.members.map((m) => m.id).join(",");
       if (!rosterUi[i] || rosterUi[i].key !== k) buildRoster(i, team, k);
       const ui = rosterUi[i];
       setField(ui.nameIn, team.name);
       ui.left.textContent = `${team.total} stock${team.total === 1 ? "" : "s"} left`;
+      const isIn = team.members.find((m) => m.status === "active");
+      ui.sum.textContent = `${team.name || SIDE_NAMES[i]} · ${isIn ? `in: ${isIn.tag}` : "nobody in"}`;
       ui.add.disabled = team.members.length >= MAX_CREW;
       team.members.forEach((m, n) => {
         const r = ui.rows[n];
@@ -1780,8 +1952,10 @@
     nameIn.spellcheck = false;
     nameIn.maxLength = 40;
     bindField(nameIn, (v) => sendRoster(i, { name: v }));
+    nameIn.classList.add("open-only");
     const left = h("span", "card-meta crew-left");
-    head.append(nameIn, left);
+    const sum = h("span", "fold-sum");
+    head.append(sum, nameIn, left);
 
     const list = h("div", "crew-members");
     const rows = team.members.map((m, n) => {
@@ -1814,7 +1988,8 @@
       $("crew-rosters").append(card);
     }
     card.replaceChildren(head, list, add);
-    rosterUi[i] = { key: k, card, nameIn, left, rows, add };
+    foldable(card, `crew.live.${i}`);
+    rosterUi[i] = { key: k, card, nameIn, left, sum, rows, add };
   }
 
   /** Member n of side i's row. Its keys read the member when pressed — the row outlives a push. */
@@ -2039,7 +2214,7 @@
   let rosterFetched = false;
   let rosterReq = 0;
 
-  const rosterOpen = () => $("roster").classList.contains("open");
+  const rosterOpen = () => !$("roster").classList.contains("folded");
 
   /** Read when looked at: the tab shown or the card opened, and a new event. */
   async function fetchRoster() {
@@ -2113,18 +2288,8 @@
     return row;
   }
 
-  function setRosterOpen(open) {
-    $("roster").classList.toggle("open", open);
-    const btn = $("btn-roster-fold");
-    btn.setAttribute("aria-expanded", String(open));
-    btn.title = open ? "Fold the roster" : "Open the roster";
-    store(ROSTER_KEY, open ? "1" : "0");
-    if (open && $("panel-players").classList.contains("on")) fetchRoster();
-  }
-  $("btn-roster-fold").addEventListener("click", () => setRosterOpen(!rosterOpen()));
   $("roster-search").addEventListener("input", renderRoster);
   $("roster-missing").addEventListener("change", renderRoster);
-  setRosterOpen(store(ROSTER_KEY) !== "0");
 
   $("player-search").addEventListener("input", () => {
     clearTimeout(fetchPlayers.timer);
@@ -2195,8 +2360,15 @@
       }
     }
     $("clip-status").textContent = clipperStatusText(c);
+    setSum("sum-clipper", !s.enabled ? "Off"
+      : !c.obs || !c.obs.connected ? "OBS not connected"
+      : c.obs.bufferActive === false ? "Replay buffer not running"
+      : "Buffer running" + (c.clipsThisGame ? ` · ${c.clipsThisGame} this game` : ""));
 
     const clips = c.recentClips || [];
+    const last = clips[0];
+    setSum("sum-clips", !last ? "None yet tonight"
+      : `${clips.length} · last ${last.ok ? last.playerName || "clip" : "failed"} at ${new Date(last.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
     if (!clips.length) {
       $("clip-list").replaceChildren(h("div", "empty-note", "No clips yet tonight."));
       return;
@@ -2397,6 +2569,7 @@
     const [badgeText, badgeCls] = set.problem ? ["Incomplete", "warn"]
       : set.upload ? (UPLOAD_BADGE[set.upload.state] || [set.upload.state, ""]) : [set.reported ? "Reported" : "Kept", ""];
     head.append(h("span", "label", [set.round, set.tournament].filter(Boolean).join(" · ") || `Set ${set.setId}`),
+      h("span", "fold-sum", `${set.sides[0].name || "?"} ${set.score[0]}–${set.score[1]} ${set.sides[1].name || "?"}`),
       h("span", "badge " + badgeCls, badgeText));
     card.append(head);
 
@@ -2454,6 +2627,7 @@
       keys.append(forget);
       card.append(slot);
     }
+    foldable(card, `replay.${set.setId}`);
     return card;
   }
 
@@ -2487,6 +2661,16 @@
     $("btn-replays-status").disabled = !up.enabled || !c;
     $("btn-replays-finish").disabled = !up.enabled || !c;
     $("btn-replays-reopen").disabled = !up.enabled || !c;
+
+    const count = (states) => r.sets.filter((s) => s.upload && states.includes(s.upload.state)).length;
+    const parts = [`${r.sets.length} set${r.sets.length === 1 ? "" : "s"}`];
+    const staged = count(["staged"]);
+    const moving = count(["queued", "uploading", "retry"]);
+    const broken = count(["failed", "blocked"]) + r.sets.filter((s) => s.problem).length;
+    if (staged) parts.push(`${staged} uploaded`);
+    if (moving) parts.push(`${moving} uploading`);
+    if (broken) parts.push(`${broken} need a look`);
+    setSum("sum-replays", parts.join(" · "));
 
     const list = $("replays-list");
     if (!r.sets.length) {
@@ -2590,6 +2774,7 @@
     }
     sel.value = setup.theme || "";
     sel.disabled = packs.length < 2;
+    setSum("sum-theme", setup.theme ? packName(setup.theme) : "—");
   }
 
   $("theme-pack").addEventListener("change", async () => {
@@ -2611,12 +2796,15 @@
     renderThemes();
     $("setup-overlays").replaceChildren(...(setup.overlays || []).map((o) =>
       copyRow(o.name, (setup.base || "") + o.path, o.size, o.note)));
+    const n = (setup.overlays || []).length;
+    setSum("sum-sources", `${n} page${n === 1 ? "" : "s"} · ${setup.base || ""}/o/…`);
 
     const hk = setup.hotkeys || {};
     const mode = hk.mode || "none";
     $("hotkeys-mode").textContent = mode === "global" ? "Global" : mode === "terminal" ? "Console only" : "Off";
     $("hotkeys-mode").className = "badge " + (mode === "global" ? "ok" : "warn");
     const bindings = hk.bindings || [];
+    setSum("sum-hotkeys", `${bindings.length} bound` + ((hk.errors || []).length ? ` · ${hk.errors.length} not` : ""));
     $("setup-hotkeys").replaceChildren(...(bindings.length ? bindings.map((b) => {
       const row = h("div", "hk-row");
       row.append(h("span", "hk-label", b.label), keycaps(b.chord));
@@ -2629,6 +2817,7 @@
     applyKeyHints();
 
     const lan = setup.lan || [];
+    setSum("sum-lan", lan.length ? lan[0].url : "No network address");
     $("setup-lan").replaceChildren(...(lan.length
       ? lan.map((a) => copyRow(a.name + (a.tailscale ? " · Tailscale" : ""), a.url))
       : [h("div", "empty-note", "No network address — this machine isn't on a network.")]));
@@ -2640,6 +2829,7 @@
     };
     const gg = setup.startgg || {};
     const pl = setup.players || {};
+    setSum("sum-machine", `${pl.count == null ? "?" : pl.count} player${pl.count === 1 ? "" : "s"} · ${gg.token ? "start.gg token set" : "no start.gg token"}`);
     $("setup-files").replaceChildren(
       fact("Players", `${pl.file || "?"} · ${pl.count == null ? "?" : pl.count} players`),
       fact("Slippi", setup.slippiFolder || "not set (config.SLP_FOLDER)"),
@@ -2886,6 +3076,14 @@
   setInterval(() => {
     if (statusAt && Date.now() - statusAt > STALE_MS) document.body.classList.add("stale");
   }, 3000);
+
+  // The roster is read when it's opened on its tab, as when the tab is shown.
+  const FOLD_HOOKS = {
+    "players.roster": (open) => { if (open && $("panel-players").classList.contains("on")) fetchRoster(); },
+  };
+  document.querySelectorAll("[data-fold]").forEach((card) => foldable(card, card.dataset.fold, FOLD_HOOKS[card.dataset.fold]));
+  wireProxies();
+  tooltips();
 
   renderCasters();
   renderCrewDraft();

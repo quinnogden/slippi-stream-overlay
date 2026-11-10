@@ -118,6 +118,21 @@ test("every overlay the Setup tab offers for OBS is a page the app serves", () =
   }
 });
 
+test("every folded key presses a key that exists, and every foldable card has a header to fold to", () => {
+  const proxies = [...html.matchAll(/data-proxy="([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(proxies.length >= 8, `only ${proxies.length} proxies`);
+  const missing = proxies.filter((id) => !declared.has(id));
+  assert.deepStrictEqual(missing, [], `proxies for keys that aren't in the page: ${missing.join(", ")}`);
+  const keys = [...html.matchAll(/data-fold="([^"]+)"/g)].map((m) => m[1]);
+  assert.strictEqual(new Set(keys).size, keys.length, "fold keys are unique — two cards would share a state");
+  for (const m of html.matchAll(/data-fold="([^"]+)">\s*<div class="card-head">\s*<span class="label">/g)) keys.splice(keys.indexOf(m[1]), 1);
+  assert.deepStrictEqual(keys, [], `cards whose header doesn't open on a label: ${keys.join(", ")}`);
+  // CSS the sandbox can't check: folded, the strip swaps Doubles for its keys.
+  assert.match(css, /\.strip\.folded \.mode-key \{ display: none; \}/);
+  assert.match(css, /\.strip:not\(\.folded\) \.strip-fold-keys \{ display: none; \}/);
+  assert.match(css, /\.card\.folded > :not\(\.card-head\) \{ display: none; \}/);
+});
+
 test("no innerHTML anywhere in the script", () => {
   // Tags and names come from start.gg and from whoever typed them.
   assert.ok(!/\.(innerHTML|outerHTML)\s*=|insertAdjacentHTML\s*\(/.test(js));

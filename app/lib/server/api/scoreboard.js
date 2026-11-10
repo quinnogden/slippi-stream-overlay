@@ -59,12 +59,12 @@ function pickCharacter(characters, codename, skin) {
 /**
  * @param {import("express").Express} app
  * @param {object} deps — { store, iconsDir, refreshControlStatus, swapPorts,
- *   switchSides, reresolvePorts, reportCurrentSet, reportDq, startCurrentSet }
+ *   switchSides, reresolvePorts, reportCurrentSet, startCurrentSet }
  */
 function register(app, deps) {
   const {
     store, iconsDir, refreshControlStatus, swapPorts, switchSides, reresolvePorts,
-    reportCurrentSet, reportDq, startCurrentSet,
+    reportCurrentSet, startCurrentSet,
   } = deps;
 
   const characters = characterList(iconsDir);
@@ -228,13 +228,6 @@ function register(app, deps) {
 
   app.post("/api/report", async (req, res) => {
     res.json(await reportCurrentSet());
-  });
-
-  // { winnerSide }: the other side is disqualified. The dock asks first.
-  app.post("/api/report-dq", async (req, res) => {
-    const side = req.body?.winnerSide;
-    if (!isSide(side)) return bad(res, "winnerSide must be 0 or 1");
-    res.json(await reportDq(side));
   });
 }
 

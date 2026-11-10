@@ -40,6 +40,13 @@
         <button class="key mini mode-key" id="btn-doubles" type="button" aria-pressed="false" title="Doubles: two players a side, and a team colour instead of characters">Doubles</button>
         <!-- Only during a crew battle, in Doubles' place. -->
         <button class="key mini mode-key lit" id="btn-crew" type="button" title="A crew battle is on the scoreboard — its rosters are in the Crew tab">Crew</button>
+        <!-- Folded: the strip's keys reached for mid-set, in Doubles' place.
+             Each presses the key it names (data-proxy) and mirrors its state. -->
+        <span class="fold-keys strip-fold-keys">
+          <button class="key mini" type="button" data-proxy="btn-sides">⇆<span class="kl"> Sides</span></button>
+          <button class="key mini" type="button" data-proxy="btn-ports">⇄<span class="kl"> Ports</span></button>
+          <button class="key mini arm gone" type="button" data-proxy="btn-report">Report</button>
+        </span>
       </div>
 
       <div class="strip-body" id="strip-body">
@@ -69,12 +76,12 @@
         <div class="strip-tools">
           <button class="key ghost mini" id="btn-clear-score" type="button" title="Back to 0–0 on this set. The names stay">Clear score</button>
           <button class="key ghost mini" id="btn-clear-set" type="button" title="An empty scoreboard, for a set that isn't on start.gg: type the names in. Nothing is reported">Clear set</button>
-          <button class="key ghost mini gone" id="btn-dq" type="button" title="Report this set to start.gg as a DQ: pick who advances (asks first)">DQ…</button>
         </div>
-        <div id="report-confirm"></div>
-        <div id="clear-confirm"></div>
         <div class="strip-hint" id="strip-hint"></div>
       </div>
+      <!-- Outside the body, so Report from the folded strip asks in place. -->
+      <div id="report-confirm"></div>
+      <div id="clear-confirm"></div>
     </section>
 
     <section class="desk">
@@ -91,10 +98,11 @@
 
       <!-- ── Set ── -->
       <div class="panel" id="panel-set">
-        <div class="card">
+        <div class="card" data-fold="set.upnext">
           <div class="card-head">
             <span class="label">Up next</span>
-            <span class="card-meta" id="sets-stamp"></span>
+            <span class="fold-sum" id="sum-sets"></span>
+            <span class="card-meta open-only" id="sets-stamp"></span>
             <button class="key mini" id="btn-refresh-sets" type="button" title="Re-read start.gg">↻</button>
           </div>
           <input class="filter" id="set-filter" type="search" placeholder="Filter by player or round…" />
@@ -105,9 +113,10 @@
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" data-fold="set.ports">
           <div class="card-head">
             <span class="label">Ports</span>
+            <span class="fold-sum" id="sum-ports"></span>
             <span class="badge" id="method-badge">—</span>
           </div>
           <div id="ports-list"></div>
@@ -118,8 +127,17 @@
 
       <!-- ── Bracket ── -->
       <div class="panel" id="panel-bracket">
-        <div class="card">
-          <div class="card-head"><span class="label">Bracket overlay</span></div>
+        <div class="card" data-fold="bracket.overlay">
+          <div class="card-head">
+            <span class="label">Bracket overlay</span>
+            <span class="fold-sum" id="sum-bracket"></span>
+            <span class="fold-keys fold-only">
+              <button class="key mini" type="button" data-proxy="btn-cam-prev" aria-label="Previous page">◀</button>
+              <button class="key mini" type="button" data-proxy="btn-cam-auto">Auto</button>
+              <button class="key mini" type="button" data-proxy="btn-cam-next" aria-label="Next page">▶</button>
+              <button class="key mini" type="button" data-proxy="btn-cam-live">◎</button>
+            </span>
+          </div>
           <div class="seg" id="bracket-views">
             <button class="key" type="button" data-view="winners">Winners</button>
             <button class="key" type="button" data-view="losers">Losers</button>
@@ -159,8 +177,15 @@
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-head"><span class="label">This week's event</span></div>
+        <div class="card" data-fold="bracket.event">
+          <div class="card-head">
+            <span class="label">This week's event</span>
+            <span class="fold-sum" id="sum-event"></span>
+            <span class="fold-keys fold-only">
+              <button class="key mini" type="button" data-proxy="btn-bracket-singles">Singles</button>
+              <button class="key mini" type="button" data-proxy="btn-bracket-doubles">Doubles</button>
+            </span>
+          </div>
           <div class="key-row">
             <button class="key" id="btn-bracket-singles" type="button" data-kind="singles">Singles</button>
             <button class="key" id="btn-bracket-doubles" type="button" data-kind="doubles">Doubles</button>
@@ -178,10 +203,14 @@
 
       <!-- ── Casters ── -->
       <div class="panel" id="panel-casters">
-        <div class="card" id="casters-card">
+        <div class="card" id="casters-card" data-fold="casters.mic">
           <div class="card-head">
             <span class="label">On the mic</span>
+            <span class="fold-sum" id="sum-casters"></span>
             <span class="card-meta" id="casters-stamp"></span>
+            <span class="fold-keys fold-only">
+              <button class="key mini go" type="button" data-proxy="btn-casters-save">Put on stream</button>
+            </span>
           </div>
           <!-- Edits stay here until Put on stream: a half-typed tag never
                reaches the broadcast, and a push can't undo one. -->
@@ -199,12 +228,11 @@
       <div class="panel" id="panel-players">
         <!-- The loaded event's players, to set each one's main before they're
              on stream. Folds away; remembered. -->
-        <div class="card roster open" id="roster">
-          <button class="card-head roster-fold" id="btn-roster-fold" type="button" aria-expanded="true" aria-controls="roster-body" title="Fold the roster">
-            <span class="fold-chev" aria-hidden="true"></span>
+        <div class="card roster" id="roster" data-fold="players.roster">
+          <div class="card-head">
             <span class="label">Event roster</span>
             <span class="card-meta" id="roster-stamp"></span>
-          </button>
+          </div>
           <div class="roster-body" id="roster-body">
             <div class="roster-tools">
               <input class="filter" id="roster-search" type="search" placeholder="Filter by tag…" spellcheck="false" />
@@ -215,7 +243,7 @@
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" data-fold="players.list">
           <div class="card-head">
             <span class="label">Player list</span>
             <span class="card-meta" id="players-stamp"></span>
@@ -228,9 +256,13 @@
 
       <!-- ── Clips ── -->
       <div class="panel" id="panel-clips">
-        <div class="card">
+        <div class="card" data-fold="clips.clipper">
           <div class="card-head">
             <span class="label">Combo clipper</span>
+            <span class="fold-sum" id="sum-clipper"></span>
+            <span class="fold-keys fold-only">
+              <button class="key mini" type="button" data-proxy="btn-clip-test">Test clip</button>
+            </span>
             <label class="switch" title="Detect combos and save the OBS replay buffer">
               <input type="checkbox" id="clip-enabled" /> <span>On</span>
             </label>
@@ -245,8 +277,11 @@
           </div>
           <div class="hint" id="clip-hint"></div>
         </div>
-        <div class="card">
-          <div class="card-head"><span class="label">Recent clips</span></div>
+        <div class="card" data-fold="clips.recent">
+          <div class="card-head">
+            <span class="label">Recent clips</span>
+            <span class="fold-sum" id="sum-clips"></span>
+          </div>
           <div class="clip-list" id="clip-list"></div>
         </div>
       </div>
@@ -256,8 +291,14 @@
         <!-- Before a battle: the two crews, a draft kept in this browser. -->
         <div id="crew-setup">
           <div class="crew-cols" id="crew-draft"></div>
-          <div class="card">
-            <div class="card-head"><span class="label">Crew battle</span></div>
+          <div class="card" data-fold="crew.start">
+            <div class="card-head">
+              <span class="label">Crew battle</span>
+              <span class="fold-sum" id="sum-crew-start"></span>
+              <span class="fold-keys fold-only">
+                <button class="key mini go" type="button" data-proxy="btn-crew-start">Start</button>
+              </span>
+            </div>
             <label class="field">
               <span>Stocks each</span>
               <select id="crew-stocks">
@@ -283,7 +324,14 @@
         <!-- During one: each crew's roster as the scoreboard has it. -->
         <div id="crew-live" hidden>
           <div class="crew-cols" id="crew-rosters"></div>
-          <div class="card">
+          <div class="card" data-fold="crew.end">
+            <div class="card-head">
+              <span class="label">Crew battle</span>
+              <span class="fold-sum" id="sum-crew-live"></span>
+              <span class="fold-keys fold-only">
+                <button class="key mini arm" type="button" data-proxy="btn-crew-end">End</button>
+              </span>
+            </div>
             <div class="key-row">
               <button class="key arm" id="btn-crew-end" type="button" title="Take the crew battle off the scoreboard (asks first)">End crew battle</button>
             </div>
@@ -295,9 +343,10 @@
 
       <!-- ── Replays ── -->
       <div class="panel" id="panel-replays">
-        <div class="card">
+        <div class="card" data-fold="replays.uploads">
           <div class="card-head">
             <span class="label">LuckyStats uploads</span>
+            <span class="fold-sum" id="sum-replays"></span>
             <span class="badge" id="replays-badge">—</span>
           </div>
           <div class="hint" id="replays-status">—</div>
@@ -316,34 +365,47 @@
 
       <!-- ── Setup ── -->
       <div class="panel" id="panel-setup">
-        <div class="card">
-          <div class="card-head"><span class="label">Theme</span></div>
+        <div class="card" data-fold="setup.theme">
+          <div class="card-head">
+            <span class="label">Theme</span>
+            <span class="fold-sum" id="sum-theme"></span>
+          </div>
           <label class="field">
             <span>Pack on stream</span>
             <select id="theme-pack"></select>
           </label>
           <div class="hint">Every overlay fades out and reloads in the new pack. It's saved in overlays/theme.css, so it stays after a restart — switch back when the event is over.</div>
         </div>
-        <div class="card">
-          <div class="card-head"><span class="label">OBS browser sources</span></div>
+        <div class="card" data-fold="setup.sources">
+          <div class="card-head">
+            <span class="label">OBS browser sources</span>
+            <span class="fold-sum" id="sum-sources"></span>
+          </div>
           <div id="setup-overlays"></div>
           <div class="hint">Add each as a Browser source at its size.</div>
         </div>
-        <div class="card">
+        <div class="card" data-fold="setup.hotkeys">
           <div class="card-head">
             <span class="label">Hotkeys</span>
+            <span class="fold-sum" id="sum-hotkeys"></span>
             <span class="badge" id="hotkeys-mode">—</span>
           </div>
           <div id="setup-hotkeys"></div>
           <div class="hint" id="hotkeys-hint"></div>
         </div>
-        <div class="card">
-          <div class="card-head"><span class="label">This dock on a phone</span></div>
+        <div class="card" data-fold="setup.lan">
+          <div class="card-head">
+            <span class="label">This dock on a phone</span>
+            <span class="fold-sum" id="sum-lan"></span>
+          </div>
           <div id="setup-lan"></div>
           <div class="hint">Any device on the same network. Tailscale addresses survive a venue's network and its guest Wi-Fi.</div>
         </div>
-        <div class="card">
-          <div class="card-head"><span class="label">This machine</span></div>
+        <div class="card" data-fold="setup.machine">
+          <div class="card-head">
+            <span class="label">This machine</span>
+            <span class="fold-sum" id="sum-machine"></span>
+          </div>
           <div class="facts" id="setup-files"></div>
         </div>
       </div>
@@ -371,6 +433,10 @@
 
   <!-- Suggestions for whichever text field has focus (autocomplete() in dock.js). -->
   <div class="ac-menu" id="ac-menu" role="listbox"></div>
+
+  <!-- Every hover tooltip (title="…"), drawn by the dock: OBS's dock browser
+       clips its native ones. tooltips() in dock.js. -->
+  <div class="tip" id="tip" role="tooltip"></div>
 
   <div class="toast" id="toast"></div>
 

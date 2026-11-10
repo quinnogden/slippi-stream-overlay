@@ -128,15 +128,6 @@ async function reportCurrentSet() {
   }
   return result;
 }
-// A DQ: no games, so nothing to learn or bundle — the bracket still moves.
-async function reportDq(winnerSide) {
-  const result = await reportSet.reportDq(winnerSide);
-  if (result.ok) {
-    playerStats.onSetReported();
-    setTimeout(() => ctx.event.refresh({ background: true }), 3000).unref?.();
-  }
-  return result;
-}
 // Ctrl+Shift+S and the dock's ⇄: the ports are the wrong way round.
 function swapPorts() {
   const result = modes.swapPorts();
@@ -201,7 +192,6 @@ registerRoutes(app, {
   refreshControlStatus: controlStatus.refresh,
   clipperSnapshot: controlStatus.clipperSnapshot,
   reportCurrentSet,
-  reportDq,
   startCurrentSet,
   replays,
   swapPorts,

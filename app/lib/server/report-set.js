@@ -59,30 +59,7 @@ function createReportSet(ctx, refreshControlStatus) {
     return { ok: true, winnerName, score: `${r.sides[0].score}-${r.sides[1].score}` };
   }
 
-  /**
-   * Report the loaded set as a DQ: `winnerSide` advances, the other side was
-   * disqualified. No game data — a DQ has no games. Same gate as a report;
-   * the score on the scoreboard doesn't matter.
-   * @param {0|1} winnerSide
-   * @returns {Promise<{ ok: boolean, winnerName?: string, error?: string }>}
-   */
-  async function reportDq(winnerSide) {
-    if (winnerSide !== 0 && winnerSide !== 1) return { ok: false, error: "winnerSide must be 0 or 1" };
-    const sb = store.scoreboard();
-    const { canReport, reason } = evaluateReportability(ctx, sb.setId);
-    if (!canReport) return { ok: false, error: reason };
-    if (sb.crew) return { ok: false, error: "A crew battle isn't a start.gg set" };
-    const w = sb.sides[winnerSide];
-    if (!w.entrantId || !sb.sides[1 - winnerSide].entrantId) return { ok: false, error: "Both sides need their start.gg entrant — reload the set from Up next" };
-
-    const result = await startgg.reportSet(sb.setId, w.entrantId, undefined, { isDQ: true });
-    if (!result.ok) return result;
-    refreshControlStatus();
-    const winnerName = w.teamName || w.players.map((p) => p.tag).filter(Boolean).join(" / ");
-    return { ok: true, winnerName };
-  }
-
-  return { reportCurrentSet, reportDq };
+  return { reportCurrentSet };
 }
 
 module.exports = { createReportSet, evaluateReportability, gameDataOf };

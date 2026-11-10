@@ -210,6 +210,9 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 }
 .key:disabled { opacity: .36; cursor: not-allowed; }
 .key.mini { min-height: 28px; padding: 0 9px; font-size: 12px; }
+/* A key that doesn't apply right now (Start and Report on a manual set, and
+   their folded proxies) takes no room. */
+.key.gone { display: none; }
 .key.wide { width: 100%; }
 .key.ghost { background: transparent; box-shadow: none; border-color: var(--d-line-2); }
 
@@ -330,7 +333,8 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
   color: var(--d-ink-dim);
   transition: transform .15s ease;
 }
-.strip.folded .fold-chev::before { transform: rotate(-90deg); }
+.strip.folded .fold-chev::before,
+.card.folded .fold-chev::before { transform: rotate(-90deg); }
 
 .strip-summary {
   display: none;
@@ -352,6 +356,14 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 }
 
 .mode-key { flex: none; }
+
+/* Folded, the strip keeps the keys reached for mid-set — ⇆ Sides, ⇄ Ports,
+   Report — in Doubles' place. Doubles (and the crew chip) are open-only. */
+.strip:not(.folded) .strip-fold-keys { display: none; }
+.strip.folded .mode-key { display: none; }
+.strip-fold-keys .key.mini { padding: 0 8px; }
+/* An OBS dock is narrow: the folded keys go to their symbols, so the names keep the room. */
+@media (max-width: 480px) { .strip-fold-keys .kl { display: none; } }
 
 .strip-body { display: grid; gap: 6px; }
 .strip.folded .strip-body { display: none; }
@@ -574,8 +586,6 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 
 .strip-actions { display: flex; gap: 5px; }
 .strip-actions .key { flex: 1 1 0; min-width: 0; min-height: 36px; padding: 0 4px; font-size: 13px; }
-/* Start and Report only exist for a start.gg set; the rest take the room. */
-.strip-actions .key.gone, .strip-tools .key.gone { display: none; }
 
 .strip-tools { display: flex; gap: 5px; }
 .strip-tools .key { flex: 1 1 0; }
@@ -606,6 +616,8 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 .strip-hint { font-size: 12px; color: var(--d-ink-dim); min-height: 1em; }
 .strip-hint:empty { display: none; }
 #report-confirm:empty, #clear-confirm:empty { display: none; }
+/* Outside the strip's body so Report asks in place when it's folded: the
+   strip's grid gap spaces them. */
 
 /* An inline "are you sure", for anything that touches start.gg or loses work. */
 .confirm {
@@ -668,9 +680,54 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
   gap: 8px;
   margin-bottom: 10px;
 }
-.card-head .label { flex: 1 1 auto; }
+.card-head > .label { flex: 1 1 auto; }
 .card-meta { font: 500 11px/1 var(--d-mono); color: var(--d-ink-faint); }
 .card-foot { display: flex; justify-content: space-between; margin-top: 6px; }
+
+/* ── Folding cards (foldable() in dock.js) ──
+   The header's label is a fold key; folded, the card is its header line: the
+   label, a one-line summary (.fold-sum) and whatever else the header keeps —
+   a badge, a switch, a key or two (.fold-only). .open-only header parts go. */
+.fold-btn {
+  flex: 1 1 150px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 0;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.fold-btn .label { flex: none; }
+.fold-btn:hover .label { color: var(--d-ink); }
+.fold-btn:hover .fold-chev::before { color: var(--d-ink); }
+/* No label (a live crew's name is a field): the chevron alone until folded. */
+.fold-btn.bare { flex: none; }
+.card.folded .fold-btn.bare { flex: 1 1 150px; }
+
+.fold-sum {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 600 13px/1.25 var(--d-text);
+  color: var(--d-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fold-keys { flex: none; display: inline-flex; gap: 4px; margin-left: auto; }
+.fold-keys .key.mini { min-height: 26px; }
+
+.card:not(.folded) .fold-sum,
+.card:not(.folded) .fold-only,
+.card.folded .open-only { display: none; }
+.card.folded { padding-top: 8px; padding-bottom: 8px; }
+/* The header wraps only if its keys can't sit beside the summary. */
+.card.folded > .card-head { margin-bottom: 0; flex-wrap: wrap; row-gap: 6px; }
+.card.folded > :not(.card-head) { display: none; }
 
 .badge {
   padding: 3px 8px 2px;
@@ -992,21 +1049,7 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 .pl-edit .key-row { grid-column: 1 / -1; margin: 10px 0 2px; }
 @media (max-width: 480px) { .pl-edit { grid-template-columns: 1fr 1fr; } }
 
-/* The event roster: a folding card of the loaded event's players, a tap to set each one's main. */
-.roster-fold {
-  width: 100%;
-  padding: 0;
-  color: inherit;
-  text-align: left;
-  background: none;
-  border: 0;
-  cursor: pointer;
-}
-.roster-fold:hover .label { color: var(--d-ink); }
-.roster:not(.open) .roster-fold { margin-bottom: 0; }
-.roster:not(.open) .fold-chev::before { transform: rotate(-90deg); }
-.roster:not(.open) .roster-body { display: none; }
-
+/* The event roster: the loaded event's players, a tap to set each one's main. */
 .roster-tools { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .roster-tools .filter { flex: 1 1 auto; min-width: 0; margin-bottom: 0; }
 .roster-tools .field.check { flex: none; min-height: 0; margin-bottom: 0; }
@@ -1186,6 +1229,32 @@ kbd {
 .ac-label > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ac-prefix { color: var(--d-ink-dim); }
 .ac-tag { flex-shrink: 0; font-weight: 600; }
+
+/* ── Tooltips (tooltips() in dock.js) ── */
+
+/* Every title="…", drawn by the dock: OBS's dock browser cuts its native
+   tooltips off at the dock's edge and through the text. Fixed at the body's
+   level and placed inside the window, so nothing can clip it; wraps rather
+   than runs off, with a line-height that leaves descenders whole. */
+.tip {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 40;
+  display: none;
+  max-width: 320px;
+  padding: 6px 9px 7px;
+  font: 400 12px/1.4 var(--d-text);
+  color: var(--d-ink);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  background: #1d232c;
+  border: 1px solid var(--d-line-2);
+  border-radius: 6px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .7);
+  pointer-events: none;
+}
+.tip.on { display: block; }
 
 /* ── Toast ── */
 
