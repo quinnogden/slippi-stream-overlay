@@ -14,6 +14,30 @@ body {
     drop-shadow(0 1px 1px  rgba(0,0,0,0.20));
 }
 
+/* players.html: the shadow goes on .bar instead (the same box as the body),
+   so the stats popup's frame beside it is neither shadowed nor filtered —
+   a filter over the whole popup would also redraw it every frame. */
+body.meleePlayer { filter: none; }
+.bar {
+  position: absolute;
+  left: 0; top: 0;
+  width: 1920px;
+  height: 1080px;
+  filter:
+    drop-shadow(0 4px 8px  rgba(0,0,0,0.35))
+    drop-shadow(0 2px 3px  rgba(0,0,0,0.25))
+    drop-shadow(0 1px 1px  rgba(0,0,0,0.20));
+}
+.stats-frame {
+  position: absolute;
+  left: 0; top: 0;
+  width: 1920px;
+  height: 1080px;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
 .stage {
   position: absolute;
   overflow: hidden;

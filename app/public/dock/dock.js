@@ -3325,7 +3325,7 @@
       manual ? [fit.pack && statsPackName(fit.pack), cfg.style === "auto" ? "best-fit style" : nameIn(statsCatalog && statsCatalog.styles, fit.style)].filter(Boolean).join(" · ") : "best fit",
       cfg.auto ? `auto ${cfg.delaySec}s` : "auto off"].filter(Boolean).join(" · ");
     $("sum-stats").textContent = shot.shown ? `On · ${sum}` : sum;
-    $("stats-source").textContent = statsCatalog && !packs.length && !sets.length ? "No art yet: Setup → Art packs" : "OBS: /o/set-stats above the Players bar";
+    $("stats-source").textContent = statsCatalog && !packs.length && !sets.length ? "No art yet: Setup → Art packs" : "OBS: in the Players bar, or /o/set-stats above it";
   });
 
   $("btn-stats-show").addEventListener("click", () => statsShow("show"));

@@ -180,6 +180,7 @@ setStats: {                  // derived from the set's replays (lib/set-stats/se
 - **Stories are segments, not markup**: a name from start.gg is never parsed. The overlay builds its markup with `html```, which escapes every value.
 - **The page never goes up without stats**, whatever `statsShot` says.
 - **`setRules`** (saved) is the best-of rule, `{ topN: 6, defaultLabel: "Flex", topLabel: "Bo5" }`; `config.SET_TEXT` only seeds it. Changing it re-derives `scoreboard.bestOfLabel`, and with it `setStats.over`.
+- **The players bar draws it too**: `/o/scoreboard/players` frames `/o/set-stats` itself (`?stats=0` leaves it out), so the popup is the same page either way.
 - **The players bar reads it too**: `/o/scoreboard/players` tucks its logo into the round card while `statsShot.shown && setStats.available` (the popup's window lands where the logo stands). Change that condition on one page and not the other and the logo hides with no popup, or the window comes down over it.
 
 ---

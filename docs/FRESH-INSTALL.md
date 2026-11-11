@@ -137,12 +137,12 @@ The dock's **Setup** tab lists every url with a copy button. All are on the app'
 | Source | URL | Size | Notes |
 |---|---|---|---|
 | Scoreboard | `http://localhost:5001/o/scoreboard` | 1920 × 1080 | |
-| Players bar | `http://localhost:5001/o/scoreboard/players` | 1920 × 1080 | |
+| Players bar | `http://localhost:5001/o/scoreboard/players` | 1920 × 1080 | Draws the stats popup too, above the bar. Add `?stats=0` if the scene also has the Set stats source below |
 | Side panel | `http://localhost:5001/o/side-panel` | 611 × 1080 | Webcam layered **behind** it, in the transparent 587 × 330 cutout. `?animate=false` drops the ambient animation |
 | Bracket | `http://localhost:5001/o/bracket` | 1920 × 1080 | Follows the dock's Bracket tab; `?view=top8` (`winners`, `losers`, `top16`, `full`, `upnext`) pins one |
 | Highlights | `http://localhost:5001/o/highlights` | 1920 × 1080 | The replay/break scene frame; see below |
 | Casters | `http://localhost:5001/o/casters` | any | Every caster in a row; `?i=0`, `?i=1` … for one per cam |
-| Set stats | `http://localhost:5001/o/set-stats` | 1920 × 1080 | The stats popup. **Above the Players bar** in the game scene; transparent until the dock's Stats tab (or `Ctrl+Shift+G`, or the automatic show after a game) puts it up |
+| Set stats | `http://localhost:5001/o/set-stats` | 1920 × 1080 | Optional — the Players bar already draws the popup. As its own source (for layering, or a scene without the bar): **above the Players bar**, with the bar on `?stats=0`; transparent until the dock's Stats tab (or `Ctrl+Shift+G`, or the automatic show after a game) puts it up |
 
 - [ ] Canvas **1920 × 1080** (Settings → Video)
 - [ ] On each source: **uncheck "Shutdown source when not visible"** and **"Refresh browser when scene becomes active"** — otherwise the side panel's rotation and the socket restart on every scene change

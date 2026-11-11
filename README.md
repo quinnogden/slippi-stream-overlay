@@ -140,7 +140,7 @@ Add each overlay as a **Browser Source**. You don't need to type these: the dock
 | Bracket | `http://localhost:5001/o/bracket` | 1920 × 1080 |
 | Highlights | `http://localhost:5001/o/highlights` | 1920 × 1080 |
 | Casters | `http://localhost:5001/o/casters` | any |
-| Set stats | `http://localhost:5001/o/set-stats` | 1920 × 1080 (above the Players bar) |
+| Set stats | `http://localhost:5001/o/set-stats` | 1920 × 1080 (optional: the Players bar draws it too; as its own source, above the bar, with the bar on `?stats=0`) |
 
 > [!IMPORTANT]
 > On **every** browser source, uncheck **"Shutdown source when not visible"** and **"Refresh browser when scene becomes active"**.

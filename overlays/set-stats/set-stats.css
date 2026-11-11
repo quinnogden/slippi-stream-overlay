@@ -34,7 +34,7 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 /* ── The window ── */
 /* It grows up out of the players bar (bottom-centre origin), where the logo
    it replaces stood. */
-.win { position: absolute; left: 192px; top: 64px; width: 1536px; height: 864px; opacity: 0; transform-origin: 50% 100%; }
+.win { position: absolute; left: 192px; top: 100px; width: 1536px; height: 864px; opacity: 0; transform-origin: 50% 100%; }
 .win.shown { opacity: 1; }
 .win-bg, .win-clip { position: absolute; inset: 0; border-radius: var(--radius-win); overflow: hidden; }
 /* A layout with another skin fades its background in over the old one. */

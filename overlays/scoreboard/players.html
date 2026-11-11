@@ -7,8 +7,13 @@
     <link rel="stylesheet" href="/o/scoreboard/scoreboard.css" />
   </head>
   <!-- The thin name-and-score bar along the bottom, with the round card
-       between the names and the tournament logo above. 1920×1080. -->
+       between the names and the tournament logo above. 1920×1080.
+       The stats popup is drawn in this source too, above the bar (see the
+       script below); ?stats=0 leaves it out, for a scene that has
+       /o/set-stats as its own source. -->
   <body class="fgc thin meleePlayer">
+    <!-- .bar carries the bar's drop shadow, so the popup isn't shadowed too. -->
+    <div class="bar">
     <!-- Rises out of the round card; .logo-art is the pack's artwork. -->
     <div class="logo"><div class="logo-art"></div></div>
 
@@ -30,7 +35,25 @@
         </div>
       </div>
     </div>
+    </div>
 
+    <script>
+      // The stats popup: /o/set-stats itself, in a frame over the bar — its
+      // own page, so neither page's stylesheet reaches the other, and the
+      // same page the separate source shows. Its pins (?layout= ?style=
+      // ?pack= ?stages= ?show=) pass through from this source's url.
+      (function () {
+        var q = new URLSearchParams(location.search);
+        if (q.get("stats") === "0") return;
+        var pass = new URLSearchParams();
+        ["layout", "style", "pack", "stages", "show"].forEach(function (k) { if (q.has(k)) pass.set(k, q.get(k)); });
+        var f = document.createElement("iframe");
+        f.className = "stats-frame";
+        f.setAttribute("aria-hidden", "true");
+        f.src = "/o/set-stats" + (String(pass) ? "?" + pass : "");
+        document.body.appendChild(f);
+      })();
+    </script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/o/shared/overlay-client.js"></script>
     <script src="/o/scoreboard/scoreboard.js"></script>

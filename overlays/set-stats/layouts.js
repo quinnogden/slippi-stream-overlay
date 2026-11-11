@@ -477,7 +477,7 @@
 
     /** Only the bottom third: the game or the players' cam stays in view above it. The summary across the top, the ledger in two short columns, the facts as one line. */
     lowerthird: {
-      style: "riso", packs: ["CSProject_AltFull", "CSProject_MeleeFull", "full", "portrait"], win: { l: 192, t: 556, w: 1536, h: 372 },
+      style: "riso", packs: ["CSProject_AltFull", "CSProject_MeleeFull", "full", "portrait"], win: { l: 192, t: 618, w: 1536, h: 372 },
       // A short window: a close-up, the face low enough that a head never meets its top edge.
       por: { op: 0.85, tilt: "rotate(-3deg)", scale: 1.4, w: 480, fx: 180, fy: 165, mask: FADE(42, 100) },
       // A broadcast bar: it opens from its middle, and its rows run in from the left.

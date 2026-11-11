@@ -435,7 +435,7 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
     r.store.setStatsConfig({ layout: "lowerthird" });
     for (let i = 0; i < 200 && win.dataset.layout !== "lowerthird"; i++) await sleep(30);
     assert.strictEqual(win.dataset.layout, "lowerthird", "a window of another size goes down and comes back up in it");
-    assert.strictEqual(win.style.top, "556px");
+    assert.strictEqual(win.style.top, "618px");
     assert.ok(S.up);
 
     r.ss.command({ action: "hide" });
