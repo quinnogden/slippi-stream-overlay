@@ -417,6 +417,8 @@ const plain = (v) => JSON.parse(JSON.stringify(v)); // the page's arrays are ano
     env.store.setTournament({ name: "Hundred Acres #50", eventSlug: "tournament/x/event/z" });
     await env.settle();
     assert.strictEqual(env.page.$(".tournament-name").textContent, "Hundred Acres #50");
+    assert.ok(env.page.animations.some(({ el }) => el.classList.contains("tournament-name")),
+      "the name swapped rather than cut");
   });
 
   await test("clip toasts queue: a second clip waits, a third replaces the second", async () => {

@@ -2908,8 +2908,9 @@
     return b;
   }
 
-  /** The 26 characters, built once /api/characters answers. */
+  /** The 26 characters, built once /api/characters answers, then "None" in the last slot. */
   function buildGrid() {
+    const none = $("picker-none");
     $("picker-grid").replaceChildren(...characters.map((c) => {
       const b = tile(c, 0, c.name);
       b.dataset.codename = c.codename;
@@ -2920,7 +2921,7 @@
         },
         () => { picking.costumesFor = c.codename; renderPicker(); });
       return b;
-    }));
+    }), none);
   }
 
   const renderPicker = guard("picker", () => {
@@ -2935,11 +2936,11 @@
       const where = `${picking.side === 0 ? "Left" : "Right"}${sb && sb.isDoubles ? ` · player ${picking.index + 1}` : ""}`;
       $("picker-title").textContent = "Character";
       $("picker-who").textContent = `${(p && playerName(p)) || "Unnamed player"} — ${where}`;
-      $("picker-none").textContent = "No character";
     }
     const cur = pickingCurrent();
+    $("picker-none").classList.toggle("current", !picking.main && !cur);
 
-    document.querySelectorAll("#picker-grid .tile").forEach((b) =>
+    document.querySelectorAll("#picker-grid .tile[data-codename]").forEach((b) =>
       b.classList.toggle("current", !!cur && b.dataset.codename === cur.codename));
 
     // Costumes: of the character just held, else of the one shown now.

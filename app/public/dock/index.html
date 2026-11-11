@@ -423,9 +423,11 @@
         <button class="key mini" id="picker-close" type="button">Close</button>
       </div>
       <div class="costumes" id="picker-costumes"></div>
-      <div class="char-grid" id="picker-grid"></div>
+      <!-- "None" takes the grid's last slot, after the 26 characters. -->
+      <div class="char-grid" id="picker-grid">
+        <button class="tile none" id="picker-none" type="button" title="No character">None</button>
+      </div>
       <div class="sheet-foot">
-        <button class="linkish" id="picker-none" type="button">No character</button>
         <span class="hint">Hold or right-click a character for its costumes</span>
       </div>
     </div>

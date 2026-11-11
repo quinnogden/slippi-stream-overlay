@@ -28,6 +28,9 @@
   const { ease, ms } = Overlay.motion;
   const L = BracketLayout;
   const { METRICS, VIEWPORT } = L;
+  // A name is shrunk no smaller than this share of its size before it is
+  // tightened and condensed (Overlay.fitText); "…" only after all three.
+  const NAME_FLOOR = 0.55;
 
   const VIEW_TITLES = {
     winners: "Winners Bracket",
@@ -143,6 +146,7 @@
     for (const l of lay.links) if (l.lit) path(l, "lit");
     board.appendChild(svg);
 
+    const plates = [];
     for (const section of lay.sections) {
       for (const col of section.columns) {
         const head = h("div", "round-head");
@@ -151,6 +155,7 @@
         head.dataset.top = section.top;
         head.dataset.bottom = section.bottom;
         const plate = head.appendChild(h("div", "plate"));
+        plates.push(plate);
         plate.appendChild(h("span", null, col.name));
         if (col.setIds.every((id) => feed.sets[id].conditional)) plate.appendChild(h("span", "maybe", "if needed"));
         board.appendChild(head);
@@ -170,7 +175,8 @@
     }
     // In the document now, so the names can be measured: shrunk together,
     // so one long tag does not leave its card a different size (see fitGroup).
-    fitGroup(names, Math.round(METRICS.nameSize * 0.7));
+    fitGroup(plates, 11);
+    fitGroup(names, Math.round(METRICS.nameSize * NAME_FLOOR));
   }
 
   // ── Drawing Up Next ─────────────────────────────────────────────────────────
@@ -180,21 +186,22 @@
     const entrants = feed.upNextEntrants ?? {};
     sizeBoard(board, grid.width, grid.height, entrants);
     board.style.setProperty("--list-head-h", `${L.LIST.headH}px`);
-    const names = [];
+    const names = [], heads = [];
     rows.forEach((row, i) => {
       const cell = grid.cells[i];
       const item = h("div", `ucard ${row.status}`);
       item.style.left = `${cell.x}px`;
       item.style.top = `${cell.y}px`;
       const head = item.appendChild(h("div", "uhead"));
-      head.appendChild(h("span", "uround", [row.round, row.group].filter(Boolean).join(" · ")));
+      heads.push(head.appendChild(h("span", "uround", [row.round, row.group].filter(Boolean).join(" · "))));
       head.appendChild(h("span", "chip", STATUS_TEXT[row.status]));
       const card = item.appendChild(h("div", `card ${row.state}`));
       card.append(entrantRow(row, 0, null, entrants), entrantRow(row, 1, null, entrants));
       board.appendChild(item);
       names.push(...card.querySelectorAll(".name"));
     });
-    fitGroup(names, Math.round(METRICS.nameSize * 0.7));
+    fitGroup(names, Math.round(METRICS.nameSize * NAME_FLOOR));
+    fitGroup(heads, 10);
     return grid;
   }
 
@@ -453,9 +460,9 @@
 
   function renderTitle() {
     const title = viewName === "full" && feed?.label ? feed.label : VIEW_TITLES[viewName];
-    text(document.querySelector(".title-main .text"), title);
+    text(document.querySelector(".title-main .text"), title, { fit: 26 });
     const sub = feed ? [feed.tournamentName, feed.eventName].filter(Boolean).join(" · ") : "";
-    text(document.querySelector(".title-sub .text"), sub, { emptyOn: null });
+    text(document.querySelector(".title-sub .text"), sub, { emptyOn: null, fit: 13 });
   }
 
   /** A dot per page, the one up lit — filling over its hold while the tour runs. */

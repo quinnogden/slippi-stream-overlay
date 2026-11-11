@@ -110,7 +110,8 @@ body {
 /* ── Player name ─────────────────────────────────────────────
    Layered dark drop shadows for lift (.text, overlay.css), wider
    letter-spacing. No uppercase — names stay as typed. A name too
-   long for its card is squeezed horizontally (Overlay.squeeze).
+   long for its card gets smaller, then is squeezed horizontally
+   (Overlay.squeeze) — never cut.
    ─────────────────────────────────────────────────────────── */
 .name {
   display: flex;
@@ -143,6 +144,11 @@ body {
   margin-right: 6px;
   color: var(--sponsor-color);
 }
+
+/* The name's pieces come and go on their own (Overlay.presence), and what's
+   left slides over (Overlay.glide). */
+.name .sponsor.empty,
+.name .losers.empty { display: none; }
 
 /* ── Chip badges ─────────────────────────────────────────────
    Small raised pill: shadow + gold rim scaled to chip size.

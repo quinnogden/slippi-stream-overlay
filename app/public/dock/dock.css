@@ -1176,6 +1176,14 @@ kbd {
   box-shadow: 0 0 10px rgba(var(--d-accent-rgb), .45), inset 0 0 0 1px rgba(var(--d-accent-rgb), .6);
 }
 .tile.holding { transform: scale(.94); border-color: var(--d-amber); }
+.char-grid .tile.none {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--d-ink-dim);
+}
+.char-grid .tile.none:hover, .char-grid .tile.none.current { color: var(--d-ink); }
 
 .costumes { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--d-line); }
 .costumes .tile { width: 46px; }

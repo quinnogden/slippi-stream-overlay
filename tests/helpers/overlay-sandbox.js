@@ -131,6 +131,8 @@ function makeEl(doc, tag, ns = null) {
     set id(v) { el.attrs.id = String(v); },
     get parentElement() { return el.parentNode && el.parentNode.nodeType === 1 ? el.parentNode : null; },
     get elementChildren() { return el.children.filter((c) => c.nodeType === 1); },
+    get firstChild() { return el.children[0] ?? null; },
+    get lastChild() { return el.children[el.children.length - 1] ?? null; },
     get previousElementSibling() {
       const sibs = el.parentNode ? el.parentNode.elementChildren : [];
       return sibs[sibs.indexOf(el) - 1] ?? null;

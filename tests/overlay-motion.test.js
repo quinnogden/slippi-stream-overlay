@@ -6,6 +6,8 @@
  * out before hiding it, and a hide overtaken by a show must never apply. Get
  * either wrong and the source looks healthy while it shows the score before
  * last, or a pronoun chip that's empty — or gone — for the rest of the set.
+ * Overlay.reel() turns the score up for a game won and down for one taken
+ * back, and must never leave its cells behind.
  *
  * Runs the real scoreboard and casters pages against the real store and
  * channel, with animations at TIME_SCALE of their real length: short enough to
@@ -23,15 +25,18 @@ const { buildBracket } = require("../app/lib/event/bracket-model");
 const { eventFrom } = require("./helpers/fake-startgg");
 const { loadOverlay, fakeIo, sleep } = require("./helpers/overlay-sandbox");
 
+// Each test builds its own store and page and mostly waits on animation
+// timers, so they run at once and the file takes as long as its longest test.
+// Results print in the order the tests are written.
 let failed = 0;
-async function test(name, fn) {
-  try {
-    await fn();
-    console.log(`  ok   ${name}`);
-  } catch (err) {
-    failed++;
-    console.error(`  FAIL ${name}\n       ${err.stack.split("\n").slice(0, 3).join("\n       ")}`);
-  }
+const pending = [];
+function test(name, fn) {
+  pending.push(Promise.resolve().then(fn).then(
+    () => () => console.log(`  ok   ${name}`),
+    (err) => () => {
+      failed++;
+      console.error(`  FAIL ${name}\n       ${err.stack.split("\n").slice(0, 3).join("\n       ")}`);
+    }));
 }
 
 const graph = (() => {
@@ -65,20 +70,55 @@ async function setup(page, prepare) {
 
 const scoreText = (page) => page.$('.player[data-side="0"] .score .text').textContent;
 const pronounChip = (page) => page.$('.chips[data-side="0"] .pronoun');
+const REEL_DONE = 900 * TIME_SCALE; // past the longest turn: 520ms × TEMPO_FALLBACK 1.5 = 780ms
+const reelCells = (page) => page.$$('.player[data-side="0"] .score .ov-reel-cell');
+/** The transforms each reel cell started since `before` runs through. */
+const turns = (page, before) => JSON.parse(JSON.stringify(page.animations.slice(before)
+  .filter(({ el }) => el.classList.contains("ov-reel-cell"))
+  .map(({ anim }) => anim.keyframes.map((k) => k.transform))));
 
 (async () => {
   console.log("overlay-motion");
 
-  await test("a score bumped twice inside one swap ends on the newest score", async () => {
+  await test("a game won turns the score up, and a second one mid-turn ends on the newest score", async () => {
     const { store, page } = await setup("scoreboard", (s) => s.loadSet(unplayed()));
-    assert.strictEqual(scoreText(page), "0");
+    const before = page.animations.length;
     store.bump(0, 1);
     await settle();
-    assert.strictEqual(scoreText(page), "0", "the old score should still be leaving");
-    store.bump(0, 1); // lands mid-exit
+    // The new score comes up from below as the old one leaves out the top.
+    assert.deepStrictEqual(turns(page, before), [
+      ["translateY(0px)", "translateY(-100px)"],
+      ["translateY(100px)", "translateY(0px)"],
+    ]);
+    store.bump(0, 1); // lands mid-turn
     await settle();
-    await sleep(SWAP_DONE);
+    await sleep(REEL_DONE);
     assert.strictEqual(scoreText(page), "2");
+    assert.strictEqual(reelCells(page).length, 0, "cells left behind");
+  });
+
+  await test("a game taken back turns the score down; a jump turns through the scores in between", async () => {
+    const { store, page } = await setup("scoreboard", (s) => { s.loadSet(unplayed()); s.bump(0, 1); s.bump(0, 1); });
+    let before = page.animations.length;
+    store.bump(0, -1);
+    await settle();
+    // The new score comes down from above.
+    assert.deepStrictEqual(turns(page, before), [
+      ["translateY(0px)", "translateY(100px)"],
+      ["translateY(-100px)", "translateY(0px)"],
+    ]);
+    await sleep(REEL_DONE);
+    assert.strictEqual(scoreText(page), "1");
+
+    before = page.animations.length;
+    store.setScore(0, 4); // one command, one patch: 1 → 4
+    await settle();
+    const t = turns(page, before);
+    assert.strictEqual(t.length, 4, "1, 2, 3, 4");
+    assert.deepStrictEqual(t[3], ["translateY(300px)", "translateY(0px)"]);
+    await sleep(REEL_DONE);
+    assert.strictEqual(scoreText(page), "4");
+    assert.strictEqual(reelCells(page).length, 0, "cells left behind");
   });
 
   await test("a pronoun cleared then refilled before its chip has gone keeps the chip, with the new text", async () => {
@@ -158,6 +198,60 @@ const pronounChip = (page) => page.$('.chips[data-side="0"] .pronoun');
     assert.ok(!cards()[1].classList.contains("empty"));
   });
 
+  await test("a name, a cleared chip and a character icon all leave the same way: up, unscaled", async () => {
+    const { store, page } = await setup("scoreboard", (s) => {
+      s.loadSet(unplayed());
+      s.setPlayer(0, 0, { pronoun: "he/him" });
+      s.setCharacter(0, 0, { codename: "fox", name: "Fox", skin: 0 });
+    });
+    const before = page.animations.length;
+    store.setPlayer(0, 0, { tag: "Renamed", pronoun: "" });
+    store.setCharacter(0, 0, { codename: "marth", name: "Marth", skin: 0 });
+    await settle();
+    const exits = page.animations.slice(before).map(({ anim }) => anim.keyframes[anim.keyframes.length - 1].transform);
+    assert.ok(exits.length >= 3, `only ${exits.length} exits started`);
+    for (const t of exits) {
+      assert.match(t, /translate\(0px, -6px\) scale\(1\)$/, `an exit that isn't the text motion: ${t}`);
+    }
+  });
+
+  test("the name slides over when the character icon arrives or a sponsor comes in, rather than jumping", async () => {
+    const { store, page } = await setup("scoreboard", (s) => {
+      s.loadSet(unplayed());
+      s.setCharacter(0, 0, null);
+      s.setPlayer(0, 0, { prefix: "" });
+    });
+    const card = page.$('.player[data-side="0"]');
+    const chars = card.querySelector(".character_container");
+    const tag = card.querySelector(".name .tag");
+    const sponsor = card.querySelector(".name .sponsor");
+    // The sandbox has no layout: the centred tag sits 24px further left with
+    // the icon in, and 30px further right with a sponsor before it.
+    tag.offsetParent = card;
+    tag.offsetTop = 0;
+    Object.defineProperty(tag, "offsetLeft", {
+      get: () => 200 - (chars.children.length ? 24 : 0) + (sponsor.classList.contains("empty") ? 0 : 30),
+    });
+    const tagMoves = (from) => JSON.parse(JSON.stringify(page.animations.slice(from)
+      .filter(({ el }) => el.classList.contains("tag"))
+      .map(({ anim }) => anim.keyframes)));
+
+    let before = page.animations.length;
+    store.setCharacter(0, 0, { codename: "fox", name: "Fox", skin: 0 });
+    await settle();
+    await sleep(SWAP_DONE / 4); // the icon's exit has drawn
+    assert.deepStrictEqual(tagMoves(before), [[{ left: "24px", top: "0px" }, { left: "0px", top: "0px" }]],
+      "the tag slides left from where it was");
+
+    before = page.animations.length;
+    store.setPlayer(0, 0, { prefix: "SPON" });
+    await settle();
+    assert.deepStrictEqual(tagMoves(before), [[{ left: "-30px", top: "0px" }, { left: "0px", top: "0px" }]],
+      "the tag slides right for the sponsor, and isn't redrawn");
+    assert.ok(!sponsor.classList.contains("empty"), "the sponsor came in");
+  });
+
+  for (const report of await Promise.all(pending)) report();
   console.log(failed === 0 ? "overlay-motion: all passed" : `overlay-motion: ${failed} failed`);
   process.exit(failed === 0 ? 0 : 1);
 })().catch((e) => { console.error(e); process.exit(1); });

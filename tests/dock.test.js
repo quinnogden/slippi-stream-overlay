@@ -316,10 +316,11 @@ async function rig() {
       r.store.loadSet(fresh(LOSERS_FINAL));
       await until(() => r.tagInput(0).value === "Player2", "the set");
       r.Dock.openPicker(0, 0);
-      await until(() => r.page.$$("#picker-grid .tile").length === 26, "26 characters");
+      await until(() => r.page.$$("#picker-grid .tile[data-codename]").length === 26, "26 characters");
       const tiles = r.page.$$("#picker-grid .tile");
-      assert.deepStrictEqual(tiles.map((t) => t.dataset.codename), CSS_ORDER.map((id) => CHAR_MAP[id].codename),
-        "laid out in character-select order");
+      assert.deepStrictEqual(tiles.map((t) => t.dataset.codename || "none"),
+        [...CSS_ORDER.map((id) => CHAR_MAP[id].codename), "none"],
+        "laid out in character-select order, then None in the last slot");
       assert.ok(r.page.$("#picker").classList.contains("open"));
       assert.match(r.page.$("#picker-who").textContent, /Team1 Player2 — Left/);
 
@@ -349,6 +350,8 @@ async function rig() {
       r.Dock.openPicker(0, 0);
       fire(r.page.$("#picker-none"), "click");
       await until(() => r.store.scoreboard().sides[0].players[0].character === null, "no character");
+      r.Dock.openPicker(0, 0);
+      assert.ok(r.page.$("#picker-none").classList.contains("current"), "None is lit with nobody set");
     } finally { r.close(); }
   });
 

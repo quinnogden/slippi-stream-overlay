@@ -161,3 +161,24 @@ body.no-animate { transition: none; }
   animation: none !important;
   transition: none !important;
 }
+
+/* Overlay.fitText(): text condensed to fit its box is drawn in this span,
+   squeezed from its left edge. Its layout is still the full width, so the
+   box's ellipsis is off while it's condensed (it would hide the whole span). */
+.ov-fit       { display: inline-block; transform-origin: 0 50%; }
+.ov-condensed { text-overflow: clip !important; }
+
+/* Overlay.reel(): a number turning like a slot-machine reel. The hold keeps
+   the element at its final size; one cell per value sits over it — same
+   padding, same alignment, so a digit rests exactly where the plain one
+   does — and the element or its box clips them. */
+.ov-reeling   { position: relative; }
+.ov-reel-hold { visibility: hidden; }
+.ov-reel-cell {
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  padding: inherit;
+  box-sizing: border-box;
+  text-align: inherit;
+  white-space: nowrap;
+}

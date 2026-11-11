@@ -27,8 +27,8 @@
 (function (root) {
   "use strict";
 
-  const { h, fitText, fitGroup, icon, param, swap } = Overlay;
-  const { ease, ms, restOf, pose } = Overlay.motion;
+  const { h, fitText, fitGroup, icon, param, swap, draw, reel } = Overlay;
+  const { ease, ms, restOf, pose, TEXT } = Overlay.motion;
 
   // Animation durations are at tempo 1; Overlay.motion.ms() scales them by
   // overlay.css's --motion-tempo. The interval is a dwell, and doesn't.
@@ -57,8 +57,8 @@
   // An info panel itself never moves. Its rows — "beats": the identity, each
   // header, each pill, the projection, the credit — come in one after another,
   // top to bottom, each rising a little out of a soft focus.
-  const BEAT_IN_MS   = 440;
-  const BEAT_IN      = { y: 10, blur: 3 };
+  const BEAT_IN_MS   = TEXT.inMs;   // the overlays' one text motion (overlay-client.js)
+  const BEAT_IN      = TEXT.in;
   const BAR_MS       = 900;     // the projection bar filling from even to the odds
   const EDGE_MS      = 420;     // a result pill's W/L edges wiping down
   const EDGED        = ["win", "loss", "p1win", "p2win"];
@@ -70,8 +70,8 @@
   const GAP_DECAY  = 0.85;
 
   // They leave the same way, top first, quicker: each drifts up and away.
-  const BEAT_OUT_MS = 200;
-  const BEAT_OUT    = { y: -8, blur: 2 };
+  const BEAT_OUT_MS = TEXT.outMs;
+  const BEAT_OUT    = TEXT.out;
   const CASCADE_OUT = { gap: 36, min: 14, max: 240 };
 
   // The panels' shared tint (.panel-surface).
@@ -675,9 +675,9 @@
       values.push(line.appendChild(h("span", "lucky-value", r.value)));
       if (r.place) line.appendChild(h("span", "lucky-place", "#" + r.place));
     }
-    for (const v of values) fitText(v, 13);
-    fitText(tagEl, 24);
-    fitText(charEl, 14);
+    for (const v of values) fitText(v, 11);
+    fitText(tagEl, 20);
+    fitText(charEl, 12);
 
     // Rows are fitted together once the card is complete — see fitGroup.
     const fit = { opp: [], round: [], hist: [] };
@@ -707,9 +707,9 @@
       histList.appendChild(row);
       fit.hist.push(name);
     }
-    fitGroup(fit.opp);
-    fitGroup(fit.round, 11);
-    fitGroup(fit.hist);
+    fitGroup(fit.opp, 12);
+    fitGroup(fit.round, 10);
+    fitGroup(fit.hist, 12);
   }
 
   const pct = (p) => `${(p * 100).toFixed(1)}%`;
@@ -796,29 +796,30 @@
       subs.push(subEl);
       rounds.push(roundEl);
     }
-    fitGroup([left, right], 18);
-    fitGroup(subs, 11);
-    fitGroup(rounds, 11);
+    fitGroup([left, right], 16);
+    fitGroup(subs, 9);
+    fitGroup(rounds, 10);
   }
 
   function renderCompletedSets() {
     const list = document.querySelector("#panel-completed-sets .completed-list");
     if (!list) return;
     list.replaceChildren();
-    const names = [];
+    const names = [], rounds = [];
     for (const s of completedView()) {
       const sc = scoreLabels(s.scores, s.winner);
       const row = pill("completed-set-pill " + (s.winner === 0 ? "p1win" : "p2win"));
       const a = h("span", "pill-name", s.names?.[0] || "");
       const info = h("div", "completed-set-info");
-      if (s.round) info.appendChild(h("div", "pill-line-2", s.round));
+      if (s.round) rounds.push(info.appendChild(h("div", "pill-line-2", s.round)));
       info.appendChild(h("span", "set-score", `${sc[0]}–${sc[1]}`));
       const b = h("span", "pill-name right", s.names?.[1] || "");
       row.append(a, info, b);
       list.appendChild(row);
       names.push(a, b);
     }
-    fitGroup(names);
+    fitGroup(names, 12);
+    fitGroup(rounds, 9);
   }
 
   /** A roster row's character icon; with none, or one that fails to load, the slot stays empty. */
@@ -833,8 +834,8 @@
     return slot;
   }
 
-  /** A count that rolls when it changes, like the scoreboard's score (a new element's first draw is instant). */
-  const rollNum = (el, n) => swap(el, String(n), (node) => { node.textContent = String(n); }, { motion: "roll" });
+  /** A count that turns like the scoreboard's score (a new element's first draw is instant). */
+  const rollNum = (el, n) => reel(el, n, (v) => [v]);
 
   /** A crew's card: its name and stocks left, then a row per member in roster order. */
   function renderCrew(i) {
@@ -842,7 +843,7 @@
     const team = crewView(i);
     if (!panel || !team) return;
     const name = panel.querySelector(".crew-name");
-    name.textContent = team.name;
+    draw(name, team.name, (node) => { node.textContent = team.name; });
     rollNum(panel.querySelector(".crew-total-num"), team.total);
 
     const list = panel.querySelector(".crew-list");
@@ -852,15 +853,16 @@
       const row = pill("crew-member " + m.status);
       row.dataset.memberId = String(m.id);
       row.dataset.icon = icon(m.icon) || "";
-      const tag = h("span", "pill-name", m.tag);
+      const tag = h("span", "pill-name");
+      draw(tag, m.tag, (node) => { node.textContent = m.tag; });
       const stocks = h("span", "crew-stocks");
       row.append(crewIcon(m.icon), tag, stocks);
       rollNum(stocks, m.stocks);
       list.appendChild(row);
       tags.push(tag);
     }
-    fitText(name, 24);
-    fitGroup(tags, 16);
+    fitText(name, 20);
+    fitGroup(tags, 14);
   }
 
   /**
@@ -879,18 +881,18 @@
     if (!same) return false;
 
     const name = panel.querySelector(".crew-name");
-    if (name.textContent !== team.name) { name.textContent = team.name; fitText(name, 24); }
+    swap(name, team.name, (node) => { node.textContent = team.name; fitText(node, 20); });
     rollNum(panel.querySelector(".crew-total-num"), team.total);
     const tags = [];
     team.members.forEach((m, k) => {
       const row = rows[k];
       for (const s of ["active", "in", "out"]) row.classList.toggle(s, s === m.status);
       const tag = row.querySelector(".pill-name");
-      if (tag.textContent !== m.tag) tag.textContent = m.tag;
+      swap(tag, m.tag, (node) => { node.textContent = m.tag; fitGroup(tags, 14); });
       tags.push(tag);
       rollNum(row.querySelector(".crew-stocks"), m.stocks);
     });
-    fitGroup(tags, 16);
+    fitGroup(tags, 14);
     return true;
   }
 
@@ -924,11 +926,11 @@
   }
 
   function setTournamentName(name) {
-    const el = document.querySelector(".tournament-name");
     const text = String(name ?? "").trim();
-    if (!el || el.textContent === text) return;
-    el.textContent = text;
-    fitText(el, 18);
+    swap(document.querySelector(".tournament-name"), text, (node) => {
+      node.textContent = text;
+      fitText(node, 16);
+    });
   }
 
   // ── Clip-saved toast ────────────────────────────────────────────────────────
@@ -952,7 +954,7 @@
     if (clip?.playerName) bits.push(clip.playerName);
     if (clip?.moveCount) bits.push(`${clip.moveCount} moves, ${Math.round(clip.damage ?? 0)}%`);
     detail.textContent = bits.join(" · ");
-    fitText(detail, 14);
+    fitText(detail, 12);
 
     // Every keyframe repeats the -50% X so the centring holds throughout.
     const at = (y, scale, blur, opacity) =>

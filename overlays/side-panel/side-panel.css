@@ -1201,9 +1201,9 @@ body {
   text-shadow: 0 1px 4px rgba(0,0,0,0.6);
 }
 
-/* Clipped so a change rolls like the scoreboard's score (Overlay.swap
-   "roll"); the padding keeps the glyph and its shadow inside the clip
-   without moving it. */
+/* Clipped so a change turns like the scoreboard's score (Overlay.reel);
+   the padding keeps the glyph and its shadow inside the clip without
+   moving it. */
 .crew-stocks,
 .crew-total-num {
   overflow:      hidden;

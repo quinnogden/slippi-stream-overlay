@@ -253,21 +253,92 @@
     };
   }
 
-  // A swap is out → draw → in. Three characters, by what's changing:
-  //   lift — text (names, rounds, titles): a short drift up and a re-focus
-  //   roll — a score, inside its clipped box: an odometer tick
-  //   pop  — an icon: shrinks away, the new one lands from slightly large
-  const SWAPS = {
-    lift: { out: { y: -6, blur: 3 },        in: { y: 8, blur: 4 } },
-    roll: { out: { y: -22, blur: 2 },       in: { y: 26, blur: 2 } },
-    pop:  { out: { scale: 0.82, blur: 4 },  in: { scale: 1.16, blur: 6 } },
-  };
-  const SWAP_OUT_MS = 160;
-  const SWAP_IN_MS  = 480;
+  // The one text motion: everything that changes or comes and goes — text,
+  // a chip, a pill, a card, a character icon, a side-panel row — leaves
+  // drifting up and out of focus, and arrives rising from below into focus.
+  // One vocabulary, so two changes landing together move as one.
+  const TEXT = Object.freeze({
+    out:   Object.freeze({ y: -6, blur: 3 }),
+    in:    Object.freeze({ y: 8, blur: 4 }),
+    outMs: 160,
+    inMs:  480,
+  });
 
-  // presence(): something that comes and goes whole (a chip, a pill, a card).
-  const SHOW = { from: { y: 10, scale: 0.94, blur: 6 }, ms: 560 };
-  const HIDE = { to:   { y: 6,  scale: 0.96, blur: 4 }, ms: 220 };
+  // A swap is out → draw → in, in the text motion (`lift`). A number uses reel().
+  const SWAPS = {
+    lift: { out: TEXT.out, in: TEXT.in },
+  };
+  const SWAP_OUT_MS = TEXT.outMs;
+  const SWAP_IN_MS  = TEXT.inMs;
+
+  // presence(): something that comes and goes whole (a chip, a pill, a card) —
+  // the same motion as a swap's two halves.
+  const SHOW = { from: TEXT.in,  ms: TEXT.inMs };
+  const HIDE = { to:   TEXT.out, ms: TEXT.outMs };
+
+  // ── Glide ───────────────────────────────────────────────────────────────────
+  //
+  // Content pushed aside by something appearing, leaving or changing width
+  // beside it — a name when the character icon arrives, a tag when a sponsor
+  // comes in — slides to its new place instead of jumping (FLIP). A page
+  // names what can be pushed with Overlay.glide(...nodes); every layout change
+  // the runtime makes (a swap's draw, presence()'s class, a reel's width) is
+  // measured around, and whatever it moved slides back from where it was
+  // drawn, in the text motion's entrance time and curve.
+  //
+  // The slide is `left`/`top` on a relatively positioned box, not a transform:
+  // OBS's Chromium 103 has no `translate` property, and a transform slide
+  // would be replaced by any swap or presence animating the same box after
+  // it. An offset composes with both, and with squeeze()'s scaleX.
+
+  const glided = new Set();
+
+  /** Let these boxes slide when the runtime moves them. */
+  function glide(...nodes) {
+    for (const el of nodes.flat()) {
+      if (!el || glided.has(el)) continue;
+      glided.add(el);
+      try {
+        if (getComputedStyle(el).position === "static") el.style.position = "relative";
+      } catch (_) { /* not in a document yet */ }
+    }
+  }
+
+  /** Where `el` is drawn (x, y) and where layout puts it without a slide (lx, ly). */
+  function placeOf(el) {
+    const cs = getComputedStyle(el);
+    const sx = parseFloat(cs.left) || 0;
+    const sy = parseFloat(cs.top) || 0;
+    const x = el.offsetLeft, y = el.offsetTop;
+    return { parent: el.offsetParent, x, y, lx: x - sx, ly: y - sy };
+  }
+
+  /** Measure the boxes that can slide, before the runtime changes layout. */
+  function glideFrom() {
+    if (!glided.size || still()) return null;
+    const before = new Map();
+    for (const el of glided) {
+      if (el.isConnected === false) { glided.delete(el); continue; }
+      if (el.offsetParent) before.set(el, placeOf(el));
+    }
+    return before.size ? before : null;
+  }
+
+  /** …and slide each one the change moved, from where it was drawn. */
+  function glideTo(before) {
+    if (!before) return;
+    for (const [el, b] of before) {
+      if (!el.offsetParent || el.offsetParent !== b.parent) continue;
+      const now = placeOf(el);
+      // Not moved by this change: a slide already running carries on.
+      if (Math.abs(now.lx - b.lx) < 1 && Math.abs(now.ly - b.ly) < 1) continue;
+      if (el.__ovGlide) el.__ovGlide.cancel();
+      const anim = el.__ovGlide = el.animate(
+        [{ left: `${b.x - now.lx}px`, top: `${b.y - now.ly}px` }, { left: "0px", top: "0px" }],
+        { duration: ms(TEXT.inMs), easing: ease("out") });
+      anim.finished.then(() => { if (el.__ovGlide === anim) el.__ovGlide = null; }, () => {});
+    }
+  }
 
   function stopSwap(el) {
     if (el.__ovAnim) el.__ovAnim.cancel();
@@ -319,7 +390,7 @@
    * @param {Element} el
    * @param {string} key — identity of the content; same key = no-op
    * @param {(el: Element) => void} render
-   * @param {{ motion?: "lift"|"roll"|"pop" }} [opts]
+   * @param {{ motion?: "lift" }} [opts]
    * @returns {boolean} whether anything changed
    */
   function swap(el, key, render, opts = {}) {
@@ -350,6 +421,7 @@
       if (el.__ovAnim !== out) return;
       const draw = el.__ovRender;
       el.__ovRender = null;
+      const before = glideFrom();
       if (draw) draw(el);
       // Off before reading the rest pose — it holds the blur. Same task as
       // the entrance below, so no frame is painted in between.
@@ -359,9 +431,26 @@
         [pose(back, { ...m.in, opacity: 0 }), pose(back)],
         { duration: ms(SWAP_IN_MS), easing: ease("out") });
       el.__ovPhase = "in";
+      glideTo(before);
       enter.finished.then(() => { if (el.__ovAnim === enter) { el.__ovAnim = null; el.__ovPhase = null; } }, () => {});
     }, () => {});
     return true;
+  }
+
+  /**
+   * Draw now, with no animation, and remember `key` as what `el` shows, so a
+   * later swap() animates only a real change. For content redrawn while it
+   * can't be seen: a panel rebuilt off screen, or between its rows' exit and
+   * entrance.
+   * @param {Element} el
+   * @param {string} key
+   * @param {(el: Element) => void} render
+   */
+  function draw(el, key, render) {
+    if (!el) return;
+    stopSwap(el);
+    el.__ovKey = String(key);
+    render(el);
   }
 
   /**
@@ -397,7 +486,9 @@
     }
 
     if (on) {
+      const before = glideFrom();
       el.classList.remove(cls);
+      glideTo(before);
       const rest = restOf(el);
       // Overtaking a hide: carry on from where it got to, in place.
       const start = from === null ? pose(rest, { ...SHOW.from, opacity: 0 }) : pose(rest, { opacity: from });
@@ -412,18 +503,120 @@
       { duration: ms(HIDE.ms), easing: ease("out"), fill: "forwards" });
     anim.finished.then(() => {
       if (el.__ovPresAnim !== anim) return;
+      const before = glideFrom();
       el.classList.add(cls);
       if (opts.onHidden) opts.onHidden();
       anim.cancel();
       el.__ovPresAnim = null;
+      glideTo(before);
     }, () => {});
+  }
+
+  // ── Reel ────────────────────────────────────────────────────────────────────
+  //
+  // A number that turns like a slot-machine reel. The old and new values sit
+  // in one strip inside a box that clips and move together by the box's
+  // height per step: up when the number grows (the next value comes up from
+  // below), down when it shrinks. A jump passes the values in between. No
+  // fade — the clip is the exit. An invisible copy of the final value holds
+  // the element's size, so nothing around it moves.
+
+  const REEL_STEP_MS   = 260; // one step, tempo 1
+  const REEL_EXTRA_MS  = 70;  // each further step
+  const REEL_MAX_MS    = 520;
+  const REEL_MAX_CELLS = 7;   // a longer jump shows its first value, then the last six
+
+  /** The values a turn passes, first to last, and which way it turns. */
+  function reelValues(from, to) {
+    const a = Number(from), b = Number(to);
+    if (from === "" || to === "" || !Number.isInteger(a) || !Number.isInteger(b)) {
+      return { values: [from, to], up: true };
+    }
+    const up = b > a;
+    const step = up ? 1 : -1;
+    const all = [];
+    for (let v = a; v !== b + step; v += step) all.push(String(v));
+    const values = all.length <= REEL_MAX_CELLS ? all : [all[0], ...all.slice(-(REEL_MAX_CELLS - 1))];
+    return { values, up };
+  }
+
+  function stopReel(el) {
+    const r = el.__ovReel;
+    if (!r) return;
+    el.__ovReel = null;
+    for (const a of r.anims) a.cancel();
+  }
+
+  /**
+   * Show `value` in `el`, turning from the value it showed like a reel. The
+   * first draw is instant.
+   *
+   * @param {Element} el — holds the number; it or `opts.clip` must clip (overflow: hidden)
+   * @param {number|string} value
+   * @param {(value: string) => Array<Node|string>} build — the content for one value
+   * @param {{ clip?: Element }} [opts] — the clipping box, whose height is one step (default `el`)
+   * @returns {boolean} whether anything changed
+   */
+  function reel(el, value, build, opts = {}) {
+    if (!el) return false;
+    const key = String(value);
+    if (el.__ovReelKey === key) return false;
+    const from = el.__ovReelKey;
+    el.__ovReelKey = key;
+    stopReel(el);
+    el.classList.remove("ov-reeling");
+
+    const box = opts.clip || el;
+    const step = box.clientHeight || 0;
+    if (from === undefined || !canAnimate(el) || !step) {
+      el.replaceChildren(...build(key));
+      return true;
+    }
+
+    const { values, up } = reelValues(from, key);
+    const n = values.length;
+    const sign = up ? 1 : -1;
+    const hold = h("span", "ov-reel-hold");
+    hold.append(...build(key));
+    const cells = values.map((v) => {
+      const cell = h("span", "ov-reel-cell");
+      cell.append(...build(v));
+      return cell;
+    });
+    const before = glideFrom();
+    el.replaceChildren(hold, ...cells);
+    el.classList.add("ov-reeling");
+    glideTo(before);
+
+    // Cell i starts i steps from the window (the first value in it) and ends
+    // n-1-i steps away on the other side (the last value in it).
+    const duration = ms(Math.min(REEL_MAX_MS, REEL_STEP_MS + REEL_EXTRA_MS * (n - 2)));
+    const anims = cells.map((cell, i) => cell.animate([
+      { transform: `translateY(${sign * i * step}px)` },
+      { transform: `translateY(${sign * (i - n + 1) * step}px)` },
+    ], { duration, easing: ease("out"), fill: "both" }));
+
+    // Settle on the final value when the turn ends — or when something else
+    // cancels it (a panel's own stopAnims), so cells are never left stacked.
+    // A reel's own restart clears __ovReel first, so it never settles here.
+    const turn = { anims };
+    el.__ovReel = turn;
+    const settle = () => {
+      if (el.__ovReel !== turn) return;
+      el.__ovReel = null;
+      el.classList.remove("ov-reeling");
+      el.replaceChildren(...build(key));
+    };
+    anims[anims.length - 1].finished.then(settle, settle);
+    return true;
   }
 
   /**
    * Set plain text (never HTML) and mark the element `.empty` when blank.
    * A change of text swaps; with `opts.emptyOn` (a chip that should vanish
    * when blank) the chip itself enters and leaves through presence(), still
-   * showing the old text on its way out.
+   * showing the old text on its way out. `opts.fit` (a px floor) fits the new
+   * text to its box (fitText) as it's drawn.
    */
   function text(el, value, opts = {}) {
     if (!el) return false;
@@ -432,6 +625,7 @@
       node.textContent = s;
       node.classList.toggle("empty", s === "");
       if (opts.squeeze) squeeze(node);
+      if (opts.fit) fitText(node, opts.fit);
     };
     const host = opts.emptyOn;
     if (!host) return swap(el, s, draw, opts);
@@ -456,8 +650,9 @@
   }
 
   /**
-   * Squeeze `el` horizontally until it fits its parent — how every scoreboard
-   * name is drawn. Measured again once the fonts load (a fallback face is a
+   * Fit `el` into its parent: first a little smaller (down to SQUEEZE_SHRINK
+   * of its size), then squeezed horizontally for the rest — how every
+   * scoreboard and caster name is drawn, so a long one never ends in "…". Measured again once the fonts load (a fallback face is a
    * different width), and whenever the parent changes width: the box a name
    * fits into is what its siblings leave, and they change on their own
    * schedule (the doubles swatch is drawn after the name, and is wider than
@@ -470,34 +665,68 @@
     if (squeezeObserver && squeezedIn.get(el.parentElement) !== el) {
       squeezedIn.set(el.parentElement, el);
       squeezeObserver.observe(el.parentElement);
+      // Its own box too: a piece of it coming or going (a sponsor) resizes it
+      // without resizing the parent.
+      squeezedIn.set(el, el);
+      squeezeObserver.observe(el);
     }
   }
+
+  // A name first gets up to SQUEEZE_SHRINK smaller, then is squeezed. One
+  // that would be squeezed past SQUEEZE_MIN shrinks further instead, down to
+  // SQUEEZE_FLOOR of its size, so letters are never squashed to slivers.
+  const SQUEEZE_SHRINK = 0.82;
+  const SQUEEZE_MIN    = 0.75;
+  const SQUEEZE_FLOOR  = 0.6;
 
   function fitSqueeze(el) {
     if (!el.parentElement) return;
     el.style.transform = "";
+    el.style.fontSize = "";
     const ps = getComputedStyle(el.parentElement);
     const avail = el.parentElement.clientWidth - parseFloat(ps.paddingLeft) - parseFloat(ps.paddingRight);
-    const need = el.scrollWidth;
-    if (avail > 0 && need > avail) el.style.transform = `scaleX(${avail / need})`;
+    let need = el.scrollWidth;
+    if (!(avail > 0 && need > avail)) return;
+    const base = parseFloat(getComputedStyle(el).fontSize);
+    if (base > 0) {
+      // Width scales ~linearly with size: the size at which it would just fit.
+      const fits = base * avail / need;
+      let size = Math.max(base * SQUEEZE_SHRINK, fits);
+      if (fits / size < SQUEEZE_MIN) size = Math.max(base * SQUEEZE_FLOOR, fits / SQUEEZE_MIN);
+      size = Math.floor(size * 2) / 2;
+      if (size < base) {
+        el.style.fontSize = size + "px";
+        need = el.scrollWidth;
+      }
+    }
+    if (need > avail) el.style.transform = `scaleX(${avail / need})`;
   }
 
-  // parent → the element squeezed into it. A refit only changes a transform,
-  // which never changes layout, so it can't resize what's observed and loop.
+  // parent (and the element itself) → the element squeezed into it. A refit
+  // can change the element's font size, and so its box, which reports it once
+  // more — but the fit is a function of the parent's width alone, so the
+  // second pass lands on the same size and the observer goes quiet.
   const squeezedIn = new WeakMap();
   const squeezeObserver = typeof root.ResizeObserver === "function"
     ? new root.ResizeObserver((entries) => {
         for (const e of entries) {
           const el = squeezedIn.get(e.target);
-          if (el && el.parentElement === e.target) fitSqueeze(el);
+          if (el && (el.parentElement === e.target || el === e.target)) fitSqueeze(el);
         }
       })
     : null;
 
   /**
-   * Shrink single-line text's font size until it fits its box — the side
-   * panel's way (squeeze() is the scoreboard's). The CSS ellipsis stays as
-   * the fallback once `minPx` is reached; below that it stops being legible.
+   * Fit single-line text into its box — the side panel's and the bracket's
+   * way (squeeze() is the scoreboard's). It tries, in order, until the text
+   * fits:
+   *   0. widely tracked type gives back up to half its letter-spacing;
+   *   1. a smaller font size, down to `minPx`;
+   *   2. tighter letter-spacing — a tracked-out face gives back its spacing
+   *      before anything is cut;
+   *   3. narrower letters, down to CONDENSE_MIN of their width (scaleX on an
+   *      inner span, so the box itself never changes);
+   * and only then leaves the CSS ellipsis to cut it.
    *
    * Synchronous, so call it once the node is in the document. The node
    * remembers its floor in data-fit-min, and every fitted node is redone when
@@ -550,14 +779,41 @@
     nodes.forEach((n, i) => { if (own[i] > shared) n.style.fontSize = shared + "px"; });
   }
 
+  const CONDENSE_MIN = 0.8; // letters are drawn no narrower than this
+
+  /** Undo a fit: back to the stylesheet's size, spacing and letter width. */
+  function unfit(node) {
+    node.style.fontSize = "";
+    node.style.letterSpacing = "";
+    if (node.classList.contains("ov-condensed")) {
+      const inner = node.firstChild;
+      if (inner && inner.nodeType === 1 && inner.classList.contains("ov-fit") && node.childNodes.length === 1) {
+        node.textContent = inner.textContent;
+      }
+      node.classList.remove("ov-condensed");
+    }
+  }
+
   function fitTextNow(node) {
     const minPx = parseFloat(node.dataset.fitMin) || 13;
-    // From the stylesheet size, so a re-fit can grow back as well as shrink.
-    node.style.fontSize = "";
+    // From the stylesheet's look, so a re-fit can grow back as well as shrink.
+    unfit(node);
     const width = node.clientWidth;
     if (!width || node.scrollWidth <= width) return;
-    // Width scales ~linearly with font size (letter-spacing is in em), so jump
-    // to the ratio and only nudge for rounding — not a reflow per half pixel.
+
+    // Widely tracked type (a header in caps) gives back up to half its spacing
+    // first: it reads better a little tighter than a lot smaller.
+    const letters = (node.textContent || "").length;
+    const tracked = parseFloat(getComputedStyle(node).letterSpacing) || 0;
+    if (tracked > 0 && letters > 1) {
+      const give = Math.min(tracked / 2, (node.scrollWidth - width) / letters + 0.1);
+      node.style.letterSpacing = (tracked - give) / parseFloat(getComputedStyle(node).fontSize) + "em";
+      if (node.scrollWidth <= width) return;
+    }
+
+    // 1. Smaller. Width scales ~linearly with font size (letter-spacing is in
+    // em), so jump to the ratio and only nudge for rounding — not a reflow
+    // per half pixel.
     const base = parseFloat(getComputedStyle(node).fontSize);
     let size = Math.max(minPx, Math.floor(base * width / node.scrollWidth * 2) / 2);
     node.style.fontSize = size + "px";
@@ -565,6 +821,38 @@
       size = Math.max(minPx, size - 0.5);
       node.style.fontSize = size + "px";
     }
+    if (node.scrollWidth <= width) return;
+
+    // 2. Tighter: take back what the overflow still needs from each letter's
+    // tracking, but never below none.
+    const spacing = parseFloat(getComputedStyle(node).letterSpacing) || 0;
+    if (spacing > 0 && letters > 1) {
+      const give = Math.min(spacing, (node.scrollWidth - width) / letters + 0.1);
+      node.style.letterSpacing = (spacing - give) + "px";
+      if (node.scrollWidth <= width) return;
+    }
+
+    // 3. Narrower: plain text only, drawn in an inner span squeezed to the
+    // box. The span's layout is still the full width, so the ellipsis is off
+    // while it's condensed (.ov-condensed) — it would hide the whole span.
+    if (![...node.childNodes].every((c) => c.nodeType === 3)) return;
+    const cs = getComputedStyle(node);
+    const padL = parseFloat(cs.paddingLeft) || 0;
+    const room = width - padL - (parseFloat(cs.paddingRight) || 0);
+    const inner = h("span", "ov-fit", node.textContent);
+    node.replaceChildren(inner);
+    const need = inner.offsetWidth;
+    const k = need > 0 ? (room - 0.5) / need : 0;
+    if (!(k >= CONDENSE_MIN && k < 1)) {
+      node.textContent = inner.textContent; // too long even condensed: "…" it is
+      return;
+    }
+    // Wherever the line put the overflowing span (start-aligned, or centred
+    // or right-aligned on some engines), draw it from the box's left edge.
+    const origin = inner.offsetParent === node ? 0 : node.offsetLeft + node.clientLeft;
+    const at = inner.offsetLeft - origin - padL;
+    inner.style.transform = `translateX(${-at}px) scaleX(${k})`;
+    node.classList.add("ov-condensed");
   }
 
   function refitAll() {
@@ -590,7 +878,7 @@
     return node;
   }
 
-  const motion = { ease, ms, restOf, pose };
+  const motion = { ease, ms, restOf, pose, TEXT };
 
-  root.Overlay = { ...api, connect, reveal, followTheme, swap, presence, text, motion, squeeze, fitText, fitGroup, h, param };
+  root.Overlay = { ...api, connect, reveal, followTheme, swap, draw, presence, text, reel, glide, motion, squeeze, fitText, fitGroup, h, param };
 })(typeof window !== "undefined" ? window : globalThis);

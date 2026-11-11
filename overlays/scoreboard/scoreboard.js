@@ -9,7 +9,7 @@
 (function () {
   "use strict";
 
-  const { h, text, swap, squeeze, fitText, icon } = Overlay;
+  const { h, text, swap, presence, reel, glide, squeeze, fitText, icon } = Overlay;
   const ov = Overlay.connect({ tag: "scoreboard" });
 
   const sides = [0, 1].map((i) => ({
@@ -21,7 +21,7 @@
   const roundEl = document.querySelector(".match .round");
   // Only index.html has the pill; players.html shows no best-of.
   const bestOfPill = document.querySelector(".best-of-pill");
-  const ROUND_MIN_PX = 12; // below this the round stops being legible on stream
+  const ROUND_MIN_PX = 11; // below this the round stops being legible on stream
 
   ov.select("scoreboard", (sb) => {
     sb.sides.forEach((side, i) => drawSide(sides[i], side, sb.isDoubles, crewChip(sb.crew, i)));
@@ -47,24 +47,42 @@
     return crew && crew.active[i] != null ? crew.teams[i].name : "";
   }
 
+  /** A name card's pieces, made once so each can come and go on its own. */
+  function nameParts(nameText) {
+    if (nameText.__parts) return nameText.__parts;
+    const sponsor = h("span", "sponsor empty");
+    const prefix = h("span");
+    sponsor.append(prefix);
+    const tag = h("span", "tag");
+    const losers = h("span", "losers empty", "L");
+    nameText.replaceChildren(sponsor, tag, losers);
+    glide(sponsor, tag, losers);
+    return (nameText.__parts = { sponsor, prefix, tag, losers });
+  }
+
   function drawSide(el, side, isDoubles, crewName) {
     const p = side.players[0] ?? {};
 
     // Name: sponsor prefix + tag in singles; the team name (or the tags) in
-    // doubles. [L] in grand finals.
+    // doubles. [L] in grand finals. Each piece changes on its own — a sponsor
+    // or [L] comes and goes whole, a new tag swaps — and what's left slides
+    // over to make room, as it does when the character icon beside it arrives.
     const prefix = isDoubles ? "" : p.prefix;
     const name = isDoubles
       ? side.teamName || side.players.map((x) => x.tag).filter(Boolean).join(" / ")
       : p.tag;
     const nameText = q(el.card, ".name .text");
-    swap(nameText, JSON.stringify([prefix, name, side.losers]), (node) => {
-      node.replaceChildren();
-      if (prefix) node.append(h("span", "sponsor", prefix));
-      node.append(h("span", "tag", name || ""));
-      if (side.losers) node.append(h("span", "losers", "L"));
-      node.classList.toggle("empty", !name);
-      squeeze(node);
-    });
+    if (nameText) {
+      const part = nameParts(nameText);
+      text(part.prefix, prefix || "", { emptyOn: part.sponsor });
+      swap(part.tag, name || "", (node) => {
+        node.textContent = name || "";
+        squeeze(nameText);
+      });
+      presence(part.losers, !!side.losers);
+      nameText.classList.toggle("empty", !name);
+      squeeze(nameText);
+    }
 
     // Character: singles shows the icon (doubles has four, so none); doubles
     // shows the team colour swatch instead.
@@ -83,18 +101,16 @@
         node.append(h("div", "char"));
         node.lastChild.append(img);
       }
-    }, { motion: "pop" });
+    });
 
-    // The score box clips, so the old digit rolls up out of it and the new
-    // one up into it.
-    swap(q(el.card, ".score .text"), side.score, (node) => {
-      node.replaceChildren(...scoreDigits(side.score));
-    }, { motion: "roll" });
+    // The score turns like a reel in its clipped box: up for a game won,
+    // down for one taken back.
+    reel(q(el.card, ".score .text"), side.score, scoreDigits, { clip: q(el.card, ".score") });
 
     const chip = q(el.chips, ".pronoun");
     text(q(chip, ".text"), isDoubles ? "" : p.pronoun, { emptyOn: chip });
     const crew = q(el.chips, ".crew");
-    text(q(crew, ".text"), crewName, { emptyOn: crew });
+    text(q(crew, ".text"), crewName, { emptyOn: crew, fit: 12 });
   }
 
   /* ── Optically centring the score digits ─────────────────────────────────
