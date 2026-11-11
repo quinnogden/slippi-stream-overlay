@@ -42,8 +42,11 @@ function readGameStats(file) {
   const settings = game.getSettings();
   const players = (settings?.players ?? []).filter((p) => p && p.characterId != null);
   if (players.length !== 2) return { ok: false, error: players.length ? "not a singles game" : "no players in the file" };
-  const stats = game.getStats();
-  if (!stats) return { ok: false, error: "no stats in the file" };
+  const raw = game.getStats();
+  if (!raw) return { ok: false, error: "no stats in the file" };
+  // A file read very early can be missing a list: an empty one reads as "nothing happened yet".
+  const stats = { ...raw };
+  for (const k of ["stocks", "conversions", "combos", "overall", "actionCounts"]) if (!Array.isArray(stats[k])) stats[k] = [];
   const end = game.getGameEnd();
   const latest = game.getLatestFrame();
   const lastFrame = stats.lastFrame ?? latest?.frame ?? null;

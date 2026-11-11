@@ -2873,6 +2873,8 @@
     const wasRunning = !!(art && art.job && art.job.running);
     const r = await api("/api/art-packs");
     if (!r.ok) {
+      // Mid-download, one missed answer (the app restarting, a phone's Wi-Fi) mustn't freeze the bar: ask again.
+      if (wasRunning) { artPoll = setTimeout(fetchArt, 3000); return; }
       $("art-packs").replaceChildren(h("div", "empty-note", `Couldn't read the art packs: ${r.error}`));
       return;
     }

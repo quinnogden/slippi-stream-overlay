@@ -44,35 +44,38 @@
   // ── Picture styles ──────────────────────────────────────────────────────────
   // A stack of pieces over the art: { img } a copy of it, { fill } a colour cut
   // to the figure's shape. Either takes filter, o (opacity), blend, off [x, y],
-  // blur; img takes mask. opK scales the layout's portrait opacity.
+  // blur; img takes mask. opK scales the layout's portrait opacity. `fx` is the
+  // piece's own touch as it comes in (set-stats.js piecesIn): "reg" slides an
+  // offset ink into register, "rim" catches a beat after the figure, "scan"
+  // rolls down the picture.
 
   const STYLES = {
     cream:    { pieces: [{ img: 1, filter: "grayscale(1) sepia(0.55) brightness(0.95)" }] },
     scan:     { opK: 1.1, pieces: [
       { img: 1, filter: "saturate(0.85) contrast(1.12)" },
-      { img: 1, filter: "sepia(1) saturate(5) hue-rotate(-25deg)", blend: "screen", o: 0.4, off: [7, 0] },
-      { fill: "repeating-linear-gradient(180deg, rgba(4,10,12,0.6) 0 2px, transparent 2px 5px)" }] },
+      { img: 1, filter: "sepia(1) saturate(5) hue-rotate(-25deg)", blend: "screen", o: 0.4, off: [7, 0], fx: "reg" },
+      { fill: "repeating-linear-gradient(180deg, rgba(4,10,12,0.6) 0 2px, transparent 2px 5px)", fx: "scan" }] },
     halftone: { opK: 1.25, pieces: [
       { img: 1, filter: "grayscale(1) brightness(0.55)", o: 0.4 },
       { img: 1, filter: "grayscale(1) sepia(0.7) contrast(1.45) brightness(1.2)", mask: "radial-gradient(circle, #000 2.4px, transparent 3.1px) 0 0 / 8px 8px" }] },
     riso:     { opK: 1.3, pieces: [
       { img: 1, filter: "grayscale(1) contrast(1.35) brightness(1.08)" },
       { fill: "#16404a", blend: "lighten" },
-      { fill: "#f09a4c", blend: "multiply", off: [6, 4] }] },
+      { fill: "#f09a4c", blend: "multiply", off: [6, 4], fx: "reg" }] },
     silRim:   { opK: 1.7, pieces: [
-      { fill: "rgba(224,138,60,0.30)", blur: 46 },
-      { fill: "#f2a65a", off: [4, -3] },
+      { fill: "rgba(224,138,60,0.30)", blur: 46, fx: "rim" },
+      { fill: "#f2a65a", off: [4, -3], fx: "rim" },
       { fill: "#0d1f25" },
       { img: 1, filter: "grayscale(1) brightness(1.6) contrast(1.3)", blend: "screen", o: 0.1 }] },
     silLine:  { opK: 1.7, pieces: [
-      { fill: "#e08a3c", off: [-3, 0] }, { fill: "#e08a3c", off: [3, 0] }, { fill: "#e08a3c", off: [0, -3] }, { fill: "#e08a3c", off: [0, 3] },
+      { fill: "#e08a3c", off: [-3, 0], fx: "rim" }, { fill: "#e08a3c", off: [3, 0], fx: "rim" }, { fill: "#e08a3c", off: [0, -3], fx: "rim" }, { fill: "#e08a3c", off: [0, 3], fx: "rim" },
       { fill: "linear-gradient(180deg, #13282f, #0b1a1f 70%)" },
       { img: 1, filter: "grayscale(1) brightness(1.5)", blend: "screen", o: 0.08 }] },
     silCream: { opK: 1.2, pieces: [
       { fill: "linear-gradient(180deg, rgba(245,219,162,0.95) 0%, rgba(245,219,162,0.75) 45%, rgba(224,138,60,0.55) 100%)" },
       { img: 1, filter: "grayscale(1) contrast(1.6) brightness(1.05)", blend: "multiply", o: 0.55 }] },
     silSketch:{ opK: 1.1, pieces: [
-      { fill: "#b0581a", off: [-2.5, 0] }, { fill: "#b0581a", off: [2.5, 0] }, { fill: "#b0581a", off: [0, -2.5] }, { fill: "#b0581a", off: [0, 2.5] },
+      { fill: "#b0581a", off: [-2.5, 0], fx: "rim" }, { fill: "#b0581a", off: [2.5, 0], fx: "rim" }, { fill: "#b0581a", off: [0, -2.5], fx: "rim" }, { fill: "#b0581a", off: [0, 2.5], fx: "rim" },
       { fill: "linear-gradient(180deg, #f3e6c6, #e6d3a6)" },
       { img: 1, filter: "grayscale(1) contrast(1.5) brightness(1.08)", blend: "multiply", o: 0.38 }] },
     plain:    { pieces: [{ img: 1 }] },
@@ -213,7 +216,8 @@
       const inner = p.img
         ? html`<img src="${src.url}" style="${box}" alt="" />`
         : html`<div class="fig" style="${box}-webkit-mask-image:url('${src.url}');mask-image:url('${src.url}')"><div class="fill" style="background:${p.fill}"></div></div>`;
-      return html`<div class="pc" style="${css.join(";")}">${inner}</div>`;
+      const fx = p.fx ? new Raw(`data-pc="${p.fx}" data-off="${(p.off || [0, 0]).join(",")}"`) : "";
+      return html`<div class="pc" ${fx} style="${css.join(";")}">${inner}</div>`;
     });
     const style = `--op:${op};opacity:${op};--mask:${P.mask || "linear-gradient(90deg, #000 0%, rgba(0,0,0,0.7) 35%, rgba(0,0,0,0.25) 70%, transparent 96%)"};`
       + `${P.wash ? `--wash:${P.wash};` : ""}${P.w ? `width:${P.w}px;` : ""}${P.blend ? `mix-blend-mode:${P.blend};` : ""}`;
@@ -295,12 +299,12 @@
       const i = keys.indexOf(x.row);
       if (notes.length < max && clear(x, i) && !notes.some((n) => n.side === x.side && Math.abs(keys.indexOf(n.row) - i) < 2)) notes.push(x);
     });
-    const arrow = new Raw('<svg width="40" height="24" viewBox="0 0 40 24"><path d="M3 18 C 13 4, 26 2, 37 11"/><path d="M30 5 L 37 11 L 28 14"/></svg>');
+    const arrow = new Raw('<svg width="40" height="24" viewBox="0 0 40 24"><path pathLength="1" data-draw d="M3 18 C 13 4, 26 2, 37 11"/><path pathLength="1" data-draw d="M30 5 L 37 11 L 28 14"/></svg>');
     return {
       used: notes,
       markup: join(notes.map((x) => {
         const top = firstRowTop + keys.indexOf(x.row) * rh + rh / 2 - 22;
-        return html`<div class="fn hand ${x.side ? "r" : ""}" data-beat style="top:${top}px;${x.side ? `right:${rx}px` : `left:${lx}px`}"><span>${x.note}</span>${arrow}</div>`;
+        return html`<div class="fn hand ${x.side ? "r" : ""}" data-beat data-fx="write" style="top:${top}px;${x.side ? `right:${rx}px` : `left:${lx}px`}"><span>${x.note}</span>${arrow}</div>`;
       })),
     };
   }
@@ -308,8 +312,8 @@
   const FACE_CLEAR = 110;
   /** Each side's face height in the window (a box offset `top` added), for the notes to keep clear of. */
   const faceHeights = (R, P, top = 0) => [0, 1].map((s) => { const p = placed(R, s, P); return p ? p.fy + top : null; });
-  const uline = (w) => html`<svg width="${w}" height="14" viewBox="0 0 ${w} 14"><path d="M4 9 C ${w * 0.25} 2, ${w * 0.55} 13, ${w - 4} 4"/></svg>`;
-  const stamp = (x, style, r) => html`<div data-beat style="${style}"><div class="stamp-in" style="--r:${r}deg"><div class="ins-tag">${x.tag}</div><div class="ins-big num">${val(x)}</div><div class="ins-txt" data-fitbox>${x.text}${x.side >= 0 ? ` · ${x.who}` : ""}</div></div></div>`;
+  const uline = (w) => html`<svg width="${w}" height="14" viewBox="0 0 ${w} 14"><path pathLength="1" data-draw d="M4 9 C ${w * 0.25} 2, ${w * 0.55} 13, ${w - 4} 4"/></svg>`;
+  const stamp = (x, style, r) => html`<div data-beat data-fx="press" style="${style}"><div class="stamp-in" style="--r:${r}deg"><div class="ins-tag">${x.tag}</div><div class="ins-big num">${val(x)}</div><div class="ins-txt" data-fitbox>${x.text}${x.side >= 0 ? ` · ${x.who}` : ""}</div></div></div>`;
   const rest = (list, used) => list.filter((x) => !used.includes(x));
 
   // ── The layouts ─────────────────────────────────────────────────────────────
@@ -322,6 +326,8 @@
       style: "plain", packs: ["CSProject_AltFull", "CSProject_MeleeFull", "full", "portrait"],
       // The face left of the ledger's glass (it starts at 318), not under its edge.
       por: { op: 0.78, tilt: "rotate(-3deg)", scale: 1.7, fx: 200, dy: 40, mask: FADE(30, 100) },
+      // The house motion: the window rises out of the players bar, portraits slide in through its edges.
+      motion: {},
       render(R) {
         const keys = keysFor(R, KEYS7);
         const minis = R.ins.slice(0, 3);
@@ -337,11 +343,13 @@
     players: {
       style: "plain", packs: ["CSProject_AltFull", "CSProject_MeleeFull", "full", "portrait"], noWinPor: true,
       por: [0, 0].map((dx) => ({ slot: "card", op: 0.9, w: 344, fx: 160, fy: 205, dx, scale: 0.95, tilt: "rotate(-3deg)", mask: "linear-gradient(180deg, #000 0%, #000 42%, transparent 76%)", wash: "none" })),
+      // Each player's card stands up out of the players bar on their side, carrying their portrait.
+      motion: { por: "ride" },
       render(R) {
         const keys = keysFor(R, ["kills", "damage", "opk", "dpo", "neutral", "counter", "earliest", "ipm"]);
         const both = R.ins.filter((x) => x.side < 0);
         const rails = [0, 1].map((s) => R.ins.filter((x) => x.side === s).concat(s ? both.slice(1) : both.slice(0, 1)).slice(0, 3));
-        const rail = (side, l) => html`<div class="rail" data-beat-card style="${at(l, 34, 344, 796)}">${portrait(R, side, this.por)}${join(rails[side].map((x, i) => railMini(x, at(14, 404 + i * 128, 316, 116))))}</div>`;
+        const rail = (side, l) => html`<div class="rail" data-beat-card data-fx="rise" data-delay="${side * 90 - 120}" style="${at(l, 34, 344, 796)}">${portrait(R, side, this.por)}${join(rails[side].map((x, i) => railMini(x, at(14, 404 + i * 128, 316, 116))))}</div>`;
         return html`${title(R, at(400, 30, 736))}${rail(0, 36)}${rail(1, 1156)}${cornersBottom(R, 28, 412)}
           <div class="surface" data-beat-card style="${at(408, 150, 720)}padding:12px 22px 0;--cols:96px 70px 1fr 70px 96px;--rh:58px;--gs:38px">${ledger(R, keys, { share: true })}
             <div class="foot-story">
@@ -354,13 +362,15 @@
     margins: {
       style: "cream", packs: ["CSProject_AltFull", "CSProject_MeleeFull", "full", "portrait"], skin: "page",
       por: { op: 0.66, tilt: "rotate(-3deg)", w: 520, fx: 200, fy: 340, scale: 1.75, mask: FADE(45, 100), wash: PAGE_WASH },
+      // Printed and written, never slid: the margins' portraits uncovered from the page's edge.
+      motion: { por: "wipe" },
       render(R) {
         const t = titles(R), rh = 56, L = 206, top = L + 24, M = 300;
         const keys = keysFor(R, ["kills", "damage", "combo", "opk", "neutral", "punish", "earliest"]);
         const notes = marginNotes(R, keys, top, rh, { lx: M - 146, rx: M - 146, faces: faceHeights(R, this.por) });
         const stamps = rest(R.ins, notes.used).slice(0, 3);
-        return html`<div class="rules" style="${at(0, top, 1536, keys.length * rh)}--rh:${rh}px"></div><div class="mrule" style="left:${M}px"></div><div class="mrule" style="right:${M}px"></div>
-          <div class="htitle hand" data-beat style="${at(M + 30, 34)}">${t.title}${uline(250)}</div>
+        return html`<div class="rules" data-fx="rule" style="${at(0, top, 1536, keys.length * rh)}--rh:${rh}px"></div><div class="mrule" data-fx="rule" data-delay="120" style="left:${M}px"></div><div class="mrule" data-fx="rule" data-delay="120" style="right:${M}px"></div>
+          <div class="htitle hand" data-beat data-fx="write" style="${at(M + 30, 34)}">${t.title}${uline(250)}</div>
           <div class="eyebrow" data-beat data-fit style="right:${M + 30}px;top:60px;max-width:520px;text-align:right">${t.eyebrow}</div>
           <div data-rot="story" style="${at(M + 30, 116, 876, 86)}">${R.stories.length ? sayItem(R.stories[0], "hsay") : ""}</div>
           <div style="${at(M, L, 936)}--rh:${rh}px">${ledger(R, keys)}</div>
@@ -375,6 +385,8 @@
     rangerlog: {
       style: "silSketch", packs: ["CSProject_MeleeFull", "CSProject_AltFull", "full", "portrait"], skin: "paper",
       por: { op: 0.88, tilt: "rotate(-4deg)", w: 470, fx: 170, fy: 330, scale: 1.6, mask: FADE(50, 98), wash: "none" },
+      // The clip settles, the form is ruled, the sketches uncovered, the fields filled in by hand.
+      motion: { por: "wipe" },
       render(R) {
         const t = titles(R), rh = 54, L = 180, top = L + 24, M = 308;
         const keys = keysFor(R, KEYS7);
@@ -383,12 +395,12 @@
         let reel = rest(R.ins, boxes);
         if (reel.length < 2) reel = R.ins;
         const box = (x, style) => html`<div data-beat style="${style}"><div class="box-in"><div class="ins-tag">${x.tag}</div><div class="ins-big num" style="margin-top:4px">${val(x)}</div><div class="ins-txt" data-fitbox>${x.text}</div></div></div>`;
-        return html`<div class="clip" style="top:2px"></div>
+        return html`<div class="clip" data-fx="settle" data-delay="-60" style="top:2px"></div>
           <div class="paper bare">
-            <div class="rules" style="${at(0, top, 1492, keys.length * rh)}--rh:${rh}px"></div><div class="mrule" style="left:${M}px"></div><div class="mrule" style="right:${M}px"></div>
+            <div class="rules" data-fx="rule" style="${at(0, top, 1492, keys.length * rh)}--rh:${rh}px"></div><div class="mrule" data-fx="rule" data-delay="120" style="left:${M}px"></div><div class="mrule" data-fx="rule" data-delay="120" style="right:${M}px"></div>
             <div class="eyebrow" data-beat data-fit style="${at(M + 30, 30, 330)}font-size:12px">${["Ranger log", R.d.round].filter(Boolean).join(" · ")}</div>
-            <div class="htitle hand" data-beat style="${at(M + 30, 54)}font-size:52px">${t.title}</div>
-            <div data-beat style="${at(680, 30, 470)}display:grid;grid-template-columns:repeat(2,1fr);gap:10px 24px">${join(R.facts.map((f) => html`<div class="field"><div class="lab" style="font-size:10px">${f.lab}</div><div class="fv hand" data-fit>${f.val}</div></div>`))}</div>
+            <div class="htitle hand" data-beat data-fx="write" style="${at(M + 30, 54)}font-size:52px">${t.title}</div>
+            <div data-beat data-fx="write" style="${at(680, 30, 470)}display:grid;grid-template-columns:repeat(2,1fr);gap:10px 24px">${join(R.facts.map((f) => html`<div class="field"><div class="lab" style="font-size:10px">${f.lab}</div><div class="fv hand" data-fit>${f.val}</div></div>`))}</div>
             <div style="${at(M + 10, L, 856)}--rh:${rh}px;--cols:110px 84px 1fr 84px 110px;--gs:36px">${ledger(R, keys, { share: true })}</div>
             ${notes.markup}
             ${reel.length ? html`<div data-beat-card style="${at(M + 30, 604, 420, 140)}"><div class="box-in reel-in" style="display:flex;flex-direction:column;padding:10px 18px"><div class="eyebrow" style="font-size:11px">Sighting of the ${R.set ? "set" : "game"}</div><div data-rot="reel" style="flex:1">${logItem(reel[0])}</div><div class="reel-foot"><div class="track"><i data-prog="reel"></i></div>${dotsFor("reel", reel.length)}</div></div></div>` : ""}
@@ -419,15 +431,17 @@
     tape: {
       style: "riso", packs: ["CSProject_MeleeFull", "CSProject_AltFull", "full", "portrait"],
       por: { op: 0.72, tilt: "rotate(-3deg)", scale: 2.15, dy: 70, mask: FADE(38, 100) },
+      // A face-off: the fighters walk out first, then each row's numbers close in from their own corner.
+      motion: { por: "walkout", lead: 260 },
       render(R) {
         const keys = keysFor(R, KEYS8);
         const row = (key) => {
           const w = R.lead(key);
-          return html`<div class="tape-row" data-beat><div class="tv num l ${leadCls(w, 0)}">${R.big(key, 0)}</div><div class="tk"><div class="lab">${R.ST[key].label}</div>${shareBar(R, key)}</div><div class="tv num r ${leadCls(w, 1)}">${R.big(key, 1)}</div></div>`;
+          return html`<div class="tape-row" data-beat data-fx="converge"><div class="tv num l ${leadCls(w, 0)}">${R.big(key, 0)}</div><div class="tk"><div class="lab">${R.ST[key].label}</div>${shareBar(R, key)}</div><div class="tv num r ${leadCls(w, 1)}">${R.big(key, 1)}</div></div>`;
         };
         return html`${title(R, at(368, 24, 800))}${corners(R)}
           <div class="surface glass" data-beat-card style="${at(498, 132, 540, 548)}padding:6px 22px">${join(keys.map(row))}</div>
-          ${R.ins.length ? html`<div class="hero tape-band" data-beat-card style="${at(168, 700, 1200, 132)}"><div data-rot="tape">${tapeHero(R.ins[0])}</div>
+          ${R.ins.length ? html`<div class="hero tape-band" data-beat-card data-fx="rise" style="${at(168, 700, 1200, 132)}"><div data-rot="tape">${tapeHero(R.ins[0])}</div>
             <div class="reel-foot"><div class="track"><i data-prog="tape"></i></div>${dotsFor("tape", R.ins.length)}</div></div>` : ""}`;
       },
       rots: (R) => [{ id: "tape", items: R.ins.map(tapeHero) }],
@@ -438,6 +452,8 @@
       style: "plain", packs: ["CSProject_MeleeFull", "portrait", "CSProject_AltFull", "full"], skin: "page", noWinPor: true,
       // Head and shoulders, like a photo of someone: the face a little above the middle.
       por: [0, 0].map((dx) => ({ slot: "card", op: 1, w: 308, fx: 142, fy: 132, dx, scale: 0.92, tilt: "none", mask: "none", wash: "linear-gradient(0deg, rgba(0,0,0,0.25), transparent 40%)" })),
+      // Photos tossed onto the page, developing as they land.
+      motion: { por: "develop" },
       render(R) {
         const t = titles(R), rh = 54, L = 214, top = L + 24;
         const keys = keysFor(R, KEYS7);
@@ -445,11 +461,11 @@
         const used = [best(0), best(1)];
         const snap = (s, l, r) => {
           const x = used[s];
-          return html`<div data-beat-card style="${at(l, 176, 330, 452)}"><div class="polaroid" style="--r:${r}deg"><div class="ph">${portrait(R, s, this.por)}</div>
+          return html`<div data-beat-card data-fx="toss" data-toss="${r}" data-delay="${s * 110 - 120}" style="${at(l, 176, 330, 452)}"><div class="polaroid" style="--r:${r}deg"><div class="ph">${portrait(R, s, this.por)}</div>
             ${x ? html`<div class="pcap hand" data-fitbox><span class="pbig num">${val(x)}</span> ${x.tag.toLowerCase()}<small>${x.text}</small></div>` : ""}</div></div>`;
         };
-        return html`<div class="rules" style="${at(0, top, 1536, keys.length * rh)}--rh:${rh}px"></div>
-          <div class="htitle hand" data-beat style="${at(430, 30)}">${t.title}${uline(250)}</div>
+        return html`<div class="rules" data-fx="rule" style="${at(0, top, 1536, keys.length * rh)}--rh:${rh}px"></div>
+          <div class="htitle hand" data-beat data-fx="write" style="${at(430, 30)}">${t.title}${uline(250)}</div>
           <div class="eyebrow" data-beat data-fit style="right:430px;top:58px;max-width:330px;text-align:right">${t.eyebrow}</div>
           <div data-rot="story" style="${at(430, 112, 676, 90)}">${R.stories.length ? sayItem(R.stories[0], "hsay") : ""}</div>
           ${snap(0, 64, -4)}${snap(1, 1142, 3.5)}
@@ -464,6 +480,8 @@
       style: "riso", packs: ["CSProject_AltFull", "CSProject_MeleeFull", "full", "portrait"], win: { l: 192, t: 556, w: 1536, h: 372 },
       // A short window: a close-up, the face low enough that a head never meets its top edge.
       por: { op: 0.85, tilt: "rotate(-3deg)", scale: 1.4, w: 480, fx: 180, fy: 165, mask: FADE(42, 100) },
+      // A broadcast bar: it opens from its middle, and its rows run in from the left.
+      motion: { win: "wipe", rows: "slide" },
       render(R) {
         const keys = keysFor(R, KEYS8);
         const half = (ks, l) => html`<div class="surface glass sep-rows lt-half" data-beat-card style="${at(l, 104, 452)}padding:6px 18px 4px;--rh:46px;--gs:30px;--cols:84px 70px 1fr 70px 84px">${ledger(R, ks)}</div>`;
@@ -536,6 +554,7 @@
     return {
       skin: L.skin || "",
       win: L.win || null, // a window of its own size and place ({ l, t, w, h }); null = the full one
+      motion: L.motion || {}, // how it moves (set-stats.js): { win, por, rows, lead }
       style,
       portraits: esc(portraits),
       content: esc(L.render(R)),

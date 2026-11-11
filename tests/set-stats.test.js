@@ -112,6 +112,7 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
   const ss = createSetStats({ store, config: {} }, {
     read: (file) => {
       if (reads[file] === "hold") return new Promise((resolve) => held.set(file, resolve));
+      if (typeof reads[file] === "function") return Promise.resolve(reads[file]());
       return Promise.resolve(reads[file] ?? { ok: false, error: "no such file" });
     },
     // Two portrait packs and two stage sets, as portraits.js gives them: every installed one's picture, by id.
@@ -187,6 +188,27 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
     const shown = r.ss.command({ action: "show" });
     assert.strictEqual(shown.ok, false, "Show refuses: nothing to draw");
     assert.strictEqual(r.store.statsShot().shown, false, "…so it can't pop up by itself when stats arrive");
+    r.ss.stop();
+  });
+
+  await test("a stats failure never stops the score, a read that can pass is tried again, and the popup goes when its stats do", async () => {
+    let tries = 0;
+    const r = rig({ reads: { a: () => (++tries === 1 ? { ok: false, transient: true, error: "timed out reading the replay" } : read()) } });
+    r.store.setStatsConfig({ auto: false });
+    const portraitsOf = r.ss.portraits.portraitsOf;
+    r.ss.portraits.portraitsOf = () => { throw new Error("a broken pack"); };
+    r.game("a", 0); // throws out of recordGame if a rebuild can throw
+    assert.deepStrictEqual(r.store.scoreboard().sides.map((s) => s.score), [1, 0], "the game is counted");
+    r.ss.portraits.portraitsOf = portraitsOf;
+    await flush();
+    assert.strictEqual(r.store.setStats().available, false, "the first read timed out");
+    await r.clock.advance(2000);
+    assert.strictEqual(tries, 2, "…and was tried again");
+    assert.strictEqual(r.store.setStats().available, true);
+    assert.ok(r.ss.command({ action: "show" }).ok);
+    r.store.clearScore();
+    await flush();
+    assert.strictEqual(r.store.statsShot().shown, false, "no stats left: down, so it can't pop back up by itself");
     r.ss.stop();
   });
 
@@ -429,6 +451,31 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
       assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, "full", "config.json"), "utf8")).credits, "v2", "the old pack is still there");
       assert.ok(packs.list().find((p) => p.id === "stage_icon").current, "and the others updated");
       assert.ok(!fs.existsSync(path.join(dir, ".download")), "no download left behind");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  await test("two quick clicks are one download, a stalled one gives up, and an interrupted swap is put back", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "art-packs-"));
+    try {
+      // A swap cut off after the old copy was moved aside: the pack is only in .download/full.old.
+      fs.mkdirSync(path.join(dir, ".download", "full.old"), { recursive: true });
+      fs.writeFileSync(path.join(dir, ".download", "full.old", "config.json"), "{}");
+      const manifest = { ssbm: { assets: { stage_icon: { version: "1", files: { "s.7z.001": { name: "s.7z.001", size: 2 } } } } } };
+      let manifestReads = 0;
+      const fetch = async (url) => {
+        if (url === MANIFEST_URL) { manifestReads++; return new Response(JSON.stringify(manifest)); }
+        return new Response(new ReadableStream({ pull: () => new Promise(() => {}) })); // headers, then nothing
+      };
+      const packs = createArtPacks({ dir, fetch, extract: async () => {}, stallMs: 50 });
+      assert.ok(fs.existsSync(path.join(dir, "full", "config.json")), "the moved-aside copy is back in place");
+      const [a, b] = await Promise.all([packs.downloadAll(), packs.downloadAll()]);
+      assert.strictEqual(a.job, b.job, "one job");
+      assert.strictEqual(manifestReads, 1);
+      await packs.job.finished;
+      assert.strictEqual(packs.job.running, false, "the job ends, so the button comes back");
+      assert.match(packs.job.failed[0].error, /stalled/);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

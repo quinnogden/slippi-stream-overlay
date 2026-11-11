@@ -14,7 +14,8 @@ parentPort.on("message", ({ id, file }) => {
   try {
     result = readGameStats(file);
   } catch (err) {
-    result = { ok: false, error: err.message };
+    // A throw is usually a file caught mid-write or held open by Slippi or OneDrive: worth another try.
+    result = { ok: false, transient: true, error: err?.message ?? String(err) };
   }
   parentPort.postMessage({ id, result });
 });

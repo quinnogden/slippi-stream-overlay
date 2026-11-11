@@ -158,10 +158,25 @@ function buildSetView(sb, statsOf, portraitsOf = () => null) {
     ...base,
     games: games.map((g) => ({ n: g.n, winner: g.winner, stage: g.stage, len: clock(g.seconds), seconds: g.seconds, stocks: g.per[g.winner]?.stocksLeft ?? null })),
     rows,
-    insights: { game: rank(gameInsights(ctx)), set: rank(setInsights(ctx)) },
-    stories: { game: gameStories(ctx).slice(0, MAX_STORIES), set: setStories(ctx).slice(0, MAX_STORIES) },
-    facts: { game: gameFacts(ctx, sb), set: setFacts(ctx, sb) },
+    insights: { game: rank(safe(gameInsights, ctx)), set: rank(safe(setInsights, ctx)) },
+    stories: { game: safe(gameStories, ctx).slice(0, MAX_STORIES), set: safe(setStories, ctx).slice(0, MAX_STORIES) },
+    facts: { game: safe(gameFacts, ctx, sb), set: safe(setFacts, ctx, sb) },
   };
+}
+
+/**
+ * One kind of text, or none if it can't be worked out: a callout that trips
+ * over an odd game (a missing number, a game with no winner) costs that line,
+ * not the popup — the ledger still draws.
+ */
+function safe(fn, ...args) {
+  try {
+    const out = fn(...args);
+    return Array.isArray(out) ? out : [];
+  } catch (err) {
+    console.warn(`[set-stats] ${fn.name} skipped: ${err?.message ?? err}`);
+    return [];
+  }
 }
 
 function unavailable(reason) {

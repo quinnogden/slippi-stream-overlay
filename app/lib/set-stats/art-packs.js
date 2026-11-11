@@ -32,6 +32,10 @@ const REPO_URL = "https://github.com/joaorb64/StreamHelperAssets";
 const MANIFEST_URL = "https://raw.githubusercontent.com/joaorb64/StreamHelperAssets/main/assets.json";
 const fileUrl = (name) => `${REPO_URL}/releases/latest/download/${encodeURIComponent(name)}`;
 const MANIFEST_TTL_MS = 10 * 60 * 1000;
+/** After GitHub couldn't be reached, the Setup tab answers from what it has for this long rather than wait 8s again each time. */
+const MANIFEST_RETRY_MS = 60 * 1000;
+/** A download that receives nothing for this long is given up (venue Wi-Fi drops; a stalled socket never errors by itself). */
+const STALL_MS = 60 * 1000;
 const MARKER = ".installed.json";
 
 /**
@@ -102,14 +106,40 @@ function packsFromManifest(json) {
  * @param {{ dir: string, fetch?: typeof fetch, extract?: (archive: string, into: string) => Promise<void>,
  *           onInstalled?: (id: string) => void, now?: () => number }} opts
  */
-function createArtPacks({ dir, fetch: fetchImpl = globalThis.fetch, extract = bsdtarExtract, onInstalled = () => {}, now = Date.now }) {
+function createArtPacks({ dir, fetch: fetchImpl = globalThis.fetch, extract = bsdtarExtract, onInstalled = () => {}, now = Date.now, stallMs = STALL_MS }) {
   let manifest = null;      // packsFromManifest(), once read
   let manifestAt = 0;
   let manifestError = null;
+  let manifestFailedAt = 0;
   let job = null;           // the download in progress, or the last one's result
+  let starting = null;      // a downloadAll() still reading the pack list: a second click joins it
+
+  recoverSwap();
+
+  /**
+   * A run cut off mid-swap (the app closed between moving the old copy aside
+   * and the new one in) leaves a pack only under .download/<id>.old: put it back.
+   */
+  function recoverSwap() {
+    const work = path.join(dir, ".download");
+    let names = [];
+    try { names = fs.readdirSync(work); } catch { return; }
+    for (const n of names) {
+      const m = /^(.+)\.old$/.exec(n);
+      if (!m || !ID.test(m[1])) continue;
+      const target = path.join(dir, m[1]);
+      try {
+        if (!fs.existsSync(target)) { fs.renameSync(path.join(work, n), target); console.log(`[art] ${m[1]}: put back the copy an interrupted update had moved aside`); }
+        else rm(path.join(work, n));
+      } catch (err) {
+        console.warn(`[art] ${m[1]}: couldn't put back ${n} (${err.message})`);
+      }
+    }
+  }
 
   async function readManifest(force = false) {
     if (!force && manifest && now() - manifestAt < MANIFEST_TTL_MS) return manifest;
+    if (!force && manifestError && now() - manifestFailedAt < MANIFEST_RETRY_MS) return manifest;
     try {
       const res = await fetchImpl(MANIFEST_URL, { signal: AbortSignal.timeout(8000) });
       if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
@@ -119,7 +149,8 @@ function createArtPacks({ dir, fetch: fetchImpl = globalThis.fetch, extract = bs
       manifestAt = now();
       manifestError = null;
     } catch (err) {
-      manifestError = err.message;
+      manifestError = err?.message ?? String(err);
+      manifestFailedAt = now();
     }
     return manifest;
   }
@@ -160,12 +191,28 @@ function createArtPacks({ dir, fetch: fetchImpl = globalThis.fetch, extract = bs
 
   /** One part of a pack, appended to `into`, counting bytes into the job. */
   async function fetchPart(name, into) {
-    const res = await fetchImpl(fileUrl(name), { redirect: "follow" });
-    if (!res.ok || !res.body) throw new Error(`${name}: GitHub answered ${res.status}`);
-    const count = new Transform({
-      transform(chunk, _enc, done) { job.received += chunk.length; done(null, chunk); },
-    });
-    await pipeline(Readable.fromWeb(res.body), count, fs.createWriteStream(into, { flags: "a" }));
+    // Given up if nothing arrives for stallMs — before the answer or between chunks.
+    const ctl = new AbortController();
+    let stall = null;
+    const arm = () => {
+      clearTimeout(stall);
+      stall = setTimeout(() => ctl.abort(), stallMs);
+      stall.unref?.();
+    };
+    arm();
+    try {
+      const res = await fetchImpl(fileUrl(name), { redirect: "follow", signal: ctl.signal });
+      if (!res.ok || !res.body) throw new Error(`${name}: GitHub answered ${res.status}`);
+      const count = new Transform({
+        transform(chunk, _enc, done) { arm(); job.received += chunk.length; done(null, chunk); },
+      });
+      await pipeline(Readable.fromWeb(res.body), count, fs.createWriteStream(into, { flags: "a" }), { signal: ctl.signal });
+    } catch (err) {
+      if (ctl.signal.aborted) throw new Error(`${name}: nothing arrived for ${Math.round(stallMs / 1000)}s — the connection stalled`);
+      throw err;
+    } finally {
+      clearTimeout(stall);
+    }
   }
 
   async function install(id, pack) {
@@ -200,43 +247,60 @@ function createArtPacks({ dir, fetch: fetchImpl = globalThis.fetch, extract = bs
     }
   }
 
-  async function run(ids) {
-    for (const id of ids) {
-      const pack = manifest[id];
-      job.pack = id;
-      job.step = "downloading";
-      try {
-        await install(id, pack);
-        job.done.push(id);
-        console.log(`[art] ${id} ${pack.version ?? ""} installed`);
-        onInstalled(id);
-      } catch (err) {
-        job.failed.push({ id, error: err.message });
-        console.warn(`[art] ${id}: ${err.message}`);
+  /** `m`: the pack list the job was started from (a refresh mid-run can't pull a pack out from under it). */
+  async function run(ids, m) {
+    try {
+      for (const id of ids) {
+        const pack = m[id];
+        job.pack = id;
+        job.step = "downloading";
+        try {
+          await install(id, pack);
+          job.done.push(id);
+          console.log(`[art] ${id} ${pack.version ?? ""} installed`);
+        } catch (err) {
+          job.failed.push({ id, error: err?.message ?? String(err) });
+          console.warn(`[art] ${id}: ${err?.message ?? err}`);
+          continue;
+        }
+        // Installed is installed: a redraw that trips is the popup's to report, not a failed download.
+        try { onInstalled(id); } catch (err) { console.warn(`[art] ${id}: installed, but redrawing failed (${err?.message ?? err})`); }
       }
+      try { fs.rmdirSync(path.join(dir, ".download")); } catch { /* not empty or gone */ }
+    } finally {
+      // However it ended, the job is over: the dock's button comes back.
+      Object.assign(job, { running: false, pack: null, step: null, finishedAt: now() });
     }
-    try { fs.rmdirSync(path.join(dir, ".download")); } catch { /* not empty or gone */ }
-    Object.assign(job, { running: false, pack: null, step: null, finishedAt: now() });
   }
 
   /**
    * Download every pack that's missing or behind the release. Starts in the
-   * background and answers at once; a second press while it runs is the same job.
+   * background and answers at once; a second press while it runs (or while
+   * the pack list is still being read) is the same job.
    * @returns {Promise<{ ok: boolean, error?: string, job?: object }>}
    */
-  async function downloadAll() {
-    if (job?.running) return { ok: true, job };
+  function downloadAll() {
+    if (job?.running) return Promise.resolve({ ok: true, job });
+    if (!starting) starting = begin().finally(() => { starting = null; });
+    return starting;
+  }
+
+  async function begin() {
     const m = await readManifest(true);
     if (!m) return { ok: false, error: `Couldn't read the pack list from GitHub: ${manifestError ?? "no answer"}` };
     const ids = list().filter((p) => m[p.id] && !p.current).map((p) => p.id);
     if (!ids.length) return { ok: true, job: null, upToDate: true };
-    fs.mkdirSync(dir, { recursive: true });
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+    } catch (err) {
+      return { ok: false, error: `Couldn't make the packs folder: ${err.message}` };
+    }
     job = {
       running: true, ids, done: [], failed: [], pack: null, step: null,
       received: 0, total: ids.reduce((s, id) => s + m[id].files.reduce((t, f) => t + f.size, 0), 0),
       startedAt: now(), finishedAt: null,
     };
-    job.finished = run(ids);
+    job.finished = run(ids, m).catch((err) => console.error(`[art] download stopped: ${err?.message ?? err}`));
     // (the promise isn't sent to the dock: JSON drops it, and tests await it)
     Object.defineProperty(job, "finished", { enumerable: false });
     return { ok: true, job };

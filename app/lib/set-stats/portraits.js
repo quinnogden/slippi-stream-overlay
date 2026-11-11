@@ -64,6 +64,7 @@ function createPortraits({ dir }) {
     for (const id of found.sort((a, b) => order(a) - order(b) || a.localeCompare(b))) {
       let conf = null;
       try { conf = JSON.parse(fs.readFileSync(path.join(dir, id, "config.json"), "utf8")); } catch { continue; }
+      if (!conf || typeof conf !== "object" || Array.isArray(conf)) continue; // not a pack's config
       const known = KNOWN.find((k) => k.id === id);
       const name = known?.name ?? (typeof conf.name === "string" ? conf.name : id);
       if (isPortraitPack(conf)) packs.push({ id, name, conf, fill: known?.fill ?? 1, cut: [].concat(conf.type ?? []).includes("portrait") });
@@ -78,11 +79,16 @@ function createPortraits({ dir }) {
     const at = (f) => path.join(dir, pack.id, f);
     if (!fs.existsSync(at(file))) file = `${name}_0.png`;
     const size = fs.existsSync(at(file)) ? pngSize(at(file)) : null;
-    if (!size) return null;
+    if (!size || !(size.w > 0 && size.h > 0)) return null;
     const eyes = pack.conf.eyesights?.[name] ?? {};
-    const e = eyes[String(skin)] ?? eyes["0"] ?? { x: size.w * 0.55, y: size.h * 0.35 };
+    // A face point that isn't two numbers inside the picture would place the portrait off the page.
+    const okEye = (p) => p && Number.isFinite(Number(p.x)) && Number.isFinite(Number(p.y))
+      && Number(p.x) >= 0 && Number(p.x) <= size.w && Number(p.y) >= 0 && Number(p.y) <= size.h;
+    const found = [eyes[String(skin)], eyes["0"]].find(okEye);
+    const e = found ? { x: Number(found.x), y: Number(found.y) } : { x: size.w * 0.55, y: size.h * 0.35 };
     const rs = pack.conf.rescaling_factor?.[name] ?? {};
-    const scale = Number(rs[String(skin)] ?? rs["0"]) || 1;
+    const given = Number(rs[String(skin)] ?? rs["0"]);
+    const scale = Number.isFinite(given) && given > 0.1 && given < 10 ? given : 1;
     return {
       url: `/assets/packs/${encodeURIComponent(pack.id)}/${encodeURIComponent(file)}`,
       char: name, // TSH's name: the overlay's per-pose tweaks (portrait-fit.js) are keyed by it

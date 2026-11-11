@@ -176,6 +176,8 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .htitle { font-size: 62px; line-height: 1; }
 .htitle svg { display: block; margin: 4px 0 0 -6px; }
 .htitle path, .uline path { fill: none; stroke: var(--trim-c); stroke-width: 3; stroke-linecap: round; }
+/* A drawn stroke (set-stats.js drawStroke): one dash the path's length (pathLength="1"), at rest offset 0. */
+[data-draw] { stroke-dasharray: 1 1; }
 .hsay { font-size: 25px; line-height: 1.32; color: rgba(var(--text-color-rgb), 0.9); }
 .hsay em { font-style: normal; color: var(--trim-c); }
 .fn { width: 140px; display: flex; align-items: center; gap: 2px; }

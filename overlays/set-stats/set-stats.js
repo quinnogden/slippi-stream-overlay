@@ -20,6 +20,16 @@
  * over the old one; a layout with its own window box (the Lower third) goes
  * down and comes back up in it.
  *
+ * Each layout moves like its scene (LAYOUTS[].motion, plus data-fx on its
+ * pieces — see FX): the glass windows rise out of the players bar; the field
+ * notes are written and printed rather than slid (the portraits uncovered
+ * from their margin, the title and notes written left to right with their
+ * strokes drawn after, stamps pressed, ruled lines drawn down the page, the
+ * clipboard's clip settling first); the polaroids are tossed onto the page and
+ * develop; the Tale of the tape's fighters walk out first and each row's
+ * numbers close in from their own side; the Lower third opens from its middle.
+ * A swap leaves the old layout's way and arrives the new one's.
+ *
  * The players bar's logo stands where the window's foot lands. It sinks into
  * the round card as the popup is shown (scoreboard.js, LOGO), so the window
  * waits WINDOW_IN_DELAY for it; going down, the window clears and the logo
@@ -48,13 +58,29 @@
   // Portraits travel from their side's outer edge: a share of their own width,
   // in their own frame (the right one is mirrored, so -x is outward for both).
   const POR = { travel: "-26%", inMs: 900, fadeInMs: 520, outMs: 320, fadeOutMs: 240 };
+  // The portraits' ways in, per layout (LAYOUTS[].motion.por):
+  //   slide    the default above: in through the window's edge
+  //   walkout  the Tale of the tape's fighters: further, sooner, first
+  //   wipe     the field notes: printed — uncovered from their margin, no travel
+  //   develop  the Polaroids: the photo comes up from a pale, washed print
+  //   ride     inside a card that carries them (the Players rails): no motion of their own
+  const WALKOUT = { travel: "-40%", inMs: 760, fadeInMs: 360 };
+  const WIPE = { inMs: 820, outMs: 300 };
+  const DEVELOP = { inMs: 1200, fadeInMs: 600, from: "sepia(0.7) brightness(1.55) contrast(0.6)", to: "sepia(0) brightness(1) contrast(1)" };
   const SKIN_FADE_MS = 420;
+  // clip-path boxes for the reveals. Negative insets leave room for text
+  // shadows and a note's arrow; `L0` is the same box closed to its left edge.
+  const CLIP = { full: "inset(-30% -40px -30% -40px)", L0: "inset(-30% 100% -30% -40px)", top0: "inset(0px 0px 100% 0px)", all: "inset(0px 0px 0px 0px)", mid0: "inset(0px 50% 0px 50%)" };
+  // The Lower third's window opens from its middle line (the box reaches past
+  // the window for its shadow).
+  const WIN_WIPE = { full: "inset(-80px -80px -80px -80px)", mid: "inset(-80px 50% -80px 50%)", inMs: 640, outMs: 300 };
 
   let data = null;
   let cfg = { layout: "spotlight", style: "auto" };
   let shot = { shown: false, mode: "game" };
   let up = false;
   let drawn = null; // the signature of what's on screen
+  let motion = {}; // the drawn layout's LAYOUTS[].motion, so a swap leaves its way
 
   const still = () => document.body.classList.contains("no-animate");
 
@@ -100,12 +126,95 @@
       opacity: Number.isFinite(op) ? op : 1,
       transform: cs.transform && cs.transform !== "none" ? cs.transform : (restOf(el).transform || "none"),
       filter: cs.filter && cs.filter !== "none" ? cs.filter : "none",
+      clipPath: cs.clipPath && cs.clipPath !== "none" ? cs.clipPath : null,
     };
   }
-  /** `el` out from `from` (now()) to `to`; one still invisible just stays hidden. */
+  /**
+   * `el` out from `from` (now()) to `to`; one still invisible just stays hidden.
+   * A reveal cut into mid-way keeps its clip as it goes, rather than flash whole.
+   */
   function leave(el, from, to, opts) {
     if (from.opacity < 0.02) { el.style.visibility = "hidden"; return; }
-    animate(el, [{ ...from, opacity: String(from.opacity) }, to], { fill: "forwards", ...opts });
+    const { clipPath, ...rest } = from;
+    const clip = clipPath ? { clipPath } : {};
+    if (!("filter" in to)) delete rest.filter;
+    animate(el, [{ ...rest, ...clip, opacity: String(from.opacity) }, { ...to, ...clip }], { fill: "forwards", ...opts });
+  }
+
+  // ── Each layout's own motion ────────────────────────────────────────────────
+  // A piece marked data-fx="<name>" arrives its own way instead of the text
+  // lift; data-delay adds to its turn (ms at tempo 1). Every one goes through
+  // animate(), so ?animate=false still draws them at rest.
+
+  /** A stroke (an SVG path with pathLength="1" and data-draw, dashed 1 1 in the stylesheet) drawn along its length. */
+  function drawStroke(p, delay) {
+    animate(p, [{ strokeDashoffset: "1", opacity: "0" }, { strokeDashoffset: "0.96", opacity: "1", offset: 0.04 }, { strokeDashoffset: "0", opacity: "1" }],
+      { duration: ms(520), delay: ms(delay), fill: "backwards" });
+  }
+  const moved = (el, { x = 0, y = 0, scale = 1, rotate = 0 } = {}) => `${restOf(el).transform} translate(${x}px, ${y}px) rotate(${rotate}deg) scale(${scale})`.trim();
+  const FX = {
+    /** Handwriting: uncovered left to right, then any stroke in it (an underline, a note's arrow) drawn. */
+    write(el, delay) {
+      animate(el, [{ clipPath: CLIP.L0, opacity: "0" }, { clipPath: CLIP.L0, opacity: "1", offset: 0.04 }, { clipPath: CLIP.full, opacity: "1" }],
+        { duration: ms(640), delay: ms(delay), fill: "backwards" });
+      el.querySelectorAll("[data-draw]").forEach((p, i) => drawStroke(p, delay + 420 + i * 120));
+    },
+    /** A stamp: pressed down onto the page, from a little above it. */
+    press(el, delay) {
+      animate(el, [{ opacity: "0", transform: moved(el, { scale: 1.12 }) }, { opacity: "1", transform: moved(el, { scale: 1.02 }), offset: 0.45 }, { opacity: "1", transform: moved(el) }],
+        { duration: ms(380), delay: ms(delay), fill: "backwards" });
+    },
+    /** A photo tossed onto the page: from above, turned further than it lands, settling (the spring curve) at its angle. */
+    toss(el, delay) {
+      const r = parseFloat(el.dataset.toss) || 0;
+      const turn = (r < 0 ? -1 : 1) * 7;
+      animate(el, [{ opacity: "0", transform: moved(el, { y: -48, rotate: turn, scale: 1.05 }) }, { opacity: "1", transform: moved(el, { y: -14, rotate: turn * 0.35, scale: 1.015 }), offset: 0.3 }, { opacity: "1", transform: moved(el) }],
+        { duration: ms(760), delay: ms(delay), fill: "backwards", easing: ease("spring") });
+    },
+    /** A card standing up out of the players bar below. */
+    rise(el, delay) {
+      animate(el, [{ opacity: "0", transform: moved(el, { y: 56 }) }, { opacity: "1", transform: moved(el) }],
+        { duration: ms(640), delay: ms(delay), fill: "backwards" });
+    },
+    /** A tape row: each player's number closes in from their own side, the label rises between. */
+    converge(el, delay) {
+      el.querySelectorAll(".tv").forEach((v) => {
+        const x = v.classList.contains("r") ? 44 : -44;
+        animate(v, [{ opacity: "0", transform: moved(v, { x }) }, { opacity: "1", transform: moved(v) }], { duration: ms(520), delay: ms(delay), fill: "backwards" });
+      });
+      el.querySelectorAll(".tk").forEach((k) => liftIn(k, delay + 60));
+    },
+    /** Ruled lines and margin rules drawn down the page. */
+    rule(el, delay) {
+      animate(el, [{ clipPath: CLIP.top0 }, { clipPath: CLIP.all }], { duration: ms(760), delay: ms(delay), fill: "backwards" });
+    },
+    /** The clipboard's clip: dropped into place first, with a little give. */
+    settle(el, delay) {
+      animate(el, [{ opacity: "0", transform: moved(el, { y: -22 }) }, { opacity: "1", transform: moved(el) }],
+        { duration: ms(520), delay: ms(delay), fill: "backwards", easing: ease("spring") });
+    },
+  };
+  /** A beat (a row, a title) in: its own way if it has one, else the layout's rows (`slide`: from the left) or the text lift. */
+  function beatIn(el, delay, m) {
+    const fx = FX[el.dataset.fx];
+    if (fx) return fx(el, delay);
+    if (m.rows === "slide") {
+      const rest = restOf(el);
+      return animate(el, [pose(rest, { x: -18, blur: TEXT.in.blur, opacity: 0 }), pose(rest)], { duration: ms(TEXT.inMs), delay: ms(delay), fill: "backwards" });
+    }
+    return liftIn(el, delay);
+  }
+  /** A card (a ledger's glass, a strip) in: its own way, else from a little below (`slide` layouts: from the left). */
+  function cardIn(el, delay, m) {
+    const fx = FX[el.dataset.fx];
+    if (fx) return fx(el, delay);
+    const rest = restOf(el);
+    const from = m.rows === "slide" ? { x: -24, scale: 0.985, opacity: 0 } : { y: 12, scale: 0.985, opacity: 0 };
+    return animate(el, [pose(rest, from), pose(rest)], { duration: ms(560), delay: ms(delay), fill: "backwards" });
+  }
+  /** A share bar (who had more of it) fills out from its middle once its row is in. */
+  function shareIn(el, delay) {
+    animate(el, [{ clipPath: CLIP.mid0 }, { clipPath: CLIP.all }], { duration: ms(520), delay: ms(delay), fill: "backwards" });
   }
 
   // ── Fitting text ────────────────────────────────────────────────────────────
@@ -214,6 +323,7 @@
     }
     win.dataset.skin = skin;
     portraitsDrawn = r.portraits;
+    motion = r.motion || {};
     rots = r.rots;
     fit();
   }
@@ -237,28 +347,77 @@
     setTimeout(sweep, still() ? 0 : ms(SKIN_FADE_MS) + 30);
   }
 
-  /** Portraits slide in from their outer edge; the window's clip (or their card's) is the doorway. */
-  function portraitsIn(delay, scope = win) {
-    if (scope) scope.querySelectorAll("[data-por]").forEach((el) => {
+  /**
+   * Portraits in, the layout's way (see POR): through their outer edge — the
+   * window's clip (or their card's) is the doorway — or uncovered from it, or
+   * developing in place.
+   */
+  function portraitsIn(delay, scope = win, kind = "slide") {
+    if (!scope) return;
+    scope.querySelectorAll("[data-por]").forEach((el) => {
       const base = restOf(el).transform;
       const op = getComputedStyle(el).opacity;
-      animate(el, [{ transform: `${base} translateX(${POR.travel})`.trim() }, { transform: base || "none" }], { duration: ms(POR.inMs), delay: ms(delay), fill: "backwards" });
-      animate(el, [{ opacity: "0" }, { opacity: op }], { duration: ms(POR.fadeInMs), delay: ms(delay), fill: "backwards" });
+      if (kind === "ride") {
+        // Its card carries it in; only the style's touch is its own.
+      } else if (kind === "wipe") {
+        // In the portrait's own frame (the right one is mirrored), so the left edge is the outer one for both.
+        animate(el, [{ clipPath: "inset(0px 100% 0px 0px)", opacity: "0" }, { clipPath: "inset(0px 88% 0px 0px)", opacity: op, offset: 0.12 }, { clipPath: CLIP.all, opacity: op }],
+          { duration: ms(WIPE.inMs), delay: ms(delay), fill: "backwards" });
+      } else if (kind === "develop") {
+        animate(el, [{ filter: DEVELOP.from }, { filter: DEVELOP.to }], { duration: ms(DEVELOP.inMs), delay: ms(delay), fill: "backwards" });
+        animate(el, [{ opacity: "0" }, { opacity: op }], { duration: ms(DEVELOP.fadeInMs), delay: ms(delay), fill: "backwards" });
+      } else {
+        const p = kind === "walkout" ? { ...POR, ...WALKOUT } : POR;
+        animate(el, [{ transform: `${base} translateX(${p.travel})`.trim() }, { transform: base || "none" }], { duration: ms(p.inMs), delay: ms(delay), fill: "backwards" });
+        animate(el, [{ opacity: "0" }, { opacity: op }], { duration: ms(p.fadeInMs), delay: ms(delay), fill: "backwards" });
+      }
+      piecesIn(el, delay);
+    });
+  }
+
+  /**
+   * The picture style's own touch, in any layout (STYLES[].pieces[].fx): riso's
+   * second ink slides into register, a silhouette's rim catches the light a
+   * beat after its figure, the scan lines roll down the picture.
+   */
+  function piecesIn(por, delay) {
+    por.querySelectorAll("[data-pc]").forEach((pc) => {
+      const kind = pc.dataset.pc;
+      if (kind === "reg") {
+        const [x, y] = String(pc.dataset.off || "0,0").split(",").map(Number);
+        animate(pc, [{ transform: `translate(${x * 4}px, ${y * 4}px)` }, { transform: `translate(${x}px, ${y}px)` }], { duration: ms(900), delay: ms(delay + 160), fill: "backwards" });
+      } else if (kind === "rim") {
+        const op = getComputedStyle(pc).opacity;
+        animate(pc, [{ opacity: "0" }, { opacity: op }], { duration: ms(480), delay: ms(delay + 260), fill: "backwards" });
+      } else if (kind === "scan") {
+        animate(pc, [{ clipPath: CLIP.top0 }, { clipPath: CLIP.all }], { duration: ms(700), delay: ms(delay + 120), fill: "backwards" });
+      }
     });
   }
 
   /** The window's insides in: portraits from the outer edges, the cards, the corners, the rows top to bottom. */
   function enterInsides(delay = 0, { keepPor = false } = {}) {
+    const m = motion;
+    // The Tale of the tape's fighters walk out first; everything else waits `lead` for them.
+    const lead = m.lead || 0;
+    const own = (el) => parseFloat(el.dataset.delay) || 0;
     // Kept: only the window's portraits stay; those inside cards were redrawn with them.
-    portraitsIn(delay + 120, keepPor ? win.querySelector(".content") : win);
-    win.querySelectorAll("[data-beat-card]").forEach((el) => {
-      const rest = restOf(el);
-      animate(el, [pose(rest, { y: 12, scale: 0.985, opacity: 0 }), pose(rest)], { duration: ms(560), delay: ms(delay + 200), fill: "backwards" });
+    portraitsIn(delay + (m.por === "walkout" ? 40 : 120), keepPor ? win.querySelector(".content") : win, m.por);
+    // The page's own furniture first (ruled lines, the clipboard's clip).
+    win.querySelectorAll("[data-fx]").forEach((el) => {
+      if (el.hasAttribute("data-beat") || el.hasAttribute("data-beat-card")) return;
+      const fx = FX[el.dataset.fx];
+      if (fx) fx(el, delay + 80 + own(el));
     });
-    win.querySelectorAll("[data-corner]").forEach((el) => liftIn(el, delay + 200));
+    win.querySelectorAll("[data-beat-card]").forEach((el) => cardIn(el, delay + lead + 200 + own(el), m));
+    win.querySelectorAll("[data-corner]").forEach((el) => liftIn(el, delay + lead + 200));
     const beats = [...win.querySelectorAll("[data-beat]")];
     const off = cascadeOffsets(beats.length, CASCADE_IN);
-    beats.forEach((el, i) => liftIn(el, delay + 240 + off[i]));
+    beats.forEach((el, i) => {
+      const t = delay + lead + 240 + off[i] + own(el);
+      beatIn(el, t, m);
+      el.querySelectorAll(".share").forEach((s) => shareIn(s, t + 260));
+    });
     ROT.start(rots);
   }
 
@@ -270,22 +429,41 @@
   function exitInsides({ keepPor = false } = {}) {
     ROT.stop();
     const content = win.querySelector(".content");
-    const beats = content ? [...content.querySelectorAll("[data-beat], [data-corner], [data-beat-card]")] : [];
+    const m = motion;
+    const beats = content ? [...new Set(content.querySelectorAll("[data-beat], [data-corner], [data-beat-card], [data-fx]"))] : [];
     const porScope = keepPor ? content : win; // kept: only the window's portraits stay
-    const pors = porScope ? [...porScope.querySelectorAll("[data-por]")] : [];
+    // Portraits that ride in a card leave with it.
+    const pors = porScope && m.por !== "ride" ? [...porScope.querySelectorAll("[data-por]")] : [];
     const from = new Map([...beats, ...pors].map((el) => [el, now(el)]));
     stopScripted(content);
     pors.forEach((el) => stopScripted(el, { subtree: false }));
 
     const off = cascadeOffsets(beats.length, CASCADE_OUT);
     beats.forEach((el, i) => {
-      leave(el, from.get(el), pose(restOf(el), { ...TEXT.out, opacity: 0 }), { duration: ms(TEXT.outMs), delay: ms(off[i]) });
+      const rest = restOf(el);
+      // Text drifts up out of focus; a card (glass, whose backdrop a blur
+      // would smear — and too big a layer to blur) and the page's furniture
+      // leave as they came, without one.
+      const card = el.hasAttribute("data-beat-card") || (el.hasAttribute("data-fx") && !el.hasAttribute("data-beat"));
+      const to = card ? pose(rest, { y: -6, scale: 0.985, opacity: 0 }) : pose(rest, { ...TEXT.out, opacity: 0 });
+      if (card) delete to.filter;
+      leave(el, from.get(el), to, { duration: ms(TEXT.outMs), delay: ms(off[i]) });
     });
     pors.forEach((el) => {
       const f = from.get(el);
       if (f.opacity < 0.02) { el.style.visibility = "hidden"; return; }
       const base = restOf(el).transform;
-      animate(el, [{ transform: f.transform }, { transform: `${base} translateX(${POR.travel})`.trim() }], { duration: ms(POR.outMs), fill: "forwards" });
+      if (m.por === "wipe") {
+        // Back into their margin: covered from the inner edge out.
+        animate(el, [{ clipPath: f.clipPath || CLIP.all, opacity: String(f.opacity) }, { clipPath: "inset(0px 100% 0px 0px)", opacity: "0" }], { duration: ms(WIPE.outMs), fill: "forwards" });
+        return;
+      }
+      if (m.por === "develop") {
+        animate(el, [{ opacity: String(f.opacity) }, { opacity: "0" }], { duration: ms(POR.fadeOutMs), fill: "forwards" });
+        return;
+      }
+      const travel = m.por === "walkout" ? WALKOUT.travel : POR.travel;
+      animate(el, [{ transform: f.transform }, { transform: `${base} translateX(${travel})`.trim() }], { duration: ms(POR.outMs), fill: "forwards" });
       animate(el, [{ opacity: String(f.opacity) }, { opacity: "0" }], { duration: ms(POR.fadeOutMs), fill: "forwards" });
     });
     const lastOff = off[off.length - 1] || 0;
@@ -322,7 +500,13 @@
     win.classList.add("shown");
     const rest = restOf(win);
     const delay = reboxed ? 0 : WINDOW_IN_DELAY;
-    animate(win, [lift(rest, { y: 24, scale: 0.97, opacity: 0 }), lift(rest, {})], { duration: ms(560), delay: ms(delay), fill: "backwards" });
+    if (motion.win === "wipe") {
+      // The Lower third opens out from its middle, like a bar run across the screen.
+      animate(win, [{ clipPath: WIN_WIPE.mid, opacity: "0" }, { clipPath: "inset(-80px 48% -80px 48%)", opacity: "1", offset: 0.06 }, { clipPath: WIN_WIPE.full, opacity: "1" }],
+        { duration: ms(WIN_WIPE.inMs), delay: ms(delay), fill: "backwards" });
+    } else {
+      animate(win, [lift(rest, { y: 24, scale: 0.97, opacity: 0 }), lift(rest, {})], { duration: ms(560), delay: ms(delay), fill: "backwards" });
+    }
     enterInsides(delay); // not awaited: a Hide or a swap cuts straight into an entrance
   }
 
@@ -331,12 +515,20 @@
     const { lastOff, ms: insides } = exitInsides();
     stopScripted(win, { subtree: false });
     const rest = restOf(win);
-    animate(win, [{ opacity: String(winFrom.opacity), transform: winFrom.transform }, lift(rest, { y: -12, scale: 0.985, opacity: 0 })],
-      { duration: ms(320), delay: ms(lastOff + 60), fill: "forwards" });
-    await wait(Math.max(insides, ms(lastOff + 60 + 320)) + 30);
+    let winMs = 320;
+    if (motion.win === "wipe") {
+      winMs = WIN_WIPE.outMs;
+      animate(win, [{ clipPath: winFrom.clipPath || WIN_WIPE.full, opacity: String(winFrom.opacity) }, { clipPath: "inset(-80px 46% -80px 46%)", opacity: String(winFrom.opacity), offset: 0.8 }, { clipPath: WIN_WIPE.mid, opacity: "0" }],
+        { duration: ms(winMs), delay: ms(lastOff + 60), fill: "forwards" });
+    } else {
+      animate(win, [{ opacity: String(winFrom.opacity), transform: winFrom.transform }, lift(rest, { y: -12, scale: 0.985, opacity: 0 })],
+        { duration: ms(winMs), delay: ms(lastOff + 60), fill: "forwards" });
+    }
+    await wait(Math.max(insides, ms(lastOff + 60 + winMs)) + 30);
     up = false;
     drawn = null;
     portraitsDrawn = null;
+    motion = {};
     stopScripted(win);
     win.className = "win";
     delete win.dataset.skin;
@@ -346,8 +538,9 @@
   /** Something different while up: the insides out, redrawn, back in; the window stays. */
   async function swap(w) {
     const r = Layouts.render(data, w);
-    const keepPor = r.portraits === portraitsDrawn;
-    const out = exitInsides({ keepPor });
+    // Portraits stay only if they'd be drawn the same and the new layout doesn't bring them in its own way.
+    const keepPor = r.portraits === portraitsDrawn && (r.motion || {}).por === motion.por;
+    const out = exitInsides({ keepPor }); // the old layout's way out; build() then takes the new one's
     await wait(out.ms + 30);
     stopScripted(win.querySelector(".content"));
     if (!keepPor) stopScripted(win.querySelector(".win-clip"));
@@ -375,10 +568,30 @@
         if (sig !== drawn) { drawn = sig; await swap(w); }
       } while (again);
     } catch (err) {
+      // Never leave half a popup on stream: clear the window back to down, so the
+      // next change draws from scratch (and a Hide still works).
       console.error("[set-stats] draw failed", err);
+      reset();
     } finally {
       running = false;
     }
+    // A change that came in while the failed draw ran still gets its turn.
+    if (again) setTimeout(reconcile, 0);
+  }
+
+  /** Down, now, with nothing animating and nothing left over. */
+  function reset() {
+    try { ROT.stop(); } catch (_) { /* nothing to stop */ }
+    try { stopScripted(win); } catch (_) { /* nothing animating */ }
+    up = false;
+    drawn = null;
+    drawnBox = null;
+    portraitsDrawn = null;
+    motion = {};
+    win.className = "win";
+    delete win.dataset.skin;
+    placeWindow(null);
+    win.innerHTML = "";
   }
 
   const ov = Overlay.connect({ tag: "set-stats" });
