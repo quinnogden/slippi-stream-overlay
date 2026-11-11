@@ -41,13 +41,14 @@
  */
 
 const { EventEmitter } = require("events");
-const { bestOfLabel, losersMarks } = require("./set-text");
+const { bestOfLabel, losersMarks, normalizeSetRules } = require("./set-text");
 const Crew = require("../crew/crew-model");
+const { defaultStatsConfig, normalizeStatsConfig } = require("../set-stats/catalog");
 
 const STATE_VERSION = 1;
 
 // What persist.js saves. `bracket` is derived from start.gg and re-read on boot.
-const PERSISTED = ["tournament", "scoreboard", "casters", "view"];
+const PERSISTED = ["tournament", "scoreboard", "casters", "view", "statsConfig", "setRules"];
 
 const emptyPlayer = () => ({ playerId: null, tag: "", prefix: "", pronoun: "", main: null, character: null });
 const emptySide = () => ({ entrantId: null, seed: null, teamName: "", color: null, fromLosers: false, players: [emptyPlayer()] });
@@ -88,15 +89,23 @@ const emptyTournament = () => ({ name: "", slug: "", eventName: "", eventSlug: "
  */
 const emptyShot = () => ({ mode: "tour", view: null, group: null, page: null, since: 0, holdMs: 0, camera: null });
 
+/**
+ * The stats popup on screen (lib/set-stats/director.js): shown, which reading
+ * ("game" | "set"), since when, when an automatic show is due (pendingAt, ms),
+ * and whether the one up was automatic.
+ */
+const emptyStatsShot = () => ({ shown: false, mode: "game", since: 0, pendingAt: null, auto: false });
+
 const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
 
 class ScoreboardStore extends EventEmitter {
   /**
-   * @param {{ setText?: object }} [opts] — config.SET_TEXT (topN, topLabel, defaultLabel)
+   * @param {{ setText?: object }} [opts] — config.SET_TEXT (topN, topLabel, defaultLabel): the
+   *   best-of rule's starting values; the dock's saved `setRules` win once there are any
    */
   constructor(opts = {}) {
     super();
-    this._setText = opts.setText ?? {};
+    this._setRules = normalizeSetRules(opts.setText ?? {});
     this._rev = 0;
     this._set = emptySet();
     this._tournament = emptyTournament();
@@ -107,6 +116,12 @@ class ScoreboardStore extends EventEmitter {
     // What the bracket overlay is showing (bracket-director.js). Not saved: the
     // tour ticks every few seconds, and a restart starting on the tour is right.
     this._shot = emptyShot();
+    // The stats popup: its settings (saved), the set's stats (derived from the
+    // replays, lib/set-stats/), and whether it's up (not saved: a restart
+    // starts with it down).
+    this._statsConfig = defaultStatsConfig();
+    this._setStats = null;
+    this._statsShot = emptyStatsShot();
   }
 
   get rev() { return this._rev; }
@@ -126,7 +141,7 @@ class ScoreboardStore extends EventEmitter {
       phaseGroupId: s.phaseGroupId,
       round: s.overrides.round ?? (crew ? Crew.CREW_ROUND : s.roundName),
       identifier: s.identifier,
-      bestOfLabel: crew ? "" : bestOfLabel(s, { ...this._setText, override: s.overrides.bestOf }),
+      bestOfLabel: crew ? "" : bestOfLabel(s, { ...this._setRules, override: s.overrides.bestOf }),
       isGrandFinal: s.isGrandFinal,
       isReset: s.isReset,
       isPreview: s.isPreview,
@@ -154,6 +169,14 @@ class ScoreboardStore extends EventEmitter {
   bracket() { return clone(this._bracket); }
   /** The bracket overlay's shot: { mode, view, group, page, since, holdMs, camera } (bracket-director.js). */
   bracketShot() { return clone(this._shot); }
+  /** The stats popup's settings: { layout, style, auto, delaySec, holdSec, mode } (set-stats/catalog.js). */
+  statsConfig() { return clone(this._statsConfig); }
+  /** The best-of rule (set-text.js): { topN, topLabel, defaultLabel }. */
+  setRules() { return clone(this._setRules); }
+  /** The set's stats as the popup draws them (set-stats/set-view.js), or null before the first build. */
+  setStats() { return clone(this._setStats); }
+  /** Whether the stats popup is up: { shown, mode, since, pendingAt, auto }. */
+  statsShot() { return clone(this._statsShot); }
 
   /** Everything the overlays get, keyed by section. */
   snapshot() {
@@ -161,6 +184,8 @@ class ScoreboardStore extends EventEmitter {
       v: STATE_VERSION, rev: this._rev,
       tournament: this.tournament(), scoreboard: this.scoreboard(), casters: this.casters(), view: this.view(),
       bracket: this.bracket(), bracketShot: this.bracketShot(),
+      statsConfig: this.statsConfig(), setStats: this.setStats(), statsShot: this.statsShot(),
+      setRules: this.setRules(),
     };
   }
 
@@ -547,13 +572,49 @@ class ScoreboardStore extends EventEmitter {
     this._changed(["bracketShot"]);
   }
 
+  /** The stats popup's settings; a partial update, validated (catalog.js). Returns the new settings. */
+  setStatsConfig(partial) {
+    const next = normalizeStatsConfig({ ...this._statsConfig, ...(partial ?? {}) });
+    if (JSON.stringify(next) === JSON.stringify(this._statsConfig)) return this.statsConfig();
+    this._statsConfig = next;
+    this._changed(["statsConfig"]);
+    return this.statsConfig();
+  }
+
+  /** The best-of rule; a partial update, validated (set-text.js). The scoreboard's label follows at once. */
+  setSetRules(partial) {
+    const given = Object.fromEntries(Object.entries(partial ?? {}).filter(([, v]) => v !== undefined));
+    const next = normalizeSetRules({ ...this._setRules, ...given });
+    if (JSON.stringify(next) === JSON.stringify(this._setRules)) return this.setRules();
+    this._setRules = next;
+    this._changed(["setRules", "scoreboard"]);
+    return this.setRules();
+  }
+
+  /** The set's stats (set-stats/index.js). A rebuild that changed nothing is not a change. */
+  setSetStats(data) {
+    const next = data ?? null;
+    if (JSON.stringify(next) === JSON.stringify(this._setStats)) return;
+    this._setStats = clone(next);
+    this._changed(["setStats"]);
+  }
+
+  /** Whether the stats popup is up (set-stats/director.js). */
+  setStatsShot(shot) {
+    const next = { ...emptyStatsShot(), ...(shot ?? {}) };
+    if (JSON.stringify(next) === JSON.stringify(this._statsShot)) return;
+    this._statsShot = clone(next);
+    this._changed(["statsShot"]);
+  }
+
   // ── Persistence ─────────────────────────────────────────────────────────────
 
   /** What persist.js saves — the raw (underived) state. */
   toJSON() {
     return {
       v: STATE_VERSION, set: clone(this._set), tournament: clone(this._tournament),
-      casters: clone(this._casters), view: clone(this._view),
+      casters: clone(this._casters), view: clone(this._view), statsConfig: clone(this._statsConfig),
+      setRules: clone(this._setRules),
     };
   }
 
@@ -567,7 +628,9 @@ class ScoreboardStore extends EventEmitter {
     this._tournament = { ...emptyTournament(), ...(saved.tournament ?? {}) };
     this._casters = Array.isArray(saved.casters) ? clone(saved.casters) : [];
     this._view = { ...this._view, ...(saved.view ?? {}) };
-    this._changed(["tournament", "scoreboard", "casters", "view"]);
+    this._statsConfig = normalizeStatsConfig({ ...this._statsConfig, ...(saved.statsConfig ?? {}) });
+    this._setRules = normalizeSetRules({ ...this._setRules, ...(saved.setRules ?? {}) });
+    this._changed(["tournament", "scoreboard", "casters", "view", "statsConfig", "setRules"]);
     return true;
   }
 

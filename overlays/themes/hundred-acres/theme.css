@@ -44,6 +44,8 @@
   /* Typography — BabyDoll, with National Park behind it. To put the park
      signs back on air, swap the order. */
   --font:           'BabyDoll', 'ParkSign', sans-serif;
+  /* Small caps labels (the stats popup's): the park-sign face, which reads at 11px. */
+  --label-font:     'ParkSign', sans-serif;
   --score-font:     'BabyDoll', 'ParkSign', sans-serif;
 
   /* Shape */

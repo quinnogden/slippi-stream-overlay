@@ -49,6 +49,7 @@ const { registerRoutes }      = require("./lib/server/routes");
 const { registerOverlays }    = require("./lib/server/overlays");
 const { createPlayerStats }   = require("./lib/stats");
 const { createReplays }       = require("./lib/replays");
+const { createSetStats }      = require("./lib/set-stats");
 const { IMAGE_DIR: luckyImageDir } = require("./lib/stats/luckystats");
 
 // ── Server ────────────────────────────────────────────────────────────────────
@@ -110,6 +111,8 @@ const clipRecorder  = createClipRecorder(ctx, controlStatus.refresh);
 const playerStats   = createPlayerStats(ctx);
 // Each stream set's replays + context.json: archived, and uploaded to LuckyStats.
 const replays       = createReplays(ctx);
+// The stats popup: each game's replay read into the set's stats, and when it's up.
+const setStats      = createSetStats(ctx);
 const reportSet     = createReportSet(ctx, controlStatus.refresh);
 const { startCurrentSet }  = createStartSet(ctx, controlStatus.refresh);
 
@@ -172,11 +175,17 @@ const hotkeys = installHotkeys(config.HOTKEYS, {
     console.log(`[hotkey] Clear score → ${scoreLine()}`);
     controlStatus.refresh();
   },
+  toggleStats: () => {
+    const r = setStats.command({ action: "toggle" });
+    const d = store.setStats();
+    if (!r.ok) return console.log(`[hotkey] Stats popup — ${r.error}`);
+    console.log(`[hotkey] Stats popup ${store.statsShot().shown ? `up (${d.counted} of ${d.total} games)` : "down"}`);
+  },
 });
 for (const err of hotkeys.errors) console.warn(`[hotkey] ${err} — left unbound`);
 
 const overlaysDir = path.resolve(__dirname, "..", "overlays");
-registerOverlays(app, { overlaysDir, luckyImageDir });
+registerOverlays(app, { overlaysDir, luckyImageDir, portraitsDir: setStats.portraits.dir, stagesDir: setStats.portraits.stagesDir });
 
 registerRoutes(app, {
   publicDir: path.join(__dirname, "public"),
@@ -194,6 +203,7 @@ registerRoutes(app, {
   reportCurrentSet,
   startCurrentSet,
   replays,
+  setStats,
   swapPorts,
   switchSides: () => store.switchSides(),
   reresolvePorts: modes.reresolvePorts,
@@ -265,6 +275,7 @@ console.log();
 ctx.state.source = createFolderSource(config, ctx.comboDetector);
 
 ctx.state.source.on("game-start", modes.onGameStart);
+ctx.state.source.on("game-start", setStats.onGameStart);
 ctx.state.source.on("game-end",   modes.onGameEnd);
 ctx.state.source.on("highlight",  clipRecorder.onHighlight);
 
@@ -277,6 +288,7 @@ bracketFeed.start();
 bracketDirector.start();
 playerStats.start();
 replays.start();
+setStats.start();
 
 // Flush pending debounced writes on the way out, so the last score and the last
 // player-DB edit aren't lost to the debounce window. "exit" covers Ctrl+C in

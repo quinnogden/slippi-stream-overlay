@@ -159,6 +159,7 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sb-store-"));
     a.switchSides();
     a.setCasters([{ tag: "Mic", pronoun: "they/them" }]);
     a.setBracketView("full");
+    a.setSetRules({ topN: 8, defaultLabel: "Bo3" }); // the dock's best-of rule beats config.SET_TEXT after a restart
     await new Promise((r) => setTimeout(r, 40));
     assert.ok(fs.existsSync(file) && !fs.existsSync(`${file}.tmp`), "written atomically");
 

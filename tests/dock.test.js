@@ -1066,7 +1066,7 @@ async function rig() {
     } finally { r.close(); }
   });
 
-  await test("folded, the strip keeps ⇆ Sides, ⇄ Ports and Report, each the real key", async () => {
+  await test("folded, the strip keeps ⇆ Sides, ⇄ Ports, Report and Stats, each the real key", async () => {
     const r = await rig();
     const proxy = (id) => r.page.$$(".strip-fold-keys [data-proxy]").find((b) => b.dataset.proxy === id);
     try {
@@ -1075,7 +1075,7 @@ async function rig() {
       r.status({ currentSet: { canReport: false, reason: "Score is tied" } });
       await until(() => r.scoreText(0) === "1", "the set");
       fire(r.page.$("#btn-strip-fold"), "click");
-      assert.deepStrictEqual(r.page.$$(".strip-fold-keys [data-proxy]").map((b) => b.dataset.proxy), ["btn-sides", "btn-ports", "btn-report"]);
+      assert.deepStrictEqual(r.page.$$(".strip-fold-keys [data-proxy]").map((b) => b.dataset.proxy), ["btn-sides", "btn-ports", "btn-report", "btn-stats"]);
 
       // Report mirrors the real key: off, with start.gg's reason as its tooltip.
       await until(() => proxy("btn-report").disabled, "Report is off while it can't report");

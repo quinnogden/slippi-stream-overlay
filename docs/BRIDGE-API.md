@@ -8,11 +8,11 @@ This is the contract between `app/` and its clients — the dock ([public/dock/]
 
 ## Overlay channel — `/overlay` and `/dock`
 
-Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/side-panel`, `/o/bracket`, `/o/highlights` — uses the `/overlay` namespace (highlights only for `theme`) through [overlays/shared/overlay-client.js](../overlays/shared/overlay-client.js); the dock uses `/dock` through the same client. Built in [lib/overlay/channel.js](../app/lib/overlay/channel.js).
+Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/side-panel`, `/o/bracket`, `/o/highlights`, `/o/set-stats` — uses the `/overlay` namespace (highlights only for `theme`) through [overlays/shared/overlay-client.js](../overlays/shared/overlay-client.js); the dock uses `/dock` through the same client. Built in [lib/overlay/channel.js](../app/lib/overlay/channel.js).
 
 | Event | Direction | Payload |
 |---|---|---|
-| `state:full` | app → page | The store's snapshot: `{ v, rev, tournament, scoreboard, casters, view, bracket, bracketShot }`. Sent on connect and on request |
+| `state:full` | app → page | The store's snapshot: `{ v, rev, tournament, scoreboard, casters, view, bracket, bracketShot, statsConfig, setStats, statsShot, setRules }`. Sent on connect and on request |
 | `state:patch` | app → page | `{ from, rev, ops: [{ path, value }] }` — whole top-level sections. One per tick, however many store commands ran in it |
 | `state:resync` | page → app | No payload. Asks for `state:full` |
 | `game:start` / `game:end` | app → both | The `slippi_game_start` / `slippi_game_end` payloads below |
@@ -133,6 +133,46 @@ What the bracket overlay is showing right now, owned by [lib/event/bracket-direc
 ```
 
 A page that disappears (the pages were cut again — a round got somebody in it) gives way to the page with the action, in the same mode. Up Next has no Board.
+
+### The stats popup: `statsConfig`, `setStats`, `statsShot`
+
+The set stats popup (`/o/set-stats`), built in [lib/set-stats/](../app/lib/set-stats/). Three sections:
+
+```js
+statsConfig: {               // saved with the scoreboard; the dock's Stats tab (POST /api/set-stats/config)
+  layout: "spotlight",       // "spotlight" | "players" | "margins" | "rangerlog" | "tape" | "polaroids" | "lowerthird"  (lib/set-stats/catalog.js)
+  style: "auto",             // a portrait style id, or "auto" = the layout's own
+  auto: true, delaySec: 8,   // up delaySec after each counted game
+  holdSec: 0,                // an automatic show comes down after this long; 0 = when the next game starts
+  mode: "auto"               // "auto" (the wrap-up once the set is won) | "game" | "set"
+}
+statsShot: {                 // not saved: a restart starts with it down (lib/set-stats/director.js)
+  shown: false, mode: "game" | "set", since: 1790000000000,
+  pendingAt: 1790000008000 | null,  // when an automatic show is due — the dock's countdown
+  auto: false                       // whether the one up went up by itself
+}
+setStats: {                  // derived from the set's replays (lib/set-stats/set-view.js); not saved
+  available: true, reason: null,    // false + a reason: doubles, a crew battle, no Slippi game yet
+  key, round, bestOf: 5,             // the number in the label; null for Flex
+  format: "Bo5",                      // the best-of label on the scoreboard ("Flex", "Bo3", …)
+  score: [2, 1], over: false,         // over: set-text.js setIsWon — Bo3 at 2, Bo5 at 3, Flex at 2–0 or 3
+  counted: 3, total: 3, pending: 0, unreadable: 0,   // games with stats / games on the scoreboard
+  sides: [{ tag, character: { codename, skin }, portrait: { url, w, h, eye: [x, y], k, faces } | null }, …],
+  games: [{ n, winner, stage: { id, name, icon, pic }, len: "4:12", seconds, stocks }],
+  stats: { kills: { label, dp: [game, set], better: "hi" | "lo", agg, unit?, hint?, setWord? }, … },
+  rows: { kills: { g: [l, r], s: [l, r], pg: [[…], […]], lead: { g: 0 | 1 | null, s } }, … },
+  insights: { game: [{ id, tag, big, unit?, text, who, side: 0 | 1 | -1, row?, note? }, …], set: […] },
+  stories: { game: [[{ t: "text" } | { em: "lit" }, …], …], set: […] },
+  facts: { game: [{ lab, val }, …], set: […] }
+}
+```
+
+- **A side's numbers are its ports'.** Each game's `replay.players` says which port played in each column, and Switch Sides reverses it, so the stats follow the players without being re-read.
+- **A ± game counts in the score, not the stats** (`counted < total`); the dock says so.
+- **Stories are segments, not markup**: a name from start.gg is never parsed. The overlay builds its markup with `html```, which escapes every value.
+- **The page never goes up without stats**, whatever `statsShot` says.
+- **`setRules`** (saved) is the best-of rule, `{ topN: 6, defaultLabel: "Flex", topLabel: "Bo5" }`; `config.SET_TEXT` only seeds it. Changing it re-derives `scoreboard.bestOfLabel`, and with it `setStats.over`.
+- **The players bar reads it too**: `/o/scoreboard/players` tucks its logo into the round card while `statsShot.shown && setStats.available` (the popup's window lands where the logo stands). Change that condition on one page and not the other and the logo hides with no popup, or the window comes down over it.
 
 ---
 
@@ -336,7 +376,7 @@ The dock's status snapshot. Identical shape to `GET /api/status`. Rebuilt every 
 
 ## HTTP routes
 
-All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the same convention as `lib/startgg-client.js` — except `/api/status` and `/api/state`, which return their object directly. The routes live in `lib/server/api/` by what they act on (`status`, `scoreboard`, `crew`, `event`, `players`, `casters`, `clipper`, `replays`, `setup`), and there is **no CORS**: the dock and every overlay are served from the app's own origin.
+All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the same convention as `lib/startgg-client.js` — except `/api/status` and `/api/state`, which return their object directly. The routes live in `lib/server/api/` by what they act on (`status`, `scoreboard`, `crew`, `event`, `players`, `casters`, `clipper`, `replays`, `set-stats`, `setup`), and there is **no CORS**: the dock and every overlay are served from the app's own origin.
 
 | Method | Route | Purpose |
 |---|---|---|
@@ -352,6 +392,11 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `POST` | `/api/bracket-url` | `{ url }` → load the event a pasted start.gg URL names. Same reply as `/api/bracket` |
 | `POST` | `/api/bracket-view` | `{ view?, phaseGroupId? }` — what every bracket source not pinned with `?view=` shows: `winners`, `losers`, `top8`, `top16`, `full` or `upnext`. `phaseGroupId: null` goes back to following the set on air. 400 for an unknown view or a group not in the loaded event |
 | `POST` | `/api/bracket-camera` | What the bracket overlay is pointed at (`bracketShot`): `{ action: "auto" }` (tour from the action page), `"next"` / `"prev"` / `"live"` (hold a page), `{ action: "page", page }`, and the Board: `{ action: "pan", dir: "up"\|"down"\|"left"\|"right" }`, `{ action: "zoom", dir: "in"\|"out" }`, `{ action: "overview" }` (again: back to a readable zoom at the action), `{ action: "goto", cx, cy }` (board pixels — the dock's minimap). The first Board press frames the page that was up rather than moving. `{ ok, shot }`; 400 for a bad action, page or direction, 409 with no bracket or for the Board in Up Next |
+| `GET` | `/api/set-stats` | The stats popup's layouts, styles and modes (`lib/set-stats/catalog.js`), its `config` and `shot`, and `portraits` (whether a portrait pack was found) |
+| `POST` | `/api/set-stats/config` | Any of `{ layout, style, auto, delaySec, holdSec, mode }` → `statsConfig`. Applies live, the popup up or not. `{ ok, config }`; 400 for an unknown id or a value out of range |
+| `POST` | `/api/set-stats/show` | `{ action: "show" \| "hide" \| "toggle" }` (the dock's Show / Hide, the strip's Stats key; the hotkey is `toggle`). Hide also cancels an automatic show that's counting down. `{ ok, shot }` |
+| `POST` | `/api/set-stats/refresh` | Read every game's replay again |
+| `POST` | `/api/set-rules` | The best-of rule, any of `{ topN, defaultLabel, topLabel }`: `defaultLabel` until the set's loser is guaranteed top `topN` (one of 0 = never, 3, 4, 6, 8, 12, 16), `topLabel` from there; each `Flex`, `Bo3` or `Bo5`. Saved (`setRules`); the strip's override still wins. `{ ok, rules }`; 400 for anything else |
 | `POST` | `/api/start-set` | Mark the loaded set in progress on start.gg (`markSetInProgress`). No body |
 | `POST` | `/api/report` | Report the loaded set to start.gg: winner plus every game's winner. Manual trigger only. A success also learns the players' mains, keeps the set in the stream-set history and queues its LuckyStats upload, and reloads the stats and the bracket |
 | `GET` | `/api/replays` | The `replays_state` picture above |

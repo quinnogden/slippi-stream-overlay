@@ -30,6 +30,57 @@
     text(q(bestOfPill, ".text"), sb.bestOfLabel || "", { emptyOn: bestOfPill });
   });
 
+  /* ── The logo makes way for the stats popup (players.html) ────────────────
+     /o/set-stats's window comes down over the badge's place, so the badge
+     sinks back into the round card — the way it rose out of it, under the
+     card's edge and its own mask — while the window grows up out of the bar
+     (set-stats.js holds the window WINDOW_IN_DELAY for it). Going down, the
+     window clears and the badge climbs back out as it does: `backDelay` is
+     about when the window's exit is mostly gone. Both pages get the same
+     state patch, so the two halves start together. Down only when the popup
+     is: shown, with stats to show (it never goes up without them).
+     --logo-y is a registered property, so script can animate it; the CSS
+     entrance stays as it is underneath (a script animation wins over it). */
+  const logo = document.querySelector(".logo");
+  const LOGO = { outMs: 280, inMs: 560, backDelay: 380 };
+  const popup = { shown: false, available: false };
+  let tucked = null;   // null until the first state: a page loaded under the popup starts tucked, unanimated
+  let tuckAnims = [];
+  let tuckQueued = false;
+
+  function placeLogo() {
+    tuckQueued = false;
+    const want = popup.shown && popup.available;
+    if (want === tucked) return;
+    const first = tucked === null;
+    tucked = want;
+    if (first && !want) return;
+    const instant = first || document.body.classList.contains("no-animate");
+    const cs = getComputedStyle(logo);
+    const y = (cs.getPropertyValue("--logo-y") || "").trim() || "0%";
+    const op = cs.opacity || "1";
+    tuckAnims.forEach((a) => a.cancel());
+    const timing = (dur, delay) => ({
+      duration: instant ? 0 : Overlay.motion.ms(dur),
+      delay: instant ? 0 : Overlay.motion.ms(delay),
+      easing: Overlay.motion.ease("out"),
+      fill: "both",
+    });
+    tuckAnims = want
+      ? [logo.animate([{ "--logo-y": y }, { "--logo-y": "100%" }], timing(LOGO.outMs, 0)),
+         logo.animate([{ opacity: op }, { opacity: op, offset: 0.6 }, { opacity: "0" }], timing(LOGO.outMs, 0))]
+      : [logo.animate([{ "--logo-y": y }, { "--logo-y": "0%" }], timing(LOGO.inMs, LOGO.backDelay)),
+         logo.animate([{ opacity: op }, { opacity: "1" }], timing(LOGO.inMs, LOGO.backDelay))];
+  }
+  /** Both sections arrive in one state message: decide once they have. */
+  function queueLogo() {
+    if (!logo || !logo.animate || tuckQueued) return;
+    tuckQueued = true;
+    Promise.resolve().then(placeLogo);
+  }
+  ov.select("statsShot.shown", (v) => { popup.shown = !!v; queueLogo(); });
+  ov.select("setStats.available", (v) => { popup.available = !!v; queueLogo(); });
+
   /** The round shrinks to fit the card instead of spilling past it. */
   function drawRound(round) {
     swap(roundEl, round, (node) => {

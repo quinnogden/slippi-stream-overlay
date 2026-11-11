@@ -1281,3 +1281,10 @@ kbd {
 .toast.ok  { display: block; color: #c9f7da; background: #0f2a1b; border: 1px solid var(--d-green); }
 .toast.err { display: block; color: #ffd0cb; background: #2e0f0d; border: 1px solid var(--d-red); }
 @media (min-width: 900px) { .toast { left: auto; width: 420px; } }
+
+/* ── Stats popup ── */
+.format-rule { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 10px; align-items: end; }
+.stats-auto { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; margin-top: 10px; align-items: end; }
+.stats-auto .field.check { grid-column: 1 / -1; }
+.stats-status.live { color: var(--d-ink); }
+#stats-styles > .key { flex-basis: 84px; }

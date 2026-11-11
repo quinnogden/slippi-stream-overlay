@@ -189,6 +189,15 @@ The app serves every page, so there is nothing to stub: open `http://localhost:5
 
 `tests/replays.test.js` covers the context.json and the upload journal against a stand-in LuckyStats. What it can't: LuckyStats' real importer. Without uploading anything, `buildBundle()` (`lib/replays/bundle.js`) can be pointed at a record built from two finished replays in `SLP_FOLDER` (`readReplay()` gives each file's ports and characters) to read the context.json a set would send. **An upload goes to the real tournament collection** — test it on a set from a tournament you run, and Cancel it from the Replays tab if it was only a test (before the tournament is finished). Preflight's `Upload key` line is the safe live check.
 
+### Stats popup (`/o/set-stats`, the Stats tab)
+
+`tests/set-stats.test.js` pins the logic downstream of reading a replay (sides, timing, every layout × style, the page's state machine). Reading real `.slp` files, and how it looks, is checked here:
+
+- **The rig**: `node .scratch/set-stats-rig/rig.js` (or the `set-stats-rig` entry in `.claude/launch.json`) serves the real dock, the real overlay and the real `lib/set-stats/` on a store fed real replays — no start.gg, no OBS, nothing written to `app/data/`. `/rig` has buttons for a game ending (the next file, recorded as a Slippi game end), the next game starting, Switch Sides and a reset; `SET="a.slp,b.slp,…"` picks the games. Open `/dock` (Stats tab) and `/o/set-stats` beside it. **`/rig/stage`** stacks the players bar under the popup at 1920×1080, as OBS has them, with show/hide, layout and style keys: the place to watch the logo hand-off and the swaps. Watch it with the window in view: a hidden pane doesn't paint, so its animations sit still (which is also how to check the popup survives that).
+- **Check**: every layout in both readings, each portrait style, a hot swap while it's up, Auto with a short wait (up after the wait, down when the next game starts, the wrap-up after the deciding game), Switch Sides (the numbers and portraits move with the players), and a game mid-set with no replay (± on the strip — the Stats tab says "from N of M games").
+- **The numbers**: `node -e "console.log(require('./app/lib/set-stats/game-stats').readGameStats('<file.slp>'))"` from the repo root prints one game's per-port numbers to compare against slippi-set-stats or the replay itself.
+- **A background tab doesn't advance animations** — nor does an OBS source that isn't painting. The popup's transitions run on timers for exactly that reason; if it ever sticks up in a browser tab you've switched away from, that's the regression.
+
 ---
 
 ## Regression checklist for the risky areas

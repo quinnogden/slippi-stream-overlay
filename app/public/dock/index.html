@@ -46,13 +46,14 @@
           <button class="key mini" type="button" data-proxy="btn-sides">⇆<span class="kl"> Sides</span></button>
           <button class="key mini" type="button" data-proxy="btn-ports">⇄<span class="kl"> Ports</span></button>
           <button class="key mini arm gone" type="button" data-proxy="btn-report">Report</button>
+          <button class="key mini" type="button" data-proxy="btn-stats">Stats</button>
         </span>
       </div>
 
       <div class="strip-body" id="strip-body">
         <div class="strip-meta">
           <input class="round" id="round" type="text" placeholder="Round" spellcheck="false" title="The round shown on stream. Clear it to go back to start.gg's" />
-          <select class="best-of" id="best-of" title="Best-of label. Auto = Flex outside top 6, Bo5 in it. None hides the scoreboard's best-of pill">
+          <select class="best-of" id="best-of" title="Best-of label. Auto = the Set tab's Best-of rule. None hides the scoreboard's best-of pill">
             <option value="">Auto</option>
             <option value="Flex">Flex</option>
             <option value="Bo3">Bo3</option>
@@ -72,6 +73,8 @@
           <!-- start.gg's two: only on a set loaded from start.gg. -->
           <button class="key go gone" id="btn-start" type="button" title="Mark this set in progress on start.gg">Start</button>
           <button class="key arm gone" id="btn-report" type="button" title="Report the result to start.gg (asks first)">Report</button>
+          <!-- The stats popup up or down (the Stats tab has the rest). -->
+          <button class="key" id="btn-stats" type="button" title="Put the set stats popup on stream, or take it down">Stats</button>
         </div>
         <div class="strip-tools">
           <button class="key ghost mini" id="btn-clear-score" type="button" title="Back to 0–0 on this set. The names stay">Clear score</button>
@@ -88,6 +91,7 @@
       <nav class="tabs" role="tablist">
         <button class="tab" type="button" data-tab="set">Set</button>
         <button class="tab" type="button" data-tab="bracket">Bracket</button>
+        <button class="tab" type="button" data-tab="stats">Stats</button>
         <button class="tab" type="button" data-tab="casters">Casters</button>
         <button class="tab" type="button" data-tab="players">Players</button>
         <button class="tab" type="button" data-tab="clips">Clips</button>
@@ -121,6 +125,35 @@
           </div>
           <div id="ports-list"></div>
           <div class="hint">Set loaded after game 1 started? <b>Detect</b> re-matches the ports against the players' characters. Reversed? <b>Ports</b> flips them. Amber is a positional guess — check it before the game ends.</div>
+        </div>
+
+        <div class="card" data-fold="set.format">
+          <div class="card-head">
+            <span class="label">Best-of</span>
+            <span class="fold-sum" id="sum-format"></span>
+          </div>
+          <div class="format-rule">
+            <label class="field"><span>Early sets</span>
+              <select id="rule-default" title="The format before the switch">
+                <option value="Flex">Flex</option><option value="Bo3">Bo3</option><option value="Bo5">Bo5</option>
+              </select></label>
+            <label class="field"><span>Switch at</span>
+              <select id="rule-top" title="From which sets on the second format is used: the place the set's loser is guaranteed (start.gg's lPlacement)">
+                <option value="0">Never</option>
+                <option value="3">Top 3</option>
+                <option value="4">Top 4</option>
+                <option value="6">Top 6</option>
+                <option value="8">Top 8</option>
+                <option value="12">Top 12</option>
+                <option value="16">Top 16</option>
+              </select></label>
+            <label class="field"><span>Then</span>
+              <select id="rule-later" title="The format from the switch on">
+                <option value="Flex">Flex</option><option value="Bo3">Bo3</option><option value="Bo5">Bo5</option>
+              </select></label>
+          </div>
+          <div class="hint" id="rule-now">—</div>
+          <div class="hint"><b>Flex</b> is a Bo3 that becomes a Bo5 at 1–1. "Top 6" is winners semis and losers quarters on; "Top 8" adds losers top 8. The stats popup's wrap-up comes when the set is won by this format: Bo3 at 2 wins, Bo5 at 3, Flex at 2–0, 3–1 or 3–2. A best-of picked on the strip still wins over the rule.</div>
         </div>
 
       </div>
@@ -198,6 +231,49 @@
             </div>
           </div>
           <div class="hint" id="bracket-hint">No event loaded — press Singles or Doubles.</div>
+        </div>
+      </div>
+
+      <!-- ── Stats ── -->
+      <div class="panel" id="panel-stats">
+        <div class="card" data-fold="stats.popup">
+          <div class="card-head">
+            <span class="label">Stats popup</span>
+            <span class="fold-sum" id="sum-stats"></span>
+            <span class="fold-keys fold-only">
+              <button class="key mini go" type="button" data-proxy="btn-stats-show">Show</button>
+              <button class="key mini" type="button" data-proxy="btn-stats-hide">Hide</button>
+            </span>
+          </div>
+          <div class="key-row">
+            <button class="key go" id="btn-stats-show" type="button" title="Put the popup on stream now">Show</button>
+            <button class="key" id="btn-stats-hide" type="button" title="Take it down (and cancel an automatic show that's counting down)">Hide</button>
+          </div>
+          <div class="hint stats-status" id="stats-status">—</div>
+
+          <div class="field">
+            <span>Layout</span>
+            <div class="seg" id="stats-layouts"></div>
+          </div>
+          <div class="field">
+            <span>Portraits</span>
+            <div class="seg" id="stats-styles"></div>
+          </div>
+          <div class="field">
+            <span>Reads</span>
+            <div class="seg" id="stats-modes"></div>
+          </div>
+
+          <div class="stats-auto">
+            <label class="field check"><input type="checkbox" id="stats-auto" /> <span>Show it after each game</span></label>
+            <label class="field"><span>Wait (s)</span><input type="number" id="stats-delay" min="0" max="120" step="1" /></label>
+            <label class="field"><span>Hold (s, 0 = until the next game)</span><input type="number" id="stats-hold" min="0" max="600" step="1" /></label>
+          </div>
+          <div class="card-foot">
+            <span class="hint" id="stats-source"></span>
+            <button class="linkish" id="btn-stats-refresh" type="button" title="Read every game's replay again">Re-read replays</button>
+          </div>
+          <div class="hint">Layout and portraits switch live, even while it's up — mix any layout with any portrait style. <b>Wait</b> lets the camera catch the players' reaction before the stats come up; the popup always goes down when the next game starts. Add <b>/o/set-stats</b> above the Players bar in OBS.</div>
         </div>
       </div>
 

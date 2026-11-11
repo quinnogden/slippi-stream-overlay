@@ -35,6 +35,7 @@ One line per file. **The file's own header comment says exactly what it pins and
 | `overlay-patch.test.js` | Every browser source's copy of the state stays equal to the app's. |
 | `overlay-motion.test.js` | Show/hide and swap animations end on the right content; the score reel turns the right way. |
 | `overlays-static.test.js` | Every URL an overlay page loads resolves, and every character and costume has an icon. |
+| `set-stats.test.js` | The stats popup's numbers follow the players through Switch Sides; it comes up after a game, never into the next one; every layout draws in every style without letting a name inject markup; a hide ends in a source that isn't painting; the players bar's logo makes way for it; a layout with its own window box goes up in it. |
 
 ### 🎛️ Dock and hotkeys
 
@@ -52,7 +53,7 @@ One line per file. **The file's own header comment says exactly what it pins and
 | `game-winner.test.js` | The right port wins each game, including rage quits in doubles. |
 | `scoreboard-store.test.js` | Reports name the real winner after any Switch Sides; the scoreboard survives a restart. |
 | `crew.test.js` | A crew battle's stocks move right at game end, and it stays out of the normal flow. |
-| `set-text.test.js` | Flex / Bo5, [L] marks and the set picker's order. |
+| `set-text.test.js` | Flex / Bo5 and the dock's rule for it, when a set is won by its format (Flex at 2–0 or 3), [L] marks and the set picker's order. |
 | `mains-learning.test.js` | What players played is learned into the DB, and only when it should be. |
 | `player-db.test.js` | `local_players.json` stays byte-identical to TSH's format for unchanged records. |
 

@@ -16,6 +16,7 @@ const OVERLAYS = [
   { name: "Bracket",     path: "/o/bracket",            size: "1920×1080", note: "Follows the Bracket tab's view; add ?view=top8 to pin one" },
   { name: "Highlights",  path: "/o/highlights",         size: "1920×1080", note: "Add ?guides=1 to line it up with the clip and cams" },
   { name: "Casters",     path: "/o/casters",            size: "any",       note: "Every caster in one row; ?i=0, ?i=1 … for one per cam" },
+  { name: "Set stats",   path: "/o/set-stats",          size: "1920×1080", note: "The stats popup: put it above the Players bar; the Stats tab drives it" },
 ];
 
 /** The live @import in overlays/theme.css — at the start of a line, so the

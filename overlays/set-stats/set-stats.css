@@ -1,0 +1,313 @@
+/**
+ * The stats popup (/o/set-stats): a rounded window over the middle of the
+ * 1920×1080 canvas, above the players bar, drawn by layouts.js from the
+ * app's `setStats` section.
+ *
+ * Grown from the throwaway preview (.scratch/set-stats-preview/), where new
+ * layouts and picture styles are tried first. Positions are inline (each
+ * layout places its pieces with at(l, t, w, h)); this file is the kit they're
+ * built from: the window, the portraits and their picture styles, the ledger,
+ * callouts, the spotlight strip and reel, Field notes' page and paper.
+ *
+ * Chromium 103 (OBS < 31): masks carry -webkit- copies, no :has() or
+ * color-mix(); backdrop-filter is fine there.
+ */
+
+:root {
+  /* Popup-only tokens; a pack may set any of them. */
+  --ss-label-font: var(--label-font, var(--font));
+  --surface: rgba(var(--score-bg-color-rgb), 0.94);
+  --surface-hi: rgba(var(--score-bg-color-rgb), 0.97);
+  --radius-win: 28px;
+  --trim-c: var(--trim-color, var(--text-color));
+  --trim-rgb-c: var(--trim-rgb, var(--text-color-rgb));
+  --ink: #1e2b2a; --ink-rgb: 30, 43, 42; --paper: #efe1bf;
+  --page-top: #1b3034; --page-mid: #11242a; --page-bottom: #0f2025; --page-rgb: 16, 36, 42;
+  --board-top: #3b5641; --board-mid: #26392a; --board-bottom: #1f3023;
+}
+
+body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: var(--font); color: var(--text-color); }
+.stage { position: absolute; inset: 0; }
+
+/* ── The window ── */
+/* It grows up out of the players bar (bottom-centre origin), where the logo
+   it replaces stood. */
+.win { position: absolute; left: 192px; top: 64px; width: 1536px; height: 864px; opacity: 0; transform-origin: 50% 100%; }
+.win.shown { opacity: 1; }
+.win-bg, .win-clip { position: absolute; inset: 0; border-radius: var(--radius-win); overflow: hidden; }
+/* A layout with another skin fades its background in over the old one. */
+.win-bg { z-index: 0; }
+.win-bg.next { z-index: 1; }
+.win-bg {
+  background:
+    radial-gradient(ellipse 55% 45% at 50% -5%, rgba(var(--bg-color-light-rgb), 0.55), transparent 70%),
+    radial-gradient(ellipse 120% 90% at 50% 120%, rgba(0,0,0,0.5), transparent 60%),
+    linear-gradient(180deg, rgba(var(--bg-color-light-rgb), 0.22) 0%, transparent 55%, rgba(0,0,0,0.35) 100%), var(--score-bg-color);
+  box-shadow: 0 30px 90px rgba(0,0,0,0.65), 0 10px 26px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(var(--text-color-rgb), 0.07), inset 0 1px 0 rgba(255,255,255,0.07);
+}
+.win-bg::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(180deg, transparent 0 9px, rgba(var(--bg-color-rgb), 0.06) 9px 10px); }
+.hairline { position: absolute; top: 0; left: 15%; right: 15%; height: 2px; z-index: 6;
+  background: linear-gradient(90deg, transparent, var(--darkened-text) 25%, var(--trim-c) 50%, var(--darkened-text) 75%, transparent); opacity: 0.45; }
+
+/* Portraits: big, background. The right one is the same container mirrored,
+   so one mask (and one tilt, inside it) serves both sides. A picture style is
+   a stack of pieces: copies of the art (each with its own filter, blend,
+   offset, mask) and fills cut to the figure's shape (masked by the art). */
+.por { position: absolute; top: 0; bottom: 0; width: 860px; overflow: hidden; z-index: 2;
+  -webkit-mask-image: var(--mask); mask-image: var(--mask); }
+.por.l { left: 0; }
+.por.r { right: 0; transform: scaleX(-1); }
+.por-in { position: absolute; inset: 0; transform-origin: 0% 60%; isolation: isolate; }
+.pc { position: absolute; inset: 0; }
+.por img, .fig { position: absolute; transform-origin: 50% 50%; }
+.fig { height: 4000px; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-size: 100% auto; mask-size: 100% auto; -webkit-mask-position: 0 0; mask-position: 0 0; }
+.fig .fill { position: absolute; inset: 0; }
+.por::after { content: ""; position: absolute; inset: 0; background: var(--wash, linear-gradient(0deg, rgba(var(--score-bg-color-rgb), 0.9) 0%, transparent 38%)); }
+
+.content { position: absolute; inset: 0; z-index: 4; }
+.content > * { position: absolute !important; }
+
+/* Shared type */
+.lab { font-family: var(--ss-label-font); font-weight: 700; font-size: 16px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--darkened-text); }
+.num { font-family: var(--font); font-variant-numeric: tabular-nums; }
+.u { font-size: 0.56em; margin-left: 0.06em; opacity: 0.75; }
+.lead { color: var(--text-color); }
+.trail { color: rgba(var(--text-color-rgb), 0.42); }
+.pip { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--trim-c); box-shadow: 0 0 10px rgba(var(--trim-rgb-c), 0.9); vertical-align: middle; flex: none; }
+.spark { display: inline-block; vertical-align: middle; overflow: visible; }
+.spark polyline { fill: none; stroke: rgba(var(--text-color-rgb), 0.45); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.spark circle { fill: rgba(var(--text-color-rgb), 0.55); }
+.spark circle.hi { fill: var(--trim-c); }
+.eyebrow { font-family: var(--ss-label-font); font-weight: 700; font-size: 15px; letter-spacing: 0.32em; text-transform: uppercase; color: var(--trim-c); }
+.title { font-size: 60px; line-height: 1.05; letter-spacing: 0.03em; margin-top: 6px; }
+.ttl { text-align: center; }
+
+/* Insight pieces: one thing worth pointing out, with an edge on the side of the player it's about */
+.ins-tag { font-family: var(--ss-label-font); font-weight: 700; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--trim-c); white-space: nowrap; }
+.ins-big { font-size: 44px; line-height: 1; white-space: nowrap; }
+.ins-txt { font-family: var(--ss-label-font); font-weight: 600; font-size: 14px; line-height: 1.3; color: rgba(var(--text-color-rgb), 0.75); }
+.ins-who { font-family: var(--ss-label-font); font-weight: 700; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-color); margin-top: 4px; }
+.e-l, .e-r { position: relative; overflow: hidden; }
+.e-l::before, .e-r::after { content: ""; position: absolute; top: 0; bottom: 0; width: 3px; background: var(--trim-c); }
+.e-l::before { left: 0; } .e-r::after { right: 0; }
+
+/* Surfaces */
+.surface { border-radius: 22px; background: linear-gradient(180deg, rgba(var(--text-color-rgb), 0.04), rgba(var(--text-color-rgb), 0.01)), var(--surface); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.09), 0 18px 44px rgba(0,0,0,0.4); box-sizing: border-box; }
+.mini { display: flex; gap: 14px; align-items: center; padding: 12px 18px; border-radius: 16px; box-sizing: border-box; background: var(--surface-hi); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.08), 0 10px 22px rgba(0,0,0,0.35); }
+.mini .ins-big { font-size: 34px; min-width: 64px; text-align: center; }
+.mini .ins-txt { font-size: 13px; margin-top: 2px; }
+.mini.tall { flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px; }
+.mini.tall .ins-big { text-align: left; min-width: 0; font-size: 40px; }
+.e-r.mini.tall { align-items: flex-end; text-align: right; }
+
+/* Corners */
+.corner { display: flex; gap: 16px; align-items: center; }
+.corner.r { flex-direction: row-reverse; text-align: right; }
+.thumb { width: 128px; height: 72px; border-radius: 12px; background-size: cover; background-position: center; box-shadow: 0 0 0 1px rgba(var(--text-color-rgb), 0.16), 0 6px 16px rgba(0,0,0,0.5); flex: none; }
+.thumbs { display: flex; }
+.thumbs .thumb { width: 76px; height: 50px; border-radius: 10px; }
+.thumbs .thumb + .thumb { margin-left: -50px; }
+.cval { font-size: 30px; letter-spacing: 0.04em; margin-top: 2px; white-space: nowrap; }
+.thumbs + div .cval { font-size: 24px; }
+.cval.time { font-size: 44px; line-height: 1; }
+.clock { width: 52px; height: 52px; border-radius: 50%; border: 2px solid rgba(var(--text-color-rgb), 0.3); position: relative; flex: none; }
+.clock::before, .clock::after { content: ""; position: absolute; left: 50%; bottom: 50%; width: 2px; background: var(--trim-c); transform-origin: 50% 100%; border-radius: 2px; }
+.clock::before { height: 17px; transform: translateX(-50%) rotate(25deg); }
+.clock::after { height: 12px; transform: translateX(-50%) rotate(140deg); background: var(--text-color); }
+
+/* Dots and tracks for the small rotating sections */
+.dots { display: flex; gap: 8px; align-items: center; }
+.dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(var(--text-color-rgb), 0.18); transition: background calc(0.16s * var(--motion-tempo)) var(--ease-out); }
+.dots i.on { background: var(--trim-c); box-shadow: 0 0 10px rgba(var(--trim-rgb-c), 0.7); }
+.dots i.done { background: rgba(var(--text-color-rgb), 0.45); }
+.track { height: 3px; border-radius: 2px; background: rgba(var(--text-color-rgb), 0.12); overflow: hidden; }
+.track i { display: block; height: 100%; background: var(--trim-c); transform-origin: 0 50%; transform: scaleX(0); }
+
+/* The ledger row, shared: last game big, set small, the label between */
+.lr, .cap { display: grid; grid-template-columns: var(--cols, 120px 96px 1fr 96px 120px); align-items: center; position: relative; }
+.lr { height: var(--rh, 56px); }
+.lr .g { font-size: var(--gs, 40px); display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+.lr .g.l { justify-content: flex-end; } .lr .g.r { justify-content: flex-start; }
+.lr .s { font-size: 21px; color: rgba(var(--text-color-rgb), 0.45); text-align: center; white-space: nowrap; }
+.lr .k { text-align: center; }
+.lr .k .lab { color: var(--text-color); font-size: 14px; }
+.lr .k .hint { font-family: var(--ss-label-font); font-weight: 600; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(var(--text-color-rgb), 0.35); margin-top: 2px; }
+.cap { padding-bottom: 4px; }
+.cap .lab { font-size: 11px; letter-spacing: 0.2em; }
+.sep-rows .lr + .lr::before { content: ""; position: absolute; top: 0; left: 4%; right: 4%; height: 1px; background: linear-gradient(90deg, transparent, rgba(var(--text-color-rgb), 0.10) 20%, rgba(var(--text-color-rgb), 0.10) 80%, transparent); }
+.lr .share { position: absolute; left: 50%; bottom: 7px; width: 110px; margin-left: -55px; }
+.share { display: flex; gap: 3px; height: 4px; }
+.share i { display: block; height: 100%; border-radius: 3px; background: rgba(var(--text-color-rgb), 0.16); }
+.share i.on { background: var(--trim-c); box-shadow: 0 0 8px rgba(var(--trim-rgb-c), 0.5); }
+
+/* Spotlight strip (the summary sentence) */
+.strip { display: grid; grid-template-columns: 170px 1fr; align-items: center; gap: 22px; padding: 0 30px; border-radius: 20px; box-sizing: border-box;
+  background: radial-gradient(ellipse 40% 140% at 0% 50%, rgba(var(--trim-rgb-c), 0.16), transparent 70%), var(--surface); box-shadow: inset 0 0 0 1px rgba(var(--trim-rgb-c), 0.3), 0 14px 30px rgba(0,0,0,0.35); }
+.strip .dots { margin-top: 10px; }
+.strip .say { font-size: 21px; }
+.say { font-size: 23px; line-height: 1.3; }
+.say em { font-style: normal; color: var(--trim-c); }
+
+/* Highlight reel: one callout at a time, big */
+.reel { border-radius: 22px; box-sizing: border-box; padding: 22px 26px 20px; display: flex; flex-direction: column;
+  background: radial-gradient(ellipse 70% 60% at 50% 0%, rgba(var(--trim-rgb-c), 0.18), transparent 70%), var(--surface); box-shadow: inset 0 0 0 1px rgba(var(--trim-rgb-c), 0.32), 0 16px 36px rgba(0,0,0,0.4); }
+.reel [data-rot] { flex: 1; position: relative; }
+.reel .rb { font-size: 86px; line-height: 1; margin: 10px 0 8px; text-shadow: 0 0 30px rgba(var(--trim-rgb-c), 0.25); white-space: nowrap; }
+.reel .rt { font-size: 22px; line-height: 1.2; }
+.reel .ins-who { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.reel-foot { display: flex; gap: 14px; align-items: center; }
+.reel-foot .track { flex: 1; }
+.hero { border-radius: 24px; box-sizing: border-box; overflow: hidden;
+  background: radial-gradient(ellipse 40% 90% at 20% 50%, rgba(var(--trim-rgb-c), 0.16), transparent 70%), var(--surface); box-shadow: inset 0 0 0 1px rgba(var(--trim-rgb-c), 0.3), 0 16px 36px rgba(0,0,0,0.4); }
+.hero [data-rot] { position: absolute; left: 40px; right: 40px; top: 0; bottom: 30px; }
+.hero .hi { display: grid; grid-template-columns: 300px 1fr; align-items: center; height: 100%; }
+.hero .hb { font-size: 110px; line-height: 1; text-align: center; text-shadow: 0 0 36px rgba(var(--trim-rgb-c), 0.25); white-space: nowrap; }
+.hero .htx { font-size: 30px; line-height: 1.2; margin-top: 6px; }
+.hero .ins-who { display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 12px; }
+.hero .reel-foot { position: absolute; left: 40px; right: 40px; bottom: 18px; }
+
+/* ── Field notes: the notebook ── */
+.page { border-radius: 22px; background: linear-gradient(180deg, var(--page-top), var(--page-mid) 70%, var(--page-bottom)); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.11), 0 26px 60px rgba(0,0,0,0.5); overflow: hidden; }
+.page > * { position: absolute !important; }
+.page::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 22px; background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(var(--text-color-rgb), 0.05), transparent 70%); }
+.rules { background: repeating-linear-gradient(180deg, transparent 0 calc(var(--rh) - 1px), rgba(var(--text-color-rgb), 0.10) calc(var(--rh) - 1px) var(--rh)); }
+.mrule { top: 0; bottom: 0; width: 1px; background: rgba(var(--trim-rgb-c), 0.4); }
+.hand { font-family: var(--font); }
+.htitle { font-size: 62px; line-height: 1; }
+.htitle svg { display: block; margin: 4px 0 0 -6px; }
+.htitle path, .uline path { fill: none; stroke: var(--trim-c); stroke-width: 3; stroke-linecap: round; }
+.hsay { font-size: 25px; line-height: 1.32; color: rgba(var(--text-color-rgb), 0.9); }
+.hsay em { font-style: normal; color: var(--trim-c); }
+.fn { width: 140px; display: flex; align-items: center; gap: 2px; }
+.fn.r { flex-direction: row-reverse; text-align: right; }
+.fn span { font-size: 20px; line-height: 1.05; color: var(--trim-c); display: block; }
+.fn svg { flex: none; overflow: visible; }
+.fn path { fill: none; stroke: rgba(var(--trim-rgb-c), 0.8); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.fn.r svg { transform: scaleX(-1); }
+/* a stamp: a unique stat inked on the page (rotation on the inner box, so the motion's transform stays free) */
+.stamp-in { border: 2px dashed rgba(var(--trim-rgb-c), 0.65); border-radius: 14px; padding: 10px 14px 12px; text-align: center; background: rgba(var(--trim-rgb-c), 0.06); transform: rotate(var(--r, -2deg)); height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; }
+.stamp-in .ins-big { font-size: 40px; color: var(--text-color); }
+.stamp-in .ins-tag, .sticky-in .ins-tag, .box-in .ins-tag { white-space: normal; line-height: 1.25; }
+.stamp-in .ins-txt { font-size: 12px; margin-top: 4px; }
+/* sticky notes */
+.sticky-in { background: linear-gradient(180deg, #f3dca6, #ebcf8e); color: var(--ink); border-radius: 4px 4px 16px 4px; padding: 26px 22px 18px; box-sizing: border-box; height: 100%; transform: rotate(var(--r, -2deg)); box-shadow: 0 12px 24px rgba(0,0,0,0.45); position: relative; }
+.sticky-in::before { content: ""; position: absolute; top: -10px; left: 50%; width: 90px; height: 24px; margin-left: -45px; background: rgba(245, 235, 210, 0.55); transform: rotate(3deg); box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.sticky-in .ins-tag { color: #a3561a; }
+.sticky-in .ins-big { color: var(--ink); }
+.sticky-in .ins-txt { color: rgba(var(--ink-rgb), 0.8); }
+.sticky-in .ins-who { color: var(--ink); }
+.sticky-in .rb { font-size: 74px; line-height: 1; margin: 8px 0 6px; white-space: nowrap; }
+.sticky-in .rt { font-size: 21px; line-height: 1.2; }
+.sticky-in .dots i { background: rgba(var(--ink-rgb), 0.2); } .sticky-in .dots i.done { background: rgba(var(--ink-rgb), 0.45); }
+.sticky-in .track { background: rgba(var(--ink-rgb), 0.15); }
+.facts { display: flex; gap: 34px; align-items: flex-end; }
+.fact .lab { font-size: 11px; }
+.fact .fv { font-size: 28px; line-height: 1.1; margin-top: 3px; white-space: nowrap; }
+/* the clipboard and its paper */
+.board { border-radius: 26px; background: linear-gradient(180deg, var(--board-top), var(--board-mid) 60%, var(--board-bottom)); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 26px 60px rgba(0,0,0,0.5); }
+.board > * { position: absolute !important; }
+.clip { top: -16px; left: 50%; width: 220px; margin-left: -110px; height: 50px; border-radius: 12px; background: linear-gradient(180deg, #d4d6d1, #8f948f); box-shadow: 0 6px 14px rgba(0,0,0,0.5), inset 0 1px 0 #fff; z-index: 3; }
+.clip::after { content: ""; position: absolute; left: 50%; top: 12px; width: 70px; height: 16px; margin-left: -35px; border-radius: 8px; background: #5e625e; }
+.paper { left: 22px; right: 22px; top: 22px; bottom: 22px; border-radius: 10px; background: linear-gradient(180deg, #f3e7c8, var(--paper)); color: var(--ink); box-shadow: 0 6px 18px rgba(0,0,0,0.45); overflow: hidden; }
+.paper > * { position: absolute !important; }
+.paper .lab { color: #7d6437; }
+.paper .eyebrow { color: #b0581a; }
+.paper .lr .k .lab { color: var(--ink); }
+.paper .lead { color: var(--ink); }
+.paper .trail { color: rgba(var(--ink-rgb), 0.42); }
+.paper .lr .s { color: rgba(var(--ink-rgb), 0.5); }
+.paper .lr .k .hint { color: rgba(var(--ink-rgb), 0.45); }
+.paper .spark polyline { stroke: rgba(var(--ink-rgb), 0.5); } .paper .spark circle { fill: rgba(var(--ink-rgb), 0.6); }
+.paper .rules { background: repeating-linear-gradient(180deg, transparent 0 calc(var(--rh) - 1px), rgba(60, 110, 130, 0.25) calc(var(--rh) - 1px) var(--rh)); }
+.paper .mrule { background: rgba(196, 70, 50, 0.45); }
+.paper .share i { background: rgba(var(--ink-rgb), 0.15); }
+.paper .ins-txt { color: rgba(var(--ink-rgb), 0.78); }
+.paper .ins-who { color: var(--ink); }
+.paper .ins-tag { color: #b0581a; }
+.paper .fn span { color: #b0581a; } .paper .fn path { stroke: rgba(176, 88, 26, 0.85); }
+.field { border-bottom: 1.5px solid rgba(var(--ink-rgb), 0.35); padding-bottom: 4px; }
+.field .fv { font-size: 30px; line-height: 1.1; margin-top: 2px; white-space: nowrap; }
+.box-in { border: 1.5px solid rgba(var(--ink-rgb), 0.35); border-radius: 10px; padding: 12px 16px; height: 100%; box-sizing: border-box; background: rgba(255,255,255,0.25); }
+.box-in .ins-big { color: var(--ink); font-size: 36px; }
+.paper .reel-in .rb { font-size: 64px; line-height: 1; white-space: nowrap; }
+.paper .reel-in .rt { font-size: 21px; line-height: 1.2; }
+.paper .dots i { background: rgba(var(--ink-rgb), 0.2); } .paper .dots i.done { background: rgba(var(--ink-rgb), 0.45); }
+.paper .track { background: rgba(var(--ink-rgb), 0.15); }
+
+/* ── Portraits in the design ── */
+/* Frosted glass: solid behind the middle, thinner at the edges; what's behind is blurred, not hidden */
+.glass { background: linear-gradient(90deg, rgba(var(--score-bg-color-rgb), 0.52), rgba(var(--score-bg-color-rgb), 0.86) 24%, rgba(var(--score-bg-color-rgb), 0.86) 76%, rgba(var(--score-bg-color-rgb), 0.52)) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); }
+.mini.glass { background: rgba(var(--score-bg-color-rgb), 0.7) !important; }
+.strip.glass { background: radial-gradient(ellipse 40% 140% at 0% 50%, rgba(var(--trim-rgb-c), 0.18), transparent 70%), rgba(var(--score-bg-color-rgb), 0.72) !important; }
+.glass .lr .g, .glass .say, .glass .ins-big, .rail .ins-big, .hero.vs .hb, .hero.vs .htx { text-shadow: 0 2px 14px rgba(0,0,0,0.75), 0 0 2px rgba(0,0,0,0.5); }
+/* Portraits inside cards */
+.rail { border-radius: 22px; overflow: hidden; background: linear-gradient(180deg, rgba(var(--bg-color-light-rgb), 0.3), transparent 60%), var(--score-bg-color); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.09), 0 18px 44px rgba(0,0,0,0.4); }
+.rail > .mini { position: absolute !important; z-index: 3; }
+.hero.vs { background: radial-gradient(ellipse 30% 90% at 50% 50%, rgba(var(--trim-rgb-c), 0.16), transparent 70%), linear-gradient(180deg, #13262c, #0a181d); }
+.hero.vs > :not(.por) { z-index: 3; }
+.hero .hic { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.hero .hic .hb { font-size: 84px; margin-top: 4px; }
+.hero .hic .htx { font-size: 24px; margin-top: 4px; }
+.reel.cam { overflow: hidden; position: absolute; }
+.reel.cam [data-rot] { position: static; }
+.reel.cam .cameo { position: absolute; inset: 0; z-index: 1; }
+.reel.cam .rin, .reel.cam > .eyebrow, .reel.cam .reel-foot { position: relative; z-index: 3; }
+.reel.cam .rin { height: 100%; }
+/* Field notes: the page is the window, and the portraits are on it */
+/* The skin is on the background itself (bg-<skin>), so an old one can stay
+   drawn while the next fades in over it. */
+.win-bg.bg-page { background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(var(--text-color-rgb), 0.05), transparent 70%), linear-gradient(180deg, var(--page-top), var(--page-mid) 70%, var(--page-bottom)); }
+.win-bg.bg-page::after, .win.skin-paper .hairline { display: none; }
+.win-bg.bg-paper { background: linear-gradient(180deg, var(--board-top), var(--board-mid) 60%, var(--board-bottom)); }
+.win-bg.bg-paper::after { inset: 22px; border-radius: 12px; background: linear-gradient(180deg, #f3e7c8, var(--paper)); box-shadow: 0 6px 18px rgba(0,0,0,0.45); }
+.win.skin-paper .win-clip { inset: 22px; border-radius: 12px; }
+.paper.bare { background: none; box-shadow: none; overflow: visible; }
+/* a note written over a printed portrait: the ink sits on a patch of clean page */
+.skin-page .fn span { text-shadow: 0 0 3px rgb(var(--page-rgb)), 0 0 8px rgb(var(--page-rgb)); padding: 8px 10px; margin: -8px -10px; border-radius: 40%;
+  background: radial-gradient(closest-side, rgba(var(--page-rgb), 0.95) 55%, rgba(var(--page-rgb), 0) 100%); }
+.skin-paper .fn span { padding: 8px 10px; margin: -8px -10px; border-radius: 40%; background: radial-gradient(closest-side, rgba(239, 225, 191, 0.95) 55%, rgba(239, 225, 191, 0) 100%); }
+.skin-page .lr .g, .skin-page .hsay, .skin-page .htitle, .skin-page .corner { text-shadow: 0 2px 12px rgba(10,24,28,0.95), 0 0 3px rgba(10,24,28,0.8); }
+.skin-paper .fn span { text-shadow: 0 0 3px var(--paper), 0 0 8px var(--paper), 0 0 14px var(--paper); }
+.skin-paper .lr .g { text-shadow: 0 0 10px rgba(239,225,191,0.95); }
+
+/* ── Tale of the tape ── */
+.tape-row { display: grid; grid-template-columns: 130px 1fr 130px; align-items: center; height: 66px; }
+.tape-row + .tape-row { border-top: 1px solid rgba(var(--text-color-rgb), 0.07); }
+.tape-row .tv { font-size: 44px; white-space: nowrap; text-shadow: 0 2px 14px rgba(0,0,0,0.75); }
+.tape-row .tv.l { text-align: right; } .tape-row .tv.r { text-align: left; }
+.tape-row .tk { text-align: center; padding: 0 18px; }
+.tape-row .tk .lab { font-size: 13px; color: var(--text-color); }
+.tape-row .share { height: 7px; margin-top: 8px; }
+.tape-band .hi { grid-template-columns: 250px 1fr; }
+.tape-band .hb { font-size: 72px; }
+.tape-band .htx { font-size: 24px; }
+.tape-band [data-rot] { bottom: 26px; }
+.tape-band .reel-foot { bottom: 14px; }
+
+/* ── Polaroids: a taped instant photo per player (the rotation on the inner box, so the motion's transform stays free) ── */
+.polaroid { height: 100%; box-sizing: border-box; padding: 14px 14px 0; background: linear-gradient(180deg, #f6efdc, #e9dfc4); border-radius: 3px; transform: rotate(var(--r, -3deg)); box-shadow: 0 16px 34px rgba(0,0,0,0.55); position: relative; }
+.polaroid::before { content: ""; position: absolute; top: -12px; left: 50%; width: 110px; height: 26px; margin-left: -55px; background: rgba(245, 235, 210, 0.6); transform: rotate(-2deg); box-shadow: 0 1px 3px rgba(0,0,0,0.2); z-index: 3; }
+.polaroid .ph { position: relative; height: 300px; overflow: hidden; background: radial-gradient(ellipse at 50% 30%, #2a4447, #10242a); }
+.polaroid .ph .por { z-index: 1; }
+.polaroid .pcap { color: var(--ink); font-size: 22px; line-height: 1.15; padding: 10px 6px 0; text-align: center; height: 124px; box-sizing: border-box; overflow: hidden; }
+.polaroid .pcap .pbig { font-size: 34px; color: #b0581a; }
+.polaroid .pcap small { display: block; font-family: var(--ss-label-font); font-weight: 600; font-size: 12px; color: rgba(var(--ink-rgb), 0.7); margin-top: 4px; }
+
+/* ── Lower third ── */
+/* Short columns: no hint line under a label, and labels that can take two tight lines. */
+.lt-half .lr .k .hint { display: none; }
+.lt-half .lr .k .lab { font-size: 12px; letter-spacing: 0.1em; line-height: 1.1; }
+.lt-facts { display: flex; justify-content: space-between; align-items: center; font-family: var(--ss-label-font); font-weight: 600; font-size: 15px; color: rgba(var(--text-color-rgb), 0.8); text-shadow: 0 1px 6px rgba(0,0,0,0.8); white-space: nowrap; }
+.lt-facts b { color: var(--trim-c); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-size: 11px; margin-right: 6px; }
+
+/* ── Runtime hooks (set-stats.js) ── */
+/* The right portrait is the left one mirrored; the motion composes on it. */
+.por.r { --base-transform: scaleX(-1); }
+/* The Players layout's summary, in the ledger card's foot. */
+.foot-story { margin: 10px -22px 0; padding: 16px 26px 18px; border-top: 1px solid rgba(var(--text-color-rgb), 0.08); background: rgba(var(--trim-rgb-c), 0.06);
+  border-radius: 0 0 22px 22px; display: flex; gap: 18px; align-items: center; height: 96px; box-sizing: border-box; }
+/* One-line values that fitText can shrink: they need a width to overflow. */
+.cval { max-width: 360px; overflow: hidden; }
+.field .fv { overflow: hidden; }
+.eyebrow[data-fit] { overflow: hidden; white-space: nowrap; }

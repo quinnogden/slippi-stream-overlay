@@ -142,9 +142,11 @@ The dock's **Setup** tab lists every url with a copy button. All are on the app'
 | Bracket | `http://localhost:5001/o/bracket` | 1920 × 1080 | Follows the dock's Bracket tab; `?view=top8` (`winners`, `losers`, `top16`, `full`, `upnext`) pins one |
 | Highlights | `http://localhost:5001/o/highlights` | 1920 × 1080 | The replay/break scene frame; see below |
 | Casters | `http://localhost:5001/o/casters` | any | Every caster in a row; `?i=0`, `?i=1` … for one per cam |
+| Set stats | `http://localhost:5001/o/set-stats` | 1920 × 1080 | The stats popup. **Above the Players bar** in the game scene; transparent until the dock's Stats tab (or `Ctrl+Shift+G`, or the automatic show after a game) puts it up |
 
 - [ ] Canvas **1920 × 1080** (Settings → Video)
 - [ ] On each source: **uncheck "Shutdown source when not visible"** and **"Refresh browser when scene becomes active"** — otherwise the side panel's rotation and the socket restart on every scene change
+- [ ] **Stats popup portraits**: the app finds TSH's `full` pack (and `stage_icon`) in an old TSH install beside it; on a machine without one, copy those two folders from any TSH install into `overlays/assets/portraits/` and `overlays/assets/stages/` (gitignored art, not ours to commit), or point `PORTRAITS_FOLDER` / `STAGE_ICONS_FOLDER` at them in `config.local.js`. The app logs `[set-stats] Portraits: …` at startup; the Stats tab says when none was found. Without them the popup works, just without characters and stage pictures
 - [ ] **Highlights geometry** must match the clip and cam sources' transforms or you get a visible gap between frame and footage. Don't edit CSS — copy the numbers out of OBS's **Edit Transform** and pass them on the URL (`?clip=x,y,w,h&cam=y,w,h&camx=leftX,rightX`), then load it once with `?guides=1` to check the labelled rectangles against OBS. Defaults assume clip `480,140 960×800` and cams at `0,288` / `1520,288`, each `400×504`.
 
 ### Operator dock

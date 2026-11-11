@@ -36,7 +36,7 @@ function test(name, fn) {
 }
 
 // uiohook-napi's names, a few of its codes.
-const KEYS = { 0: 11, 1: 2, 2: 3, Q: 16, S: 31, X: 45, F9: 67, ArrowUp: 57416, Escape: 1 };
+const KEYS = { 0: 11, 1: 2, 2: 3, G: 34, Q: 16, S: 31, X: 45, F9: 67, ArrowUp: 57416, Escape: 1 };
 
 /** A uiohook keyboard event. */
 const ev = (keycode, mods = "") => ({

@@ -18,7 +18,7 @@
  */
 
 const assert = require("assert");
-const { bestOfLabel, losersMarks } = require("../app/lib/scoreboard/set-text");
+const { bestOfLabel, losersMarks, setIsWon, normalizeSetRules, setRulesError } = require("../app/lib/scoreboard/set-text");
 const { loadPayload, pickerList, pickStatus } = require("../app/lib/event/set-model");
 const { buildBracket } = require("../app/lib/event/bracket-model");
 const { eventFrom } = require("./helpers/fake-startgg");
@@ -69,6 +69,26 @@ test("best-of: override wins, and the thresholds/labels are configurable", () =>
   assert.strictEqual(bestOfLabel({ lPlacement: 13 }, { topN: undefined }), "Flex", "undefined option keeps the default");
   assert.strictEqual(bestOfLabel({ lPlacement: 3 }, { topLabel: "Best of 5" }), "Best of 5");
   assert.strictEqual(bestOfLabel({ lPlacement: 3 }, { override: "None" }), "", "None: no label, so the overlays hide it");
+  assert.strictEqual(bestOfLabel({ lPlacement: 2 }, { topN: 0 }), "Flex", "a switch point of 0 never switches");
+  assert.strictEqual(bestOfLabel({ lPlacement: 7 }, { topN: 8, defaultLabel: "Bo3" }), "Bo5", "Bo3 into Bo5 from top 8");
+  assert.strictEqual(bestOfLabel({ lPlacement: 9 }, { topN: 8, defaultLabel: "Bo3" }), "Bo3");
+});
+
+test("a set is won by its format: Bo3 at 2, Bo5 at 3, Flex at 2–0 or 3", () => {
+  const won = (label, a, b) => setIsWon(label, [a, b]);
+  assert.ok(won("Bo3", 2, 1) && won("Bo3", 0, 2) && !won("Bo3", 1, 1));
+  assert.ok(won("Bo5", 3, 2) && !won("Bo5", 2, 0) && !won("Bo5", 2, 2));
+  assert.ok(won("Flex", 2, 0) && won("Flex", 0, 2), "Flex: a 2–0 sweep ends it");
+  assert.ok(!won("Flex", 2, 1) && !won("Flex", 1, 2), "Flex: at 1–1 it became a Bo5, so 2–1 goes on");
+  assert.ok(won("Flex", 3, 1) && won("Flex", 2, 3));
+  assert.ok(!won("", 5, 0) && !won("Best of whatever", 3, 0), "no format, no rule");
+});
+
+test("the rule's settings are checked and normalised", () => {
+  assert.deepStrictEqual(normalizeSetRules({ topN: "8", defaultLabel: "Bo3", topLabel: "nope" }), { topN: 8, topLabel: "Bo5", defaultLabel: "Bo3" });
+  assert.strictEqual(setRulesError({ topN: 7 }) !== null, true, "7 isn't a switch point");
+  assert.strictEqual(setRulesError({ defaultLabel: "Bo7" }) !== null, true);
+  assert.strictEqual(setRulesError({ topN: 0, defaultLabel: "Bo3", topLabel: "Bo5" }), null);
 });
 
 test("[L]: grand final marks the losers-side player only; the reset marks both; other sets neither", () => {

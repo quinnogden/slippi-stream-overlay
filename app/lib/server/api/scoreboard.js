@@ -12,6 +12,7 @@ const fs   = require("fs");
 const path = require("path");
 const { CHAR_MAP, CSS_ORDER } = require("../../char_map");
 const { TEAM_COLORS } = require("../../modes/doubles");
+const { setRulesError } = require("../../scoreboard/set-text");
 
 /** An error status with a message — by default 400, for a body the dock should never have sent. */
 function bad(res, error, code = 400) {
@@ -155,6 +156,17 @@ function register(app, deps) {
       losers,
     });
     res.json({ ok: true });
+  });
+
+  // The best-of rule (set-text.js), any of { topN, defaultLabel, topLabel }:
+  // `defaultLabel` until the set's loser is guaranteed top `topN` (0 = never),
+  // `topLabel` from there. Saved; an override on the strip still wins.
+  app.post("/api/set-rules", (req, res) => {
+    const err = setRulesError(req.body);
+    if (err) return bad(res, err);
+    const { topN, defaultLabel, topLabel } = req.body;
+    const rules = store.setSetRules({ topN: topN === undefined ? undefined : Number(topN), defaultLabel, topLabel });
+    res.json({ ok: true, rules });
   });
 
   // Back to 0–0 on the set that's loaded (Ctrl+Shift+0 does the same).

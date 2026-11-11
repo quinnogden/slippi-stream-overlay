@@ -31,7 +31,7 @@
   const { h, icon } = window.Overlay;
   const $ = (id) => document.getElementById(id);
 
-  const TABS = ["set", "bracket", "casters", "players", "clips", "replays", "crew", "setup"];
+  const TABS = ["set", "bracket", "stats", "casters", "players", "clips", "replays", "crew", "setup"];
   const TAB_KEY = "dock.tab";
   const FOLD_KEY = "dock.stripFolded";
   const FOLDS_KEY = "dock.folds";     // { [card key]: 1 } for every folded card
@@ -3002,6 +3002,147 @@
     renderPicker();
   });
 
+  // ── Stats popup ─────────────────────────────────────────────────────────────
+  // The set stats popup (/o/set-stats): Show / Hide (also the strip's Stats
+  // key and the global hotkey), the layout and portrait style — both switch
+  // live, even while it's up — which reading it shows, and the automatic show
+  // after each game. Fed by three state sections: statsConfig, statsShot and
+  // setStats (what it can show, and why not).
+
+  let statsCfg = null;
+  let statsShot = null;
+  let statsData = null;
+  let statsCatalog = null; // { layouts, styles, portraits } from /api/set-stats
+  const STATS_MODES = [["auto", "Auto"], ["game", "After a game"], ["set", "Wrap-up"]];
+  const statsSet = (body) => act("/api/set-stats/config", body, null, "Stats popup");
+  const statsShow = (action) => act("/api/set-stats/show", { action }, null, "Stats popup");
+
+  function statsKeys(host, items, field) {
+    host.replaceChildren(...items.map(([id, name, title]) => {
+      const b = h("button", "key", name);
+      b.type = "button";
+      b.dataset.value = id;
+      if (title) b.title = title;
+      b.addEventListener("click", () => statsSet({ [field]: id }));
+      return b;
+    }));
+  }
+
+  function fetchStatsCatalog() {
+    api("/api/set-stats").then((r) => {
+      if (!r.ok) return;
+      statsCatalog = r;
+      statsKeys($("stats-layouts"), r.layouts.map((l) => [l.id, l.name, l.note]), "layout");
+      statsKeys($("stats-styles"), r.styles.map((s) => [s.id, s.name]), "style");
+      renderStats();
+    });
+  }
+  statsKeys($("stats-modes"), STATS_MODES.map(([id, name]) => [id, name,
+    id === "auto" ? "After each game, and the wrap-up once the set is won" : id === "game" ? "Always the game just played, with the set so far" : "Always the whole set"]), "mode");
+
+  const secs = (ms) => Math.max(0, Math.ceil(ms / 1000));
+  const renderStats = guard("stats", () => {
+    const cfg = statsCfg || {};
+    const shot = statsShot || {};
+    const d = statsData;
+    const lit = (host, v) => host.querySelectorAll(".key").forEach((b) => b.classList.toggle("lit", b.dataset.value === v));
+    lit($("stats-layouts"), cfg.layout);
+    lit($("stats-styles"), cfg.style);
+    lit($("stats-modes"), cfg.mode);
+
+    const auto = $("stats-auto");
+    if (document.activeElement !== auto) auto.checked = !!cfg.auto;
+    for (const [id, key] of [["stats-delay", "delaySec"], ["stats-hold", "holdSec"]]) {
+      const el = $(id);
+      if (document.activeElement !== el && cfg[key] != null) el.value = String(cfg[key]);
+      el.disabled = !cfg.auto;
+    }
+
+    const available = !!(d && d.available);
+    const pending = shot.pendingAt && !shot.shown ? secs(shot.pendingAt - Date.now()) : null;
+    let line;
+    if (!d) line = "Waiting for the app…";
+    else if (!available) line = d.reason || "No stats yet";
+    else if (shot.shown) line = `On stream: ${shot.mode === "set" ? "the set" : `game ${d.games[d.games.length - 1].n}`}${shot.auto ? " (automatic)" : ""}`;
+    else if (pending != null) line = `Showing in ${pending}s`;
+    else line = "Down";
+    if (available) {
+      const missing = d.total - d.counted;
+      line += ` · from ${d.counted} of ${d.total} ${d.total === 1 ? "game" : "games"}${missing ? ` (${missing} without a Slippi replay)` : ""}`;
+    }
+    const status = $("stats-status");
+    status.textContent = line;
+    status.classList.toggle("live", !!shot.shown);
+
+    $("btn-stats-show").disabled = !available;
+    $("btn-stats-show").classList.toggle("lit", !!shot.shown);
+    $("btn-stats-hide").disabled = !shot.shown && pending == null;
+
+    const strip = $("btn-stats");
+    strip.disabled = !available && !shot.shown;
+    strip.classList.toggle("lit", !!shot.shown);
+    strip.textContent = shot.shown ? "Stats ▾" : pending != null ? `Stats ${pending}s` : "Stats";
+    strip.title = shot.shown ? "Take the stats popup down" : available ? "Put the stats popup on stream" : (d && d.reason) || "No stats yet";
+
+    const name = (list, id) => ((list || []).find((x) => x.id === id) || {}).name || id || "";
+    const sum = [name(statsCatalog && statsCatalog.layouts, cfg.layout), name(statsCatalog && statsCatalog.styles, cfg.style),
+      cfg.auto ? `auto ${cfg.delaySec}s` : "manual"].filter(Boolean).join(" · ");
+    $("sum-stats").textContent = shot.shown ? `On · ${sum}` : sum;
+    $("stats-source").textContent = statsCatalog && !statsCatalog.portraits ? "No portrait pack found — see config.PORTRAITS_FOLDER" : "";
+  });
+
+  $("btn-stats-show").addEventListener("click", () => statsShow("show"));
+  $("btn-stats-hide").addEventListener("click", () => statsShow("hide"));
+  $("btn-stats").addEventListener("click", () => statsShow("toggle"));
+  $("btn-stats-refresh").addEventListener("click", () => act("/api/set-stats/refresh", {}, "Reading the replays again", "Re-read"));
+  $("stats-auto").addEventListener("change", (e) => statsSet({ auto: e.target.checked }));
+  for (const [id, key, hi] of [["stats-delay", "delaySec", 120], ["stats-hold", "holdSec", 600]]) {
+    const el = $(id);
+    el.addEventListener("change", () => {
+      const v = Math.round(Number(el.value));
+      if (!Number.isFinite(v) || v < 0 || v > hi) { toast(`${key === "delaySec" ? "Wait" : "Hold"} is 0–${hi} seconds`, false); return renderStats(); }
+      statsSet({ [key]: v });
+    });
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter") el.blur(); });
+  }
+  // The countdown to an automatic show.
+  setInterval(() => { if (statsShot && statsShot.pendingAt && !statsShot.shown) renderStats(); }, 500);
+  fetchStatsCatalog();
+
+  // ── Best-of rule ────────────────────────────────────────────────────────────
+  // The Set tab's Best-of card: the format before the switch, where the switch
+  // is, and the format after (state.setRules, POST /api/set-rules). The strip's
+  // Auto follows it; an override picked on the strip still wins.
+
+  let setRules = null;
+  const RULE_FIELDS = [["rule-default", "defaultLabel"], ["rule-top", "topN"], ["rule-later", "topLabel"]];
+  const renderRules = guard("rules", () => {
+    if (!setRules) return;
+    for (const [id, key] of RULE_FIELDS) {
+      const el = $(id);
+      if (document.activeElement !== el) el.value = String(setRules[key]);
+    }
+    $("rule-later").disabled = !setRules.topN;
+    $("sum-format").textContent = setRules.topN
+      ? `${setRules.defaultLabel} → ${setRules.topLabel} at top ${setRules.topN}`
+      : `${setRules.defaultLabel} throughout`;
+    let now = "No set on the scoreboard";
+    if (sb && sb.crew) now = "Crew battle — no best-of";
+    else if (sb && (sb.setId || sb.sides.some((s) => s.players.some((p) => p.tag)))) {
+      const edited = sb.overrides && sb.overrides.bestOf;
+      now = edited
+        ? `This set: ${sb.bestOfLabel || "no best-of"} — picked on the strip, so the rule doesn't apply`
+        : `This set: ${sb.bestOfLabel || "—"}`;
+    }
+    $("rule-now").textContent = now;
+  });
+  for (const [id, key] of RULE_FIELDS) {
+    $(id).addEventListener("change", (e) => {
+      const v = key === "topN" ? Number(e.target.value) : e.target.value;
+      act("/api/set-rules", { [key]: v }, null, "Best-of rule").then((r) => { if (!r.ok) renderRules(); });
+    });
+  }
+
   // ── Wiring ──────────────────────────────────────────────────────────────────
 
   const ov = window.Overlay.connect({ tag: "dock", namespace: "/dock" });
@@ -3010,6 +3151,7 @@
   ov.select("scoreboard", (now) => {
     sb = now;
     renderStrip();
+    renderRules();
     renderPicker();
     renderCrewTab();
     // The Players tab with no search lists who's on the scoreboard; it follows
@@ -3038,6 +3180,10 @@
   ov.select("view", (v) => { view = v; renderBracketTab(); renderCamera(); });
   ov.select("bracket", (b) => { bracket = b; renderBracketTab(); renderCamera(); });
   ov.select("bracketShot", (s) => { shot = s; renderCamera(); });
+  ov.select("statsConfig", (c) => { statsCfg = c; renderStats(); });
+  ov.select("statsShot", (s) => { statsShot = s; renderStats(); });
+  ov.select("setStats", (d) => { statsData = d; renderStats(); });
+  ov.select("setRules", (r) => { setRules = r; renderRules(); });
 
   ov.on("status", (s) => {
     status = s;
@@ -3108,6 +3254,7 @@
     get savedCrews() { return savedCrews; },
     get setup() { return setup; },
     get replays() { return replays; },
+    get stats() { return { config: statsCfg, shot: statsShot, data: statsData }; },
     openPicker, openMainPicker, closePicker, pick, fetchSets, fetchPlayers, fetchSetup, showTab, CLIP_FIELDS,
   };
 })();

@@ -11,7 +11,7 @@
  *
  * What it does NOT do: lay anything out. There is no cascade and no geometry
  * (every element is 200px wide with 100px of content, so fitText never
- * shrinks). Animations finish on a timer, `timeScale` × their real length, so
+ * shrinks). innerHTML parses markup with the same parser. Animations finish on a timer, `timeScale` × their real length, so
  * their ordering is a browser's: a cancelled one never finishes. Events are
  * delivered to the element's own listeners only — nothing bubbles — and
  * fire(el, type) is how a test clicks or types. It answers "did the script do
@@ -139,7 +139,9 @@ function makeEl(doc, tag, ns = null) {
     },
     get textContent() { return el.children.map((c) => c.textContent).join(""); },
     set textContent(v) { el.replaceChildren(); if (v !== "" && v != null) el.appendChild(textNode(v)); },
-    set innerHTML(v) { if (v === "") el.replaceChildren(); else throw new Error("overlay-sandbox: innerHTML with markup isn't supported"); },
+    // Markup is parsed by the same small parser as the page (the stats popup
+    // draws escaped markup this way); the dock is kept off innerHTML by dock-static.
+    set innerHTML(v) { el.replaceChildren(); if (v !== "" && v != null) parseInto(doc, String(v), el); },
     set src(v) { el.attrs.src = String(v); },
     get src() { return el.attrs.src ?? ""; },
 
@@ -309,8 +311,7 @@ function find(root, alternatives, first) {
 }
 
 /** The page's markup into the fake DOM. Well-formed pages only — ours are. */
-function parseInto(doc, html) {
-  const root = doc.documentElement;
+function parseInto(doc, html, root = doc.documentElement) {
   const stack = [root];
   const re = /<!--[\s\S]*?-->|<!DOCTYPE[^>]*>|<\/([a-zA-Z0-9-]+)\s*>|<([a-zA-Z0-9-]+)((?:\s+[^\s=>/]+(?:="[^"]*")?)*)\s*(\/?)>|([^<]+)/gi;
   let m;

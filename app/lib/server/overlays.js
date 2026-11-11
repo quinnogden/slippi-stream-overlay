@@ -14,7 +14,9 @@
  *
  * `/assets/luckystats/` is luckystats.gg's class badges and Region artwork, saved
  * by the app into stats-cache/ (lib/stats/luckystats.js) so no source loads
- * from the web.
+ * from the web. `/assets/portraits/` and `/assets/stages/` are the stats
+ * popup's character art and stage pictures, from a TSH asset pack wherever it
+ * is on this machine (lib/set-stats/portraits.js).
  *
  * tests/overlays-static.test.js resolves every page's urls through
  * resolveOverlayPath(), i.e. through these same tables.
@@ -32,15 +34,18 @@ const PAGES = {
   "/o/side-panel":         "side-panel/index.html",
   "/o/highlights":         "highlights/index.html",
   "/o/bracket":            "bracket/index.html",
+  "/o/set-stats":          "set-stats/index.html",
 };
 
 /**
  * Url prefix → directory, most specific first.
  * @param {{ overlaysDir: string, luckyImageDir?: string }} roots
  */
-function mounts({ overlaysDir, luckyImageDir }) {
+function mounts({ overlaysDir, luckyImageDir, portraitsDir, stagesDir }) {
   return [
     ...(luckyImageDir ? [{ url: "/assets/luckystats/", dir: luckyImageDir }] : []),
+    ...(portraitsDir ? [{ url: "/assets/portraits/", dir: portraitsDir }] : []),
+    ...(stagesDir ? [{ url: "/assets/stages/", dir: stagesDir }] : []),
     { url: "/assets/", dir: path.join(overlaysDir, "assets") },
     { url: "/o/",      dir: overlaysDir },
   ];

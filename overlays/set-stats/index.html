@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Set stats</title>
+    <link rel="stylesheet" href="/o/shared/overlay.css" />
+    <link rel="stylesheet" href="/o/set-stats/set-stats.css" />
+  </head>
+  <!-- The stats popup: 1920×1080, above the Players bar. Transparent until the
+       dock (or the hotkey, or the automatic show after a game) puts it up.
+       ?layout= and ?style= pin this source to one look; ?show=1 keeps it up
+       (for styling). -->
+  <body>
+    <div class="stage">
+      <div class="win" id="win"></div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/o/shared/overlay-client.js"></script>
+    <script src="/o/set-stats/layouts.js"></script>
+    <script src="/o/set-stats/set-stats.js"></script>
+  </body>
+</html>

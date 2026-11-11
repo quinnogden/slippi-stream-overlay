@@ -98,7 +98,7 @@ module.exports = {
 | `BRACKETS` | `config.js` | Your series' start.gg short link, for the [Singles / Doubles buttons](#switching-brackets). |
 | `PLAYERS_FILE` | `config.js` | Moves the player database. The default is `app/data/local_players.json`. |
 | `HOTKEYS` | `config.local.js` | Changes the [global hotkeys](#hotkeys). |
-| `SET_TEXT` | `config.local.js` | Changes the Flex / Bo5 rule. |
+| `SET_TEXT` | `config.local.js` | The Flex / Bo5 rule's starting values (the dock's Set tab → Best-of card changes it live). |
 | `CLIPPER` | `config.local.js` | Starting values for the [combo clipper](#combo-clipper). After that, tune it from the dock. |
 | `BRIDGE_PORT` | `config.local.js` | The port everything is served on (default **5001**). |
 
@@ -140,6 +140,7 @@ Add each overlay as a **Browser Source**. You don't need to type these: the dock
 | Bracket | `http://localhost:5001/o/bracket` | 1920 × 1080 |
 | Highlights | `http://localhost:5001/o/highlights` | 1920 × 1080 |
 | Casters | `http://localhost:5001/o/casters` | any |
+| Set stats | `http://localhost:5001/o/set-stats` | 1920 × 1080 (above the Players bar) |
 
 > [!IMPORTANT]
 > On **every** browser source, uncheck **"Shutdown source when not visible"** and **"Refresh browser when scene becomes active"**.
@@ -321,7 +322,7 @@ On stream, the scoreboard shows the player who's in with their crew's name benea
 
 The scoreboard shows names, prefixes, pronouns, the live character and costume, scores, the round and the best-of.
 
-- **Best-of** is set automatically: **Flex** outside top 6 (a Bo3 that becomes a Bo5 at 1–1) and **Bo5** in top 6. To change the rule, edit `lib/scoreboard/set-text.js`, or set `SET_TEXT` in `config.local.js`.
+- **Best-of** is set automatically: **Flex** outside top 6 (a Bo3 that becomes a Bo5 at 1–1) and **Bo5** in top 6. Change the rule in the dock's **Set** tab → **Best-of**: the format before the switch (Flex, Bo3 or Bo5), where it switches (top 3 to top 16, or never) and the format after. The stats popup's wrap-up follows the format: Bo3 at 2 wins, Bo5 at 3, Flex at 2–0, 3–1 or 3–2.
 - **[L]** goes on the grand-finals player who came from losers.
 - The live strip can override any of this for one set.
 
