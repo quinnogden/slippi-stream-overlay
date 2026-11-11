@@ -20,6 +20,10 @@ const path = require("path");
 const { buildSetView } = require("./set-view");
 const { createStatsDirector } = require("./director");
 const { createPortraits } = require("./portraits");
+const { createArtPacks } = require("./art-packs");
+
+/** Where the downloaded art packs go (gitignored; served at /assets/packs/). */
+const PACKS_DIR = path.resolve(__dirname, "..", "..", "..", "overlays", "assets", "packs");
 
 const RECHECK_MS = 2000;
 const READ_TIMEOUT_MS = 30000;
@@ -68,13 +72,15 @@ function createWorkerReader() {
 
 /**
  * @param {{ store: object, config?: object }} ctx
- * @param {{ read?: (file: string) => Promise<object>, portraits?: object, timers?: object, now?: () => number,
+ * @param {{ read?: (file: string) => Promise<object>, portraits?: object, artPacks?: object, timers?: object, now?: () => number,
  *           sizeOf?: (file: string) => number|null }} [opts] — for tests
  */
 function createSetStats(ctx, opts = {}) {
   const { store } = ctx;
   const read = opts.read ?? createWorkerReader();
-  const portraits = opts.portraits ?? createPortraits(ctx.config ?? {});
+  const portraits = opts.portraits ?? createPortraits({ dir: PACKS_DIR });
+  // A pack that lands mid-set draws at once: the sides are rebuilt with it.
+  const artPacks = opts.artPacks ?? createArtPacks({ dir: PACKS_DIR, onInstalled: () => { portraits.reload(); rebuild(); } });
   const timers = opts.timers ?? { setTimeout, clearTimeout, setInterval, clearInterval };
   const sizeOf = opts.sizeOf ?? ((file) => { try { return fs.statSync(file).size; } catch { return null; } });
   const director = createStatsDirector({ store, now: opts.now, timers });
@@ -141,8 +147,8 @@ function createSetStats(ctx, opts = {}) {
   function rebuild() {
     const sb = store.scoreboard();
     for (const g of sb.games) if (g.replay?.file) want(g.replay.file);
-    const view = buildSetView(sb, statsOf, portraits.portraitOf);
-    for (const g of view.games) g.stage.pic = portraits.stageIcon(g.stage.icon);
+    const view = buildSetView(sb, statsOf, portraits.portraitsOf);
+    for (const g of view.games) g.stage.pics = portraits.stagePicsOf(g.stage.icon);
     store.setSetStats(view);
   }
 
@@ -167,12 +173,13 @@ function createSetStats(ctx, opts = {}) {
   return {
     director,
     portraits,
+    artPacks,
     start() {
       store.on("change", onChange);
       store.on("set-loaded", onSetLoaded);
       rebuild();
-      const where = portraits.dir ? path.relative(process.cwd(), portraits.dir) || portraits.dir : null;
-      console.log(`[set-stats] Portraits: ${where ?? "none (no TSH 'full' pack found — see config.PORTRAITS_FOLDER)"}`);
+      const ids = portraits.packs().map((p) => p.id);
+      console.log(`[set-stats] Portraits: ${ids.length ? ids.join(", ") : "none downloaded (the dock's Setup tab → Art packs)"}`);
     },
     stop() {
       store.off("change", onChange);

@@ -35,7 +35,7 @@ One line per file. **The file's own header comment says exactly what it pins and
 | `overlay-patch.test.js` | Every browser source's copy of the state stays equal to the app's. |
 | `overlay-motion.test.js` | Show/hide and swap animations end on the right content; the score reel turns the right way. |
 | `overlays-static.test.js` | Every URL an overlay page loads resolves, and every character and costume has an icon. |
-| `set-stats.test.js` | The stats popup's numbers follow the players through Switch Sides; it comes up after a game, never into the next one; every layout draws in every style without letting a name inject markup; a hide ends in a source that isn't painting; the players bar's logo makes way for it; a layout with its own window box goes up in it. |
+| `set-stats.test.js` | The stats popup's numbers follow the players through Switch Sides; it comes up after a game, never into the next one; every layout draws in every style without letting a name inject markup; a hide ends in a source that isn't painting; the players bar's logo makes way for it; a layout with its own window box goes up in it; the pack picked draws the portraits; the art packs download in one click and a failed update keeps the old pack. |
 
 ### 🎛️ Dock and hotkeys
 

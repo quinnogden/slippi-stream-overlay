@@ -51,14 +51,6 @@ const config = {
   // moved or deleted either way. Usually set per machine in config.local.js.
   REPLAY_ARCHIVE_FOLDER: null,
 
-  // The stats popup's character art: a TSH asset pack folder (PNGs plus a
-  // config.json with each character's eyesights). null = overlays/assets/portraits
-  // if it exists, else the "full" pack (VS-screen renders) in an old TSH install
-  // beside the app. STAGE_ICONS_FOLDER likewise (TSH's stage_icon pack). Without
-  // either the popup has no portraits / stage pictures and nothing else changes.
-  PORTRAITS_FOLDER: null,
-  STAGE_ICONS_FOLDER: null,
-
   // ── Secrets (do NOT put real values here — this file is committed to git) ────
   // The start.gg personal access token lives in config.local.js (gitignored),
   // which is merged over this object below. See config.local.example.js.

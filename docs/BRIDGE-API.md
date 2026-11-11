@@ -142,6 +142,8 @@ The set stats popup (`/o/set-stats`), built in [lib/set-stats/](../app/lib/set-s
 statsConfig: {               // saved with the scoreboard; the dock's Stats tab (POST /api/set-stats/config)
   layout: "spotlight",       // "spotlight" | "players" | "margins" | "rangerlog" | "tape" | "polaroids" | "lowerthird"  (lib/set-stats/catalog.js)
   style: "auto",             // a portrait style id, or "auto" = the layout's own
+  pack: "full",              // the portrait pack that draws the characters (any id; one not downloaded falls back to the first that is)
+  stages: "stage_icon",      // the stage picture set, likewise; "none" = no stage pictures
   auto: true, delaySec: 8,   // up delaySec after each counted game
   holdSec: 0,                // an automatic show comes down after this long; 0 = when the next game starts
   mode: "auto"               // "auto" (the wrap-up once the set is won) | "game" | "set"
@@ -157,8 +159,8 @@ setStats: {                  // derived from the set's replays (lib/set-stats/se
   format: "Bo5",                      // the best-of label on the scoreboard ("Flex", "Bo3", …)
   score: [2, 1], over: false,         // over: set-text.js setIsWon — Bo3 at 2, Bo5 at 3, Flex at 2–0 or 3
   counted: 3, total: 3, pending: 0, unreadable: 0,   // games with stats / games on the scoreboard
-  sides: [{ tag, character: { codename, skin }, portrait: { url, w, h, eye: [x, y], k, faces } | null }, …],
-  games: [{ n, winner, stage: { id, name, icon, pic }, len: "4:12", seconds, stocks }],
+  sides: [{ tag, character: { codename, skin }, portraits: { [packId]: { url, w, h, eye: [x, y], k, faces } } | null }, …],  // every installed pack's, by id
+  games: [{ n, winner, stage: { id, name, icon, pics: { [stageSetId]: url } | null }, len: "4:12", seconds, stocks }],
   stats: { kills: { label, dp: [game, set], better: "hi" | "lo", agg, unit?, hint?, setWord? }, … },
   rows: { kills: { g: [l, r], s: [l, r], pg: [[…], […]], lead: { g: 0 | 1 | null, s } }, … },
   insights: { game: [{ id, tag, big, unit?, text, who, side: 0 | 1 | -1, row?, note? }, …], set: […] },
@@ -392,8 +394,8 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `POST` | `/api/bracket-url` | `{ url }` → load the event a pasted start.gg URL names. Same reply as `/api/bracket` |
 | `POST` | `/api/bracket-view` | `{ view?, phaseGroupId? }` — what every bracket source not pinned with `?view=` shows: `winners`, `losers`, `top8`, `top16`, `full` or `upnext`. `phaseGroupId: null` goes back to following the set on air. 400 for an unknown view or a group not in the loaded event |
 | `POST` | `/api/bracket-camera` | What the bracket overlay is pointed at (`bracketShot`): `{ action: "auto" }` (tour from the action page), `"next"` / `"prev"` / `"live"` (hold a page), `{ action: "page", page }`, and the Board: `{ action: "pan", dir: "up"\|"down"\|"left"\|"right" }`, `{ action: "zoom", dir: "in"\|"out" }`, `{ action: "overview" }` (again: back to a readable zoom at the action), `{ action: "goto", cx, cy }` (board pixels — the dock's minimap). The first Board press frames the page that was up rather than moving. `{ ok, shot }`; 400 for a bad action, page or direction, 409 with no bracket or for the Board in Up Next |
-| `GET` | `/api/set-stats` | The stats popup's layouts, styles and modes (`lib/set-stats/catalog.js`), its `config` and `shot`, and `portraits` (whether a portrait pack was found) |
-| `POST` | `/api/set-stats/config` | Any of `{ layout, style, auto, delaySec, holdSec, mode }` → `statsConfig`. Applies live, the popup up or not. `{ ok, config }`; 400 for an unknown id or a value out of range |
+| `GET` | `/api/set-stats` | The stats popup's layouts, styles and modes (`lib/set-stats/catalog.js`), its `config` and `shot`, `packs` — the installed portrait packs, `[{ id, name, credits }]` — and `stagePacks`, the installed stage picture sets, the same shape |
+| `POST` | `/api/set-stats/config` | Any of `{ layout, style, pack, stages, auto, delaySec, holdSec, mode }` → `statsConfig`. Applies live, the popup up or not. `{ ok, config }`; 400 for an unknown id or a value out of range |
 | `POST` | `/api/set-stats/show` | `{ action: "show" \| "hide" \| "toggle" }` (the dock's Show / Hide, the strip's Stats key; the hotkey is `toggle`). Hide also cancels an automatic show that's counting down. `{ ok, shot }` |
 | `POST` | `/api/set-stats/refresh` | Read every game's replay again |
 | `POST` | `/api/set-rules` | The best-of rule, any of `{ topN, defaultLabel, topLabel }`: `defaultLabel` until the set's loser is guaranteed top `topN` (one of 0 = never, 3, 4, 6, 8, 12, 16), `topLabel` from there; each `Flex`, `Bo3` or `Bo5`. Saved (`setRules`); the strip's override still wins. `{ ok, rules }`; 400 for anything else |
@@ -437,6 +439,8 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `POST` | `/api/players/assign` | Puts a suggested player in one slot, like a set load: tag, prefix, pronoun, `playerId` and the preferred main. `{ side, index, playerId }` for an entrant of the loaded event (upserted into the DB), `{ side, index, ref, tag }` for a DB record (409 rules as `update`). `playerId` is overwritten — `null` for a record with no start.gg id — so the side panel can't show the previous player's stats under the new name. A different player in the slot unlinks the start.gg set, as `/api/player` does; `{ ok, tag, detached }`. The main also becomes the shown character **unless a game is running**; a player with no main leaves the character alone |
 | `GET` | `/api/players/values` | `{ prefixes, pronouns }`: each distinct value in the DB, most used first — the prefix and pronoun suggestions |
 | `GET` | `/api/setup` | The Setup tab: `{ overlays: [{ name, path, size, note? }], base, lan: [{ url, name, tailscale }], hotkeys: { mode, bindings, errors }, players: { file, count }, slippiFolder, startgg: { token, shortLink }, theme, themes }` — `theme` is the pack `overlays/theme.css` imports (null if unreadable), `themes` every folder under `overlays/themes/` with a `theme.css` |
+| `GET` | `/api/art-packs` | The stats popup's art packs: `{ folder, source, packs: [{ id, kind: "portraits" or "stages", name, description, credits, size, latest, installed: { version, at } or null, current }], manifestError, job }`. Reads the release's pack list from GitHub (cached 10 min, 8s timeout — offline, `latest` and `size` are null and `manifestError` says why). `job` is the download running or last run: `{ running, ids, done, failed: [{ id, error }], pack, step: "downloading" or "unpacking", received, total }` |
+| `POST` | `/api/art-packs/download` | Downloads every pack that's missing or behind the release, in the background; answers at once with the same shape (plus `upToDate: true` when there was nothing to do). A press while one runs returns that job. 502 when GitHub's pack list can't be read |
 | `POST` | `/api/theme` | `{ pack }` — rewrites the `@import` line in `overlays/theme.css` (atomic; the header comment is kept) and sends `theme`. 400 for a pack not in `themes` or a `theme.css` with no `@import` line to repoint. `{ ok, pack, changed }`. The file is git-tracked, so a non-default pack shows as a local change |
 | `GET` | `/api/clipper` | `{ settings, obs, recentClips, clipsThisGame }` |
 | `POST` | `/api/clipper/settings` | Validate, clamp, persist to `clipper-settings.json`, apply live |

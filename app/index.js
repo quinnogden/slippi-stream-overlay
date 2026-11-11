@@ -185,7 +185,7 @@ const hotkeys = installHotkeys(config.HOTKEYS, {
 for (const err of hotkeys.errors) console.warn(`[hotkey] ${err} — left unbound`);
 
 const overlaysDir = path.resolve(__dirname, "..", "overlays");
-registerOverlays(app, { overlaysDir, luckyImageDir, portraitsDir: setStats.portraits.dir, stagesDir: setStats.portraits.stagesDir });
+registerOverlays(app, { overlaysDir, luckyImageDir });
 
 registerRoutes(app, {
   publicDir: path.join(__dirname, "public"),

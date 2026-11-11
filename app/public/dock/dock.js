@@ -1102,7 +1102,7 @@
     if (name === "players" && !playersFetched) fetchPlayers();
     // The roster each time: a main set elsewhere or a bracket refresh may have changed it.
     if (name === "players" && rosterOpen()) fetchRoster();
-    if (name === "setup") fetchSetup();
+    if (name === "setup") { fetchSetup(); fetchArt(); }
     if (name === "crew" && !savedCrews) fetchSavedCrews();
   }
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
@@ -2791,6 +2791,79 @@
     renderThemes();
   });
 
+  // The stats popup's art packs: one click downloads every one that's missing
+  // or behind the release; the card polls while it runs.
+  let art = null; // /api/art-packs
+  let artPoll = null;
+  const mb = (n) => `${Math.round(n / 1e6)} MB`;
+
+  async function fetchArt() {
+    clearTimeout(artPoll);
+    const wasRunning = !!(art && art.job && art.job.running);
+    const r = await api("/api/art-packs");
+    if (!r.ok) {
+      $("art-packs").replaceChildren(h("div", "empty-note", `Couldn't read the art packs: ${r.error}`));
+      return;
+    }
+    art = r;
+    renderArt();
+    const job = r.job;
+    if (job && job.running) artPoll = setTimeout(fetchArt, 1000);
+    else if (wasRunning && job) {
+      const failed = job.failed || [];
+      toast(failed.length ? `Art packs: ${failed.map((f) => `${f.id} failed (${f.error})`).join("; ")}` : `Art packs: ${job.done.length} downloaded`, !failed.length);
+      fetchStatsCatalog();
+    }
+  }
+
+  const renderArt = guard("art", () => {
+    if (!art) return;
+    const job = art.job && art.job.running ? art.job : null;
+    const packs = art.packs || [];
+    $("art-packs").replaceChildren(...packs.map((p) => {
+      let state;
+      if (job && job.pack === p.id) state = job.step === "unpacking" ? "Unpacking…" : "Downloading…";
+      else if (job && job.ids.includes(p.id) && !job.done.includes(p.id)) state = "Waiting";
+      else if (p.current) state = "Up to date";
+      else if (p.installed) state = p.latest ? `Update: ${p.latest}` : "Installed";
+      else state = "Not downloaded";
+      const row = h("div", "url-row art-row");
+      const head = h("div", "u-head");
+      head.append(h("span", "u-name", p.name), h("span", "u-meta", [p.size ? mb(p.size) : "", state].filter(Boolean).join(" · ")));
+      row.append(head);
+      const note = [p.kind === "stages" ? "Stage pictures for every game's stage" : p.description, p.credits].filter(Boolean).join(" — ");
+      if (note) row.append(h("div", "u-note", note));
+      row.classList.toggle("have", !!p.installed);
+      return row;
+    }));
+    const missing = packs.filter((p) => !p.current && p.latest).length;
+    const have = packs.filter((p) => p.installed).length;
+    const btn = $("btn-art-download");
+    btn.disabled = !!job || (!missing && !art.manifestError && packs.every((p) => p.latest));
+    btn.textContent = job ? `Downloading ${Math.floor((100 * job.received) / Math.max(1, job.total))}%` : have && missing ? `Update ${missing}` : missing ? "Download all" : "All downloaded";
+    $("art-progress").classList.toggle("gone", !job);
+    $("art-bar").style.width = job ? `${Math.min(100, (100 * job.received) / Math.max(1, job.total))}%` : "0";
+    const total = packs.reduce((t, p) => t + (p.current ? 0 : p.size || 0), 0);
+    setSum("sum-art", job ? `Downloading ${mb(job.received)} of ${mb(job.total)}`
+      : `${have} of ${packs.length} installed` + (missing && total ? ` · ${mb(total)} to download` : "")
+        + (art.manifestError ? " · GitHub unreachable" : ""));
+  });
+
+  $("btn-art-download").addEventListener("click", async () => {
+    const btn = $("btn-art-download");
+    btn.disabled = true;
+    const r = await api("/api/art-packs/download", {});
+    if (!r.ok) {
+      toast(`Art packs: ${r.error}`, false);
+      btn.disabled = false;
+      return;
+    }
+    if (r.upToDate) toast("Art packs are up to date", true);
+    art = r;
+    renderArt();
+    if (r.job && r.job.running) artPoll = setTimeout(fetchArt, 1000);
+  });
+
   const renderSetup = guard("setup", () => {
     if (!setup) return;
     renderThemes();
@@ -3012,7 +3085,7 @@
   let statsCfg = null;
   let statsShot = null;
   let statsData = null;
-  let statsCatalog = null; // { layouts, styles, portraits } from /api/set-stats
+  let statsCatalog = null; // { layouts, styles, packs, stagePacks } from /api/set-stats
   const STATS_MODES = [["auto", "Auto"], ["game", "After a game"], ["set", "Wrap-up"]];
   const statsSet = (body) => act("/api/set-stats/config", body, null, "Stats popup");
   const statsShow = (action) => act("/api/set-stats/show", { action }, null, "Stats popup");
@@ -3034,6 +3107,13 @@
       statsCatalog = r;
       statsKeys($("stats-layouts"), r.layouts.map((l) => [l.id, l.name, l.note]), "layout");
       statsKeys($("stats-styles"), r.styles.map((s) => [s.id, s.name]), "style");
+      const packs = r.packs || [];
+      if (packs.length) statsKeys($("stats-packs"), packs.map((p) => [p.id, p.name, p.credits || ""]), "pack");
+      else $("stats-packs").replaceChildren(h("span", "hint", "None downloaded — Setup → Art packs"));
+      const sets = r.stagePacks || [];
+      // "None" is always there: the popup without stage pictures.
+      statsKeys($("stats-stages"), [...sets.map((p) => [p.id, p.name, p.credits || ""]), ["none", "None", "No stage pictures"]], "stages");
+      if (!sets.length) $("stats-stages").append(h("span", "hint", "None downloaded — Setup → Art packs"));
       renderStats();
     });
   }
@@ -3048,6 +3128,13 @@
     const lit = (host, v) => host.querySelectorAll(".key").forEach((b) => b.classList.toggle("lit", b.dataset.value === v));
     lit($("stats-layouts"), cfg.layout);
     lit($("stats-styles"), cfg.style);
+    // The pack the overlay draws: the one picked, else (not downloaded) the first that is.
+    const packs = (statsCatalog && statsCatalog.packs) || [];
+    const pack = packs.some((p) => p.id === cfg.pack) ? cfg.pack : packs[0] && packs[0].id;
+    lit($("stats-packs"), pack);
+    const sets = (statsCatalog && statsCatalog.stagePacks) || [];
+    const stages = cfg.stages === "none" || !sets.length ? "none" : sets.some((p) => p.id === cfg.stages) ? cfg.stages : sets[0].id;
+    lit($("stats-stages"), stages);
     lit($("stats-modes"), cfg.mode);
 
     const auto = $("stats-auto");
@@ -3085,10 +3172,10 @@
     strip.title = shot.shown ? "Take the stats popup down" : available ? "Put the stats popup on stream" : (d && d.reason) || "No stats yet";
 
     const name = (list, id) => ((list || []).find((x) => x.id === id) || {}).name || id || "";
-    const sum = [name(statsCatalog && statsCatalog.layouts, cfg.layout), name(statsCatalog && statsCatalog.styles, cfg.style),
+    const sum = [name(statsCatalog && statsCatalog.layouts, cfg.layout), pack && name(packs, pack), name(statsCatalog && statsCatalog.styles, cfg.style),
       cfg.auto ? `auto ${cfg.delaySec}s` : "manual"].filter(Boolean).join(" · ");
     $("sum-stats").textContent = shot.shown ? `On · ${sum}` : sum;
-    $("stats-source").textContent = statsCatalog && !statsCatalog.portraits ? "No portrait pack found — see config.PORTRAITS_FOLDER" : "";
+    $("stats-source").textContent = statsCatalog && !packs.length && !sets.length ? "No portraits or stage pictures yet — Setup → Art packs downloads them" : "";
   });
 
   $("btn-stats-show").addEventListener("click", () => statsShow("show"));

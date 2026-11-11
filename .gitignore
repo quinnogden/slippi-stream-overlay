@@ -33,5 +33,9 @@ __pycache__/
 # Claude local files
 .claude/
 
+# The stats popup's art packs, downloaded from the dock's Setup tab (~280 MB;
+# lib/set-stats/art-packs.js). Never committed: a clone downloads its own.
+overlays/assets/packs/
+
 # Local scratch: render comparisons and other throwaway artefacts.
 .scratch/

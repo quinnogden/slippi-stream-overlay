@@ -428,16 +428,38 @@
   });
 
   /**
+   * Each side's portrait from the chosen pack, each game's stage picture from
+   * the chosen stage set: the app sends one from every installed pack and set
+   * (lib/set-stats/portraits.js), by id, the dock's order first. One that isn't
+   * there (not downloaded, or no picture of this character or stage) falls
+   * back to the first that is; stages "none" draws no stage pictures.
+   */
+  const pick = (all, id) => {
+    if (!all) return null;
+    const first = Object.keys(all)[0];
+    return all[id] || (first ? all[first] : null);
+  };
+  function withPack(d, pack, stages) {
+    if (!d || !Array.isArray(d.sides)) return d;
+    return Object.assign({}, d, {
+      sides: d.sides.map((s) => Object.assign({}, s, { portrait: pick(s && s.portraits, pack) })),
+      games: (d.games || []).map((g) => (g && g.stage ? Object.assign({}, g, {
+        stage: Object.assign({}, g.stage, { pic: stages === "none" ? null : pick(g.stage.pics, stages) }),
+      }) : g)),
+    });
+  }
+
+  /**
    * One layout, drawn: the window's skin, its portraits (if the layout puts
    * them behind everything), the content, and the rotating sections.
    * @param {object} d — setStats
-   * @param {{ layout: string, style: string, mode: "game"|"set" }} o — style "auto" = the layout's own
+   * @param {{ layout: string, style: string, mode: "game"|"set", pack?: string, stages?: string }} o — style "auto" = the layout's own; pack = a portrait pack id; stages = a stage set id, or "none"
    * @returns {{ skin: string, portraits: string, content: string, rots: Array<{ id, items: string[] }>, style: string }}
    */
   function render(d, o) {
     const L = LAYOUTS[o.layout] || LAYOUTS.spotlight;
     const style = o.style && o.style !== "auto" && STYLES[o.style] ? o.style : L.style;
-    const R = reader(d, { mode: o.mode, style });
+    const R = reader(withPack(d, o.pack, o.stages), { mode: o.mode, style });
     const portraits = L.noWinPor ? "" : html`${portrait(R, 0, L.por)}${portrait(R, 1, L.por)}`;
     return {
       skin: L.skin || "",

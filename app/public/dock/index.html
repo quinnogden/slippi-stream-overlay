@@ -257,6 +257,14 @@
           </div>
           <div class="field">
             <span>Portraits</span>
+            <div class="seg" id="stats-packs"></div>
+          </div>
+          <div class="field">
+            <span>Stages</span>
+            <div class="seg" id="stats-stages"></div>
+          </div>
+          <div class="field">
+            <span>Style</span>
             <div class="seg" id="stats-styles"></div>
           </div>
           <div class="field">
@@ -273,7 +281,7 @@
             <span class="hint" id="stats-source"></span>
             <button class="linkish" id="btn-stats-refresh" type="button" title="Read every game's replay again">Re-read replays</button>
           </div>
-          <div class="hint">Layout and portraits switch live, even while it's up — mix any layout with any portrait style. <b>Wait</b> lets the camera catch the players' reaction before the stats come up; the popup always goes down when the next game starts. Add <b>/o/set-stats</b> above the Players bar in OBS.</div>
+          <div class="hint">Layout, portraits, stages and style switch live, even while it's up — mix any layout with any portraits and any style. <b>Wait</b> lets the camera catch the players' reaction before the stats come up; the popup always goes down when the next game starts. Add <b>/o/set-stats</b> above the Players bar in OBS.</div>
         </div>
       </div>
 
@@ -451,6 +459,21 @@
             <select id="theme-pack"></select>
           </label>
           <div class="hint">Every overlay fades out and reloads in the new pack. It's saved in overlays/theme.css, so it stays after a restart — switch back when the event is over.</div>
+        </div>
+        <div class="card" data-fold="setup.art">
+          <div class="card-head">
+            <span class="label">Art packs</span>
+            <span class="fold-sum" id="sum-art"></span>
+            <span class="fold-keys fold-only">
+              <button class="key mini go" type="button" data-proxy="btn-art-download">Download</button>
+            </span>
+          </div>
+          <div id="art-packs"></div>
+          <div class="art-progress gone" id="art-progress"><i id="art-bar"></i></div>
+          <div class="key-row">
+            <button class="key go" id="btn-art-download" type="button" title="Download every pack that's missing or out of date">Download all</button>
+          </div>
+          <div class="hint" id="art-hint">The stats popup's character portraits and stage pictures: TSH's Melee packs, from GitHub (StreamHelperAssets). They go in overlays/assets/packs/, which git ignores; the same click updates them. Pick the portraits on the Stats tab.</div>
         </div>
         <div class="card" data-fold="setup.sources">
           <div class="card-head">

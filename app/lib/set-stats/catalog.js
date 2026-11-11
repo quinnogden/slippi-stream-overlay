@@ -5,7 +5,9 @@
  *
  * A layout carries its own picture style; `style: "auto"` means "the layout's
  * own", anything else overrides it for every layout — so the operator can mix
- * any layout with any style, live.
+ * any layout with any style, live. `pack` is which downloaded portrait pack
+ * draws the characters (portraits.js); one that isn't there falls back to one that is.
+ * `stages` likewise for the stage pictures, plus "none": no stage pictures.
  */
 
 const LAYOUTS = [
@@ -33,7 +35,10 @@ const STYLES = [
 
 const MODES = ["auto", "game", "set"];
 
-const defaultStatsConfig = () => ({ layout: "spotlight", style: "auto", auto: true, delaySec: 8, holdSec: 0, mode: "auto" });
+/** A portrait pack's id (art-packs.js): which packs exist is whatever's downloaded, so only its shape is checked here. */
+const PACK_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+const defaultStatsConfig = () => ({ layout: "spotlight", style: "auto", pack: "full", stages: "stage_icon", auto: true, delaySec: 8, holdSec: 0, mode: "auto" });
 
 const clampInt = (v, lo, hi, fallback) => {
   const n = Math.round(Number(v));
@@ -46,6 +51,8 @@ function normalizeStatsConfig(c = {}) {
   return {
     layout: LAYOUTS.some((l) => l.id === c.layout) ? c.layout : d.layout,
     style: STYLES.some((s) => s.id === c.style) ? c.style : d.style,
+    pack: typeof c.pack === "string" && PACK_ID.test(c.pack) ? c.pack : d.pack,
+    stages: typeof c.stages === "string" && PACK_ID.test(c.stages) ? c.stages : d.stages,
     auto: c.auto === undefined ? d.auto : !!c.auto,
     delaySec: clampInt(c.delaySec, 0, 120, d.delaySec),
     holdSec: clampInt(c.holdSec, 0, 600, d.holdSec),
@@ -61,6 +68,8 @@ function configError(body) {
   if (!body || typeof body !== "object") return "a settings object is required";
   if (body.layout !== undefined && !LAYOUTS.some((l) => l.id === body.layout)) return `layout must be one of ${LAYOUTS.map((l) => l.id).join(", ")}`;
   if (body.style !== undefined && !STYLES.some((s) => s.id === body.style)) return `style must be one of ${STYLES.map((s) => s.id).join(", ")}`;
+  if (body.pack !== undefined && !(typeof body.pack === "string" && PACK_ID.test(body.pack))) return "pack must be a portrait pack's id";
+  if (body.stages !== undefined && !(typeof body.stages === "string" && PACK_ID.test(body.stages))) return "stages must be a stage picture set's id, or none";
   if (body.mode !== undefined && !MODES.includes(body.mode)) return `mode must be one of ${MODES.join(", ")}`;
   if (body.auto !== undefined && typeof body.auto !== "boolean") return "auto must be true or false";
   for (const [k, hi] of [["delaySec", 120], ["holdSec", 600]]) {

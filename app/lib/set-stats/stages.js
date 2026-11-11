@@ -1,6 +1,6 @@
 /**
  * Melee's stages by Slippi stage id: the name the popup prints and the icon
- * file in a TSH stage_icon pack (served at /assets/stages/, portraits.js).
+ * file in TSH's stage_icon pack (downloaded by art-packs.js, served at /assets/packs/stage_icon/).
  */
 
 const STAGES = {

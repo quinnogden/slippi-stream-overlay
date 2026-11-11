@@ -1,7 +1,7 @@
 /**
  * set-view.js — the set on the scoreboard, as the stats popup draws it. Pure.
  *
- *   buildSetView(scoreboard, statsOf, portraitOf) → the store's `setStats` section
+ *   buildSetView(scoreboard, statsOf, portraitsOf) → the store's `setStats` section
  *
  * `statsOf(file)` is game-stats.js's result for a game's .slp (undefined while
  * it hasn't been read). A game counts once it has a replay and its stats; a ±
@@ -88,9 +88,9 @@ function bestOfNumber(label) {
 /**
  * @param {object|null} sb — store.scoreboard()
  * @param {(file: string) => object|undefined} statsOf
- * @param {(character: object|null) => object|null} [portraitOf] — portraits.js
+ * @param {(character: object|null) => object|null} [portraitsOf] — portraits.js: the character's portrait in every installed pack, by pack id
  */
-function buildSetView(sb, statsOf, portraitOf = () => null) {
+function buildSetView(sb, statsOf, portraitsOf = () => null) {
   if (!sb) return unavailable("No set on the scoreboard");
   if (sb.crew) return unavailable("Crew battle — no set stats");
   if (sb.isDoubles) return unavailable("Doubles — set stats are singles only");
@@ -126,7 +126,7 @@ function buildSetView(sb, statsOf, portraitOf = () => null) {
   const sides = sb.sides.map((s, i) => {
     const ch = last ? { codename: last.chars[i].codename, skin: last.chars[i].skin } : s.players[0]?.character;
     const character = ch?.codename ? { codename: ch.codename, skin: Number(ch.skin) || 0 } : null;
-    return { tag: names[i], character, portrait: portraitOf(character) };
+    return { tag: names[i], character, portraits: portraitsOf(character) };
   });
 
   const base = {

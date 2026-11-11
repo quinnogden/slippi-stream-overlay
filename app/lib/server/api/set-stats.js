@@ -1,5 +1,5 @@
 /**
- * The stats popup (lib/set-stats/): its settings — layout, picture style,
+ * The stats popup (lib/set-stats/): its settings — layout, picture style, portrait pack,
  * automatic show and its timing, which reading — and Show / Hide.
  *
  * Like every route here, the answer that matters is the state patch that
@@ -16,15 +16,15 @@ function register(app, { store, setStats }) {
   // What the dock lists: the layouts and styles, and the popup's state now.
   app.get("/api/set-stats", (req, res) => {
     res.json({ ok: true, layouts: LAYOUTS, styles: STYLES, modes: MODES,
-      config: store.statsConfig(), shot: store.statsShot(), portraits: !!setStats?.portraits?.dir });
+      config: store.statsConfig(), shot: store.statsShot(), packs: setStats?.portraits?.packs() ?? [], stagePacks: setStats?.portraits?.stagePacks() ?? [] });
   });
 
-  // { layout?, style?, auto?, delaySec?, holdSec?, mode? } — any subset.
+  // { layout?, style?, pack?, stages?, auto?, delaySec?, holdSec?, mode? } — any subset.
   app.post("/api/set-stats/config", (req, res) => {
     const err = configError(req.body);
     if (err) return res.status(400).json({ ok: false, error: err });
     const pick = {};
-    for (const k of ["layout", "style", "auto", "delaySec", "holdSec", "mode"]) if (req.body[k] !== undefined) pick[k] = req.body[k];
+    for (const k of ["layout", "style", "pack", "stages", "auto", "delaySec", "holdSec", "mode"]) if (req.body[k] !== undefined) pick[k] = req.body[k];
     res.json({ ok: true, config: store.setStatsConfig(pick) });
   });
 

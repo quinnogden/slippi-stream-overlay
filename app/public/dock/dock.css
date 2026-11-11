@@ -1082,6 +1082,11 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 }
 .u-url:focus { border-color: rgba(var(--d-accent-rgb), .9); }
 .u-note { margin-top: 5px; font-size: 12px; color: var(--d-ink-dim); }
+/* Setup → Art packs: a pack not downloaded yet is dimmed; the bar fills over the whole download. */
+.art-row:not(.have) .u-name { color: var(--d-ink-dim); }
+.art-progress { height: 4px; margin: 4px 0 10px; border-radius: 2px; background: var(--d-line); overflow: hidden; }
+.art-progress.gone { display: none; }
+.art-progress > i { display: block; height: 100%; width: 0; background: rgb(var(--d-accent-rgb)); transition: width .4s linear; }
 
 .hk-row {
   display: flex;

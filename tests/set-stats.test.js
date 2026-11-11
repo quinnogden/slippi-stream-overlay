@@ -13,7 +13,9 @@
  *   - every layout draws both readings in every picture style the dock
  *     offers, and a name from start.gg can't inject markup;
  *   - the page goes up and down with the shot, swaps live, and a hide ends
- *     even in a source that isn't painting (its animations never finish).
+ *     even in a source that isn't painting (its animations never finish);
+ *   - the art packs download in one click, a split archive joined in order,
+ *     and a failed update keeps the pack that was there.
  *
  * The per-game numbers are game-stats.js's shape, written out: reading real
  * .slp files is checked by hand (docs/TESTING.md); what's pinned here is
@@ -31,6 +33,10 @@ const { createSetStats } = require("../app/lib/set-stats");
 const { LAYOUTS: CATALOG_LAYOUTS, STYLES: CATALOG_STYLES } = require("../app/lib/set-stats/catalog");
 const Layouts = require("../overlays/set-stats/layouts");
 const { loadOverlay, fakeIo, sleep } = require("./helpers/overlay-sandbox");
+const fs = require("fs");
+const os = require("os");
+const { createArtPacks, MANIFEST_URL } = require("../app/lib/set-stats/art-packs");
+const { createPortraits } = require("../app/lib/set-stats/portraits");
 
 let failed = 0;
 async function test(name, fn) {
@@ -107,7 +113,13 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
       if (reads[file] === "hold") return new Promise((resolve) => held.set(file, resolve));
       return Promise.resolve(reads[file] ?? { ok: false, error: "no such file" });
     },
-    portraits: { dir: null, stagesDir: null, portraitOf: (c) => (c ? { url: `/p/${c.codename}.png`, w: 900, h: 900, eye: [500, 300], k: 1, faces: "right" } : null), stageIcon: () => null },
+    // Two portrait packs and two stage sets, as portraits.js gives them: every installed one's picture, by id.
+    portraits: {
+      portraitsOf: (c) => (c ? Object.fromEntries(["full", "csp"].map((id) => [id, { url: `/assets/packs/${id}/${c.codename}.png`, w: 900, h: 900, eye: [500, 300], k: 1, faces: "right" }])) : null),
+      stagePicsOf: (icon) => (icon ? Object.fromEntries(["stage_icon", "st2"].map((id) => [id, `/assets/packs/${id}/${icon}.png`])) : null),
+      packs: () => [], stagePacks: () => [], reload() {},
+    },
+    artPacks: {},
     timers: clock.timers, now: clock.now, sizeOf: () => 1,
   });
   ss.start();
@@ -263,6 +275,15 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
         }
       }
     }
+    // The pack picked draws the characters, the stage set picked the stages; one that
+    // isn't downloaded falls back to one that is, and stages "none" draws none.
+    const pics = (pack) => Layouts.render(d, { layout: "spotlight", mode: "game", style: "auto", pack }).portraits;
+    assert.ok(pics("csp").includes("/assets/packs/csp/") && !pics("csp").includes("/assets/packs/full/"), "the picked pack");
+    assert.ok(pics("gone").includes("/assets/packs/full/"), "a missing pack falls back to the first");
+    const stagePics = (stages) => Object.keys(Layouts.LAYOUTS).map((layout) => Layouts.render(d, { layout, mode: "set", style: "auto", stages }).content).join("");
+    assert.ok(stagePics("st2").includes("/assets/packs/st2/") && !stagePics("st2").includes("/assets/packs/stage_icon/"), "the picked stage set");
+    assert.ok(stagePics("gone").includes("/assets/packs/stage_icon/"), "a missing stage set falls back to the first");
+    assert.ok(!/\/assets\/packs\/(stage_icon|st2)\//.test(stagePics("none")), "none: no stage pictures");
     r.ss.stop();
   });
 
@@ -308,6 +329,63 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
     assert.strictEqual(win.className, "win");
     assert.strictEqual(logoTo(), "0%", "and climbs back out once it's gone");
     r.ss.stop();
+  });
+
+  await test("the art packs download in one click, a split archive joined in order, and a failed update keeps what was there", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "art-packs-"));
+    try {
+      let version = "2";
+      const manifest = () => ({ ssbm: { assets: {
+        full: { has_eyesight_data: true, version, files: { "ssbm.full.7z.002": { name: "ssbm.full.7z.002", size: 2 }, "ssbm.full.7z.001": { name: "ssbm.full.7z.001", size: 2 } } },
+        stage_icon: { has_eyesight_data: false, version, files: { "ssbm.stage_icon.7z.001": { name: "ssbm.stage_icon.7z.001", size: 2 } } },
+        CSProject_Icon: { has_eyesight_data: false, version, files: { "x.7z.001": { name: "x.7z.001", size: 9 } } }, // icons: the popup can't use them
+      } } });
+      const parts = { "ssbm.full.7z.001": "ab", "ssbm.full.7z.002": "cd", "ssbm.stage_icon.7z.001": "st" };
+      const fetch = async (url) => (url === MANIFEST_URL ? new Response(JSON.stringify(manifest()))
+        : new Response(parts[decodeURIComponent(url.split("/").pop())] ?? null, { status: parts[decodeURIComponent(url.split("/").pop())] ? 200 : 404 }));
+      const png = (w, h) => { const b = Buffer.alloc(24); b.write("IHDR", 12); b.writeUInt32BE(w, 16); b.writeUInt32BE(h, 20); return b; };
+      let breakFull = false;
+      const archives = {};
+      const extract = async (archive, into) => {
+        const id = path.basename(archive, ".7z");
+        archives[id] = fs.readFileSync(archive, "utf8");
+        if (breakFull && id === "full") throw new Error("couldn't unpack (truncated)");
+        fs.mkdirSync(path.join(into, id));
+        if (id === "full") {
+          fs.writeFileSync(path.join(into, id, "config.json"), JSON.stringify({ type: ["full"], eyesights: { fox: { 0: { x: 400, y: 300 } } }, credits: "v" + version }));
+          fs.writeFileSync(path.join(into, id, "fox_0.png"), png(942, 941));
+        } else {
+          fs.writeFileSync(path.join(into, id, "config.json"), JSON.stringify({ type: ["stage_icon"] }));
+          fs.writeFileSync(path.join(into, id, "battlefield.png"), png(1273, 717));
+        }
+      };
+      const portraits = createPortraits({ dir });
+      assert.strictEqual(portraits.portraitsOf({ codename: "fox", skin: 0 }), null, "nothing before the download");
+      const packs = createArtPacks({ dir, fetch, extract, onInstalled: () => portraits.reload() });
+
+      const r = await packs.downloadAll();
+      assert.ok(r.ok && r.job.running, "it starts in the background");
+      await packs.job.finished;
+      assert.strictEqual(archives.full, "abcd", "the parts are joined in order");
+      assert.deepStrictEqual(packs.list().map((p) => [p.id, p.current]).filter(([id]) => id === "full" || id === "stage_icon"), [["full", true], ["stage_icon", true]]);
+      assert.ok(!packs.list().some((p) => p.id === "CSProject_Icon"), "an icon pack isn't offered");
+      const fox = portraits.portraitsOf({ codename: "fox", skin: 3 });
+      assert.deepStrictEqual([fox.full.url, fox.full.eye], ["/assets/packs/full/fox_0.png", [400, 300]], "a costume without its own picture falls back to the first, placed by its face");
+      assert.deepStrictEqual(portraits.stagePicsOf("battlefield"), { stage_icon: "/assets/packs/stage_icon/battlefield.png" });
+      assert.deepStrictEqual(portraits.stagePacks().map((p) => p.id), ["stage_icon"], "the stages are a set of their own, not a portrait pack");
+      assert.ok((await packs.downloadAll()).upToDate, "a second click has nothing to do");
+
+      version = "3";
+      breakFull = true;
+      await packs.downloadAll();
+      await packs.job.finished;
+      assert.deepStrictEqual(packs.job.failed.map((f) => f.id), ["full"]);
+      assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, "full", "config.json"), "utf8")).credits, "v2", "the old pack is still there");
+      assert.ok(packs.list().find((p) => p.id === "stage_icon").current, "and the others updated");
+      assert.ok(!fs.existsSync(path.join(dir, ".download")), "no download left behind");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   console.log(failed ? `set-stats: ${failed} failed` : "set-stats: all passed");

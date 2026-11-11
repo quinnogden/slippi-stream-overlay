@@ -1,44 +1,28 @@
 /**
- * portraits.js — the character art and stage pictures the stats popup draws.
+ * portraits.js — the character art and stage pictures the stats popup draws,
+ * from the packs art-packs.js downloads into overlays/assets/packs/.
  *
- * The art is a TSH asset pack: a folder of `<character>_<costume>.png` with a
+ * A pack is a TSH asset pack: a folder of `<character>_<costume>.png` with a
  * config.json giving each character's `eyesights` (where the face is, in the
- * image's pixels) and `image_sizes`. The popup places every character by its
- * face, so one layout fits all 26. The default is TSH's "full" pack (the VS
- * screen renders from Classic Mode, drawn facing right), found in an old TSH
- * install beside the app; `config.PORTRAITS_FOLDER` points anywhere else.
- * Stage pictures are TSH's `stage_icon` pack, beside it (or
- * `config.STAGE_ICONS_FOLDER`).
+ * image's pixels) and, in some, a `rescaling_factor` per character (how big
+ * they stand next to the others). The popup places every character by its
+ * face, so one layout fits all 26 — whichever pack draws them. Each side
+ * carries a portrait from every installed pack, and each game its stage's
+ * picture from every installed stage set (`type: ["stage_icon"]`), so the
+ * dock's picks (or a source's `?pack=` / `?stages=`) switch without a re-read.
  *
- * Neither ships in the repo (the art isn't ours to commit). Without them the
- * popup simply has no portraits or stage pictures; nothing else changes.
- *
- * Served at /assets/portraits/ and /assets/stages/ (server/overlays.js).
+ * No pack installed: the popup has no portraits or stage pictures; nothing
+ * else changes. Served at /assets/packs/ (the /assets/ mount, server/overlays.js).
  */
 
 const fs = require("fs");
 const path = require("path");
+const { KNOWN } = require("./art-packs");
 
-const REPO = path.resolve(__dirname, "..", "..", "..");
-/** Every pack is drawn as if its images were this tall, so the characters come out the same size. */
+/** Every pack is drawn as if its frame were this tall (times its `fill`), so the characters come out the same size. */
 const NORMAL_HEIGHT = 940;
 /** TSH's file names where they differ from char_map's codenames. */
 const TSH_NAMES = { game_and_watch: "game_&_watch" };
-
-/** The first folder that exists of: the configured one, overlays/assets/<sub>, an old TSH install's pack. */
-function findFolder(configured, sub, tshPack) {
-  const candidates = [];
-  if (configured) candidates.push(path.resolve(configured));
-  candidates.push(path.join(REPO, "overlays", "assets", sub));
-  try {
-    for (const d of fs.readdirSync(REPO)) {
-      if (d.startsWith("TournamentStreamHelper")) candidates.push(path.join(REPO, d, "user_data", "games", "ssbm", tshPack));
-    }
-  } catch { /* no repo listing: only the configured folder */ }
-  return candidates.find((d) => {
-    try { return fs.statSync(d).isDirectory(); } catch { return false; }
-  }) ?? null;
-}
 
 /** A PNG's size from its header, or null. */
 function pngSize(file) {
@@ -55,54 +39,105 @@ function pngSize(file) {
   }
 }
 
+const isPortraitPack = (conf) => !!conf?.eyesights && [].concat(conf.type ?? []).some((t) => t === "full" || t === "portrait");
+const isStagePack = (conf) => [].concat(conf?.type ?? []).includes("stage_icon");
+const listed = (p) => ({ id: p.id, name: p.name, credits: typeof p.conf.credits === "string" ? p.conf.credits : null });
+
 /**
- * @param {{ PORTRAITS_FOLDER?: string|null, STAGE_ICONS_FOLDER?: string|null }} [config]
+ * @param {{ dir: string }} opts — the packs folder (overlays/assets/packs)
  */
-function createPortraits(config = {}) {
-  const dir = findFolder(config.PORTRAITS_FOLDER, "portraits", "full");
-  const stagesDir = findFolder(config.STAGE_ICONS_FOLDER, "stages", "stage_icon");
-  let pack = {};
-  if (dir) {
-    try { pack = JSON.parse(fs.readFileSync(path.join(dir, "config.json"), "utf8")); } catch { pack = {}; }
-  }
+function createPortraits({ dir }) {
+  let packs = [];   // [{ id, name, conf, fill }] — the installed portrait packs, in the dock's order
+  let stagePacks = []; // [{ id, name, conf }] — the installed stage picture sets, likewise
   const cache = new Map();
 
+  /** Read what's installed again (after a download). */
+  function reload() {
+    cache.clear();
+    let found = [];
+    try {
+      found = fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory() && !d.name.startsWith(".")).map((d) => d.name);
+    } catch { /* no folder yet: nothing downloaded */ }
+    const order = (id) => { const i = KNOWN.findIndex((k) => k.id === id); return i < 0 ? KNOWN.length : i; };
+    packs = [];
+    stagePacks = [];
+    for (const id of found.sort((a, b) => order(a) - order(b) || a.localeCompare(b))) {
+      let conf = null;
+      try { conf = JSON.parse(fs.readFileSync(path.join(dir, id, "config.json"), "utf8")); } catch { continue; }
+      const known = KNOWN.find((k) => k.id === id);
+      const name = known?.name ?? (typeof conf.name === "string" ? conf.name : id);
+      if (isPortraitPack(conf)) packs.push({ id, name, conf, fill: known?.fill ?? 1 });
+      else if (isStagePack(conf)) stagePacks.push({ id, name, conf });
+    }
+  }
+  reload();
+
+  /** One pack's portrait of a character, or null. */
+  function portraitIn(pack, name, skin) {
+    let file = `${name}_${skin}.png`;
+    const at = (f) => path.join(dir, pack.id, f);
+    if (!fs.existsSync(at(file))) file = `${name}_0.png`;
+    const size = fs.existsSync(at(file)) ? pngSize(at(file)) : null;
+    if (!size) return null;
+    const eyes = pack.conf.eyesights?.[name] ?? {};
+    const e = eyes[String(skin)] ?? eyes["0"] ?? { x: size.w * 0.55, y: size.h * 0.35 };
+    const rs = pack.conf.rescaling_factor?.[name] ?? {};
+    const scale = Number(rs[String(skin)] ?? rs["0"]) || 1;
+    return {
+      url: `/assets/packs/${encodeURIComponent(pack.id)}/${encodeURIComponent(file)}`,
+      w: size.w, h: size.h, eye: [e.x, e.y],
+      k: Math.round(((NORMAL_HEIGHT * pack.fill * scale) / size.h) * 1000) / 1000,
+      faces: "right",
+    };
+  }
+
   /**
-   * A character's portrait, or null when the pack has none.
+   * A character's portrait from every installed pack, by pack id (the dock's
+   * order), or null when none has one.
    * @param {{ codename: string, skin?: number }|null} character
-   * @returns {{ url: string, w: number, h: number, eye: [number, number], k: number, faces: "right" }|null}
+   * @returns {Record<string, { url, w, h, eye: [number, number], k, faces: "right" }>|null}
    */
-  function portraitOf(character) {
-    if (!dir || !character?.codename) return null;
+  function portraitsOf(character) {
+    if (!packs.length || !character?.codename) return null;
     const name = TSH_NAMES[character.codename] ?? character.codename;
     const skin = Number(character.skin) || 0;
     const key = `${name}:${skin}`;
-    if (cache.has(key)) return cache.get(key);
-    let file = `${name}_${skin}.png`;
-    if (!fs.existsSync(path.join(dir, file))) file = `${name}_0.png`;
-    let out = null;
-    const size = fs.existsSync(path.join(dir, file)) ? pngSize(path.join(dir, file)) : null;
-    if (size) {
-      const eyes = pack.eyesights?.[name] ?? {};
-      const e = eyes[String(skin)] ?? eyes["0"] ?? { x: size.w * 0.55, y: size.h * 0.35 };
-      out = {
-        url: `/assets/portraits/${encodeURIComponent(file)}`,
-        w: size.w, h: size.h, eye: [e.x, e.y],
-        k: Math.round((NORMAL_HEIGHT / size.h) * 1000) / 1000,
-        faces: "right",
-      };
+    if (!cache.has(key)) {
+      const out = {};
+      for (const pack of packs) {
+        const p = portraitIn(pack, name, skin);
+        if (p) out[pack.id] = p;
+      }
+      cache.set(key, Object.keys(out).length ? out : null);
     }
-    cache.set(key, out);
-    return out;
+    return cache.get(key);
   }
 
-  /** A stage picture's url, or null. */
-  function stageIcon(icon) {
-    if (!stagesDir || !icon) return null;
-    return fs.existsSync(path.join(stagesDir, `${icon}.png`)) ? `/assets/stages/${icon}.png` : null;
+  /**
+   * A stage's picture from every installed stage set, by set id (the dock's
+   * order), or null when none has one — like a character's portraits.
+   * @param {string} icon — stages.js's file name
+   * @returns {Record<string, string>|null}
+   */
+  function stagePicsOf(icon) {
+    if (!stagePacks.length || !icon) return null;
+    const out = {};
+    for (const p of stagePacks) {
+      if (fs.existsSync(path.join(dir, p.id, `${icon}.png`))) out[p.id] = `/assets/packs/${encodeURIComponent(p.id)}/${encodeURIComponent(icon)}.png`;
+    }
+    return Object.keys(out).length ? out : null;
   }
 
-  return { dir, stagesDir, portraitOf, stageIcon, credits: pack.credits ?? null };
+  return {
+    dir,
+    reload,
+    portraitsOf,
+    stagePicsOf,
+    /** The installed portrait packs, for the dock: [{ id, name, credits }]. */
+    packs: () => packs.map(listed),
+    /** The installed stage picture sets, likewise. */
+    stagePacks: () => stagePacks.map(listed),
+  };
 }
 
-module.exports = { createPortraits, pngSize };
+module.exports = { createPortraits, pngSize, NORMAL_HEIGHT };

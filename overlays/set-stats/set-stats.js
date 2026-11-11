@@ -39,7 +39,7 @@
   const { ms, ease, restOf, pose, TEXT } = O.motion;
   const win = document.getElementById("win");
 
-  const PIN = { layout: O.param("layout"), style: O.param("style"), show: O.param("show") === "1" };
+  const PIN = { layout: O.param("layout"), style: O.param("style"), pack: O.param("pack"), stages: O.param("stages"), show: O.param("show") === "1" };
   const HOLD = 6500; // a rotating section's dwell: not animation speed, so not the tempo's
   const CASCADE_IN = { gap: 70, min: 28, max: 480 };
   const CASCADE_OUT = { gap: 36, min: 14, max: 240 };
@@ -181,9 +181,9 @@
     if (!data || !data.available) return null;
     if (!(PIN.show || (shot && shot.shown))) return null;
     const mode = shot && (shot.mode === "set" || shot.mode === "game") ? shot.mode : (data.over ? "set" : "game");
-    return { layout: PIN.layout || cfg.layout, style: PIN.style || cfg.style, mode };
+    return { layout: PIN.layout || cfg.layout, style: PIN.style || cfg.style, pack: PIN.pack || cfg.pack, stages: PIN.stages || cfg.stages, mode };
   }
-  const sigOf = (w) => JSON.stringify([w.layout, w.style, w.mode, data]);
+  const sigOf = (w) => JSON.stringify([w.layout, w.style, w.pack, w.stages, w.mode, data]);
 
   let rots = [];
   let portraitsDrawn = null; // the portraits' markup on screen, to keep them through a swap

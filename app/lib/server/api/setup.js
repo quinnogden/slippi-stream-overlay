@@ -2,7 +2,8 @@
  * The dock's Setup tab: what OBS and the operator need to know about this
  * machine's app — the overlay urls to paste into browser sources, the dock's
  * addresses for a phone, the hotkeys actually bound, and where the app's files
- * are. Read only, apart from the theme switch.
+ * are. Read only, apart from the theme switch and the art packs' download
+ * (lib/set-stats/art-packs.js).
  */
 
 const fs   = require("fs");
@@ -96,13 +97,30 @@ function setThemePack(overlaysDir, pack) {
 
 /**
  * @param {import("express").Express} app
- * @param {object} deps — { setupInfo: () => object, overlaysDir, emit }:
+ * @param {object} deps — { setupInfo: () => object, overlaysDir, emit, setStats }:
  *   setupInfo is built in index.js from what only the composition root knows
  *   (config, the hotkeys it installed); emit is the overlay channel's.
  */
-function register(app, { setupInfo, overlaysDir, emit }) {
+function register(app, { setupInfo, overlaysDir, emit, setStats }) {
   app.get("/api/setup", (req, res) => {
     res.json({ ok: true, overlays: OVERLAYS, ...setupInfo() });
+  });
+
+  // The stats popup's art: what's installed, what the release has, and the
+  // download in progress (the dock polls this while one runs).
+  app.get("/api/art-packs", async (req, res) => {
+    const packs = setStats?.artPacks;
+    if (!packs) return res.status(503).json({ ok: false, error: "Set stats aren't running" });
+    await packs.readManifest();
+    res.json(packs.status());
+  });
+
+  // One click: every pack that's missing or behind the release, in the background.
+  app.post("/api/art-packs/download", async (req, res) => {
+    const packs = setStats?.artPacks;
+    if (!packs) return res.status(503).json({ ok: false, error: "Set stats aren't running" });
+    const r = await packs.downloadAll();
+    res.status(r.ok ? 200 : 502).json(r.ok ? { ...packs.status(), upToDate: !!r.upToDate } : r);
   });
 
   // Every overlay reloads into the new pack on the `theme` event; the dock
