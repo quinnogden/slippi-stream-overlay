@@ -6,7 +6,7 @@ The [main README](../README.md) covers what the app does and how to run a stream
 
 | | Guide | Read it when you're… |
 |:-:|---|---|
-| 🛠️ | [**FRESH-INSTALL.md**](FRESH-INSTALL.md) | **Setting up** a new machine or a fresh OBS profile, or moving over from TSH. It works phase by phase, marks which steps you do and which Claude Code can do, and ends with a verification pass. |
+| 🛠️ | [**FRESH-INSTALL.md**](FRESH-INSTALL.md) | **Setting up** a new machine or a fresh OBS profile. It works phase by phase, marks which steps you do and which Claude Code can do, and ends with a verification pass. |
 | 🧪 | [**TESTING.md**](TESTING.md) | **Checking a change** without a live tournament: replaying `.slp` files faithfully, running the app against a past event, screenshotting the overlays, and the regression checklist. |
 | 🔌 | [**BRIDGE-API.md**](BRIDGE-API.md) | **Changing anything a browser reads**: the state sections, event payloads and `/api/*` routes, with the traps in each. |
 

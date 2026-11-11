@@ -18,7 +18,8 @@ Preflight covers dependencies, config, the hotkeys, the player file, the icons, 
 ## Layer 0 — The automated checks
 
 ```bash
-node tests/run.js                              # everything, no deps beyond the app's own
+node tests/run.js                              # everything, in parallel (~4s), no deps beyond the app's own
+node tests/run.js dock side-panel              # only the files whose name contains these
 node tests/side-panel.test.js                  # one file, with detail
 node tests/combo-detector.test.js              # run after touching the clipper's thresholds
 node tests/overlays-static.test.js             # every overlay url resolves
@@ -163,7 +164,7 @@ The app serves every page, so there is nothing to stub: open `http://localhost:5
 
 - `?panel=<id>` holds one panel (for styling); `?animate=false` disables the ambient animation.
 - After touching `Rotator`, run `node tests/side-panel.test.js` first — it drives the bursts that actually break it (loading a set, Switch Sides) without needing a bracket.
-- Rotation bugs show up two ways. *Acceleration*: panels advancing faster than `PANEL_INTERVAL` means a stale GSAP timeline survived a rebuild — leave it running for several minutes. *Flashing*: the logo appearing several times in a row right after a set load. The second is covered by the test; the first still needs eyes on it.
+- Rotation bugs show up two ways. *Acceleration*: panels advancing faster than `PANEL_INTERVAL` means a stale timer chain survived a restart (`_transitionTo()`'s `_run` counter is what stops one) — leave it running for several minutes. *Flashing*: the logo appearing several times in a row right after a set load. The second is covered by the test; the first still needs eyes on it.
 
 ### Bracket
 

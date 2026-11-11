@@ -68,8 +68,8 @@ const BACKGROUND_BUDGET = 50;
 const RATE_LIMIT_COOLDOWN_MS = 30000;
 
 const REPORT_MUTATION = `
-mutation reportSet($setId: ID!, $winnerId: ID!, $isDQ: Boolean, $gameData: [BracketSetGameDataInput]) {
-  reportBracketSet(setId: $setId, winnerId: $winnerId, isDQ: $isDQ, gameData: $gameData) {
+mutation reportSet($setId: ID!, $winnerId: ID!, $gameData: [BracketSetGameDataInput]) {
+  reportBracketSet(setId: $setId, winnerId: $winnerId, gameData: $gameData) {
     id
     state
   }
@@ -130,17 +130,15 @@ class StartggClient {
    * @param {string|number} setId          — start.gg set id
    * @param {string|number} winnerEntrantId — start.gg entrant id of the winning team
    * @param {Array<object>} [gameData]      — optional per-game detail (BracketSetGameDataInput)
-   * @param {{ isDQ?: boolean }} [opts]     — isDQ: the loser was disqualified (no game data)
    * @returns {Promise<{ ok: boolean, state?: number, error?: string }>}
    */
-  async reportSet(setId, winnerEntrantId, gameData, opts = {}) {
+  async reportSet(setId, winnerEntrantId, gameData) {
     if (setId == null || winnerEntrantId == null) {
       return { ok: false, error: "reportSet requires both a set id and a winner entrant id" };
     }
 
     const variables = { setId: String(setId), winnerId: String(winnerEntrantId) };
-    if (opts.isDQ) variables.isDQ = true;
-    else if (Array.isArray(gameData) && gameData.length > 0) {
+    if (Array.isArray(gameData) && gameData.length > 0) {
       variables.gameData = gameData;
     }
 
@@ -152,7 +150,7 @@ class StartggClient {
       return { ok: false, error: "start.gg returned no result (unexpected response shape)" };
     }
 
-    console.log(`[bridge] Reported set ${setId} to start.gg${opts.isDQ ? " as a DQ" : ""} (state ${result.state})`);
+    console.log(`[bridge] Reported set ${setId} to start.gg (state ${result.state})`);
     return { ok: true, state: result.state };
   }
 

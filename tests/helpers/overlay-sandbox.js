@@ -167,20 +167,11 @@ function makeEl(doc, tag, ns = null) {
     },
     remove() { if (el.parentNode) { el.parentNode.children.splice(el.parentNode.children.indexOf(el), 1); el.parentNode = null; } },
 
-    querySelector(sel) { return el.querySelectorAll(sel)[0] ?? null; },
-    querySelectorAll(sel) {
-      const out = [];
-      const walk = (n) => {
-        for (const c of n.elementChildren) {
-          if (matches(c, sel)) out.push(c);
-          walk(c);
-        }
-      };
-      walk(el);
-      return out;
-    },
+    querySelector(sel) { return find(el, compile(sel), true)[0] ?? null; },
+    querySelectorAll(sel) { return find(el, compile(sel), false); },
     closest(sel) {
-      for (let n = el; n && n.nodeType === 1; n = n.parentNode) if (matches(n, sel)) return n;
+      const c = compile(sel);
+      for (let n = el; n && n.nodeType === 1; n = n.parentNode) if (matches(n, c)) return n;
       return null;
     },
 
@@ -244,28 +235,51 @@ function makeEl(doc, tag, ns = null) {
   return el;
 }
 
-/** One compound selector (`div.a.b#c`, `[data-x]`, `[data-x="1"]`) against one element. */
+// Selectors are compiled once and cached: the dock looks the same few dozen up
+// on every render, and re-parsing them was most of the suite's run time.
 const SIMPLE = /[#.][\w-]+|\[[\w-]+(?:="[^"]*")?\]/g;
-function matchesCompound(el, compound) {
-  const m = /^([a-z0-9-]*|\*)((?:[#.][\w-]+|\[[\w-]+(?:="[^"]*")?\])*)$/i.exec(compound);
+const COMPOUND = /^([a-z0-9-]*|\*)((?:[#.][\w-]+|\[[\w-]+(?:="[^"]*")?\])*)$/i;
+const compiled = new Map();
+
+/** One compound selector (`div.a.b#c`, `[data-x]`, `[data-x="1"]`) → a test. */
+function compileCompound(compound) {
+  const m = COMPOUND.exec(compound);
   if (!m) throw new Error(`overlay-sandbox: unsupported selector "${compound}"`);
-  if (m[1] && m[1] !== "*" && el.localName !== m[1].toLowerCase()) return false;
+  const c = { tag: m[1] && m[1] !== "*" ? m[1].toLowerCase() : null, id: null, classes: [], attrs: [] };
   for (const part of m[2].match(SIMPLE) ?? []) {
-    if (part[0] === "#" && el.id !== part.slice(1)) return false;
-    if (part[0] === "." && !el.classList.contains(part.slice(1))) return false;
-    if (part[0] === "[") {
+    if (part[0] === "#") c.id = part.slice(1);
+    else if (part[0] === ".") c.classes.push(part.slice(1));
+    else {
       const [, name, value] = /^\[([\w-]+)(?:="([^"]*)")?\]$/.exec(part);
-      if (!el.hasAttribute(name)) return false;
-      if (value !== undefined && el.getAttribute(name) !== value) return false;
+      c.attrs.push([name, value]);
     }
+  }
+  return c;
+}
+
+/** Descendant combinators only — all the overlays use. → [[compound, …], …] per comma. */
+function compile(selector) {
+  let c = compiled.get(selector);
+  if (!c) {
+    c = selector.split(",").map((sel) => sel.trim().split(/\s+/).map(compileCompound));
+    compiled.set(selector, c);
+  }
+  return c;
+}
+
+function matchesCompound(el, c) {
+  if (c.tag && el.localName !== c.tag) return false;
+  if (c.id !== null && el.attrs.id !== c.id) return false;
+  for (const k of c.classes) if (!el.classList.contains(k)) return false;
+  for (const [name, value] of c.attrs) {
+    const v = el.getAttribute(name);
+    if (v === null || (value !== undefined && v !== value)) return false;
   }
   return true;
 }
 
-/** Descendant combinators only — all the overlays use. */
-function matches(el, selector) {
-  return selector.split(",").some((sel) => {
-    const parts = sel.trim().split(/\s+/);
+function matches(el, alternatives) {
+  return alternatives.some((parts) => {
     if (!matchesCompound(el, parts[parts.length - 1])) return false;
     let n = el.parentNode;
     for (let i = parts.length - 2; i >= 0; i--) {
@@ -275,6 +289,21 @@ function matches(el, selector) {
     }
     return true;
   });
+}
+
+/** Descendants of `root` matching, in document order; `first` stops at one. */
+function find(root, alternatives, first) {
+  const out = [];
+  const walk = (n) => {
+    for (const c of n.children) {
+      if (c.nodeType !== 1) continue;
+      if (matches(c, alternatives)) { out.push(c); if (first) return true; }
+      if (walk(c)) return true;
+    }
+    return false;
+  };
+  walk(root);
+  return out;
 }
 
 /** The page's markup into the fake DOM. Well-formed pages only — ours are. */
@@ -329,7 +358,18 @@ async function loadOverlay({
     createElement: (t) => makeEl(doc, t),
     createElementNS: (ns, t) => makeEl(doc, t, ns),
     createTextNode: (t) => textNode(t),
-    getElementById: (id) => doc.documentElement.querySelectorAll(`#${id}`)[0] ?? null,
+    getElementById: (id) => {
+      const walk = (n) => {
+        for (const c of n.children) {
+          if (c.nodeType !== 1) continue;
+          if (c.attrs.id === id) return c;
+          const hit = walk(c);
+          if (hit) return hit;
+        }
+        return null;
+      };
+      return walk(doc.documentElement);
+    },
     querySelector: (s) => doc.documentElement.querySelector(s),
     querySelectorAll: (s) => doc.documentElement.querySelectorAll(s),
     addEventListener() {},

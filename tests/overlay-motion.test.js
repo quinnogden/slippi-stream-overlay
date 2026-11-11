@@ -8,8 +8,10 @@
  * last, or a pronoun chip that's empty — or gone — for the rest of the set.
  *
  * Runs the real scoreboard and casters pages against the real store and
- * channel, at real animation speed (timeScale 1), so a second change can land
- * mid-animation the way a double-tapped hotkey does.
+ * channel, with animations at TIME_SCALE of their real length: short enough to
+ * keep the file quick, long enough that a second change (15ms later, ~30ms on
+ * a Windows timer) still lands mid-animation the way a double-tapped hotkey
+ * does — the shortest one here, a swap's exit, is 240ms × TIME_SCALE.
  */
 
 const assert = require("assert");
@@ -46,8 +48,9 @@ const unplayed = () => {
 // Comfortably past each animation (overlay-client.js: exit 160 + entrance
 // 480 for a swap, 220 for a hide — each × --motion-tempo, which the sandbox
 // can't read from overlay.css and so takes as TEMPO_FALLBACK, 1.5).
-const SWAP_DONE = 1300;
-const HIDE_DONE = 700;
+const TIME_SCALE = 0.4;
+const SWAP_DONE = 1300 * TIME_SCALE;
+const HIDE_DONE = 700 * TIME_SCALE;
 const settle = () => sleep(15); // a store change reaches the page on the next tick
 
 async function setup(page, prepare) {
@@ -55,7 +58,7 @@ async function setup(page, prepare) {
   if (prepare) prepare(store);
   const { io, nsps } = fakeIo();
   createOverlayChannel({ io, store });
-  const p = await loadOverlay({ page, nsps, timeScale: 1 });
+  const p = await loadOverlay({ page, nsps, timeScale: TIME_SCALE });
   await sleep(20); // first state drawn
   return { store, page: p };
 }

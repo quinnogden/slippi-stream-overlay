@@ -22,4 +22,4 @@ So Fox's default costume is `chara_2_fox_00.png`.
 
 Copied from TSH's `user_data/games/ssbm/base_files/icon/`, keeping only Melee's characters. TSH credits them as downloaded from [spriters-resource.com](https://www.spriters-resource.com).
 
-`tests/icons.test.js` checks that every character and costume Slippi can report has an icon here.
+`tests/overlays-static.test.js` and the pre-event check (`app/scripts/preflight.js`) both check that every character and costume Slippi can report has an icon here.

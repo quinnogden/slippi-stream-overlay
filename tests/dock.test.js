@@ -1063,7 +1063,7 @@ async function rig() {
     } finally { r.close(); }
   });
 
-  await test("folded, the strip keeps ⇆ Sides, ⇄ Ports and Report, each the real key; there's no DQ", async () => {
+  await test("folded, the strip keeps ⇆ Sides, ⇄ Ports and Report, each the real key", async () => {
     const r = await rig();
     const proxy = (id) => r.page.$$(".strip-fold-keys [data-proxy]").find((b) => b.dataset.proxy === id);
     try {
@@ -1073,9 +1073,6 @@ async function rig() {
       await until(() => r.scoreText(0) === "1", "the set");
       fire(r.page.$("#btn-strip-fold"), "click");
       assert.deepStrictEqual(r.page.$$(".strip-fold-keys [data-proxy]").map((b) => b.dataset.proxy), ["btn-sides", "btn-ports", "btn-report"]);
-      assert.ok(!r.page.$("#btn-dq") && !r.page.$$("button").some((b) => /DQ/.test(b.textContent)), "no DQ key anywhere");
-      const dq = await fetch(r.base + "/api/report-dq", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{\"winnerSide\":0}" });
-      assert.strictEqual(dq.status, 404, "and no route behind one");
 
       // Report mirrors the real key: off, with start.gg's reason as its tooltip.
       await until(() => proxy("btn-report").disabled, "Report is off while it can't report");

@@ -60,7 +60,7 @@ It replaced [Tournament Stream Helper (TSH)](https://github.com/joaorb64/Tournam
 ## Quick start
 
 > [!TIP]
-> Setting up a **new machine**, a **fresh OBS profile**, or **moving over from TSH**? Follow [docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md) instead. It's an ordered checklist with a verification pass at the end.
+> Setting up a **new machine** or a **fresh OBS profile**? Follow [docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md) instead. It's an ordered checklist with a verification pass at the end.
 
 ### 1 · Clone
 
@@ -93,6 +93,8 @@ module.exports = {
 | Setting | Where | What it does |
 |---|---|---|
 | `LUCKYSTATS_KEY` | `config.local.js` | A [luckystats.gg](https://luckystats.gg) API key (from your account settings there). Adds Lucky Rank, class, region and a win projection to the [side panel](#side-panel). |
+| `LUCKYSTATS_UPLOAD_KEY` | `config.local.js` | A luckystats.gg **upload** key (`l7u_…`, Account → API → App uploads). Sends each [stream set's replays](#stream-set-replays) to LuckyStats. |
+| `REPLAY_ARCHIVE_FOLDER` | `config.local.js` | A folder to copy each stream set's replays into, one folder per set. |
 | `BRACKETS` | `config.js` | Your series' start.gg short link, for the [Singles / Doubles buttons](#switching-brackets). |
 | `PLAYERS_FILE` | `config.js` | Moves the player database. The default is `app/data/local_players.json`. |
 | `HOTKEYS` | `config.local.js` | Changes the [global hotkeys](#hotkeys). |
@@ -111,7 +113,7 @@ Players are kept in `app/data/local_players.json`, which records each player's t
 - **Coming from TSH?** Copy the old install's `user_data/local_players.json` here. The format works in both directions.
 - **Want regulars correct from their first set?** Copy [`local_players.example.json`](app/data/local_players.example.json) to `local_players.json` and replace the sample players with your own.
 
-Every field is described in [Starting from scratch](docs/FRESH-INSTALL.md#starting-from-scratch--no-tsh-data).
+Every field is described in [Starting from scratch](docs/FRESH-INSTALL.md#starting-from-scratch).
 
 ### 4 · Run it
 
@@ -177,16 +179,20 @@ And these buttons:
 | **⇄ Ports** | Fixes ports that are the wrong way round, before a point goes to the wrong player. The scoreboard doesn't move. |
 | **↻ Detect** | Matches the ports to the players' characters again. |
 | **Start** / **Report** | start.gg's "Start match" and the result report, for sets loaded from start.gg. See [Reporting](#reporting-to-startgg). |
+| **Clear score** / **Clear set** | Zero the score, or take the set off the scoreboard (friendlies). |
+
+The strip folds to one line (names, score, ⇆ ⇄ and Report), and so does every card in the tabs, each keeping its main keys. The dock remembers what you folded.
 
 ### The tabs
 
 | Tab | What's in it |
 |---|---|
-| **Set** | The event's sets, with **playable sets first**. Tap one to put it on the scoreboard. Use **Clear set** for friendlies. |
+| **Set** | The event's sets, with **playable sets first**. Tap one to put it on the scoreboard. For friendlies, **Clear set** on the strip. |
 | **Bracket** | What the [bracket overlay](#bracket) shows: the view, **Auto** or a held page, and the Board's arrows, zoom and minimap. Below that, **Singles** / **Doubles** for this week's event. |
 | **Casters** | Up to four casters. Edits are a draft until you press **Put on stream**. |
-| **Players** | Search the player database, fix a prefix or pronoun, and **pin** a player's main. |
+| **Players** | This event's entrants by seed, each with the main their sets open on (tap to set it), then the whole player database: fix a prefix or pronoun, or set a main. |
 | **Clips** | The combo clipper: on/off, the OBS connection, thresholds, recent clips, and **Test clip**. |
+| **Replays** | Each stream set's replay files, archived and uploaded to LuckyStats.gg after Report. Fix a game's winner or character, attach a missing file, re-upload. |
 | **Crew** | Build two crews and run a [crew battle](#crew-battles). |
 | **Setup** | Every OBS URL, the phone URLs, the hotkeys, the [theme](#theme-packs), and where the files are. |
 
@@ -279,6 +285,10 @@ If your stream switches between singles and doubles, the Bracket tab's **Singles
 `BRACKETS` in `config.js` holds your series' **short link** (e.g. `start.gg/100-acres`, hyphenated exactly as it appears) and a few keywords per format. The TO points that short link at each new tournament, and the app follows it. If the keywords match two events, the app **refuses and names both** rather than guessing.
 
 Switching never touches the scoreboard, so a set in progress is safe.
+
+### Stream-set replays
+
+Every set played on stream keeps its `.slp` files and a `context.json` in [Replay Reporter](https://github.com/jmlee337/replay-manager-for-slippi)'s format. With `LUCKYSTATS_UPLOAD_KEY` set, a reported set uploads to LuckyStats.gg by itself; a set the TO reports on start.gg instead uploads once start.gg shows the same score. With `REPLAY_ARCHIVE_FOLDER` set, each set is also copied there. The **Replays** tab lists them, says why one is waiting, and lets you fix a game (winner, Zelda ⇄ Sheik, a missing file) and re-upload. Uploads are only *staged* until the tournament is finished, from the tab's **Finish tournament** or by LuckyStats 6 hours after the event goes quiet.
 
 ---
 
@@ -505,7 +515,7 @@ Whenever you switch to the scene, it builds a playlist from the newest clips.
 |---|---|
 | **The app closes right after starting** | `SLP_FOLDER` doesn't exist on this machine. Set it in `config.local.js`. |
 | **"Port already in use"** | Usually handled for you: an older copy of the app is stopped automatically. If a *different* program is on port 5001, the app refuses to start. Free the port (`netstat -ano \| findstr :5001`, then `taskkill /PID <pid> /F`) or change `BRIDGE_PORT`, and update every OBS source to match. |
-| **An OBS source is blank** | It loaded while the app was off. Refresh the source. A `localhost:5000/layout/…` URL is TSH's old address; use the [new URLs](#browser-sources). |
+| **An OBS source is blank** | It loaded while the app was off. Refresh the source. |
 | **Points go to the wrong player** | Press **⇄ Ports** (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>). If the *names* are on the wrong sides, use **⇆ Sides** instead. |
 | **Players have no character or pronouns** | There's no player file; the console warns about this at startup. See [the player database](#3--set-up-the-player-database-optional). |
 | **An overlay has no styling or is missing a logo** | `overlays/theme.css` names a theme pack that isn't there. Preflight tells you which. |
@@ -552,7 +562,7 @@ Everything is served from one port (**5001** by default).
 
 | Doc | Read it when you're… |
 |---|---|
-| [docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md) | setting up a machine step by step, including moving over from TSH |
+| [docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md) | setting up a machine step by step |
 | [docs/TESTING.md](docs/TESTING.md) | checking a change with no bracket running |
 | [docs/BRIDGE-API.md](docs/BRIDGE-API.md) | changing the state, events or `/api/*` routes the overlays and dock use |
 | [CLAUDE.md](CLAUDE.md) | changing the code: the architecture and the non-obvious rules behind it |

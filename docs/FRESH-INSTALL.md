@@ -1,6 +1,6 @@
 # Fresh Install Checklist
 
-For bringing this repo up on a **new machine**, a **fresh OBS profile**, or a machine **moving over from TSH**.
+For bringing this repo up on a **new machine** or a **fresh OBS profile**.
 
 ## How to use this
 
@@ -37,7 +37,7 @@ It is **read-only** — it prints the exact command or menu path to fix each fin
 | `obs-scripts/auto_replays.py` | `app/clipper-settings.json` → written by the dock's Clips tab on first save (optional) |
 | `app/data/local_players.example.json`, `app/clipper-settings.example.json` — samples of the two data files above | |
 
-`app/data/` (the player file and the saved live scoreboard), `stats-cache/` and `clipper-settings.json` are per machine and gitignored; only the `*.example.*` samples are tracked. [Starting from scratch](#starting-from-scratch--no-tsh-data) says what each one is for.
+`app/data/` (the player file and the saved live scoreboard), `stats-cache/` and `clipper-settings.json` are per machine and gitignored; only the `*.example.*` samples are tracked. [Starting from scratch](#starting-from-scratch) says what each one is for.
 
 ---
 
@@ -49,7 +49,7 @@ It is **read-only** — it prints the exact command or menu path to fix each fin
 - [ ] **VLC, 64-bit** — only if you want the break-scene clip playlist. 32-bit VLC will not give OBS a `vlc_source`.
 - [ ] **Python** for OBS scripting — see Phase 6; the version has to be one *your* OBS build accepts, which is not necessarily the newest you have installed.
 
-TSH is **not** needed. On a machine moving over from it, keep the old TSH folder for a couple of events as a rollback, but don't run it while the app is up.
+TSH is **not** needed.
 
 ---
 
@@ -64,13 +64,13 @@ TSH is **not** needed. On a machine moving over from it, keep the old TSH folder
 - [ ] **[you]** Optional: a luckystats.gg **upload** key as `LUCKYSTATS_UPLOAD_KEY` — Account → API → App uploads (it begins `l7u_`; the API key above can't upload). Connect the start.gg account that admins the tournament on LuckyStats' game data tab. Each reported stream set's replays then go to LuckyStats (the dock's Replays tab). Optional too: `REPLAY_ARCHIVE_FOLDER`, a folder to copy each stream set's replays into. Preflight checks the key live.
 - [ ] **[you]** Set `SLP_FOLDER` in `config.local.js` to this machine's Slippi spectate folder. The committed default is another machine's, and the app exits at startup if the folder doesn't exist.
 - [ ] **The player DB.** It is TSH's `local_players.json` format, and each machine has its own:
-  - moving from TSH: copy the old install's `user_data/local_players.json` to `app/data/local_players.json` — preflight prints the exact `copy` command when it finds one beside the repo. **Copy, don't point at it**: TSH rewrites the whole file on save.
+  - copy another machine's (or a TSH install's `user_data/local_players.json`) to `app/data/local_players.json` — preflight prints the exact `copy` command when it finds a TSH one beside the repo. **Copy, don't point at it**: TSH rewrites the whole file on save;
   - or set `PLAYERS_FILE` in `config.local.js` to wherever this machine keeps it;
-  - or start empty: players are added from start.gg as their sets load, and their mains are learned as they play. See [Starting from scratch](#starting-from-scratch--no-tsh-data).
+  - or start empty: players are added from start.gg as their sets load, and their mains are learned as they play. See [Starting from scratch](#starting-from-scratch).
 - [ ] `BRIDGE_PORT` stays 5001 unless there's a reason — every OBS source names it
 - [ ] *Optional* `HOTKEYS` in `config.local.js`, per action (each chord needs Ctrl, Alt or Win; `null` turns one off). Preflight checks them.
 
-### Starting from scratch — no TSH data
+### Starting from scratch
 
 You don't need any old data. You need **one** file: `config.local.js`, for `SLP_FOLDER` (plus the start.gg token if you want Start, Report and stats; see above). The app creates everything else, and each per-machine file has a tracked sample that shows its format:
 
@@ -139,13 +139,12 @@ The dock's **Setup** tab lists every url with a copy button. All are on the app'
 | Scoreboard | `http://localhost:5001/o/scoreboard` | 1920 × 1080 | |
 | Players bar | `http://localhost:5001/o/scoreboard/players` | 1920 × 1080 | |
 | Side panel | `http://localhost:5001/o/side-panel` | 611 × 1080 | Webcam layered **behind** it, in the transparent 587 × 330 cutout. `?animate=false` drops the ambient animation |
-| Bracket | `http://localhost:5001/o/bracket` | 1920 × 1080 | Follows the dock's Bracket tab; `?view=top8` (`winners`, `losers`, `top16`, `full`) pins one |
+| Bracket | `http://localhost:5001/o/bracket` | 1920 × 1080 | Follows the dock's Bracket tab; `?view=top8` (`winners`, `losers`, `top16`, `full`, `upnext`) pins one |
 | Highlights | `http://localhost:5001/o/highlights` | 1920 × 1080 | The replay/break scene frame; see below |
 | Casters | `http://localhost:5001/o/casters` | any | Every caster in a row; `?i=0`, `?i=1` … for one per cam |
 
 - [ ] Canvas **1920 × 1080** (Settings → Video)
 - [ ] On each source: **uncheck "Shutdown source when not visible"** and **"Refresh browser when scene becomes active"** — otherwise the side panel's rotation and the socket restart on every scene change
-- [ ] Moving from TSH: every old source pointed at `localhost:5000/layout/…` or a local file in the TSH folder. Re-enter each one from the table; the old ones show nothing once TSH is gone.
 - [ ] **Highlights geometry** must match the clip and cam sources' transforms or you get a visible gap between frame and footage. Don't edit CSS — copy the numbers out of OBS's **Edit Transform** and pass them on the URL (`?clip=x,y,w,h&cam=y,w,h&camx=leftX,rightX`), then load it once with `?guides=1` to check the labelled rectangles against OBS. Defaults assume clip `480,140 960×800` and cams at `0,288` / `1520,288`, each `400×504`.
 
 ### Operator dock
@@ -229,7 +228,7 @@ With the app and OBS up, every live section should pass: the app identifies itse
 |---|---|
 | App exits at startup | `SLP_FOLDER` doesn't exist on this machine (Phase 2) |
 | Every player opens on no character, no pronouns | No player file — the startup log warns; Phase 2 |
-| An OBS source is blank | It was added before the app started — refresh it; or it still points at TSH's `localhost:5000` |
+| An OBS source is blank | It was added before the app started — refresh it |
 | Unstyled overlay / missing logo | The theme pack (`overlays/theme.css`) — preflight checks it |
 | Brackets load but Start/Report are off | No start.gg token, or it expired — preflight's live check says which |
 | Hotkeys do nothing | uiohook-napi didn't load (the Setup tab says "terminal"), or another app took the chord |
