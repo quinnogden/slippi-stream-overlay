@@ -181,9 +181,12 @@
     if (!data || !data.available) return null;
     if (!(PIN.show || (shot && shot.shown))) return null;
     const mode = shot && (shot.mode === "set" || shot.mode === "game") ? shot.mode : (data.over ? "set" : "game");
-    return { layout: PIN.layout || cfg.layout, style: PIN.style || cfg.style, pack: PIN.pack || cfg.pack, stages: PIN.stages || cfg.stages, mode };
+    const layout = PIN.layout || cfg.layout;
+    // The layout's saved combo rides along: style / pack "auto" draw it (layouts.js bestFit).
+    const combos = cfg.combos && cfg.combos[layout] ? { [layout]: cfg.combos[layout] } : {};
+    return { layout, style: PIN.style || cfg.style, pack: PIN.pack || cfg.pack, stages: PIN.stages || cfg.stages, mode, combos };
   }
-  const sigOf = (w) => JSON.stringify([w.layout, w.style, w.pack, w.stages, w.mode, data]);
+  const sigOf = (w) => JSON.stringify([w.layout, w.style, w.pack, w.stages, w.mode, w.combos, data]);
 
   let rots = [];
   let portraitsDrawn = null; // the portraits' markup on screen, to keep them through a swap

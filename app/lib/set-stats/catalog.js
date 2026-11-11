@@ -3,25 +3,28 @@
  * settings' rules. The overlay draws each id (overlays/set-stats/layouts.js);
  * the dock lists them; tests/set-stats.test.js checks the two agree.
  *
- * A layout carries its own picture style; `style: "auto"` means "the layout's
- * own", anything else overrides it for every layout — so the operator can mix
- * any layout with any style, live. `pack` is which downloaded portrait pack
- * draws the characters (portraits.js); one that isn't there falls back to one that is.
+ * Each layout has a best fit: the picture style and portrait packs (best
+ * first) that show the characters best in it and match its look — picked by
+ * comparing every layout × style × pack (.scratch/portrait-lab/). `style:
+ * "auto"` and `pack: "auto"` follow it: the layout's saved combo (`combos`,
+ * the dock's ★) if the operator saved one, else the recommended one; anything
+ * else overrides it for every layout — so any layout mixes with any style and
+ * pack, live. A pack that isn't downloaded falls back to one that is.
  * `stages` likewise for the stage pictures, plus "none": no stage pictures.
  */
 
 const LAYOUTS = [
-  { id: "spotlight", name: "Spotlight",  style: "cream",     note: "Trail card: the summary in a lit strip, frosted ledger, three callouts" },
-  { id: "players",   name: "Players",    style: "riso",      note: "Trail card: each player's portrait card with their callouts, ledger with share bars between" },
-  { id: "margins",   name: "Margins",    style: "halftone",  note: "Field notes: the page fills the window, portraits printed in the margins under handwritten notes" },
-  { id: "rangerlog", name: "Ranger log", style: "silSketch", note: "Field notes: a cream form on a clipboard, the characters sketched on the paper" },
-  { id: "tape",      name: "Tale of the tape", style: "scan", note: "A boxing poster: one narrow column of big numbers with tug-of-war bars, the portraits filling each half, a rotating highlight band" },
-  { id: "polaroids", name: "Polaroids",  style: "cream",     note: "Field notes: each player's portrait as a taped instant photo, their best callout as the caption" },
-  { id: "lowerthird", name: "Lower third", style: "riso",    note: "Only the bottom third of the screen: the game or the players' cam stays in view above it" },
+  { id: "spotlight", name: "Spotlight",  style: "plain", packs: ["CSProject_AltFull", "CSProject_MeleeFull", "full", "portrait"],     note: "Trail card: the summary in a lit strip, frosted ledger, three callouts" },
+  { id: "players",   name: "Players",    style: "plain", packs: ["CSProject_AltFull", "CSProject_MeleeFull", "full", "portrait"],      note: "Trail card: each player's portrait card with their callouts, ledger with share bars between" },
+  { id: "margins",   name: "Margins",    style: "cream", packs: ["CSProject_AltFull", "CSProject_MeleeFull", "full", "portrait"],  note: "Field notes: the page fills the window, portraits printed in the margins under handwritten notes" },
+  { id: "rangerlog", name: "Ranger log", style: "silSketch", packs: ["CSProject_MeleeFull", "CSProject_AltFull", "full", "portrait"], note: "Field notes: a cream form on a clipboard, the characters sketched on the paper" },
+  { id: "tape",      name: "Tale of the tape", style: "riso", packs: ["CSProject_MeleeFull", "CSProject_AltFull", "full", "portrait"], note: "A boxing poster: one narrow column of big numbers with tug-of-war bars, the portraits filling each half, a rotating highlight band" },
+  { id: "polaroids", name: "Polaroids",  style: "plain", packs: ["CSProject_MeleeFull", "portrait", "CSProject_AltFull", "full"],     note: "Field notes: each player's portrait as a taped instant photo, their best callout as the caption" },
+  { id: "lowerthird", name: "Lower third", style: "riso", packs: ["CSProject_AltFull", "CSProject_MeleeFull", "full", "portrait"],    note: "Only the bottom third of the screen: the game or the players' cam stays in view above it" },
 ];
 
 const STYLES = [
-  { id: "auto",      name: "Layout's own" },
+  { id: "auto",      name: "Best fit" },
   { id: "cream",     name: "Cream duotone" },
   { id: "scan",      name: "Scanlines" },
   { id: "halftone",  name: "Halftone" },
@@ -38,7 +41,21 @@ const MODES = ["auto", "game", "set"];
 /** A portrait pack's id (art-packs.js): which packs exist is whatever's downloaded, so only its shape is checked here. */
 const PACK_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
-const defaultStatsConfig = () => ({ layout: "spotlight", style: "auto", pack: "full", stages: "stage_icon", auto: true, delaySec: 8, holdSec: 0, mode: "auto" });
+const defaultStatsConfig = () => ({ layout: "spotlight", style: "auto", pack: "auto", stages: "stage_icon", auto: true, delaySec: 8, holdSec: 0, mode: "auto", combos: {} });
+
+/** A saved combo for one layout: { style (not "auto"), pack (not "auto") }, or null if it isn't one. */
+function comboOf(c) {
+  if (!c || typeof c !== "object") return null;
+  const style = STYLES.some((s) => s.id === c.style && s.id !== "auto") ? c.style : null;
+  const pack = typeof c.pack === "string" && PACK_ID.test(c.pack) && c.pack !== "auto" ? c.pack : null;
+  return style && pack ? { style, pack } : null;
+}
+/** The saved combos, by layout: only known layouts, only whole combos. */
+function combosOf(m) {
+  const out = {};
+  if (m && typeof m === "object") for (const l of LAYOUTS) { const c = comboOf(m[l.id]); if (c) out[l.id] = c; }
+  return out;
+}
 
 const clampInt = (v, lo, hi, fallback) => {
   const n = Math.round(Number(v));
@@ -57,6 +74,7 @@ function normalizeStatsConfig(c = {}) {
     delaySec: clampInt(c.delaySec, 0, 120, d.delaySec),
     holdSec: clampInt(c.holdSec, 0, 600, d.holdSec),
     mode: MODES.includes(c.mode) ? c.mode : d.mode,
+    combos: combosOf(c.combos),
   };
 }
 
@@ -72,6 +90,13 @@ function configError(body) {
   if (body.stages !== undefined && !(typeof body.stages === "string" && PACK_ID.test(body.stages))) return "stages must be a stage picture set's id, or none";
   if (body.mode !== undefined && !MODES.includes(body.mode)) return `mode must be one of ${MODES.join(", ")}`;
   if (body.auto !== undefined && typeof body.auto !== "boolean") return "auto must be true or false";
+  if (body.combos !== undefined) {
+    if (!body.combos || typeof body.combos !== "object" || Array.isArray(body.combos)) return "combos must be an object of layout → { style, pack }";
+    for (const [k, v] of Object.entries(body.combos)) {
+      if (!LAYOUTS.some((l) => l.id === k)) return `combos: no layout ${k}`;
+      if (!comboOf(v)) return `combos.${k} must be { style, pack } (not auto)`;
+    }
+  }
   for (const [k, hi] of [["delaySec", 120], ["holdSec", 600]]) {
     if (body[k] !== undefined && !(Number.isFinite(Number(body[k])) && Number(body[k]) >= 0 && Number(body[k]) <= hi)) return `${k} must be 0–${hi} seconds`;
   }

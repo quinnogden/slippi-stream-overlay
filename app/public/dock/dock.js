@@ -3108,7 +3108,7 @@
       statsKeys($("stats-layouts"), r.layouts.map((l) => [l.id, l.name, l.note]), "layout");
       statsKeys($("stats-styles"), r.styles.map((s) => [s.id, s.name]), "style");
       const packs = r.packs || [];
-      if (packs.length) statsKeys($("stats-packs"), packs.map((p) => [p.id, p.name, p.credits || ""]), "pack");
+      if (packs.length) statsKeys($("stats-packs"), [["auto", "Best fit", "The layout's own pick (or the combo you saved for it)"], ...packs.map((p) => [p.id, p.name, p.credits || ""])], "pack");
       else $("stats-packs").replaceChildren(h("span", "hint", "None downloaded — Setup → Art packs"));
       const sets = r.stagePacks || [];
       // "None" is always there: the popup without stage pictures.
@@ -3120,6 +3120,48 @@
   statsKeys($("stats-modes"), STATS_MODES.map(([id, name]) => [id, name,
     id === "auto" ? "After each game, and the wrap-up once the set is won" : id === "game" ? "Always the game just played, with the set so far" : "Always the whole set"]), "mode");
 
+  /** What the overlay draws for "auto" (the same rule as layouts.js bestFit): the layout's saved combo, else its own pick. */
+  function statsBestFit(cfg) {
+    const L = ((statsCatalog && statsCatalog.layouts) || []).find((l) => l.id === cfg.layout) || { style: "plain", packs: [] };
+    const fav = cfg.combos && cfg.combos[cfg.layout];
+    const style = cfg.style && cfg.style !== "auto" ? cfg.style : fav ? fav.style : L.style;
+    const packs = cfg.pack && cfg.pack !== "auto" ? [cfg.pack] : fav ? [fav.pack, ...L.packs] : L.packs;
+    return { style, packs, saved: !!fav, own: L };
+  }
+  function renderCombo(cfg, fit, pack) {
+    const name = (list, id) => ((list || []).find((x) => x.id === id) || {}).name || id || "";
+    const packName = (id) => name(statsCatalog && statsCatalog.packs, id);
+    const L = fit.own, fav = cfg.combos && cfg.combos[cfg.layout];
+    const recPack = (L.packs || []).find((id) => ((statsCatalog && statsCatalog.packs) || []).some((p) => p.id === id));
+    const best = fav ? `${packName(fav.pack)} · ${name(statsCatalog && statsCatalog.styles, fav.style)}` : `${packName(recPack) || "—"} · ${name(statsCatalog && statsCatalog.styles, L.style)}`;
+    $("stats-combo").textContent = `${L.name || cfg.layout}'s best fit: ${best}${fav ? " (saved)" : ""}`;
+    const onBest = cfg.style === "auto" && cfg.pack === "auto";
+    $("btn-stats-bestfit").classList.toggle("lit", onBest);
+    const save = $("btn-stats-save-combo");
+    // Nothing to save when what's on already is this layout's best fit.
+    const same = fav ? fav.style === fit.style && fav.pack === pack : fit.style === L.style && pack === recPack;
+    save.disabled = !pack || same;
+    save.title = pack ? `Make ${packName(pack)} · ${name(statsCatalog && statsCatalog.styles, fit.style)} ${L.name || cfg.layout}'s best fit` : "No portraits downloaded";
+    const forget = $("btn-stats-forget-combo");
+    forget.classList.toggle("gone", !fav);
+    forget.title = fav ? `Forget the saved combo: back to ${L.name || cfg.layout}'s own pick` : "";
+  }
+  $("btn-stats-bestfit").addEventListener("click", () => statsSet({ style: "auto", pack: "auto" }));
+  $("btn-stats-save-combo").addEventListener("click", () => {
+    const cfg = statsCfg || {};
+    const packs = (statsCatalog && statsCatalog.packs) || [];
+    const fit = statsBestFit(cfg);
+    const pack = fit.packs.find((id) => packs.some((p) => p.id === id));
+    if (!pack) return;
+    statsSet({ combos: Object.assign({}, cfg.combos, { [cfg.layout]: { style: fit.style, pack } }), style: "auto", pack: "auto" });
+  });
+  $("btn-stats-forget-combo").addEventListener("click", () => {
+    const cfg = statsCfg || {};
+    const combos = Object.assign({}, cfg.combos);
+    delete combos[cfg.layout];
+    statsSet({ combos });
+  });
+
   const secs = (ms) => Math.max(0, Math.ceil(ms / 1000));
   const renderStats = guard("stats", () => {
     const cfg = statsCfg || {};
@@ -3128,10 +3170,13 @@
     const lit = (host, v) => host.querySelectorAll(".key").forEach((b) => b.classList.toggle("lit", b.dataset.value === v));
     lit($("stats-layouts"), cfg.layout);
     lit($("stats-styles"), cfg.style);
-    // The pack the overlay draws: the one picked, else (not downloaded) the first that is.
+    // The pack and style the overlay draws (layouts.js bestFit): "auto" is the layout's
+    // saved combo, else its own pick; a pack not downloaded gives way to one that is.
     const packs = (statsCatalog && statsCatalog.packs) || [];
-    const pack = packs.some((p) => p.id === cfg.pack) ? cfg.pack : packs[0] && packs[0].id;
-    lit($("stats-packs"), pack);
+    const fit = statsBestFit(cfg);
+    const pack = fit.packs.find((id) => packs.some((p) => p.id === id)) || (packs[0] && packs[0].id);
+    lit($("stats-packs"), cfg.pack === "auto" ? "auto" : pack);
+    renderCombo(cfg, fit, pack);
     const sets = (statsCatalog && statsCatalog.stagePacks) || [];
     const stages = cfg.stages === "none" || !sets.length ? "none" : sets.some((p) => p.id === cfg.stages) ? cfg.stages : sets[0].id;
     lit($("stats-stages"), stages);
@@ -3172,7 +3217,7 @@
     strip.title = shot.shown ? "Take the stats popup down" : available ? "Put the stats popup on stream" : (d && d.reason) || "No stats yet";
 
     const name = (list, id) => ((list || []).find((x) => x.id === id) || {}).name || id || "";
-    const sum = [name(statsCatalog && statsCatalog.layouts, cfg.layout), pack && name(packs, pack), name(statsCatalog && statsCatalog.styles, cfg.style),
+    const sum = [name(statsCatalog && statsCatalog.layouts, cfg.layout), pack && name(packs, pack), name(statsCatalog && statsCatalog.styles, fit.style),
       cfg.auto ? `auto ${cfg.delaySec}s` : "manual"].filter(Boolean).join(" · ");
     $("sum-stats").textContent = shot.shown ? `On · ${sum}` : sum;
     $("stats-source").textContent = statsCatalog && !packs.length && !sets.length ? "No portraits or stage pictures yet — Setup → Art packs downloads them" : "";

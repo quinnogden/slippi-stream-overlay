@@ -19,12 +19,13 @@ function register(app, { store, setStats }) {
       config: store.statsConfig(), shot: store.statsShot(), packs: setStats?.portraits?.packs() ?? [], stagePacks: setStats?.portraits?.stagePacks() ?? [] });
   });
 
-  // { layout?, style?, pack?, stages?, auto?, delaySec?, holdSec?, mode? } — any subset.
+  // { layout?, style?, pack?, stages?, auto?, delaySec?, holdSec?, mode?, combos? } — any subset
+  // (combos, the saved combo per layout, is replaced whole).
   app.post("/api/set-stats/config", (req, res) => {
     const err = configError(req.body);
     if (err) return res.status(400).json({ ok: false, error: err });
     const pick = {};
-    for (const k of ["layout", "style", "pack", "stages", "auto", "delaySec", "holdSec", "mode"]) if (req.body[k] !== undefined) pick[k] = req.body[k];
+    for (const k of ["layout", "style", "pack", "stages", "auto", "delaySec", "holdSec", "mode", "combos"]) if (req.body[k] !== undefined) pick[k] = req.body[k];
     res.json({ ok: true, config: store.setStatsConfig(pick) });
   });
 

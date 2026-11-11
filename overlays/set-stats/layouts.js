@@ -18,10 +18,9 @@
  * The ids match lib/set-stats/catalog.js.
  */
 (function (root, factory) {
-  const api = factory();
-  if (typeof module === "object" && module.exports) module.exports = api;
-  else root.SetStatsLayouts = api;
-})(typeof self !== "undefined" ? self : this, function () {
+  if (typeof module === "object" && module.exports) module.exports = factory(require("./portrait-fit"));
+  else root.SetStatsLayouts = factory(root.SetStatsFit);
+})(typeof self !== "undefined" ? self : this, function (Fit) {
   "use strict";
 
   // ── Markup ──────────────────────────────────────────────────────────────────
@@ -144,26 +143,66 @@
   /**
    * A side's portrait, placed by its face. P: { fx, fy (the face, from the box's
    * outer edge), dx, dy, scale, op, w (box width), mask, wash, tilt, blend,
-   * shadow, still }, or [left, right]. pos: which edge the box sits on.
+   * shadow, still, slot ("edge" | "card") }, or [left, right]. pos: which edge
+   * the box sits on. Then the pose's own tweak (portrait-fit.js) for this pack,
+   * character, layout and slot: mirror, zoom, move, tilt.
    */
-  function portrait(R, side, P, pos) {
+  /**
+   * Where a side's portrait goes: its tweak, size, and the face's point in the
+   * box (fx, fy: from the box's outer edge and top). null with no portrait.
+   */
+  function placed(R, side, P) {
     if (Array.isArray(P)) P = P[side];
-    pos = pos || (side ? "r" : "l");
     const src = R.d.sides && R.d.sides[side] && R.d.sides[side].portrait;
-    if (!src) return "";
-    const K = P.scale == null ? 1.55 : P.scale, sc = src.k * K, W = src.w * sc;
-    const flip = src.faces !== "right";
-    const eyeX = flip ? W - src.eye[0] * sc : src.eye[0] * sc;
-    const left = (P.fx == null ? 300 : P.fx) + (P.dx || 0) - eyeX;
-    const top = (P.fy == null ? 290 : P.fy) + (P.dy || 0) - src.eye[1] * sc;
+    if (!src) return null;
+    const t = Fit ? Fit.tweak(src.pack, src.char, R.layout, P.slot || "edge", R.fit) : {};
+    const base = P.scale == null ? 1.55 : P.scale;
+    const sc = src.k * base * (t.z || 1), W = src.w * sc;
+    const eye = t.e || src.eye;
+    const flip = (src.faces !== "right") !== !!t.f;
+    const fx = (P.fx == null ? 300 : P.fx) + (P.dx || 0) + (t.x || 0) * base;
+    const fy = (P.fy == null ? 290 : P.fy) + (P.dy || 0) + (t.y || 0) * base;
+    return { P, src, t, sc, W, eye, flip, fx, fy };
+  }
+
+  // A pack cut at its frame (the select screen's busts): the cut fades out
+  // rather than stand as a straight edge on the window.
+  /** A dark figure's rim of light (a tweak's `l`), so it stands off a dark window. */
+  const RIM = "drop-shadow(0 0 1.5px rgba(245,232,205,0.85)) drop-shadow(0 0 16px rgba(245,232,205,0.35))";
+  const CUT = "radial-gradient(ellipse 50% 50% at 50% 44%, #000 58%, transparent 100%)";
+
+  function portrait(R, side, P, pos) {
+    const at0 = placed(R, side, P);
+    if (!at0) return "";
+    pos = pos || (side ? "r" : "l");
+    const { src, t, sc, W, eye, flip, fx, fy } = at0;
+    P = at0.P;
+    const eyeX = flip ? W - eye[0] * sc : eye[0] * sc;
+    const left = fx - eyeX;
+    const top = fy - eye[1] * sc;
+    // A tweak's tilt turns about the face, so the face stays where it was put
+    // (the origin on the image's middle line keeps the mirror a mirror; the fill
+    // pieces' box is taller than the image, so it's in px, not %).
+    const ax = eyeX - W / 2;
+    const turn = t.r ? `transform-origin:${W / 2}px ${eye[1] * sc}px;transform:translate(${ax}px,0) rotate(${t.r}deg) translate(${-ax}px,0)${flip ? " scaleX(-1)" : ""};` : "";
     const sty = STYLES[R.style] || STYLES.cream;
     const role = R.set && R.over ? (R.d.score[side] > R.d.score[1 - side] ? "winner" : "loser") : "";
     // The wrap-up lifts the winner and fades the loser. In the inline opacity,
     // not a stylesheet !important, which the entrance's fade couldn't animate.
     const roleK = role === "winner" ? 1.25 : role === "loser" ? 0.55 : 1;
     const op = Math.min(1, (P.op == null ? 0.5 : P.op) * (sty.opK || 1) * roleK);
-    const box = `width:${W}px;left:${left}px;top:${top}px;${flip ? "transform:scaleX(-1);" : ""}`;
-    const pieces = sty.pieces.map((p) => {
+    const box = `width:${W}px;left:${left}px;top:${top}px;${turn || (flip ? "transform:scaleX(-1);" : "")}`;
+    const shadow = [P.shadow, t.l ? RIM : ""].filter(Boolean).join(" ");
+    // The cut's feather goes on the whole stack, over the picture's box: per piece, a
+    // style's offset rims would show through the faded edge of the pieces over them.
+    const cut = src.cut ? (() => {
+      const m = `${CUT};-webkit-mask-size:${W}px ${src.h * sc}px;-webkit-mask-position:${left}px ${top}px;-webkit-mask-repeat:no-repeat;`;
+      return `-webkit-mask-image:${m}mask-image:${CUT};mask-size:${W}px ${src.h * sc}px;mask-position:${left}px ${top}px;mask-repeat:no-repeat;`;
+    })() : "";
+    // A cut pack's art fades out at its frame: a silhouette's offset outline copies
+    // (plain offset fills), stacked, would come through that fade as patches. It goes
+    // without the outline; a blended offset fill (riso's second ink) stays.
+    const pieces = sty.pieces.filter((p) => !(src.cut && p.fill && p.off && !p.blend)).map((p) => {
       const css = [];
       if (p.o != null) css.push(`opacity:${p.o}`);
       const f = [p.filter, p.blur ? `blur(${p.blur}px)` : ""].filter(Boolean).join(" ");
@@ -179,7 +218,7 @@
     const style = `--op:${op};opacity:${op};--mask:${P.mask || "linear-gradient(90deg, #000 0%, rgba(0,0,0,0.7) 35%, rgba(0,0,0,0.25) 70%, transparent 96%)"};`
       + `${P.wash ? `--wash:${P.wash};` : ""}${P.w ? `width:${P.w}px;` : ""}${P.blend ? `mix-blend-mode:${P.blend};` : ""}`;
     return html`<div class="por ${pos} ${role}" data-base="${pos === "r" ? "scaleX(-1)" : ""}" ${P.still ? "" : new Raw("data-por")} style="${style}">
-      <div class="por-in" style="transform:${P.tilt || "none"};${P.shadow ? `filter:${P.shadow};` : ""}">${join(pieces)}</div></div>`;
+      <div class="por-in" style="transform:${P.tilt || "none"};${shadow ? `filter:${shadow};` : ""}${cut}">${join(pieces)}</div></div>`;
   }
 
   // ── Pieces ──────────────────────────────────────────────────────────────────
@@ -247,12 +286,14 @@
     return html`<div class="strip glass" data-beat-card style="${style}"><div><div class="ins-tag" style="white-space:normal">${storyLabel(R)}</div>${dotsFor(id, R.stories.length)}</div><div data-rot="${id}">${R.stories.length ? sayItem(R.stories[0]) : ""}</div></div>`;
   }
 
-  // Field notes.
-  function marginNotes(R, keys, firstRowTop, rh, { lx, rx, max = 4 } = {}) {
+  // Field notes. A note goes in its player's margin, beside its row — never
+  // over that player's face (`faces`: each side's face height, window px).
+  function marginNotes(R, keys, firstRowTop, rh, { lx, rx, max = 4, faces = [] } = {}) {
     const notes = [];
+    const clear = (x, i) => faces[x.side] == null || Math.abs(firstRowTop + i * rh + rh / 2 - faces[x.side]) > FACE_CLEAR;
     R.ins.filter((x) => x.row && x.note && x.side >= 0 && keys.includes(x.row)).forEach((x) => {
       const i = keys.indexOf(x.row);
-      if (notes.length < max && !notes.some((n) => n.side === x.side && Math.abs(keys.indexOf(n.row) - i) < 2)) notes.push(x);
+      if (notes.length < max && clear(x, i) && !notes.some((n) => n.side === x.side && Math.abs(keys.indexOf(n.row) - i) < 2)) notes.push(x);
     });
     const arrow = new Raw('<svg width="40" height="24" viewBox="0 0 40 24"><path d="M3 18 C 13 4, 26 2, 37 11"/><path d="M30 5 L 37 11 L 28 14"/></svg>');
     return {
@@ -263,6 +304,10 @@
       })),
     };
   }
+  /** How far (px) a margin note's middle stays from a face's height: about a head. */
+  const FACE_CLEAR = 110;
+  /** Each side's face height in the window (a box offset `top` added), for the notes to keep clear of. */
+  const faceHeights = (R, P, top = 0) => [0, 1].map((s) => { const p = placed(R, s, P); return p ? p.fy + top : null; });
   const uline = (w) => html`<svg width="${w}" height="14" viewBox="0 0 ${w} 14"><path d="M4 9 C ${w * 0.25} 2, ${w * 0.55} 13, ${w - 4} 4"/></svg>`;
   const stamp = (x, style, r) => html`<div data-beat style="${style}"><div class="stamp-in" style="--r:${r}deg"><div class="ins-tag">${x.tag}</div><div class="ins-big num">${val(x)}</div><div class="ins-txt" data-fitbox>${x.text}${x.side >= 0 ? ` · ${x.who}` : ""}</div></div></div>`;
   const rest = (list, used) => list.filter((x) => !used.includes(x));
@@ -274,8 +319,9 @@
   const LAYOUTS = {
     /** Trail card: title, the summary in a lit strip, the ledger on frosted glass over big portraits, three callouts. */
     spotlight: {
-      style: "cream",
-      por: { op: 0.78, tilt: "rotate(-3deg)", scale: 2.05, dy: 40, mask: FADE(28, 100) },
+      style: "plain", packs: ["CSProject_AltFull", "CSProject_MeleeFull", "full", "portrait"],
+      // The face left of the ledger's glass (it starts at 318), not under its edge.
+      por: { op: 0.78, tilt: "rotate(-3deg)", scale: 1.7, fx: 200, dy: 40, mask: FADE(30, 100) },
       render(R) {
         const keys = keysFor(R, KEYS7);
         const minis = R.ins.slice(0, 3);
@@ -289,8 +335,8 @@
 
     /** Trail card: a tall card per player, their portrait fading into their own callouts; the ledger with share bars between. */
     players: {
-      style: "riso", noWinPor: true,
-      por: [0, 50].map((dx) => ({ op: 0.9, w: 344, fx: 172, fy: 190, dx, scale: 0.95, tilt: "rotate(-3deg)", mask: "linear-gradient(180deg, #000 0%, #000 42%, transparent 76%)", wash: "none" })),
+      style: "plain", packs: ["CSProject_AltFull", "CSProject_MeleeFull", "full", "portrait"], noWinPor: true,
+      por: [0, 0].map((dx) => ({ slot: "card", op: 0.9, w: 344, fx: 160, fy: 205, dx, scale: 0.95, tilt: "rotate(-3deg)", mask: "linear-gradient(180deg, #000 0%, #000 42%, transparent 76%)", wash: "none" })),
       render(R) {
         const keys = keysFor(R, ["kills", "damage", "opk", "dpo", "neutral", "counter", "earliest", "ipm"]);
         const both = R.ins.filter((x) => x.side < 0);
@@ -306,12 +352,12 @@
 
     /** Field notes: the page is the window; halftone portraits printed in the margins under handwritten notes. */
     margins: {
-      style: "halftone", skin: "page",
+      style: "cream", packs: ["CSProject_AltFull", "CSProject_MeleeFull", "full", "portrait"], skin: "page",
       por: { op: 0.66, tilt: "rotate(-3deg)", w: 520, fx: 200, fy: 340, scale: 1.75, mask: FADE(45, 100), wash: PAGE_WASH },
       render(R) {
         const t = titles(R), rh = 56, L = 206, top = L + 24, M = 300;
         const keys = keysFor(R, ["kills", "damage", "combo", "opk", "neutral", "punish", "earliest"]);
-        const notes = marginNotes(R, keys, top, rh, { lx: M - 146, rx: M - 146 });
+        const notes = marginNotes(R, keys, top, rh, { lx: M - 146, rx: M - 146, faces: faceHeights(R, this.por) });
         const stamps = rest(R.ins, notes.used).slice(0, 3);
         return html`<div class="rules" style="${at(0, top, 1536, keys.length * rh)}--rh:${rh}px"></div><div class="mrule" style="left:${M}px"></div><div class="mrule" style="right:${M}px"></div>
           <div class="htitle hand" data-beat style="${at(M + 30, 34)}">${t.title}${uline(250)}</div>
@@ -327,12 +373,12 @@
 
     /** Field notes: a cream form on a clipboard, the characters sketched on the paper; facts as form fields. */
     rangerlog: {
-      style: "silSketch", skin: "paper",
+      style: "silSketch", packs: ["CSProject_MeleeFull", "CSProject_AltFull", "full", "portrait"], skin: "paper",
       por: { op: 0.88, tilt: "rotate(-4deg)", w: 470, fx: 170, fy: 330, scale: 1.6, mask: FADE(50, 98), wash: "none" },
       render(R) {
         const t = titles(R), rh = 54, L = 180, top = L + 24, M = 308;
         const keys = keysFor(R, KEYS7);
-        const notes = marginNotes(R, keys, top, rh, { lx: M - 146, rx: M - 146, max: 3 });
+        const notes = marginNotes(R, keys, top, rh, { lx: M - 146, rx: M - 146, max: 3, faces: faceHeights(R, this.por) });
         const boxes = rest(R.ins, notes.used).slice(0, 2);
         let reel = rest(R.ins, boxes);
         if (reel.length < 2) reel = R.ins;
@@ -350,7 +396,7 @@
           </div>`;
       },
       rots(R) {
-        const notes = marginNotes(R, keysFor(R, KEYS7), 0, 54, { max: 3 }).used;
+        const notes = marginNotes(R, keysFor(R, KEYS7), 180 + 24, 54, { max: 3, faces: faceHeights(R, this.por) }).used;
         const boxes = rest(R.ins, notes).slice(0, 2);
         let reel = rest(R.ins, boxes);
         if (reel.length < 2) reel = R.ins;
@@ -371,7 +417,7 @@
   Object.assign(LAYOUTS, {
     /** A boxing poster: one narrow glass column of big numbers either side of a tug-of-war bar, the portraits filling each half; a rotating highlight band along the foot. */
     tape: {
-      style: "scan",
+      style: "riso", packs: ["CSProject_MeleeFull", "CSProject_AltFull", "full", "portrait"],
       por: { op: 0.72, tilt: "rotate(-3deg)", scale: 2.15, dy: 70, mask: FADE(38, 100) },
       render(R) {
         const keys = keysFor(R, KEYS8);
@@ -389,8 +435,9 @@
 
     /** Field notes: each player's portrait as a taped instant photo, their best callout as its caption; the ledger on ruled lines between. */
     polaroids: {
-      style: "cream", skin: "page", noWinPor: true,
-      por: [0, 30].map((dx) => ({ op: 1, w: 308, fx: 154, fy: 130, dx, scale: 0.62, tilt: "none", mask: "none", wash: "linear-gradient(0deg, rgba(0,0,0,0.25), transparent 40%)" })),
+      style: "plain", packs: ["CSProject_MeleeFull", "portrait", "CSProject_AltFull", "full"], skin: "page", noWinPor: true,
+      // Head and shoulders, like a photo of someone: the face a little above the middle.
+      por: [0, 0].map((dx) => ({ slot: "card", op: 1, w: 308, fx: 142, fy: 132, dx, scale: 0.92, tilt: "none", mask: "none", wash: "linear-gradient(0deg, rgba(0,0,0,0.25), transparent 40%)" })),
       render(R) {
         const t = titles(R), rh = 54, L = 214, top = L + 24;
         const keys = keysFor(R, KEYS7);
@@ -414,8 +461,9 @@
 
     /** Only the bottom third: the game or the players' cam stays in view above it. The summary across the top, the ledger in two short columns, the facts as one line. */
     lowerthird: {
-      style: "riso", win: { l: 192, t: 556, w: 1536, h: 372 },
-      por: { op: 0.85, tilt: "rotate(-3deg)", scale: 1.05, w: 480, fx: 190, fy: 150, mask: FADE(42, 100) },
+      style: "riso", packs: ["CSProject_AltFull", "CSProject_MeleeFull", "full", "portrait"], win: { l: 192, t: 556, w: 1536, h: 372 },
+      // A short window: a close-up, the face low enough that a head never meets its top edge.
+      por: { op: 0.85, tilt: "rotate(-3deg)", scale: 1.4, w: 480, fx: 180, fy: 165, mask: FADE(42, 100) },
       render(R) {
         const keys = keysFor(R, KEYS8);
         const half = (ks, l) => html`<div class="surface glass sep-rows lt-half" data-beat-card style="${at(l, 104, 452)}padding:6px 18px 4px;--rh:46px;--gs:30px;--cols:84px 70px 1fr 70px 84px">${ledger(R, ks)}</div>`;
@@ -434,15 +482,20 @@
    * there (not downloaded, or no picture of this character or stage) falls
    * back to the first that is; stages "none" draws no stage pictures.
    */
-  const pick = (all, id) => {
+  /** The first of `ids` (a pack id, or a list best first) that `all` has, else its first. */
+  const pickId = (all, ids) => {
     if (!all) return null;
-    const first = Object.keys(all)[0];
-    return all[id] || (first ? all[first] : null);
+    for (const id of [].concat(ids || [])) if (all[id]) return id;
+    return Object.keys(all)[0] || null;
   };
+  const pick = (all, id) => { const k = pickId(all, id); return k ? all[k] : null; };
   function withPack(d, pack, stages) {
     if (!d || !Array.isArray(d.sides)) return d;
     return Object.assign({}, d, {
-      sides: d.sides.map((s) => Object.assign({}, s, { portrait: pick(s && s.portraits, pack) })),
+      sides: d.sides.map((s) => {
+        const k = pickId(s && s.portraits, pack);
+        return Object.assign({}, s, { portrait: k ? Object.assign({ pack: k }, s.portraits[k]) : null });
+      }),
       games: (d.games || []).map((g) => (g && g.stage ? Object.assign({}, g, {
         stage: Object.assign({}, g.stage, { pic: stages === "none" ? null : pick(g.stage.pics, stages) }),
       }) : g)),
@@ -450,16 +503,35 @@
   }
 
   /**
+   * What "auto" means for one layout: the operator's saved combo for it, else
+   * its best fit (style, packs best first). Shared by the overlay and the dock's
+   * labels, so they agree.
+   * @param {string} layout @param {{ style?, pack?, combos? }} cfg
+   * @returns {{ style: string, packs: string[], saved: boolean }}
+   */
+  function bestFit(layout, cfg = {}) {
+    const L = LAYOUTS[layout] || LAYOUTS.spotlight;
+    const fav = cfg.combos && cfg.combos[layout];
+    const style = cfg.style && cfg.style !== "auto" && STYLES[cfg.style] ? cfg.style : fav && STYLES[fav.style] ? fav.style : L.style;
+    const packs = cfg.pack && cfg.pack !== "auto" ? [cfg.pack] : fav && fav.pack ? [fav.pack, ...L.packs] : L.packs;
+    return { style, packs, saved: !!fav };
+  }
+
+  /**
    * One layout, drawn: the window's skin, its portraits (if the layout puts
    * them behind everything), the content, and the rotating sections.
    * @param {object} d — setStats
-   * @param {{ layout: string, style: string, mode: "game"|"set", pack?: string, stages?: string }} o — style "auto" = the layout's own; pack = a portrait pack id; stages = a stage set id, or "none"
+   * @param {{ layout: string, style: string, mode: "game"|"set", pack?: string, stages?: string, combos?: object, fit?: object }} o — style / pack "auto" = the layout's
+   *   best fit (`combos[layout]` if saved, else its own); pack = a portrait pack id; stages = a stage set id, or "none"; fit = a portrait-fit map to use instead of the file's (the tuning page)
    * @returns {{ skin: string, portraits: string, content: string, rots: Array<{ id, items: string[] }>, style: string }}
    */
   function render(d, o) {
-    const L = LAYOUTS[o.layout] || LAYOUTS.spotlight;
-    const style = o.style && o.style !== "auto" && STYLES[o.style] ? o.style : L.style;
-    const R = reader(withPack(d, o.pack, o.stages), { mode: o.mode, style });
+    const id = LAYOUTS[o.layout] ? o.layout : "spotlight", L = LAYOUTS[id];
+    const fit = bestFit(id, o);
+    const style = fit.style;
+    const R = reader(withPack(d, fit.packs, o.stages), { mode: o.mode, style });
+    R.layout = id;
+    R.fit = o.fit;
     const portraits = L.noWinPor ? "" : html`${portrait(R, 0, L.por)}${portrait(R, 1, L.por)}`;
     return {
       skin: L.skin || "",
@@ -471,5 +543,5 @@
     };
   }
 
-  return { render, LAYOUTS, STYLES, html, esc };
+  return { render, bestFit, LAYOUTS, STYLES, html, esc };
 });

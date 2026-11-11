@@ -141,8 +141,10 @@ The set stats popup (`/o/set-stats`), built in [lib/set-stats/](../app/lib/set-s
 ```js
 statsConfig: {               // saved with the scoreboard; the dock's Stats tab (POST /api/set-stats/config)
   layout: "spotlight",       // "spotlight" | "players" | "margins" | "rangerlog" | "tape" | "polaroids" | "lowerthird"  (lib/set-stats/catalog.js)
-  style: "auto",             // a portrait style id, or "auto" = the layout's own
-  pack: "full",              // the portrait pack that draws the characters (any id; one not downloaded falls back to the first that is)
+  style: "auto",             // a portrait style id, or "auto" = the layout's best fit
+  pack: "auto",              // the portrait pack that draws the characters, or "auto" = the layout's best fit (any id; one not downloaded falls back to one that is)
+  combos: {},                // the operator's saved best fit per layout, { [layout]: { style, pack } } (never "auto"): what "auto" draws for it instead of
+                             // the layout's own pick (catalog.js LAYOUTS[].style / .packs, best first). The dock's ★ Save / Forget; replaced whole
   stages: "stage_icon",      // the stage picture set, likewise; "none" = no stage pictures
   auto: true, delaySec: 8,   // up delaySec after each counted game
   holdSec: 0,                // an automatic show comes down after this long; 0 = when the next game starts
@@ -395,7 +397,7 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `POST` | `/api/bracket-view` | `{ view?, phaseGroupId? }` — what every bracket source not pinned with `?view=` shows: `winners`, `losers`, `top8`, `top16`, `full` or `upnext`. `phaseGroupId: null` goes back to following the set on air. 400 for an unknown view or a group not in the loaded event |
 | `POST` | `/api/bracket-camera` | What the bracket overlay is pointed at (`bracketShot`): `{ action: "auto" }` (tour from the action page), `"next"` / `"prev"` / `"live"` (hold a page), `{ action: "page", page }`, and the Board: `{ action: "pan", dir: "up"\|"down"\|"left"\|"right" }`, `{ action: "zoom", dir: "in"\|"out" }`, `{ action: "overview" }` (again: back to a readable zoom at the action), `{ action: "goto", cx, cy }` (board pixels — the dock's minimap). The first Board press frames the page that was up rather than moving. `{ ok, shot }`; 400 for a bad action, page or direction, 409 with no bracket or for the Board in Up Next |
 | `GET` | `/api/set-stats` | The stats popup's layouts, styles and modes (`lib/set-stats/catalog.js`), its `config` and `shot`, `packs` — the installed portrait packs, `[{ id, name, credits }]` — and `stagePacks`, the installed stage picture sets, the same shape |
-| `POST` | `/api/set-stats/config` | Any of `{ layout, style, pack, stages, auto, delaySec, holdSec, mode }` → `statsConfig`. Applies live, the popup up or not. `{ ok, config }`; 400 for an unknown id or a value out of range |
+| `POST` | `/api/set-stats/config` | Any of `{ layout, style, pack, stages, auto, delaySec, holdSec, mode, combos }` → `statsConfig`. Applies live, the popup up or not. `{ ok, config }`; 400 for an unknown id or a value out of range |
 | `POST` | `/api/set-stats/show` | `{ action: "show" \| "hide" \| "toggle" }` (the dock's Show / Hide, the strip's Stats key; the hotkey is `toggle`). Hide also cancels an automatic show that's counting down. `{ ok, shot }` |
 | `POST` | `/api/set-stats/refresh` | Read every game's replay again |
 | `POST` | `/api/set-rules` | The best-of rule, any of `{ topN, defaultLabel, topLabel }`: `defaultLabel` until the set's loser is guaranteed top `topN` (one of 0 = never, 3, 4, 6, 8, 12, 16), `topLabel` from there; each `Flex`, `Bo3` or `Bo5`. Saved (`setRules`); the strip's override still wins. `{ ok, rules }`; 400 for anything else |

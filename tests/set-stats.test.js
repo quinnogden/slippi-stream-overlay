@@ -30,7 +30,8 @@ const path = require("path");
 const { ScoreboardStore } = require("../app/lib/scoreboard/store");
 const { createOverlayChannel } = require("../app/lib/overlay/channel");
 const { createSetStats } = require("../app/lib/set-stats");
-const { LAYOUTS: CATALOG_LAYOUTS, STYLES: CATALOG_STYLES } = require("../app/lib/set-stats/catalog");
+const { LAYOUTS: CATALOG_LAYOUTS, STYLES: CATALOG_STYLES, normalizeStatsConfig, configError } = require("../app/lib/set-stats/catalog");
+const Fit = require("../overlays/set-stats/portrait-fit");
 const Layouts = require("../overlays/set-stats/layouts");
 const { loadOverlay, fakeIo, sleep } = require("./helpers/overlay-sandbox");
 const fs = require("fs");
@@ -115,7 +116,7 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
     },
     // Two portrait packs and two stage sets, as portraits.js gives them: every installed one's picture, by id.
     portraits: {
-      portraitsOf: (c) => (c ? Object.fromEntries(["full", "csp"].map((id) => [id, { url: `/assets/packs/${id}/${c.codename}.png`, w: 900, h: 900, eye: [500, 300], k: 1, faces: "right" }])) : null),
+      portraitsOf: (c) => (c ? Object.fromEntries(["full", "csp"].map((id) => [id, { url: `/assets/packs/${id}/${c.codename}.png`, w: 900, h: 900, eye: [500, 300], k: 1, faces: "right", char: c.codename }])) : null),
       stagePicsOf: (icon) => (icon ? Object.fromEntries(["stage_icon", "st2"].map((id) => [id, `/assets/packs/${id}/${icon}.png`])) : null),
       packs: () => [], stagePacks: () => [], reload() {},
     },
@@ -257,7 +258,10 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
   await test("every layout draws both readings in every style the dock offers, and names can't inject markup", async () => {
     assert.deepStrictEqual(CATALOG_LAYOUTS.map((l) => l.id).sort(), Object.keys(Layouts.LAYOUTS).sort(), "the dock's layouts are the overlay's");
     for (const s of CATALOG_STYLES) if (s.id !== "auto") assert.ok(Layouts.STYLES[s.id], `style ${s.id} isn't drawn`);
-    for (const l of CATALOG_LAYOUTS) assert.ok(Layouts.STYLES[l.style] && Layouts.LAYOUTS[l.id].style === l.style, `${l.id}'s own style`);
+    for (const l of CATALOG_LAYOUTS) {
+      assert.ok(Layouts.STYLES[l.style] && Layouts.LAYOUTS[l.id].style === l.style, `${l.id}'s own style`);
+      assert.deepStrictEqual(Layouts.LAYOUTS[l.id].packs, l.packs, `${l.id}'s best-fit packs: the dock's are the overlay's`);
+    }
 
     const evil = '<img src=x onerror="alert(1)">';
     const r = rig({ reads: { a: read(), b: read({ fox: { combo: 12 } }), c: read({ winnerPort: 3, marth: { stocksLeft: 1 }, fox: { stocksLeft: 0 } }) } });
@@ -284,6 +288,28 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
     assert.ok(stagePics("st2").includes("/assets/packs/st2/") && !stagePics("st2").includes("/assets/packs/stage_icon/"), "the picked stage set");
     assert.ok(stagePics("gone").includes("/assets/packs/stage_icon/"), "a missing stage set falls back to the first");
     assert.ok(!/\/assets\/packs\/(stage_icon|st2)\//.test(stagePics("none")), "none: no stage pictures");
+
+    // Best fit: "auto" is the layout's saved combo, else its own pick (a pack not
+    // downloaded gives way to the next it ranks, else to one that is).
+    const draw = (o) => Layouts.render(d, Object.assign({ layout: "spotlight", mode: "game" }, o));
+    assert.strictEqual(draw({ style: "auto", pack: "auto" }).style, Layouts.LAYOUTS.spotlight.style, "auto: the layout's own style");
+    assert.ok(draw({ style: "auto", pack: "auto" }).portraits.includes("/assets/packs/full/"), "auto: its packs, the first downloaded");
+    const saved = { combos: { spotlight: { style: "riso", pack: "csp" } }, style: "auto", pack: "auto" };
+    assert.strictEqual(draw(saved).style, "riso", "a saved combo is the layout's best fit");
+    assert.ok(draw(saved).portraits.includes("/assets/packs/csp/"), "with its pack");
+    assert.strictEqual(draw(Object.assign({}, saved, { layout: "tape" })).style, Layouts.LAYOUTS.tape.style, "only for its layout");
+    assert.strictEqual(draw(Object.assign({}, saved, { style: "halftone" })).style, "halftone", "a style picked by hand still wins");
+    const cfg = normalizeStatsConfig({ combos: { spotlight: { style: "riso", pack: "csp" }, nope: { style: "riso", pack: "x" }, tape: { style: "auto", pack: "full" } } });
+    assert.deepStrictEqual(cfg.combos, { spotlight: { style: "riso", pack: "csp" } }, "only whole combos for real layouts are kept");
+    assert.ok(configError({ combos: { tape: { style: "auto", pack: "full" } } }), "a combo can't be auto");
+
+    // The per-pose tweaks: mirror, zoom and move are drawn; the pack's "*" combines.
+    const fit = { full: { "*": { z: 2, card: { z: 3 } }, [d.sides[0].portraits.full.char]: { f: 1, z: 0.5, x: 10 } } };
+    assert.deepStrictEqual(Fit.tweak("full", d.sides[0].portraits.full.char, "spotlight", "edge", fit), { f: 1, z: 1, x: 10 }, "zooms multiply");
+    assert.strictEqual(Fit.tweak("full", "nobody", "polaroids", "card", fit).z, 3, "a slot's own value");
+    const imgOf = (o) => /<img [^>]*style="([^"]*)"/.exec(draw(Object.assign({ pack: "full", style: "plain" }, o)).portraits)[1];
+    assert.ok(!imgOf({ fit: {} }).includes("scaleX(-1)") && imgOf({ fit }).includes("scaleX(-1)"), "f mirrors the art");
+    assert.ok(imgOf({ fit }) !== imgOf({ fit: {} }), "the tweak moves it");
     r.ss.stop();
   });
 
