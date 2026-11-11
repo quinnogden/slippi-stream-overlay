@@ -1093,10 +1093,81 @@
 
   // ── Tabs ────────────────────────────────────────────────────────────────────
 
+  // The bar holds the tabs used most; the rest sit under More (a dropdown, lit
+  // while one of its tabs is open). Which are on the bar is per device — the
+  // OBS dock and a phone want different ones — and picked on Setup → Tab bar.
+  const TAB_NAMES = { set: "Set", bracket: "Bracket", stats: "Stats", casters: "Casters", players: "Players", clips: "Clips", replays: "Replays", crew: "Crew", setup: "Setup" };
+  const BAR_KEY = "dock.tabbar";
+  const BAR_DEFAULT = ["set", "bracket", "stats", "casters", "players"];
+  let currentTab = "set";
+  let tabBar = (() => {
+    try {
+      const v = JSON.parse(store(BAR_KEY) || "null");
+      // In the operator's order; unknown or repeated ids dropped.
+      if (Array.isArray(v)) { const ok = v.filter((t, i) => TABS.includes(t) && v.indexOf(t) === i); if (ok.length) return ok; }
+    } catch (_) { /* a bad value: the default */ }
+    return BAR_DEFAULT.slice();
+  })();
+
+  function renderTabBar() {
+    // The bar's order is the operator's (flex `order`), More always last.
+    document.querySelectorAll(".tab[data-tab]").forEach((t) => {
+      t.classList.toggle("gone", !tabBar.includes(t.dataset.tab));
+      t.style.order = String(tabBar.indexOf(t.dataset.tab));
+    });
+    const rest = TABS.filter((t) => !tabBar.includes(t));
+    const more = $("tab-more");
+    const inMore = rest.includes(currentTab);
+    const head = h("option", null, inMore ? TAB_NAMES[currentTab] : "More");
+    head.value = "";
+    head.disabled = true;
+    head.hidden = true;
+    more.replaceChildren(head, ...rest.map((t) => { const o = h("option", null, TAB_NAMES[t]); o.value = t; return o; }));
+    more.value = "";
+    more.classList.toggle("on", inMore);
+    $("tab-more-wrap").classList.toggle("gone", !rest.length);
+    $("tab-more-wrap").classList.toggle("on", inMore);
+    renderTabBarPick(rest);
+    $("sum-tabbar").textContent = `${tabBar.length} on the bar${rest.length ? ` · ${rest.length} under More` : ""}`;
+  }
+  function setTabBar(list) {
+    tabBar = list.filter((t, i) => TABS.includes(t) && list.indexOf(t) === i);
+    store(BAR_KEY, JSON.stringify(tabBar));
+    renderTabBar();
+  }
+  /** Setup → Tab bar: the bar's tabs in order (↑ ↓, → More), then the rest (+ adds one to the end). */
+  function renderTabBarPick(rest) {
+    const key = (text, title, onClick, disabled) => {
+      const b = h("button", "key mini", text);
+      b.type = "button";
+      b.title = title;
+      b.disabled = !!disabled;
+      b.addEventListener("click", onClick);
+      return b;
+    };
+    const move = (i, d) => { const l = tabBar.slice(); [l[i], l[i + d]] = [l[i + d], l[i]]; setTabBar(l); };
+    $("tabbar-list").replaceChildren(...tabBar.map((t, i) => {
+      const row = h("div", "tabbar-row");
+      row.append(
+        h("span", "tabbar-name", TAB_NAMES[t]),
+        key("↑", "Move left on the bar", () => move(i, -1), i === 0),
+        key("↓", "Move right on the bar", () => move(i, 1), i === tabBar.length - 1),
+        key("More", "Move it under More", () => setTabBar(tabBar.filter((x) => x !== t)), tabBar.length === 1),
+      );
+      return row;
+    }));
+    $("tabbar-rest").replaceChildren(...rest.map((t) => key(`+ ${TAB_NAMES[t]}`, "Put it on the bar, at the end", () => setTabBar([...tabBar, t]))));
+    $("tabbar-rest-field").classList.toggle("gone", !rest.length);
+  }
+  $("btn-tabbar-reset").addEventListener("click", () => setTabBar(BAR_DEFAULT));
+  $("tab-more").addEventListener("change", (e) => { if (e.target.value) showTab(e.target.value); e.target.blur(); });
+
   function showTab(name) {
     if (!TABS.includes(name)) name = "set";
-    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.tab === name));
+    currentTab = name;
+    document.querySelectorAll(".tab[data-tab]").forEach((t) => t.classList.toggle("on", t.dataset.tab === name));
     TABS.forEach((t) => $("panel-" + t).classList.toggle("on", t === name));
+    renderTabBar();
     store(TAB_KEY, name);
     // Read when looked at: neither changes on its own mid-set.
     if (name === "players" && !playersFetched) fetchPlayers();
@@ -1105,7 +1176,7 @@
     if (name === "setup") { fetchSetup(); fetchArt(); }
     if (name === "crew" && !savedCrews) fetchSavedCrews();
   }
-  document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
+  document.querySelectorAll(".tab[data-tab]").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
 
   // ── Set tab: the picker ─────────────────────────────────────────────────────
 
@@ -3077,88 +3148,113 @@
 
   // ── Stats popup ─────────────────────────────────────────────────────────────
   // The set stats popup (/o/set-stats): Show / Hide (also the strip's Stats
-  // key and the global hotkey), the layout and portrait style — both switch
-  // live, even while it's up — which reading it shows, and the automatic show
-  // after each game. Fed by three state sections: statsConfig, statsShot and
-  // setStats (what it can show, and why not).
+  // key and the global hotkey), the layout (or Random: a different one at each
+  // show), the look — each layout's best fit, or a style and portraits picked
+  // by hand, which ★ Save makes the drawn layout's best fit — which reading it
+  // shows, and the automatic show after each game. All of it switches live.
+  // Fed by three state sections: statsConfig, statsShot and setStats.
 
   let statsCfg = null;
   let statsShot = null;
   let statsData = null;
   let statsCatalog = null; // { layouts, styles, packs, stagePacks } from /api/set-stats
-  const STATS_MODES = [["auto", "Auto"], ["game", "After a game"], ["set", "Wrap-up"]];
   const statsSet = (body) => act("/api/set-stats/config", body, null, "Stats popup");
   const statsShow = (action) => act("/api/set-stats/show", { action }, null, "Stats popup");
+  const nameIn = (list, id) => ((list || []).find((x) => x.id === id) || {}).name || id || "";
 
-  function statsKeys(host, items, field) {
-    host.replaceChildren(...items.map(([id, name, title]) => {
-      const b = h("button", "key", name);
-      b.type = "button";
-      b.dataset.value = id;
-      if (title) b.title = title;
-      b.addEventListener("click", () => statsSet({ [field]: id }));
-      return b;
+  /** A <select>'s options, from [id, name, title]; a pick goes straight to the config. */
+  function statsOptions(sel, items) {
+    sel.replaceChildren(...items.map(([id, name, title]) => {
+      const o = h("option", null, name);
+      o.value = id;
+      if (title) o.title = title;
+      return o;
     }));
   }
+  /** Set a <select> without fighting the operator: not while it has the focus. */
+  function statsPick(sel, v) { if (document.activeElement !== sel && v != null && sel.value !== v) sel.value = v; }
 
   function fetchStatsCatalog() {
     api("/api/set-stats").then((r) => {
       if (!r.ok) return;
       statsCatalog = r;
-      statsKeys($("stats-layouts"), r.layouts.map((l) => [l.id, l.name, l.note]), "layout");
-      statsKeys($("stats-styles"), r.styles.map((s) => [s.id, s.name]), "style");
+      statsOptions($("stats-layout"), [["random", "Random"], ...r.layouts.map((l) => [l.id, l.name, l.note])]);
+      statsOptions($("stats-style"), r.styles.filter((s) => s.id !== "auto").map((s) => [s.id, s.name]));
       const packs = r.packs || [];
-      if (packs.length) statsKeys($("stats-packs"), [["auto", "Best fit", "The layout's own pick (or the combo you saved for it)"], ...packs.map((p) => [p.id, p.name, p.credits || ""])], "pack");
-      else $("stats-packs").replaceChildren(h("span", "hint", "None downloaded — Setup → Art packs"));
-      const sets = r.stagePacks || [];
+      statsOptions($("stats-pack"), packs.length ? packs.map((p) => [p.id, p.name, p.credits || ""]) : [["", "None downloaded"]]);
       // "None" is always there: the popup without stage pictures.
-      statsKeys($("stats-stages"), [...sets.map((p) => [p.id, p.name, p.credits || ""]), ["none", "None", "No stage pictures"]], "stages");
-      if (!sets.length) $("stats-stages").append(h("span", "hint", "None downloaded — Setup → Art packs"));
+      statsOptions($("stats-stages"), [...(r.stagePacks || []).map((p) => [p.id, p.name, p.credits || ""]), ["none", "None"]]);
       renderStats();
     });
   }
-  statsKeys($("stats-modes"), STATS_MODES.map(([id, name]) => [id, name,
-    id === "auto" ? "After each game, and the wrap-up once the set is won" : id === "game" ? "Always the game just played, with the set so far" : "Always the whole set"]), "mode");
+  for (const [id, key] of [["stats-layout", "layout"], ["stats-mode", "mode"], ["stats-style", "style"], ["stats-pack", "pack"], ["stats-stages", "stages"]]) {
+    $(id).addEventListener("change", (e) => { if (e.target.value) statsSet({ [key]: e.target.value }); e.target.blur(); });
+  }
 
-  /** What the overlay draws for "auto" (the same rule as layouts.js bestFit): the layout's saved combo, else its own pick. */
-  function statsBestFit(cfg) {
-    const L = ((statsCatalog && statsCatalog.layouts) || []).find((l) => l.id === cfg.layout) || { style: "plain", packs: [] };
-    const fav = cfg.combos && cfg.combos[cfg.layout];
+  /** The layout the combo row is about: the one picked, or with Random the one up now (null before the first show). */
+  function statsLayout(cfg) {
+    if (cfg.layout !== "random") return cfg.layout;
+    return (statsShot && statsShot.layout) || null;
+  }
+  /** What the overlay draws for one layout (the same rule as layouts.js bestFit): picked by hand, else its saved combo, else its own pick. */
+  function statsBestFit(cfg, layout) {
+    const L = ((statsCatalog && statsCatalog.layouts) || []).find((l) => l.id === layout) || { id: layout, style: "plain", packs: [] };
+    const fav = cfg.combos && cfg.combos[layout];
     const style = cfg.style && cfg.style !== "auto" ? cfg.style : fav ? fav.style : L.style;
-    const packs = cfg.pack && cfg.pack !== "auto" ? [cfg.pack] : fav ? [fav.pack, ...L.packs] : L.packs;
-    return { style, packs, saved: !!fav, own: L };
+    const order = cfg.pack && cfg.pack !== "auto" ? [cfg.pack] : fav ? [fav.pack, ...L.packs] : L.packs;
+    const packs = (statsCatalog && statsCatalog.packs) || [];
+    const pack = order.find((id) => packs.some((p) => p.id === id)) || (packs[0] && packs[0].id) || null;
+    const recPack = (L.packs || []).find((id) => packs.some((p) => p.id === id)) || null;
+    return { style, pack, fav, own: L, recPack };
   }
-  function renderCombo(cfg, fit, pack) {
-    const name = (list, id) => ((list || []).find((x) => x.id === id) || {}).name || id || "";
-    const packName = (id) => name(statsCatalog && statsCatalog.packs, id);
-    const L = fit.own, fav = cfg.combos && cfg.combos[cfg.layout];
-    const recPack = (L.packs || []).find((id) => ((statsCatalog && statsCatalog.packs) || []).some((p) => p.id === id));
-    const best = fav ? `${packName(fav.pack)} · ${name(statsCatalog && statsCatalog.styles, fav.style)}` : `${packName(recPack) || "—"} · ${name(statsCatalog && statsCatalog.styles, L.style)}`;
-    $("stats-combo").textContent = `${L.name || cfg.layout}'s best fit: ${best}${fav ? " (saved)" : ""}`;
-    const onBest = cfg.style === "auto" && cfg.pack === "auto";
-    $("btn-stats-bestfit").classList.toggle("lit", onBest);
+  const statsManual = (cfg) => !(cfg.style === "auto" && cfg.pack === "auto");
+
+  function renderCombo(cfg, layout, fit) {
+    const packName = (id) => nameIn(statsCatalog && statsCatalog.packs, id);
+    const styleName = (id) => nameIn(statsCatalog && statsCatalog.styles, id);
     const save = $("btn-stats-save-combo");
-    // Nothing to save when what's on already is this layout's best fit.
-    const same = fav ? fav.style === fit.style && fav.pack === pack : fit.style === L.style && pack === recPack;
-    save.disabled = !pack || same;
-    save.title = pack ? `Make ${packName(pack)} · ${name(statsCatalog && statsCatalog.styles, fit.style)} ${L.name || cfg.layout}'s best fit` : "No portraits downloaded";
     const forget = $("btn-stats-forget-combo");
+    if (!layout) {
+      $("stats-combo").textContent = statsManual(cfg) ? "Random: every layout in this look" : "Random: each layout in its best fit";
+      save.classList.add("gone");
+      forget.classList.add("gone");
+      return;
+    }
+    const L = fit.own, fav = fit.fav;
+    const best = fav ? `${packName(fav.pack)} · ${styleName(fav.style)}` : `${packName(fit.recPack) || "—"} · ${styleName(L.style)}`;
+    $("stats-combo").textContent = `${L.name || layout}: ${best}${fav ? " ★" : ""}`;
+    $("stats-combo").title = fav ? "Saved as this layout's best fit" : "This layout's recommended look";
+    // ★ Save: what's picked by hand becomes this layout's best fit (not when it already is).
+    const same = fav ? fav.style === fit.style && fav.pack === fit.pack : fit.style === L.style && fit.pack === fit.recPack;
+    save.classList.toggle("gone", !statsManual(cfg));
+    save.disabled = !fit.pack || same;
+    save.title = fit.pack ? `Make ${packName(fit.pack)} · ${styleName(fit.style)} ${L.name || layout}'s best fit` : "No portraits downloaded";
     forget.classList.toggle("gone", !fav);
-    forget.title = fav ? `Forget the saved combo: back to ${L.name || cfg.layout}'s own pick` : "";
+    forget.title = fav ? `Forget it: back to ${L.name || layout}'s recommended look` : "";
   }
-  $("btn-stats-bestfit").addEventListener("click", () => statsSet({ style: "auto", pack: "auto" }));
+  $("stats-look").addEventListener("click", (e) => {
+    const b = e.target.closest(".key");
+    if (!b) return;
+    const cfg = statsCfg || {};
+    if (b.dataset.value === "fit") return statsSet({ style: "auto", pack: "auto" });
+    if (statsManual(cfg)) return undefined;
+    // Manual starts from what's on screen now.
+    const fit = statsBestFit(cfg, statsLayout(cfg) || "spotlight");
+    return statsSet(fit.pack ? { style: fit.style, pack: fit.pack } : { style: fit.style });
+  });
   $("btn-stats-save-combo").addEventListener("click", () => {
     const cfg = statsCfg || {};
-    const packs = (statsCatalog && statsCatalog.packs) || [];
-    const fit = statsBestFit(cfg);
-    const pack = fit.packs.find((id) => packs.some((p) => p.id === id));
-    if (!pack) return;
-    statsSet({ combos: Object.assign({}, cfg.combos, { [cfg.layout]: { style: fit.style, pack } }), style: "auto", pack: "auto" });
+    const layout = statsLayout(cfg);
+    const fit = layout && statsBestFit(cfg, layout);
+    if (!fit || !fit.pack) return;
+    statsSet({ combos: Object.assign({}, cfg.combos, { [layout]: { style: fit.style, pack: fit.pack } }), style: "auto", pack: "auto" });
   });
   $("btn-stats-forget-combo").addEventListener("click", () => {
     const cfg = statsCfg || {};
+    const layout = statsLayout(cfg);
+    if (!layout) return;
     const combos = Object.assign({}, cfg.combos);
-    delete combos[cfg.layout];
+    delete combos[layout];
     statsSet({ combos });
   });
 
@@ -3167,20 +3263,20 @@
     const cfg = statsCfg || {};
     const shot = statsShot || {};
     const d = statsData;
-    const lit = (host, v) => host.querySelectorAll(".key").forEach((b) => b.classList.toggle("lit", b.dataset.value === v));
-    lit($("stats-layouts"), cfg.layout);
-    lit($("stats-styles"), cfg.style);
-    // The pack and style the overlay draws (layouts.js bestFit): "auto" is the layout's
-    // saved combo, else its own pick; a pack not downloaded gives way to one that is.
-    const packs = (statsCatalog && statsCatalog.packs) || [];
-    const fit = statsBestFit(cfg);
-    const pack = fit.packs.find((id) => packs.some((p) => p.id === id)) || (packs[0] && packs[0].id);
-    lit($("stats-packs"), cfg.pack === "auto" ? "auto" : pack);
-    renderCombo(cfg, fit, pack);
+    const layouts = (statsCatalog && statsCatalog.layouts) || [];
+    const layout = statsLayout(cfg);
+    const fit = statsBestFit(cfg, layout || "spotlight");
+    const manual = statsManual(cfg);
+
+    statsPick($("stats-layout"), cfg.layout);
+    statsPick($("stats-mode"), cfg.mode);
+    $("stats-look").querySelectorAll(".key").forEach((b) => b.classList.toggle("lit", b.dataset.value === (manual ? "manual" : "fit")));
+    $("stats-manual").classList.toggle("gone", !manual);
+    statsPick($("stats-style"), fit.style);
+    statsPick($("stats-pack"), fit.pack || "");
+    renderCombo(cfg, layout, fit);
     const sets = (statsCatalog && statsCatalog.stagePacks) || [];
-    const stages = cfg.stages === "none" || !sets.length ? "none" : sets.some((p) => p.id === cfg.stages) ? cfg.stages : sets[0].id;
-    lit($("stats-stages"), stages);
-    lit($("stats-modes"), cfg.mode);
+    statsPick($("stats-stages"), cfg.stages === "none" || !sets.length ? "none" : sets.some((p) => p.id === cfg.stages) ? cfg.stages : sets[0].id);
 
     const auto = $("stats-auto");
     if (document.activeElement !== auto) auto.checked = !!cfg.auto;
@@ -3195,12 +3291,12 @@
     let line;
     if (!d) line = "Waiting for the app…";
     else if (!available) line = d.reason || "No stats yet";
-    else if (shot.shown) line = `On stream: ${shot.mode === "set" ? "the set" : `game ${d.games[d.games.length - 1].n}`}${shot.auto ? " (automatic)" : ""}`;
-    else if (pending != null) line = `Showing in ${pending}s`;
+    else if (shot.shown) line = `On: ${shot.mode === "set" ? "wrap-up" : `game ${d.games[d.games.length - 1].n}`}${cfg.layout === "random" && shot.layout ? ` · ${nameIn(layouts, shot.layout)}` : ""}${shot.auto ? " · auto" : ""}`;
+    else if (pending != null) line = `Up in ${pending}s`;
     else line = "Down";
     if (available) {
       const missing = d.total - d.counted;
-      line += ` · from ${d.counted} of ${d.total} ${d.total === 1 ? "game" : "games"}${missing ? ` (${missing} without a Slippi replay)` : ""}`;
+      line += ` · ${d.counted}/${d.total} games${missing ? ` (${missing} no replay)` : ""}`;
     }
     const status = $("stats-status");
     status.textContent = line;
@@ -3216,11 +3312,12 @@
     strip.textContent = shot.shown ? "Stats ▾" : pending != null ? `Stats ${pending}s` : "Stats";
     strip.title = shot.shown ? "Take the stats popup down" : available ? "Put the stats popup on stream" : (d && d.reason) || "No stats yet";
 
-    const name = (list, id) => ((list || []).find((x) => x.id === id) || {}).name || id || "";
-    const sum = [name(statsCatalog && statsCatalog.layouts, cfg.layout), pack && name(packs, pack), name(statsCatalog && statsCatalog.styles, fit.style),
-      cfg.auto ? `auto ${cfg.delaySec}s` : "manual"].filter(Boolean).join(" · ");
+    const packs = (statsCatalog && statsCatalog.packs) || [];
+    const sum = [cfg.layout === "random" ? "Random" : nameIn(layouts, cfg.layout),
+      manual ? [fit.pack && nameIn(packs, fit.pack), nameIn(statsCatalog && statsCatalog.styles, fit.style)].filter(Boolean).join(" · ") : "best fit",
+      cfg.auto ? `auto ${cfg.delaySec}s` : "auto off"].filter(Boolean).join(" · ");
     $("sum-stats").textContent = shot.shown ? `On · ${sum}` : sum;
-    $("stats-source").textContent = statsCatalog && !packs.length && !sets.length ? "No portraits or stage pictures yet — Setup → Art packs downloads them" : "";
+    $("stats-source").textContent = statsCatalog && !packs.length && !sets.length ? "No art yet: Setup → Art packs" : "OBS: /o/set-stats above the Players bar";
   });
 
   $("btn-stats-show").addEventListener("click", () => statsShow("show"));

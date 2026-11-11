@@ -140,7 +140,8 @@ The set stats popup (`/o/set-stats`), built in [lib/set-stats/](../app/lib/set-s
 
 ```js
 statsConfig: {               // saved with the scoreboard; the dock's Stats tab (POST /api/set-stats/config)
-  layout: "spotlight",       // "spotlight" | "players" | "margins" | "rangerlog" | "tape" | "polaroids" | "lowerthird"  (lib/set-stats/catalog.js)
+  layout: "spotlight",       // "spotlight" | "players" | "margins" | "rangerlog" | "tape" | "polaroids" | "lowerthird"  (lib/set-stats/catalog.js),
+                             // or "random": a different one at each show (never the same twice running) — statsShot.layout says which
   style: "auto",             // a portrait style id, or "auto" = the layout's best fit
   pack: "auto",              // the portrait pack that draws the characters, or "auto" = the layout's best fit (any id; one not downloaded falls back to one that is)
   combos: {},                // the operator's saved best fit per layout, { [layout]: { style, pack } } (never "auto"): what "auto" draws for it instead of
@@ -153,7 +154,8 @@ statsConfig: {               // saved with the scoreboard; the dock's Stats tab 
 statsShot: {                 // not saved: a restart starts with it down (lib/set-stats/director.js)
   shown: false, mode: "game" | "set", since: 1790000000000,
   pendingAt: 1790000008000 | null,  // when an automatic show is due — the dock's countdown
-  auto: false                       // whether the one up went up by itself
+  auto: false,                      // whether the one up went up by itself
+  layout: "tape" | null             // the layout it draws: the config's, or the one director.js picked for this show with "random"
 }
 setStats: {                  // derived from the set's replays (lib/set-stats/set-view.js); not saved
   available: true, reason: null,    // false + a reason: doubles, a crew battle, no Slippi game yet

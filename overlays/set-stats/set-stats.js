@@ -181,7 +181,8 @@
     if (!data || !data.available) return null;
     if (!(PIN.show || (shot && shot.shown))) return null;
     const mode = shot && (shot.mode === "set" || shot.mode === "game") ? shot.mode : (data.over ? "set" : "game");
-    const layout = PIN.layout || cfg.layout;
+    // "random": the layout the app picked for this show (statsShot.layout).
+    const layout = PIN.layout || (cfg.layout === "random" ? shot && shot.layout : cfg.layout) || "spotlight";
     // The layout's saved combo rides along: style / pack "auto" draw it (layouts.js bestFit).
     const combos = cfg.combos && cfg.combos[layout] ? { [layout]: cfg.combos[layout] } : {};
     return { layout, style: PIN.style || cfg.style, pack: PIN.pack || cfg.pack, stages: PIN.stages || cfg.stages, mode, combos };

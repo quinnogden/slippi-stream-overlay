@@ -658,6 +658,21 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
   cursor: pointer;
 }
 .tab:hover:not(.on) { color: var(--d-ink); border-color: var(--d-line-2); }
+.tab.gone, .tab-more-wrap.gone { display: none; }
+/* More: a dropdown styled as a tab, its arrow drawn by the wrapper (a select has no ::after). */
+.tab-more-wrap { position: relative; display: flex; flex: 1 1 72px; order: 99; }
+#tabbar-list { display: grid; gap: 4px; }
+.tabbar-row { display: grid; grid-template-columns: 1fr 34px 34px auto; gap: 4px; align-items: center; padding: 2px 2px 2px 10px; background: var(--d-well); border: 1px solid var(--d-line); border-radius: 6px; }
+.tabbar-name { font: 700 13px/1 var(--d-sign); letter-spacing: .08em; text-transform: uppercase; }
+.field.gone { display: none; }
+.tab-more-wrap::after {
+  content: "▾";
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  font-size: 12px; color: var(--d-ink-dim); pointer-events: none;
+}
+.tab-more-wrap.on::after { color: #0a0b0d; }
+.tab-more { width: 100%; padding: 0 20px 0 8px; appearance: none; -webkit-appearance: none; text-align: center; text-align-last: center; }
+.tab-more option { background: var(--d-panel); color: var(--d-ink); text-transform: none; letter-spacing: 0; font: 400 14px/1.4 var(--d-text); }
 
 .panel { display: none; }
 .panel.on { display: block; }
@@ -1289,7 +1304,11 @@ kbd {
 
 /* ── Stats popup ── */
 .format-rule { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 10px; align-items: end; }
-.stats-auto { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; margin-top: 10px; align-items: end; }
-.stats-auto .field.check { grid-column: 1 / -1; }
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; align-items: end; }
+.stats-grid.three { grid-template-columns: 2fr 1fr 1fr; }
+.stats-grid.gone, .stats-combo .gone { display: none; }
+.stats-combo { display: flex; align-items: center; gap: 6px; margin-top: 8px; min-height: 28px; }
+.stats-combo > .hint { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stats-combo > .key { flex: 0 0 auto; }
 .stats-status.live { color: var(--d-ink); }
 #stats-styles > .key { flex-basis: 84px; }

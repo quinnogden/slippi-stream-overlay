@@ -98,6 +98,8 @@
         <button class="tab" type="button" data-tab="replays">Replays</button>
         <button class="tab" type="button" data-tab="crew">Crew</button>
         <button class="tab" type="button" data-tab="setup">Setup</button>
+        <!-- The tabs not on the bar (Setup → Tab bar picks which; saved per device). -->
+        <span class="tab-more-wrap" id="tab-more-wrap"><select class="tab tab-more" id="tab-more" title="More tabs"></select></span>
       </nav>
 
       <!-- ── Set ── -->
@@ -244,6 +246,9 @@
               <button class="key mini go" type="button" data-proxy="btn-stats-show">Show</button>
               <button class="key mini" type="button" data-proxy="btn-stats-hide">Hide</button>
             </span>
+            <label class="switch" title="Put it up after each game, Wait seconds after it ends">
+              <input type="checkbox" id="stats-auto" /> <span>Auto</span>
+            </label>
           </div>
           <div class="key-row">
             <button class="key go" id="btn-stats-show" type="button" title="Put the popup on stream now">Show</button>
@@ -251,46 +256,39 @@
           </div>
           <div class="hint stats-status" id="stats-status">—</div>
 
-          <div class="field">
-            <span>Layout</span>
-            <div class="seg" id="stats-layouts"></div>
+          <div class="stats-grid">
+            <label class="field"><span>Layout</span>
+              <select id="stats-layout" title="Random draws a different layout each time it goes up"></select></label>
+            <label class="field"><span>Reads</span>
+              <select id="stats-mode" title="Auto: the game just played, then the wrap-up once the set is won">
+                <option value="auto">Auto</option><option value="game">Last game</option><option value="set">Wrap-up</option>
+              </select></label>
           </div>
           <div class="field">
-            <span>Combo</span>
-            <div class="seg">
-              <button class="key" id="btn-stats-bestfit" type="button" title="Portraits and style back to this layout's best fit">Best fit</button>
-              <button class="key" id="btn-stats-save-combo" type="button">★ Save</button>
-              <button class="key" id="btn-stats-forget-combo" type="button">Forget</button>
+            <span>Look</span>
+            <div class="seg" id="stats-look">
+              <button class="key" type="button" data-value="fit" title="Each layout in its best fit: the combo saved for it, else the recommended one">Best fit</button>
+              <button class="key" type="button" data-value="manual" title="The style and portraits picked here, for every layout">Manual</button>
             </div>
+          </div>
+          <div class="stats-grid" id="stats-manual">
+            <label class="field"><span>Style</span><select id="stats-style"></select></label>
+            <label class="field"><span>Portraits</span><select id="stats-pack"></select></label>
+          </div>
+          <div class="stats-combo">
             <span class="hint" id="stats-combo"></span>
+            <button class="key mini" id="btn-stats-save-combo" type="button">★ Save</button>
+            <button class="key mini" id="btn-stats-forget-combo" type="button">Forget</button>
           </div>
-          <div class="field">
-            <span>Portraits</span>
-            <div class="seg" id="stats-packs"></div>
-          </div>
-          <div class="field">
-            <span>Stages</span>
-            <div class="seg" id="stats-stages"></div>
-          </div>
-          <div class="field">
-            <span>Style</span>
-            <div class="seg" id="stats-styles"></div>
-          </div>
-          <div class="field">
-            <span>Reads</span>
-            <div class="seg" id="stats-modes"></div>
-          </div>
-
-          <div class="stats-auto">
-            <label class="field check"><input type="checkbox" id="stats-auto" /> <span>Show it after each game</span></label>
-            <label class="field"><span>Wait (s)</span><input type="number" id="stats-delay" min="0" max="120" step="1" /></label>
-            <label class="field"><span>Hold (s, 0 = until the next game)</span><input type="number" id="stats-hold" min="0" max="600" step="1" /></label>
+          <div class="stats-grid three">
+            <label class="field"><span>Stages</span><select id="stats-stages"></select></label>
+            <label class="field"><span>Wait s</span><input type="number" id="stats-delay" min="0" max="120" step="1" title="Seconds after the game before it goes up: the camera gets the players' reaction first" /></label>
+            <label class="field"><span>Hold s</span><input type="number" id="stats-hold" min="0" max="600" step="1" title="How long an automatic show stays up; 0 = until the next game starts" /></label>
           </div>
           <div class="card-foot">
-            <span class="hint" id="stats-source"></span>
+            <span class="hint" id="stats-source">OBS: /o/set-stats above the Players bar</span>
             <button class="linkish" id="btn-stats-refresh" type="button" title="Read every game's replay again">Re-read replays</button>
           </div>
-          <div class="hint">Layout, portraits, stages and style switch live, even while it's up — mix any layout with any portraits and any style. <b>Best fit</b> is the portraits and style that suit the layout (each layout has its own); <b>★ Save</b> makes what's on now this layout's best fit instead, <b>Forget</b> goes back to the recommended one. <b>Wait</b> lets the camera catch the players' reaction before the stats come up; the popup always goes down when the next game starts. Add <b>/o/set-stats</b> above the Players bar in OBS.</div>
         </div>
       </div>
 
@@ -458,6 +456,18 @@
 
       <!-- ── Setup ── -->
       <div class="panel" id="panel-setup">
+        <div class="card" data-fold="setup.tabbar">
+          <div class="card-head">
+            <span class="label">Tab bar</span>
+            <span class="fold-sum" id="sum-tabbar"></span>
+          </div>
+          <div class="field"><span>On the bar, in order</span><div id="tabbar-list"></div></div>
+          <div class="field" id="tabbar-rest-field"><span>Under More</span><div class="seg" id="tabbar-rest"></div></div>
+          <div class="key-row">
+            <button class="key ghost" id="btn-tabbar-reset" type="button">Default</button>
+          </div>
+          <div class="hint">Saved on this device.</div>
+        </div>
         <div class="card" data-fold="setup.theme">
           <div class="card-head">
             <span class="label">Theme</span>

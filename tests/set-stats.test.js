@@ -255,6 +255,26 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
     r.ss.stop();
   });
 
+  await test("Random draws a different layout at each show, and a layout picked by hand at once", async () => {
+    const r = rig({ reads: { a: read() } });
+    r.game("a", 0);
+    await flush();
+    r.store.setStatsConfig({ layout: "random", auto: false });
+    const seen = [];
+    for (let i = 0; i < 6; i++) {
+      r.ss.command({ action: "show" });
+      seen.push(r.store.statsShot().layout);
+      r.ss.command({ action: "hide" });
+    }
+    assert.ok(seen.every((l) => CATALOG_LAYOUTS.some((x) => x.id === l)), "always a real layout");
+    assert.ok(seen.every((l, i) => i === 0 || l !== seen[i - 1]), "never the same one twice running");
+    r.ss.command({ action: "show" });
+    r.store.setStatsConfig({ layout: "tape" });
+    assert.strictEqual(r.store.statsShot().layout, "tape", "picked by hand: drawn now, while it's up");
+    assert.ok(!configError({ layout: "random" }) && configError({ layout: "nope" }), "random is a layout the config takes");
+    r.ss.stop();
+  });
+
   await test("every layout draws both readings in every style the dock offers, and names can't inject markup", async () => {
     assert.deepStrictEqual(CATALOG_LAYOUTS.map((l) => l.id).sort(), Object.keys(Layouts.LAYOUTS).sort(), "the dock's layouts are the overlay's");
     for (const s of CATALOG_STYLES) if (s.id !== "auto") assert.ok(Layouts.STYLES[s.id], `style ${s.id} isn't drawn`);

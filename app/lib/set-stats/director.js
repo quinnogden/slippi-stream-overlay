@@ -17,7 +17,12 @@
  * `mode` is what the popup reads: "game" (the game just played, the set so far
  * underneath) or "set" (the wrap-up). Config mode "auto" picks "set" once the
  * set is won, else "game".
+ *
+ * `layout` is the layout it draws: the config's, or with layout "random" one
+ * picked at each show (never the last one twice running) — here, once, so the
+ * dock and every source agree on it.
  */
+const { RANDOM, layoutFor } = require("./catalog");
 
 /** How long an automatic show waits for a game's stats to be read before giving up. */
 const WAIT_FOR_STATS_MS = 20000;
@@ -29,7 +34,7 @@ const LIMITS = { delaySec: [0, 120], holdSec: [0, 600] };
  * @param {{ store: import("../scoreboard/store").ScoreboardStore,
  *           now?: () => number, timers?: { setTimeout: Function, clearTimeout: Function } }} deps
  */
-function createStatsDirector({ store, now = Date.now, timers = { setTimeout, clearTimeout } }) {
+function createStatsDirector({ store, now = Date.now, timers = { setTimeout, clearTimeout }, rand = Math.random }) {
   let pendingTimer = null;
   let holdTimer = null;
   let waitedSince = null;
@@ -52,7 +57,7 @@ function createStatsDirector({ store, now = Date.now, timers = { setTimeout, cle
     pendingTimer = clear(pendingTimer);
     holdTimer = clear(holdTimer);
     waitedSince = null;
-    publish({ shown: true, mode: modeFor(), since: now(), pendingAt: null, auto });
+    publish({ shown: true, mode: modeFor(), since: now(), pendingAt: null, auto, layout: layoutFor(config().layout, store.statsShot().layout, rand) });
     const hold = config().holdSec;
     if (auto && hold > 0) holdTimer = timers.setTimeout(() => { holdTimer = null; hide(); }, hold * 1000);
     return { ok: true };
@@ -98,10 +103,12 @@ function createStatsDirector({ store, now = Date.now, timers = { setTimeout, cle
   /** The next game is starting, or another set was loaded. */
   function onInterrupt() { hide(); }
 
-  /** The config's mode changed while the popup is up: it reads the new one. */
+  /** The config changed while the popup is up: it reads the new mode, and draws a layout picked by hand at once. */
   function onConfig() {
     const s = store.statsShot();
     if (s.shown && s.mode !== modeFor()) publish({ mode: modeFor() });
+    const want = config().layout;
+    if (want !== RANDOM ? s.layout !== want : s.shown && !s.layout) publish({ layout: layoutFor(want, s.layout, rand) });
     if (!config().auto && s.pendingAt) {
       pendingTimer = clear(pendingTimer);
       publish({ pendingAt: null });

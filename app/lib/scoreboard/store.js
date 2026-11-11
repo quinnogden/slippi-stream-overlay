@@ -92,9 +92,10 @@ const emptyShot = () => ({ mode: "tour", view: null, group: null, page: null, si
 /**
  * The stats popup on screen (lib/set-stats/director.js): shown, which reading
  * ("game" | "set"), since when, when an automatic show is due (pendingAt, ms),
- * and whether the one up was automatic.
+ * whether the one up was automatic, and the layout it draws (the config's, or
+ * the one picked for this show when the config's is "random").
  */
-const emptyStatsShot = () => ({ shown: false, mode: "game", since: 0, pendingAt: null, auto: false });
+const emptyStatsShot = () => ({ shown: false, mode: "game", since: 0, pendingAt: null, auto: false, layout: null });
 
 const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
 

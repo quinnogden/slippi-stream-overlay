@@ -11,6 +11,9 @@
  * else overrides it for every layout — so any layout mixes with any style and
  * pack, live. A pack that isn't downloaded falls back to one that is.
  * `stages` likewise for the stage pictures, plus "none": no stage pictures.
+ * `layout: "random"` draws a different layout each time the popup goes up
+ * (director.js picks it, `statsShot.layout`), each in its best fit unless a
+ * style and pack are picked by hand.
  */
 
 const LAYOUTS = [
@@ -37,6 +40,20 @@ const STYLES = [
 ];
 
 const MODES = ["auto", "game", "set"];
+
+/** `layout: RANDOM` = a different layout at each show. */
+const RANDOM = "random";
+const layoutOk = (id) => id === RANDOM || LAYOUTS.some((l) => l.id === id);
+
+/**
+ * The layout one show draws: the config's, or for "random" any layout but the last one drawn.
+ * @param {string} layout — the config's @param {string|null} last @param {() => number} [rand]
+ */
+function layoutFor(layout, last, rand = Math.random) {
+  if (layout !== RANDOM) return LAYOUTS.some((l) => l.id === layout) ? layout : LAYOUTS[0].id;
+  const pool = LAYOUTS.filter((l) => l.id !== last);
+  return pool[Math.min(pool.length - 1, Math.floor(rand() * pool.length))].id;
+}
 
 /** A portrait pack's id (art-packs.js): which packs exist is whatever's downloaded, so only its shape is checked here. */
 const PACK_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -66,7 +83,7 @@ const clampInt = (v, lo, hi, fallback) => {
 function normalizeStatsConfig(c = {}) {
   const d = defaultStatsConfig();
   return {
-    layout: LAYOUTS.some((l) => l.id === c.layout) ? c.layout : d.layout,
+    layout: layoutOk(c.layout) ? c.layout : d.layout,
     style: STYLES.some((s) => s.id === c.style) ? c.style : d.style,
     pack: typeof c.pack === "string" && PACK_ID.test(c.pack) ? c.pack : d.pack,
     stages: typeof c.stages === "string" && PACK_ID.test(c.stages) ? c.stages : d.stages,
@@ -84,7 +101,7 @@ function normalizeStatsConfig(c = {}) {
  */
 function configError(body) {
   if (!body || typeof body !== "object") return "a settings object is required";
-  if (body.layout !== undefined && !LAYOUTS.some((l) => l.id === body.layout)) return `layout must be one of ${LAYOUTS.map((l) => l.id).join(", ")}`;
+  if (body.layout !== undefined && !layoutOk(body.layout)) return `layout must be one of ${LAYOUTS.map((l) => l.id).join(", ")}, ${RANDOM}`;
   if (body.style !== undefined && !STYLES.some((s) => s.id === body.style)) return `style must be one of ${STYLES.map((s) => s.id).join(", ")}`;
   if (body.pack !== undefined && !(typeof body.pack === "string" && PACK_ID.test(body.pack))) return "pack must be a portrait pack's id";
   if (body.stages !== undefined && !(typeof body.stages === "string" && PACK_ID.test(body.stages))) return "stages must be a stage picture set's id, or none";
@@ -103,4 +120,4 @@ function configError(body) {
   return null;
 }
 
-module.exports = { LAYOUTS, STYLES, MODES, defaultStatsConfig, normalizeStatsConfig, configError };
+module.exports = { LAYOUTS, STYLES, MODES, RANDOM, layoutFor, defaultStatsConfig, normalizeStatsConfig, configError };

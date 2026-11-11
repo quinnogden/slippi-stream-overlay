@@ -83,7 +83,7 @@ function createSetStats(ctx, opts = {}) {
   const artPacks = opts.artPacks ?? createArtPacks({ dir: PACKS_DIR, onInstalled: () => { portraits.reload(); rebuild(); } });
   const timers = opts.timers ?? { setTimeout, clearTimeout, setInterval, clearInterval };
   const sizeOf = opts.sizeOf ?? ((file) => { try { return fs.statSync(file).size; } catch { return null; } });
-  const director = createStatsDirector({ store, now: opts.now, timers });
+  const director = createStatsDirector({ store, now: opts.now, timers, rand: opts.rand });
 
   /** file → { result, size } once read; `reading` while in the queue. */
   const cache = new Map();
