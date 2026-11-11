@@ -400,7 +400,7 @@
             <div class="rules" data-fx="rule" style="${at(0, top, 1492, keys.length * rh)}--rh:${rh}px"></div><div class="mrule" data-fx="rule" data-delay="120" style="left:${M}px"></div><div class="mrule" data-fx="rule" data-delay="120" style="right:${M}px"></div>
             <div class="eyebrow" data-beat data-fit style="${at(M + 30, 30, 330)}font-size:12px">${["Ranger log", R.d.round].filter(Boolean).join(" · ")}</div>
             <div class="htitle hand" data-beat data-fx="write" style="${at(M + 30, 54)}font-size:52px">${t.title}</div>
-            <div data-beat data-fx="write" style="${at(680, 30, 470)}display:grid;grid-template-columns:repeat(2,1fr);gap:10px 24px">${join(R.facts.map((f) => html`<div class="field"><div class="lab" style="font-size:10px">${f.lab}</div><div class="fv hand" data-fit>${f.val}</div></div>`))}</div>
+            <div class="facts-patch" data-beat data-fx="write" style="${at(680, 30, 470)}display:grid;grid-template-columns:repeat(2,1fr);gap:10px 24px">${join(R.facts.map((f) => html`<div class="field"><div class="lab" style="font-size:10px">${f.lab}</div><div class="fv hand" data-fit>${f.val}</div></div>`))}</div>
             <div style="${at(M + 10, L, 856)}--rh:${rh}px;--cols:110px 84px 1fr 84px 110px;--gs:36px">${ledger(R, keys, { share: true })}</div>
             ${notes.markup}
             ${reel.length ? html`<div data-beat-card style="${at(M + 30, 604, 420, 140)}"><div class="box-in reel-in" style="display:flex;flex-direction:column;padding:10px 18px"><div class="eyebrow" style="font-size:11px">Sighting of the ${R.set ? "set" : "game"}</div><div data-rot="reel" style="flex:1">${logItem(reel[0])}</div><div class="reel-foot"><div class="track"><i data-prog="reel"></i></div>${dotsFor("reel", reel.length)}</div></div></div>` : ""}
@@ -500,6 +500,8 @@
    * there (not downloaded, or no picture of this character or stage) falls
    * back to the first that is; stages "none" draws no stage pictures.
    */
+  /** Pack "random": random poses (randomPair). */
+  const RANDOM = "random";
   /** The first of `ids` (a pack id, or a list best first) that `all` has, else its first. */
   const pickId = (all, ids) => {
     if (!all) return null;
@@ -507,12 +509,76 @@
     return Object.keys(all)[0] || null;
   };
   const pick = (all, id) => { const k = pickId(all, id); return k ? all[k] : null; };
-  function withPack(d, pack, stages) {
+  /**
+   * A side whose pose can't be drawn looking inward (`ok` says no: it looks
+   * outward and carries lettering, portrait-fit.js `o`) takes the next pack that
+   * has the character — `alts` (the layout's own order), then any installed.
+   * So does the right side of a mirror match (the same character on both
+   * sides), which would otherwise draw the left's pose twice. Either way the
+   * style stays, so the two still read as one picture; with no other pack, the
+   * picked one is drawn.
+   */
+  const isMirror = (d) => {
+    const cs = d.sides.map((s) => s && s.character && s.character.codename);
+    return d.sides.length === 2 && !!cs[0] && cs[0] === cs[1];
+  };
+
+  /** A seeded random number in [0, 1) (mulberry32): one seed, the same picks, in every source and every redraw. */
+  function seeded(seed) {
+    let a = (Number(seed) >>> 0) || 1;
+    return () => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /**
+   * Random poses (pack "random"): a pack per side, picked by the show's seed
+   * (director.js `statsShot.seed`), so it stays put for the whole show and
+   * changes at the next. Only the full-body renders — a bust pack (`cut`, the
+   * select screen's square crops) never — and both sides from one family of
+   * renders (portraits.js `family`: CSProject's two pose sets are one, the VS
+   * screen's another), so the two read as one picture. Every pair that can be
+   * drawn is as likely: each pose looks inward (`ok`) and a mirror match's two
+   * differ. A side with no character takes nothing; null when no pair can be
+   * drawn (the caller's pack order then).
+   * @returns {Array<string|null>|null} a pack id per side
+   */
+  function randomPair(d, seed, ok) {
+    if (!d || !Array.isArray(d.sides) || d.sides.length !== 2) return null;
+    const mirror = isMirror(d);
+    const cands = d.sides.map((s, i) => {
+      const all = s && s.portraits;
+      if (!all) return [null];
+      return Object.keys(all).filter((id) => all[id] && !all[id].cut && ok(id, all[id], i));
+    });
+    const fam = (i, id) => d.sides[i].portraits[id].family || id;
+    const pairs = [];
+    for (const a of cands[0]) for (const b of cands[1]) {
+      if (a && b && (fam(0, a) !== fam(1, b) || (mirror && a === b))) continue;
+      if (a || b) pairs.push([a, b]);
+    }
+    return pairs.length ? pairs[Math.min(pairs.length - 1, Math.floor(seeded(seed)() * pairs.length))] : null;
+  }
+
+  function withPack(d, pack, stages, alts, ok = () => true, pair = null) {
     if (!d || !Array.isArray(d.sides)) return d;
+    const mirror = isMirror(d);
+    let left = null;
     return Object.assign({}, d, {
-      sides: d.sides.map((s) => {
-        const k = pickId(s && s.portraits, pack);
-        return Object.assign({}, s, { portrait: k ? Object.assign({ pack: k }, s.portraits[k]) : null });
+      sides: d.sides.map((s, i) => {
+        const all = s && s.portraits;
+        let k = pair && pair[i] && all && all[pair[i]] ? pair[i] : pickId(all, pack);
+        const good = (id) => !!all[id] && ok(id, all[id], i) && !(i === 1 && mirror && id === left);
+        if (k && !good(k)) {
+          const other = [].concat(pack || [], alts || [], Object.keys(all)).find(good);
+          if (other) k = other;
+        }
+        if (i === 0) left = k;
+        return Object.assign({}, s, { portrait: k ? Object.assign({ pack: k }, all[k]) : null });
       }),
       games: (d.games || []).map((g) => (g && g.stage ? Object.assign({}, g, {
         stage: Object.assign({}, g.stage, { pic: stages === "none" ? null : pick(g.stage.pics, stages) }),
@@ -523,31 +589,42 @@
   /**
    * What "auto" means for one layout: the operator's saved combo for it, else
    * its best fit (style, packs best first). Shared by the overlay and the dock's
-   * labels, so they agree.
+   * labels, so they agree. Pack "random" (picked, or saved in the combo) is
+   * random poses (`random`), in the same style; `packs` is then the order a
+   * show with no pair to draw falls back to.
    * @param {string} layout @param {{ style?, pack?, combos? }} cfg
-   * @returns {{ style: string, packs: string[], saved: boolean }}
+   * @returns {{ style: string, packs: string[], random: boolean, saved: boolean }}
    */
   function bestFit(layout, cfg = {}) {
     const L = LAYOUTS[layout] || LAYOUTS.spotlight;
     const fav = cfg.combos && cfg.combos[layout];
     const style = cfg.style && cfg.style !== "auto" && STYLES[cfg.style] ? cfg.style : fav && STYLES[fav.style] ? fav.style : L.style;
-    const packs = cfg.pack && cfg.pack !== "auto" ? [cfg.pack] : fav && fav.pack ? [fav.pack, ...L.packs] : L.packs;
-    return { style, packs, saved: !!fav };
+    const picked = cfg.pack && cfg.pack !== "auto" ? cfg.pack : fav && fav.pack ? fav.pack : null;
+    const random = picked === RANDOM;
+    const real = (id) => id && id !== RANDOM;
+    const packs = real(cfg.pack) && cfg.pack !== "auto" ? [cfg.pack] : fav && real(fav.pack) ? [fav.pack, ...L.packs] : L.packs;
+    return { style, packs, random, saved: !!fav };
   }
 
   /**
    * One layout, drawn: the window's skin, its portraits (if the layout puts
    * them behind everything), the content, and the rotating sections.
    * @param {object} d — setStats
-   * @param {{ layout: string, style: string, mode: "game"|"set", pack?: string, stages?: string, combos?: object, fit?: object }} o — style / pack "auto" = the layout's
-   *   best fit (`combos[layout]` if saved, else its own); pack = a portrait pack id; stages = a stage set id, or "none"; fit = a portrait-fit map to use instead of the file's (the tuning page)
+   * @param {{ layout: string, style: string, mode: "game"|"set", pack?: string, stages?: string, combos?: object, fit?: object, seed?: number }} o — style / pack "auto" = the layout's
+   *   best fit (`combos[layout]` if saved, else its own); pack = a portrait pack id, or "random" (random poses, picked by `seed`); stages = a stage set id, or "none"; fit = a portrait-fit map to use instead of the file's (the tuning page)
    * @returns {{ skin: string, portraits: string, content: string, rots: Array<{ id, items: string[] }>, style: string }}
    */
   function render(d, o) {
     const id = LAYOUTS[o.layout] ? o.layout : "spotlight", L = LAYOUTS[id];
     const fit = bestFit(id, o);
     const style = fit.style;
-    const R = reader(withPack(d, fit.packs, o.stages), { mode: o.mode, style });
+    // A pose that can't look inward (lettering that can't be mirrored) gives way to the next pack's.
+    const inward = (pack, src, side) => {
+      const P = Array.isArray(L.por) ? L.por[side] : L.por;
+      return !Fit || !Fit.tweak(pack, src.char, id, (P && P.slot) || "edge", o.fit).o;
+    };
+    const pair = fit.random ? randomPair(d, o.seed, inward) : null;
+    const R = reader(withPack(d, fit.packs, o.stages, L.packs, inward, pair), { mode: o.mode, style });
     R.layout = id;
     R.fit = o.fit;
     const portraits = L.noWinPor ? "" : html`${portrait(R, 0, L.por)}${portrait(R, 1, L.por)}`;

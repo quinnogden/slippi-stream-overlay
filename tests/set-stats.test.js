@@ -290,6 +290,10 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
     }
     assert.ok(seen.every((l) => CATALOG_LAYOUTS.some((x) => x.id === l)), "always a real layout");
     assert.ok(seen.every((l, i) => i === 0 || l !== seen[i - 1]), "never the same one twice running");
+    // Each show's seed (random poses) is new, and held while it's up.
+    const seeds = [];
+    for (let i = 0; i < 4; i++) { r.ss.command({ action: "show" }); seeds.push(r.store.statsShot().seed); r.store.setStatsConfig({ mode: "set" }); assert.strictEqual(r.store.statsShot().seed, seeds[i]); r.store.setStatsConfig({ mode: "auto" }); r.ss.command({ action: "hide" }); }
+    assert.ok(seeds.every((x) => Number.isInteger(x) && x > 0) && new Set(seeds).size === seeds.length, "a fresh seed at each show");
     r.ss.command({ action: "show" });
     r.store.setStatsConfig({ layout: "tape" });
     assert.strictEqual(r.store.statsShot().layout, "tape", "picked by hand: drawn now, while it's up");
@@ -330,6 +334,49 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
     assert.ok(stagePics("st2").includes("/assets/packs/st2/") && !stagePics("st2").includes("/assets/packs/stage_icon/"), "the picked stage set");
     assert.ok(stagePics("gone").includes("/assets/packs/stage_icon/"), "a missing stage set falls back to the first");
     assert.ok(!/\/assets\/packs\/(stage_icon|st2)\//.test(stagePics("none")), "none: no stage pictures");
+    // A mirror match never draws the same pose twice: the left keeps the pack, the right takes another, the style stays.
+    const mirror = Object.assign({}, d, { sides: [d.sides[0], Object.assign({}, d.sides[1], { character: d.sides[0].character, portraits: d.sides[0].portraits })] });
+    const packsIn = (dd, o) => {
+      const r = Layouts.render(dd, Object.assign({ layout: "spotlight", mode: "game", style: "riso" }, o));
+      return { style: r.style, ids: [...new Set([...r.portraits.matchAll(/\/assets\/packs\/(\w+)\//g)].map((m) => m[1]))] };
+    };
+    assert.deepStrictEqual(packsIn(mirror, { pack: "csp" }), { style: "riso", ids: ["csp", "full"] }, "a mirror: the left on the picked pack, the right on another");
+    assert.deepStrictEqual(packsIn(mirror, { pack: "auto" }).ids, ["full", "csp"], "and under best fit");
+    // A pose that looks outward and can't be mirrored (lettering, `o`) gives way to the next pack's.
+    const lettered = { csp: { [d.sides[0].portraits.csp.char]: { o: 1 } } };
+    assert.deepStrictEqual(packsIn(d, { pack: "csp", fit: lettered }).ids, ["full", "csp"], "the lettered side takes another pack, the other keeps the pick");
+    assert.deepStrictEqual(packsIn(d, { pack: "csp" }).ids, ["csp"], "two characters share the pack");
+    // Random poses: a pack per side from the show's seed — never a bust pack (cut), both
+    // from one family of renders, a mirror's two different — in the style "auto" or the pick gives.
+    const families = (s) => {
+      const as = (id, extra) => Object.assign({}, s.portraits.csp, { url: s.portraits.csp.url.replace("/csp/", `/${id}/`) }, extra);
+      return Object.assign({}, s, { portraits: { full: Object.assign({}, s.portraits.full, { family: "vs" }), csp: as("csp", { family: "c" }), alt: as("alt", { family: "c" }), bust: as("bust", { family: "b", cut: true }) } });
+    };
+    const rd = Object.assign({}, d, { sides: d.sides.map(families) });
+    const FAM = { full: "vs", csp: "c", alt: "c" };
+    const sidesIn = (dd, o) => {
+      const r = Layouts.render(dd, Object.assign({ layout: "spotlight", mode: "game", style: "auto", pack: "random" }, o));
+      return { style: r.style, ids: r.portraits.split(/(?=<div class="por )/).map((x) => (/\/assets\/packs\/(\w+)\//.exec(x) || [])[1]).filter(Boolean) };
+    };
+    const pairs = new Set();
+    for (let seed = 1; seed <= 80; seed++) {
+      const { ids } = sidesIn(rd, { seed });
+      assert.strictEqual(ids.length, 2, `seed ${seed}: a portrait each side`);
+      assert.ok(!ids.includes("bust") && FAM[ids[0]] === FAM[ids[1]], `seed ${seed}: full-body, one family (${ids})`);
+      assert.deepStrictEqual(sidesIn(rd, { seed }).ids, ids, "the same seed, the same poses");
+      pairs.add(ids.join("+"));
+    }
+    assert.strictEqual(pairs.size, 5, `every pair that can be drawn turns up (${[...pairs]})`);
+    const rmirror = Object.assign({}, rd, { sides: [rd.sides[0], Object.assign({}, rd.sides[1], { character: rd.sides[0].character, portraits: rd.sides[0].portraits })] });
+    for (let seed = 1; seed <= 20; seed++) {
+      const { ids } = sidesIn(rmirror, { seed });
+      assert.ok(ids[0] !== ids[1] && FAM[ids[0]] === "c" && FAM[ids[1]] === "c", `a mirror: two poses from one family (${ids})`);
+    }
+    assert.strictEqual(sidesIn(rd, { seed: 3, combos: { spotlight: { style: "riso", pack: "csp" } } }).style, "riso", "random poses keep the saved style");
+    assert.strictEqual(sidesIn(rd, { seed: 3, style: "halftone" }).style, "halftone", "and a style picked by hand");
+    const savedRandom = sidesIn(rd, { seed: 3, pack: "auto", combos: { spotlight: { style: "cream", pack: "random" } } });
+    assert.ok(savedRandom.style === "cream" && savedRandom.ids.length === 2 && !savedRandom.ids.includes("bust"), "random saved as a layout's best fit");
+    assert.deepStrictEqual(normalizeStatsConfig({ pack: "random", combos: { tape: { style: "riso", pack: "random" } } }).combos, { tape: { style: "riso", pack: "random" } });
 
     // Best fit: "auto" is the layout's saved combo, else its own pick (a pack not
     // downloaded gives way to the next it ranks, else to one that is).

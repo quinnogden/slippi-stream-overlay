@@ -95,7 +95,7 @@ const emptyShot = () => ({ mode: "tour", view: null, group: null, page: null, si
  * whether the one up was automatic, and the layout it draws (the config's, or
  * the one picked for this show when the config's is "random").
  */
-const emptyStatsShot = () => ({ shown: false, mode: "game", since: 0, pendingAt: null, auto: false, layout: null });
+const emptyStatsShot = () => ({ shown: false, mode: "game", since: 0, pendingAt: null, auto: false, layout: null, seed: null });
 
 const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
 

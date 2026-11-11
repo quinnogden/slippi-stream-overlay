@@ -44,11 +44,13 @@ const MARKER = ".installed.json";
  * for — the VS-screen renders sit in their frame with room around them, the
  * CSProject renders fill theirs, the select-screen portraits are busts — so
  * a character comes out about the same size whichever pack draws it.
+ * `family`: packs whose renders share a look (CSProject's two pose sets are
+ * one team's renders) — the popup's random poses pair two from one family.
  */
 const KNOWN = [
-  { id: "full", kind: "portraits", name: "VS screen", fill: 1 },
-  { id: "CSProject_MeleeFull", kind: "portraits", name: "CSProject · Melee poses", fill: 0.85 },
-  { id: "CSProject_AltFull", kind: "portraits", name: "CSProject · alternate poses", fill: 0.85 },
+  { id: "full", kind: "portraits", name: "VS screen", fill: 1, family: "vs" },
+  { id: "CSProject_MeleeFull", kind: "portraits", name: "CSProject · Melee poses", fill: 0.85, family: "csp" },
+  { id: "CSProject_AltFull", kind: "portraits", name: "CSProject · alternate poses", fill: 0.85, family: "csp" },
   { id: "portrait", kind: "portraits", name: "Select screen", fill: 0.42 },
   { id: "stage_icon", kind: "stages", name: "Stage pictures" },
 ];

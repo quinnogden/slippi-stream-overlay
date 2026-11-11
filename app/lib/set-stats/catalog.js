@@ -10,6 +10,9 @@
  * the dock's ★) if the operator saved one, else the recommended one; anything
  * else overrides it for every layout — so any layout mixes with any style and
  * pack, live. A pack that isn't downloaded falls back to one that is.
+ * `pack: "random"` (picked, or saved in a combo) is random poses: a pack per
+ * side at each show, full-body renders only, the two from one family of
+ * renders, in whatever style "auto" or the pick gives (layouts.js randomPair).
  * `stages` likewise for the stage pictures, plus "none": no stage pictures.
  * `layout: "random"` draws a different layout each time the popup goes up
  * (director.js picks it, `statsShot.layout`), each in its best fit unless a
@@ -103,7 +106,7 @@ function configError(body) {
   if (!body || typeof body !== "object") return "a settings object is required";
   if (body.layout !== undefined && !layoutOk(body.layout)) return `layout must be one of ${LAYOUTS.map((l) => l.id).join(", ")}, ${RANDOM}`;
   if (body.style !== undefined && !STYLES.some((s) => s.id === body.style)) return `style must be one of ${STYLES.map((s) => s.id).join(", ")}`;
-  if (body.pack !== undefined && !(typeof body.pack === "string" && PACK_ID.test(body.pack))) return "pack must be a portrait pack's id";
+  if (body.pack !== undefined && !(typeof body.pack === "string" && PACK_ID.test(body.pack))) return "pack must be a portrait pack's id, auto or random";
   if (body.stages !== undefined && !(typeof body.stages === "string" && PACK_ID.test(body.stages))) return "stages must be a stage picture set's id, or none";
   if (body.mode !== undefined && !MODES.includes(body.mode)) return `mode must be one of ${MODES.join(", ")}`;
   if (body.auto !== undefined && typeof body.auto !== "boolean") return "auto must be true or false";

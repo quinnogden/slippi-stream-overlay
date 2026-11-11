@@ -3163,6 +3163,8 @@
   const statsSet = (body) => act("/api/set-stats/config", body, null, "Stats popup");
   const statsShow = (action) => act("/api/set-stats/show", { action }, null, "Stats popup");
   const nameIn = (list, id) => ((list || []).find((x) => x.id === id) || {}).name || id || "";
+  /** A portrait pack's name; "random" is random poses (layouts.js randomPair). */
+  const statsPackName = (id) => (id === "random" ? "Random poses" : nameIn(statsCatalog && statsCatalog.packs, id));
 
   /** A <select>'s options, from [id, name, title]; a pick goes straight to the config. */
   function statsOptions(sel, items) {
@@ -3181,9 +3183,12 @@
       if (!r.ok) return;
       statsCatalog = r;
       statsOptions($("stats-layout"), [["random", "Random"], ...r.layouts.map((l) => [l.id, l.name, l.note])]);
-      statsOptions($("stats-style"), r.styles.filter((s) => s.id !== "auto").map((s) => [s.id, s.name]));
+      // "Best fit" here: each layout's own style (saved, else recommended) under the portraits picked by hand.
+      statsOptions($("stats-style"), r.styles.map((s) => [s.id, s.name, s.id === "auto" ? "Each layout's own style: the one saved for it, else the recommended one" : ""]));
       const packs = r.packs || [];
-      statsOptions($("stats-pack"), packs.length ? packs.map((p) => [p.id, p.name, p.credits || ""]) : [["", "None downloaded"]]);
+      statsOptions($("stats-pack"), packs.length
+        ? [["random", "Random poses", "A different pose each side at each show: full-body renders only, the two from one set of renders"], ...packs.map((p) => [p.id, p.name, p.credits || ""])]
+        : [["", "None downloaded"]]);
       // "None" is always there: the popup without stage pictures.
       statsOptions($("stats-stages"), [...(r.stagePacks || []).map((p) => [p.id, p.name, p.credits || ""]), ["none", "None"]]);
       renderStats();
@@ -3205,14 +3210,15 @@
     const style = cfg.style && cfg.style !== "auto" ? cfg.style : fav ? fav.style : L.style;
     const order = cfg.pack && cfg.pack !== "auto" ? [cfg.pack] : fav ? [fav.pack, ...L.packs] : L.packs;
     const packs = (statsCatalog && statsCatalog.packs) || [];
-    const pack = order.find((id) => packs.some((p) => p.id === id)) || (packs[0] && packs[0].id) || null;
+    // "random" is a pick of its own (random poses), not a pack that can be missing.
+    const pack = order[0] === "random" && packs.length ? "random" : order.find((id) => packs.some((p) => p.id === id)) || (packs[0] && packs[0].id) || null;
     const recPack = (L.packs || []).find((id) => packs.some((p) => p.id === id)) || null;
     return { style, pack, fav, own: L, recPack };
   }
   const statsManual = (cfg) => !(cfg.style === "auto" && cfg.pack === "auto");
 
   function renderCombo(cfg, layout, fit) {
-    const packName = (id) => nameIn(statsCatalog && statsCatalog.packs, id);
+    const packName = statsPackName;
     const styleName = (id) => nameIn(statsCatalog && statsCatalog.styles, id);
     const save = $("btn-stats-save-combo");
     const forget = $("btn-stats-forget-combo");
@@ -3274,7 +3280,7 @@
     statsPick($("stats-mode"), cfg.mode);
     $("stats-look").querySelectorAll(".key").forEach((b) => b.classList.toggle("lit", b.dataset.value === (manual ? "manual" : "fit")));
     $("stats-manual").classList.toggle("gone", !manual);
-    statsPick($("stats-style"), fit.style);
+    statsPick($("stats-style"), cfg.style === "auto" ? "auto" : fit.style);
     statsPick($("stats-pack"), fit.pack || "");
     renderCombo(cfg, layout, fit);
     const sets = (statsCatalog && statsCatalog.stagePacks) || [];
@@ -3316,7 +3322,7 @@
 
     const packs = (statsCatalog && statsCatalog.packs) || [];
     const sum = [cfg.layout === "random" ? "Random" : nameIn(layouts, cfg.layout),
-      manual ? [fit.pack && nameIn(packs, fit.pack), nameIn(statsCatalog && statsCatalog.styles, fit.style)].filter(Boolean).join(" · ") : "best fit",
+      manual ? [fit.pack && statsPackName(fit.pack), cfg.style === "auto" ? "best-fit style" : nameIn(statsCatalog && statsCatalog.styles, fit.style)].filter(Boolean).join(" · ") : "best fit",
       cfg.auto ? `auto ${cfg.delaySec}s` : "auto off"].filter(Boolean).join(" · ");
     $("sum-stats").textContent = shot.shown ? `On · ${sum}` : sum;
     $("stats-source").textContent = statsCatalog && !packs.length && !sets.length ? "No art yet: Setup → Art packs" : "OBS: /o/set-stats above the Players bar";

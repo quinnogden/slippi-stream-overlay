@@ -21,6 +21,10 @@
  * `layout` is the layout it draws: the config's, or with layout "random" one
  * picked at each show (never the last one twice running) — here, once, so the
  * dock and every source agree on it.
+ *
+ * `seed` is a fresh number at each show: with pack "random" every source
+ * draws the same random poses from it (layouts.js randomPair), held for the
+ * show and new at the next.
  */
 const { RANDOM, layoutFor } = require("./catalog");
 
@@ -57,7 +61,7 @@ function createStatsDirector({ store, now = Date.now, timers = { setTimeout, cle
     pendingTimer = clear(pendingTimer);
     holdTimer = clear(holdTimer);
     waitedSince = null;
-    publish({ shown: true, mode: modeFor(), since: now(), pendingAt: null, auto, layout: layoutFor(config().layout, store.statsShot().layout, rand) });
+    publish({ shown: true, mode: modeFor(), since: now(), pendingAt: null, auto, layout: layoutFor(config().layout, store.statsShot().layout, rand), seed: 1 + Math.floor(rand() * 0x7ffffffe) });
     const hold = config().holdSec;
     if (auto && hold > 0) holdTimer = timers.setTimeout(() => { holdTimer = null; hide(); }, hold * 1000);
     return { ok: true };

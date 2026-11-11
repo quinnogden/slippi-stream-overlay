@@ -67,7 +67,7 @@ function createPortraits({ dir }) {
       if (!conf || typeof conf !== "object" || Array.isArray(conf)) continue; // not a pack's config
       const known = KNOWN.find((k) => k.id === id);
       const name = known?.name ?? (typeof conf.name === "string" ? conf.name : id);
-      if (isPortraitPack(conf)) packs.push({ id, name, conf, fill: known?.fill ?? 1, cut: [].concat(conf.type ?? []).includes("portrait") });
+      if (isPortraitPack(conf)) packs.push({ id, name, conf, fill: known?.fill ?? 1, family: known?.family ?? id, cut: [].concat(conf.type ?? []).includes("portrait") });
       else if (isStagePack(conf)) stagePacks.push({ id, name, conf });
     }
   }
@@ -93,6 +93,7 @@ function createPortraits({ dir }) {
       url: `/assets/packs/${encodeURIComponent(pack.id)}/${encodeURIComponent(file)}`,
       char: name, // TSH's name: the overlay's per-pose tweaks (portrait-fit.js) are keyed by it
       ...(pack.cut ? { cut: true } : {}), // cut at its frame (a bust): the overlay feathers the cut
+      family: pack.family, // renders of one look (art-packs.js KNOWN): random poses pair within one
       w: size.w, h: size.h, eye: [e.x, e.y],
       k: Math.round(((NORMAL_HEIGHT * pack.fill * scale) / size.h) * 1000) / 1000,
       faces: "right",

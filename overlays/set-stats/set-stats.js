@@ -294,9 +294,11 @@
     const layout = PIN.layout || (cfg.layout === "random" ? shot && shot.layout : cfg.layout) || "spotlight";
     // The layout's saved combo rides along: style / pack "auto" draw it (layouts.js bestFit).
     const combos = cfg.combos && cfg.combos[layout] ? { [layout]: cfg.combos[layout] } : {};
-    return { layout, style: PIN.style || cfg.style, pack: PIN.pack || cfg.pack, stages: PIN.stages || cfg.stages, mode, combos };
+    // Pack "random": the show's seed picks the poses (layouts.js randomPair), the same in every source.
+    const seed = (shot && shot.seed) || 0;
+    return { layout, style: PIN.style || cfg.style, pack: PIN.pack || cfg.pack, stages: PIN.stages || cfg.stages, mode, combos, seed };
   }
-  const sigOf = (w) => JSON.stringify([w.layout, w.style, w.pack, w.stages, w.mode, w.combos, data]);
+  const sigOf = (w) => JSON.stringify([w.layout, w.style, w.pack, w.stages, w.mode, w.combos, w.seed, data]);
 
   let rots = [];
   let portraitsDrawn = null; // the portraits' markup on screen, to keep them through a swap
