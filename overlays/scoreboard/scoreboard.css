@@ -40,7 +40,7 @@ body {
    ─────────────────────────────────────────────────────────── */
 .info.container { --enter-order: 1; }
 .best-of-pill   { --enter-order: 2; }
-.logo           { --enter-order: 2; }
+.logo           { --enter-order: 1; } /* with the round card: see Logo */
 .chip           { --enter-order: 3; }
 
 /* ── Base container ───────────────────────────────────────────
@@ -213,27 +213,62 @@ body {
   text-overflow: ellipsis;
 }
 
-/* ── Logo (players.html) ─────────────────────────────────── */
+/* ── Logo (players.html) ─────────────────────────────────────
+   The badge stands on the round card: its foot is the card's top edge
+   (742 + 260 = 1002). Two layers, so the entrance and the pack never touch
+   the same property: .logo moves, fades and blurs; .logo-art is the artwork
+   and the pack's own recolouring (--logo-filter — Salty Suite's invert(1)
+   against an entrance blur on one element would flip halfway).
+   ─────────────────────────────────────────────────────────── */
+@property --logo-y {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
 .logo {
   position: absolute;
   left: 50%;
-  /* Both repeated for the entrance animation — see overlay.css. */
+  /* Repeated for the entrance animation — see overlay.css. */
   --base-transform: translateX(-50%);
-  transform: var(--base-transform);
+  transform: var(--base-transform) translateY(var(--logo-y));
+  /* Behind the round card (.stage comes later and paints over a z-index 0),
+     so the card's own edge and shadow are the cut it rises through. The
+     mask, held on the card's line by the same --logo-y as the travel,
+     keeps any of it below the card from showing. */
+  z-index: 0;
+  -webkit-mask-image: linear-gradient(to top, transparent calc(var(--logo-y) - 8%), #000 var(--logo-y));
+}
+
+.logo-art {
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
   background-image: var(--logo-url);          /* from the active theme pack */
   filter:           var(--logo-filter, none); /* packs recolour their own artwork */
-  --enter-filter:   var(--logo-filter, none);
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
   border-radius: var(--border-radius);
-  z-index: 9;
 }
 
 .fgc.thin.meleePlayer .logo {
   top: 742px;
   width: 260px;
   height: 260px;
+}
+
+/* The entrance: up out of the round card, its full height, starting with
+   the card (the same --enter-order) and arriving the way the cards do —
+   from transparent and --enter-filter's blur, on --enter-time and
+   --enter-ease — so the card coming down and the badge coming up are one
+   movement. Opacity and filter end on .logo's own (1, none). */
+@keyframes logo-rise {
+  from { --logo-y: 100%; opacity: 0; filter: var(--enter-filter); }
+  to   { --logo-y: 0%; }
+}
+.ready .logo {
+  animation: logo-rise var(--enter-time) var(--enter-ease)
+             calc(var(--enter-order, 0) * var(--enter-stagger)) both;
 }
 
 /* ── Match info container ────────────────────────────────────
