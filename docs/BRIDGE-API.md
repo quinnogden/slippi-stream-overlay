@@ -183,6 +183,7 @@ setStats: {                  // derived from the set's replays (lib/set-stats/se
 - **`setRules`** (saved) is the best-of rule, `{ topN: 6, defaultLabel: "Flex", topLabel: "Bo5" }`; `config.SET_TEXT` only seeds it. Changing it re-derives `scoreboard.bestOfLabel`, and with it `setStats.over`.
 - **The players bar draws it too**: `/o/scoreboard/players` frames `/o/set-stats` itself (`?stats=0` leaves it out), so the popup is the same page either way.
 - **The players bar reads it too**: `/o/scoreboard/players` tucks its logo into the round card while `statsShot.shown && setStats.available` (the popup's window lands where the logo stands). Change that condition on one page and not the other and the logo hides with no popup, or the window comes down over it.
+- **So does the side panel**: its Last Game and Set Recap cards draw `setStats` (`game` and `set` readings: `rows`, `insights`, `stories`, `facts`, and `games[].stage.pics` for the stage picture), and stand down under the same condition, so the same numbers are never on screen twice.
 
 ---
 

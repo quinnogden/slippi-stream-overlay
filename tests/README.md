@@ -30,7 +30,7 @@ One line per file. **The file's own header comment says exactly what it pins and
 
 | File | Guards |
 |---|---|
-| `side-panel.test.js` | The side panel's rotation doesn't flash, its stats and win projection follow the players through Switch Sides, and a crew battle shows its rosters. |
+| `side-panel.test.js` | The side panel's rotation doesn't flash, its stats and win projection follow the players through Switch Sides, a crew battle shows its rosters, and the Last Game card takes its next look each time it comes on (never under the popup). |
 | `bracket-overlay.test.js` | The bracket overlay's layout, pages, Board camera, tour, Up Next and live feed, on every capture. |
 | `overlay-patch.test.js` | Every browser source's copy of the state stays equal to the app's. |
 | `overlay-motion.test.js` | Show/hide and swap animations end on the right content; the score reel turns the right way. |

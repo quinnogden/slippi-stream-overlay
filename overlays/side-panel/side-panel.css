@@ -1290,3 +1290,366 @@ body {
 }
 
 .clip-toast-detail:empty { display: none; }
+
+
+/* ── Stats cards: Last Game (four looks) and Set Recap ────────
+   The stats popup's numbers, built by side-panel.js. Left and right are the
+   scoreboard's columns; the side ahead on a stat is lit (the other .trail),
+   and a callout is edged in the trim on its player's side. Sizes are px:
+   every piece has a fixed place, and sentences step down to fit their box. */
+
+.stats-panel {
+  --st-label:    var(--label-font, var(--font));
+  --st-num:      var(--score-font, var(--font));
+  --st-trim:     var(--trim-color, var(--text-color));
+  --st-trim-rgb: var(--trim-rgb, var(--text-color-rgb));
+  gap: 9px;
+}
+
+.stats-panel .lead-l { --edge-l: var(--st-trim); }
+.stats-panel .lead-r { --edge-r: var(--st-trim); }
+
+/* The title: "Game 3" / "The Set So Far", then the round and format as a header. */
+.st-name {
+  flex-shrink:    0;
+  text-align:     center;
+  font-family:    var(--font);
+  font-size:      44px;
+  line-height:    1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color:          var(--text-color);
+  white-space:    nowrap;
+  overflow:       hidden;
+  text-overflow:  ellipsis;
+  padding-block:  0.12em;
+  margin-block:   -0.12em;
+  text-shadow:    0 2px 4px rgba(0,0,0,0.85), 0 4px 12px rgba(0,0,0,0.5);
+}
+.panel-header.st-sub {
+  font-family:    var(--st-label);
+  font-weight:    700;
+  font-size:      13px;
+  letter-spacing: 0.26em;
+  color:          var(--st-trim);
+  padding:        0 0 2px;
+  white-space:    nowrap;
+}
+
+/* Small type shared by the pieces. */
+.st-tag {
+  font-family:    var(--st-label);
+  font-weight:    700;
+  font-size:      12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color:          var(--st-trim);
+  white-space:    nowrap;
+  overflow:       hidden;
+  text-overflow:  ellipsis;
+}
+.st-txt {
+  font-family: var(--st-label);
+  font-weight: 600;
+  font-size:   14px;
+  line-height: 1.25;
+  color:       rgba(var(--text-color-rgb), 0.78);
+  max-height:  36px;
+  overflow:    hidden;
+}
+.st-who {
+  font-family:    var(--st-label);
+  font-weight:    700;
+  font-size:      11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color:          var(--text-color);
+  margin-top:     3px;
+  white-space:    nowrap;
+  overflow:       hidden;
+  text-overflow:  ellipsis;
+}
+.st-big,
+.st-v {
+  font-family:          var(--st-num);
+  font-variant-numeric: tabular-nums;
+  line-height:          1;
+  color:                var(--text-color);
+  white-space:          nowrap;
+  overflow:             hidden;
+  padding-block:        0.1em;   /* room for the glyphs under overflow: hidden */
+  margin-block:         -0.1em;
+  text-shadow:          0 2px 6px rgba(0,0,0,0.7);
+}
+.st-unit { font-size: 0.55em; margin-left: 0.05em; opacity: 0.75; }
+.stats-panel .trail { color: rgba(var(--text-color-rgb), 0.42); }
+.st-lab {
+  font-family:    var(--font);
+  font-size:      15px;
+  letter-spacing: 0.06em;
+  color:          var(--text-color);
+  text-align:     center;
+  white-space:    nowrap;
+  overflow:       hidden;
+  text-overflow:  ellipsis;
+}
+
+/* The summary: a sentence in a lit box. */
+.st-story {
+  flex-shrink:   0;
+  padding:       11px 18px 13px;
+  border-radius: 10px;
+  background:
+    radial-gradient(ellipse 70% 120% at 50% 0%, rgba(var(--st-trim-rgb), 0.12), transparent 70%),
+    var(--pill-bg, rgba(255,255,255,0.06));
+  box-shadow: inset 0 0 0 1px rgba(var(--st-trim-rgb), 0.28), 0 2px 8px rgba(0,0,0,0.4);
+}
+.st-say {
+  margin-top:  5px;
+  font-family: var(--font);
+  font-size:   21px;
+  line-height: 1.28;
+  color:       rgba(var(--text-color-rgb), 0.92);
+  max-height:  81px;   /* three lines; a longer one steps down to fit */
+  overflow:    hidden;
+}
+.st-say em,
+.st-line em { font-style: normal; color: var(--st-trim); }
+
+/* Callouts, two (or four) side by side. */
+.st-grid {
+  flex-shrink:           0;
+  display:               grid;
+  grid-template-columns: 1fr 1fr;
+  gap:                   9px;
+}
+.st-box {
+  position:      relative;
+  overflow:      hidden;
+  min-width:     0;
+  padding:       9px 15px 10px;
+  border-radius: 10px;
+  background:    var(--pill-bg, rgba(255,255,255,0.06));
+  box-shadow:    0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+.st-box .st-big { font-size: 34px; margin-top: 3px; }
+.st-box .st-txt { margin-top: 3px; }
+.st-box.lead-r  { text-align: right; }
+.st-box.small   { padding: 7px 13px 8px; }
+.st-box.small .st-big { font-size: 28px; margin-top: 2px; }
+.st-box.small .st-txt { font-size: 12.5px; max-height: 32px; }
+
+/* The lead edges: 3px bars, wiped down as the piece lands (side-panel.js). */
+.st-box::before,
+.st-box::after {
+  content:          "";
+  position:         absolute;
+  top:              0;
+  bottom:           0;
+  width:            3px;
+  transform-origin: top;
+  pointer-events:   none;
+}
+.st-box::before { left:  0; background: var(--edge-l, transparent); }
+.st-box::after  { right: 0; background: var(--edge-r, transparent); }
+
+/* The facts strip: the stage's picture (when a stage set is installed), then label over value per cell. */
+.st-facts {
+  flex-shrink:   0;
+  display:       flex;
+  align-items:   center;
+  gap:           14px;
+  height:        58px;
+  padding:       0 16px;
+  border-radius: 10px;
+  background:    var(--pill-bg, rgba(255,255,255,0.06));
+  box-shadow:    0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+.st-facts.with-pic { padding-left: 9px; }
+.st-thumb {
+  flex-shrink:   0;
+  width:         72px;
+  height:        42px;
+  border-radius: 7px;
+  background:    center / cover no-repeat;
+  box-shadow:    0 0 0 1px rgba(var(--text-color-rgb), 0.16), 0 3px 8px rgba(0,0,0,0.5);
+}
+.st-fact      { flex: 1; min-width: 0; }
+.st-fact.long { flex: 1.8; }   /* a stage name: the room the short ones don't need */
+.st-fact-lab {
+  font-family:    var(--st-label);
+  font-weight:    700;
+  font-size:      10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color:          var(--darkened-text);
+  white-space:    nowrap;
+}
+.st-fact-val {
+  font-family:   var(--font);
+  font-size:     21px;
+  height:        26px;          /* a fitted (smaller) value keeps its line, so the cells stay level */
+  line-height:   26px;
+  color:         var(--text-color);
+  margin-top:    2px;
+  white-space:   nowrap;
+  overflow:      hidden;
+  text-overflow: ellipsis;
+  text-shadow:   0 1px 4px rgba(0,0,0,0.6);
+}
+
+/* A stat: the numbers either side, the label and the set's between. */
+.panel-pill.st-pill {
+  display:               grid;
+  grid-template-columns: 96px minmax(0, 1fr) 96px;
+  max-height:            66px;
+  padding:               0 18px;
+}
+.st-pill .st-v,
+.st-share .st-v { font-size: 30px; }
+.st-v.r { text-align: right; }
+.st-k   { min-width: 0; text-align: center; }
+.st-set {
+  font-family:    var(--st-label);
+  font-weight:    700;
+  font-size:      10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color:          rgba(var(--text-color-rgb), 0.45);
+  margin-top:     3px;
+  white-space:    nowrap;
+}
+
+/* A stat as a share: the bar split where each player's part of it meets. */
+.panel-pill.st-share {
+  flex-direction:  column;
+  align-items:     stretch;
+  justify-content: center;
+  gap:             8px;
+  max-height:      78px;
+  padding:         0 18px;
+}
+.st-share-row {
+  display:               grid;
+  grid-template-columns: 96px minmax(0, 1fr) 96px;
+  align-items:           center;
+}
+.st-bar {
+  --p:           50%;
+  --bar-l:       rgba(var(--text-color-rgb), 0.2);
+  --bar-r:       rgba(var(--text-color-rgb), 0.2);
+  height:        7px;
+  border-radius: 4px;
+  background: linear-gradient(90deg,
+    var(--bar-l) 0, var(--bar-l) calc(var(--p) - 2px),
+    transparent calc(var(--p) - 2px), transparent calc(var(--p) + 2px),
+    var(--bar-r) calc(var(--p) + 2px), var(--bar-r) 100%);
+}
+.st-share.lead-l .st-bar { --bar-l: var(--st-trim); }
+.st-share.lead-r .st-bar { --bar-r: var(--st-trim); }
+
+/* The reel: one callout at a time, big, its dots under it. */
+.st-reel {
+  flex-shrink:    0;
+  height:         168px;
+  display:        flex;
+  flex-direction: column;
+  padding:        14px 20px 12px;
+  border-radius:  12px;
+  background:
+    radial-gradient(ellipse 60% 100% at 50% 0%, rgba(var(--st-trim-rgb), 0.16), transparent 70%),
+    var(--pill-bg, rgba(255,255,255,0.06));
+  box-shadow: inset 0 0 0 1px rgba(var(--st-trim-rgb), 0.3), 0 2px 8px rgba(0,0,0,0.4);
+}
+.st-reel-item {
+  flex:                  1;
+  min-height:            0;
+  display:               grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  align-items:           center;
+  gap:                   14px;
+}
+.st-reel-item .st-big { font-size: 62px; text-align: center; }
+.st-reel-text         { min-width: 0; }
+.st-reel-item .st-tag { font-size: 13px; }
+.st-reel-item .st-txt { font-size: 18px; line-height: 1.22; max-height: 66px; margin-top: 4px; color: rgba(var(--text-color-rgb), 0.88); }
+.st-reel-item .st-who { font-size: 12.5px; margin-top: 6px; }
+.st-reel-item.lead-l .st-who::before,
+.st-reel-item.lead-r .st-who::before {
+  content:        "";
+  display:        inline-block;
+  width:          7px;
+  height:         7px;
+  margin-right:   8px;
+  border-radius:  50%;
+  vertical-align: 1px;
+  background:     var(--st-trim);
+  box-shadow:     0 0 10px rgba(var(--st-trim-rgb), 0.9);
+}
+.st-dots { display: flex; justify-content: center; gap: 7px; padding-top: 8px; }
+.st-dots i {
+  width:         22px;
+  height:        3px;
+  border-radius: 2px;
+  background:    rgba(var(--text-color-rgb), 0.18);
+  transition:    background-color 300ms;
+}
+.st-dots i.on { background: var(--st-trim); }
+
+/* A ledger: big numbers outside, small ones inside, the label between. */
+.st-ledger {
+  flex:           1 1 auto;
+  min-height:     0;
+  display:        flex;
+  flex-direction: column;
+}
+.st-row {
+  flex:                  1 1 0;
+  min-height:            30px;
+  max-height:            42px;
+  display:               grid;
+  grid-template-columns: 76px 70px minmax(0, 1fr) 70px 76px;
+  align-items:           center;
+  border-top:            1px solid rgba(var(--text-color-rgb), 0.08);
+}
+.st-row.st-cap  { flex: none; min-height: 0; height: 18px; border-top: 0; }
+.st-row .st-v   { font-size: 27px; }
+.st-row .st-v.l { text-align: left; }
+.st-c {
+  font-family:    var(--st-label);
+  font-weight:    700;
+  font-size:      10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color:          var(--darkened-text);
+  text-align:     center;
+  white-space:    nowrap;
+}
+.st-c.l { text-align: left; }
+.st-c.r { text-align: right; }
+.st-small {
+  font-family: var(--st-num);
+  font-size:   16px;
+  color:       rgba(var(--text-color-rgb), 0.45);
+  text-align:  center;
+  white-space: nowrap;
+}
+.st-spark          { display: inline-block; vertical-align: middle; overflow: visible; }
+.st-spark polyline { fill: none; stroke: rgba(var(--text-color-rgb), 0.45); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.st-spark circle   { fill: rgba(var(--text-color-rgb), 0.55); }
+.st-spark circle.hi { fill: var(--st-trim); }
+.st-ledger.recap .st-row        { max-height: 46px; }
+.st-ledger.recap .st-row .st-v  { font-size: 30px; }
+
+/* The box score's summary, on a line of its own. */
+.st-line {
+  flex-shrink: 0;
+  font-family: var(--font);
+  font-size:   17px;
+  line-height: 1.25;
+  text-align:  center;
+  color:       rgba(var(--text-color-rgb), 0.88);
+  max-height:  44px;
+  overflow:    hidden;
+  padding:     0 6px;
+}

@@ -14,11 +14,17 @@
  * to the head-to-head, and every card showing it says so ("Powered by
  * LuckyStats.gg").
  *
+ * Two more cards come from the stats popup's numbers (the `setStats`
+ * section, lib/set-stats/): Last Game, in three looks that take turns — the
+ * next one each time the card comes on screen — and Set Recap, once a second
+ * game is counted. Neither shows while the popup is up.
+ *
  * A crew battle (the scoreboard's `crew` section) swaps the stats cards for
  * the two crews' rosters, each after a logo: every member with what they last
  * played and their stocks left, the one playing now lit, the eliminated greyed.
  *
  *   ?panel=<id>       hold one panel instead of rotating (for styling)
+ *   ?look=<id>        with ?panel=last-game: hold one look (story, reel, box)
  *   ?animate=false    still the theme pack's background flair
  *
  * tests/side-panel.test.js runs this file against the real store, channel
@@ -37,10 +43,11 @@
   const HOLD_PANEL     = param("panel");
 
   // A crew battle has only the logos and the crews; a set never has the crews.
+  // The two stats cards sit either side of the sponsor's logo, never back to back.
   const PANEL_ORDER = [
     "logo-primary", "crew-1",
-    "player-1", "player-2", "recent-sets",
-    "logo-sponsor", "crew-2", "completed-sets",
+    "player-1", "player-2", "recent-sets", "last-game",
+    "logo-sponsor", "crew-2", "set-recap", "completed-sets",
   ];
 
   // Resting states, as inline style. Motion lives in the keyframes below.
@@ -60,8 +67,8 @@
   const BEAT_IN_MS   = TEXT.inMs;   // the overlays' one text motion (overlay-client.js)
   const BEAT_IN      = TEXT.in;
   const BAR_MS       = 900;     // the projection bar filling from even to the odds
-  const EDGE_MS      = 420;     // a result pill's W/L edges wiping down
-  const EDGED        = ["win", "loss", "p1win", "p2win"];
+  const EDGE_MS      = 420;     // a result pill's W/L edges wiping down (and a stats card's lead edge)
+  const EDGED        = ["win", "loss", "p1win", "p2win", "lead-l", "lead-r"];
   const RULE_MS      = 560;     // a header's hairlines drawing out from its label
   // The stagger speeds up: each gap is GAP_DECAY of the last, down to a
   // floor, and a long panel's cascade is squeezed to fit its cap — a wave,
@@ -78,8 +85,10 @@
   const SURFACE_IN_MS  = 440;
   const SURFACE_OUT_MS = 300;
 
-  let sb = null;     // state.scoreboard
-  let stats = null;  // the last `stats` event
+  let sb = null;         // state.scoreboard
+  let stats = null;      // the last `stats` event
+  let setStats = null;   // state.setStats — the stats popup's numbers
+  let statsShot = null;  // state.statsShot — whether the popup is up
 
   // ── Views ───────────────────────────────────────────────────────────────────
   //
@@ -206,6 +215,28 @@
     return historyView(i).length > 0 || runView(i).length > 0;
   }
 
+  /** The popup up — with stats, as the players bar reads it — has the same numbers on screen already. */
+  const popupUp = () => Boolean(statsShot?.shown && setStats?.available);
+
+  /**
+   * What a stats card reads, for one reading — "game" (Last Game) or "set"
+   * (Set Recap, from the second counted game: with one, it's the game again)
+   * — or null. Left and right are the scoreboard's columns now: set-view.js
+   * builds them from each game's ports, which Switch Sides reverses.
+   */
+  function statsView(mode) {
+    const d = setStats;
+    if (!d?.available || isDoubles() || isCrew() || !d.games?.length) return null;
+    if (mode === "set" && d.counted < 2) return null;
+    const last = d.games[d.games.length - 1];
+    return {
+      mode, key: d.key, round: d.round, format: d.format, bestOf: d.bestOf, over: !!d.over,
+      total: d.total, counted: d.counted, last: mode === "game" ? last : { n: last.n },
+      stats: d.stats ?? {}, rows: d.rows ?? {},
+      ins: d.insights?.[mode] ?? [], stories: d.stories?.[mode] ?? [], facts: d.facts?.[mode] ?? [],
+    };
+  }
+
   function slotHasContent(id) {
     switch (id) {
       case "logo-primary":
@@ -216,6 +247,8 @@
       case "player-2":       return !isDoubles() && !isCrew() && hasPlayerCard(1);
       case "recent-sets":    return !isDoubles() && !isCrew() && h2hCardView() !== null;
       case "completed-sets": return !isCrew() && completedView().length > 0;
+      case "last-game":      return !popupUp() && statsView("game") !== null;
+      case "set-recap":      return !popupUp() && statsView("set") !== null;
       default:               return false;
     }
   }
@@ -263,10 +296,10 @@
   // ── Beats ───────────────────────────────────────────────────────────────────
   //
   // An info panel animates as its rows, never as a whole. Each row that's
-  // showing is a beat; the lists (and the head-to-head's header block) open
-  // up into their own rows.
+  // showing is a beat; the lists (and the head-to-head's header block, and a
+  // stats card's grids and ledgers) open up into their own rows.
 
-  const BEAT_GROUPS = ["run-list", "history-list", "sets-list", "completed-list", "crew-list", "h2h-header"];
+  const BEAT_GROUPS = ["run-list", "history-list", "sets-list", "completed-list", "crew-list", "h2h-header", "beat-group"];
 
   /** Element children only (the test sandbox's `children` holds text nodes too). */
   const elementsOf = (el) => Array.from(el.children).filter((c) => c.nodeType === 1);
@@ -293,7 +326,8 @@
       tween(b, [pose(rest, { ...BEAT_IN, opacity: 0 }), pose(rest)], SHOWN,
         { duration: ms(BEAT_IN_MS), delay: delays[i], easing: ease("out") });
       if (b.classList.contains("panel-header") || b.classList.contains("lucky-credit")) drawRules(b, delays[i]);
-      if (b.classList.contains("h2h-projection")) fillBar(b, delays[i]);
+      if (b.classList.contains("h2h-projection")) fillBar(b.querySelector(".prob-bar"), delays[i]);
+      if (b.classList.contains("st-share")) fillBar(b.querySelector(".st-bar"), delays[i]);
       if (EDGED.some((c) => b.classList.contains(c))) wipeEdges(b, delays[i]);
     });
   }
@@ -306,9 +340,8 @@
     }
   }
 
-  /** The projection bar fills from even to the left player's chance once its row is arriving. */
-  function fillBar(row, delay) {
-    const bar = row.querySelector(".prob-bar");
+  /** A bar (the projection, a stats card's share) fills from even to its split once its row is arriving. */
+  function fillBar(bar, delay) {
     const to = bar ? bar.style.getPropertyValue("--p") : "";
     if (!to) return;
     stopAnims(bar);
@@ -554,6 +587,8 @@
       }
       delete this._busy[id];
       this._flush(id); // a render held while it was leaving is drawn before it shows
+      // A stats card takes its next look now, drawn while it's still hidden.
+      if (BEFORE_SHOW[id]) BEFORE_SHOW[id]();
       const allGone = outEnds.length ? Math.max(...outEnds) : 0;
 
       // In. A logo arrives whole once everything has gone. An info panel
@@ -896,6 +931,329 @@
     return true;
   }
 
+  // ── Stats cards ─────────────────────────────────────────────────────────────
+  //
+  // The stats popup's numbers, made for the card. Last Game has three looks
+  // that take turns, the next one each time the card comes on screen:
+  //   story  the summary, two callouts, the game's facts, three stats
+  //   reel   the callouts one at a time, share bars, the facts
+  //   box    four callouts, a ledger, the summary in a line, the facts
+  // Set Recap is the set's ledger (each player's line across the games), its
+  // summary, two callouts and its facts.
+  //
+  // Each showing also starts further down the callouts and summaries, so a
+  // game shown four times reads four ways; a new game starts from the best
+  // again. No names, characters or score — the scoreboard has them: left and
+  // right are its columns, and a callout says whose it is.
+
+  const GAME_LOOKS = ["story", "reel", "box"];
+  const PIN_LOOK   = GAME_LOOKS.includes(param("look")) ? param("look") : null;
+  const REEL_MS    = 5000;   // a dwell: each callout on the reel
+
+  /** Per card: showings so far, the look, and where in the callouts and summaries this showing starts. */
+  const shows = {
+    "last-game": { n: 0, look: PIN_LOOK || GAME_LOOKS[0], key: null, from: 0, used: 0, story: 0 },
+    "set-recap": { n: 0, key: null, from: 0, used: 0, story: 0 },
+  };
+
+  /** Called by the rotator as a panel comes on screen, while it's still hidden. */
+  const BEFORE_SHOW = {
+    "last-game": () => nextShowing("last-game"),
+    "set-recap": () => nextShowing("set-recap"),
+  };
+
+  function nextShowing(id) {
+    const s = shows[id];
+    const v = statsView(id === "last-game" ? "game" : "set");
+    if (!v) return;
+    const key = `${v.key}|${v.counted}`;
+    if (s.key === key) { s.from += s.used; s.story++; }
+    else { s.key = key; s.from = 0; s.story = 0; }
+    s.n++;
+    if (id === "last-game") {
+      s.look = PIN_LOOK || GAME_LOOKS[(s.n - 1) % GAME_LOOKS.length];
+      renderGameCard();
+    } else {
+      renderSetRecap();
+    }
+  }
+
+  /** Up to n of the callouts, from where this showing starts (wrapping); remembers how many it took. */
+  function take(list, s, n) {
+    const k = Math.min(n, list.length);
+    s.used = k;
+    const from = list.length ? s.from % list.length : 0;
+    return Array.from({ length: k }, (_, i) => list[(from + i) % list.length]);
+  }
+  const storyOf = (v, s) => (v.stories.length ? v.stories[s.story % v.stories.length] : null);
+
+  /** The keys a card asks for that the set has, topped up from the rest. */
+  const FALLBACK_KEYS = ["neutral", "opk", "dpo", "damage", "kills", "punish", "counter", "combo", "earliest", "lcancel", "avgkill", "ipm"];
+  function keysFor(v, prefer) {
+    const out = prefer.filter((k) => v.rows[k] && v.stats[k]);
+    for (const k of FALLBACK_KEYS) if (out.length < prefer.length && v.rows[k] && v.stats[k] && !out.includes(k)) out.push(k);
+    return out;
+  }
+
+  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const sideCls = (side) => (side === 0 ? " lead-l" : side === 1 ? " lead-r" : "");
+  const fixed = (v, dp) => Number(v).toFixed(dp);
+  /** A stat's number at the game's (0) or the set's (1) decimals, "–" when there isn't one. */
+  const statText = (st, v, set) => (v == null ? "–" : fixed(v, st.dp[set]));
+  const withPct = (st, v, set) => statText(st, v, set) + (v != null && st.unit === "%" ? "%" : "");
+  const SET_WORD = { avg: "Set avg", max: "Set best", min: "Set best", sum: "Set total" };
+
+  /** A number with its unit small beside it. */
+  function numEl(cls, value, unit) {
+    const el = h("div", cls, value == null ? "–" : String(value));
+    if (unit && value != null) el.appendChild(h("span", "st-unit", unit));
+    return el;
+  }
+  const statEl = (st, v, set, cls) => numEl(cls, v == null ? null : statText(st, v, set), st.unit);
+
+  /** A sentence from segments ({ t } plain, { em } lit) — never parsed as markup. */
+  function sentence(cls, segs) {
+    const el = h("div", cls);
+    for (const s of segs || []) el.appendChild(s.em != null ? h("em", null, String(s.em)) : document.createTextNode(String(s.t ?? "")));
+    return el;
+  }
+
+  function titleBeats(panel, v) {
+    const set = v.mode === "set";
+    const format = v.bestOf ? `Best of ${v.bestOf}` : (v.format && v.format !== "None" ? v.format : "");
+    const sub = [v.round, set ? plural(v.total, "game") : format].filter(Boolean).join(" · ");
+    panel.appendChild(h("div", "st-name", set ? (v.over ? "Set Complete" : "The Set So Far") : `Game ${v.last.n}`));
+    if (sub) panel.appendChild(h("div", "panel-header st-sub", sub));
+  }
+
+  const storyLabel = (v) => (v.mode === "set" ? `The set · ${plural(v.total, "game")}` : `The story of game ${v.last.n}`);
+  function storyCard(v, segs) {
+    const box = h("div", "st-story");
+    box.append(h("div", "st-tag", storyLabel(v)), sentence("st-say", segs));
+    return box;
+  }
+
+  /** A callout: its title, number and line, and whose it is — edged on that player's side. */
+  function calloutBox(x, extra) {
+    const box = h("div", `st-box${sideCls(x.side)}${extra ? " " + extra : ""}`);
+    box.append(h("div", "st-tag", x.tag), numEl("st-big", x.big, x.unit), h("div", "st-txt", x.text));
+    if (x.who) box.appendChild(h("div", "st-who", x.who));
+    return box;
+  }
+  function grid(items, extra) {
+    const g = h("div", "st-grid beat-group" + (extra ? " " + extra : ""));
+    items.forEach((x) => g.appendChild(x));
+    return g;
+  }
+
+  /** The stage's picture, when a stage set is installed (the dock's Setup → Art packs). */
+  function stagePic(game) {
+    const pics = game?.stage?.pics;
+    return pics ? Object.values(pics).find(Boolean) ?? null : null;
+  }
+
+  /** The facts in a strip — for the last game, after its stage's picture. */
+  function factsRow(v, n) {
+    const pic = v.mode === "game" ? stagePic(v.last) : null;
+    const row = h("div", "st-facts" + (pic ? " with-pic" : ""));
+    if (pic) row.appendChild(h("i", "st-thumb")).style.backgroundImage = `url("${pic}")`;
+    for (const f of v.facts.slice(0, n)) {
+      const cell = row.appendChild(h("div", "st-fact" + (String(f.val).length > 11 ? " long" : "")));
+      cell.append(h("div", "st-fact-lab", f.lab), h("div", "st-fact-val", f.val));
+    }
+    return row;
+  }
+
+  /** One stat: the game's numbers either side, the label and the set's between. */
+  function statPill(v, key) {
+    const st = v.stats[key], r = v.rows[key], lead = r.lead.g;
+    const pill = h("div", `panel-pill st-pill${sideCls(lead)}`);
+    const mid = h("div", "st-k");
+    mid.appendChild(h("div", "st-lab", st.label));
+    const sub = v.counted >= 2 ? `${SET_WORD[st.agg] || "Set"} ${withPct(st, r.s[0], 1)} – ${withPct(st, r.s[1], 1)}` : (st.hint || "");
+    if (sub) mid.appendChild(h("div", "st-set", sub));
+    pill.append(statEl(st, r.g[0], 0, "st-v" + (lead === 1 ? " trail" : "")), mid, statEl(st, r.g[1], 0, "st-v r" + (lead === 0 ? " trail" : "")));
+    return pill;
+  }
+
+  /** One stat as a share: the numbers either side, and a bar split by how much of it each had. */
+  function sharePill(v, key) {
+    const st = v.stats[key], r = v.rows[key], lead = r.lead.g;
+    const pill = h("div", `panel-pill st-share${sideCls(lead)}`);
+    const row = pill.appendChild(h("div", "st-share-row"));
+    row.append(statEl(st, r.g[0], 0, "st-v" + (lead === 1 ? " trail" : "")), h("div", "st-lab", st.label), statEl(st, r.g[1], 0, "st-v r" + (lead === 0 ? " trail" : "")));
+    const [a, b] = r.g.map((x) => Math.max(0, Number(x) || 0));
+    let p = a + b > 0 ? a / (a + b) : 0.5;
+    if (st.better === "lo" && a + b > 0) p = 1 - p; // fewer is better: the bar is who did better
+    pill.appendChild(h("div", "st-bar")).style.setProperty("--p", `${(p * 100).toFixed(1)}%`);
+    return pill;
+  }
+
+  const SVG = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs) {
+    const el = document.createElementNS(SVG, tag);
+    for (const [k, val] of Object.entries(attrs)) el.setAttribute(k, String(val));
+    return el;
+  }
+
+  /** A player's line across the set's games, their best game marked. */
+  function spark(r, side, st, W = 66, H = 22) {
+    const vals = r.pg?.[side] ?? [];
+    const all = (r.pg ?? []).flat().filter((n) => n != null);
+    const mine = vals.filter((n) => n != null);
+    if (!all.length || !mine.length) return h("div", "st-small", "–");
+    const lo = Math.min(...all), hi = Math.max(...all);
+    const x = (i) => 3 + i * ((W - 6) / Math.max(1, vals.length - 1));
+    const y = (n) => H - 3 - (hi === lo ? 0.5 : (n - lo) / (hi - lo)) * (H - 6);
+    const best = st.better === "lo" ? Math.min(...mine) : Math.max(...mine);
+    const svg = svgEl("svg", { class: "st-spark", width: W, height: H, viewBox: `0 0 ${W} ${H}` });
+    svg.appendChild(svgEl("polyline", { points: vals.map((n, i) => (n == null ? null : `${x(i).toFixed(1)},${y(n).toFixed(1)}`)).filter(Boolean).join(" ") }));
+    vals.forEach((n, i) => { if (n != null) svg.appendChild(svgEl("circle", { cx: x(i).toFixed(1), cy: y(n).toFixed(1), r: n === best ? 2.8 : 1.8, class: n === best ? "hi" : "" })); });
+    const wrap = h("div", "st-small");
+    wrap.appendChild(svg);
+    return wrap;
+  }
+
+  /**
+   * A ledger: a caption, then a row per stat — the big number on the outside,
+   * the small one inside, the label between. After a game: the game big and
+   * the set small. The recap: the set big and each player's line small.
+   */
+  function ledger(v, keys, extra) {
+    const set = v.mode === "set";
+    const t = h("div", "st-ledger beat-group" + (extra ? " " + extra : ""));
+    const big = set ? "Set" : `Game ${v.last.n}`;
+    const small = set ? "By game" : (v.counted >= 2 ? "Set" : "");
+    const cap = t.appendChild(h("div", "st-row st-cap"));
+    cap.append(h("div", "st-c l", big), h("div", "st-c", small), h("div"), h("div", "st-c", small), h("div", "st-c r", big));
+    for (const key of keys) {
+      const st = v.stats[key], r = v.rows[key];
+      const lead = set ? r.lead.s : r.lead.g;
+      const bigEl = (s) => statEl(st, set ? r.s[s] : r.g[s], set ? 1 : 0, `st-v ${s ? "r" : "l"}${lead === 1 - s ? " trail" : ""}`);
+      const smallEl = (s) => (set ? spark(r, s, st) : h("div", "st-small", v.counted >= 2 ? withPct(st, r.s[s], 1) : ""));
+      const row = t.appendChild(h("div", "st-row"));
+      row.append(bigEl(0), smallEl(0), h("div", "st-lab", st.label), smallEl(1), bigEl(1));
+    }
+    return t;
+  }
+
+  // The reel: one callout at a time, turning every REEL_MS while the card is
+  // on screen (a timer that stops itself once it isn't).
+  const reelRun = { timer: null };
+  function stopReel() { clearTimeout(reelRun.timer); reelRun.timer = null; }
+  function fillReelItem(node, x) {
+    node.className = "st-reel-item" + sideCls(x.side);
+    node.replaceChildren(numEl("st-big", x.big, x.unit));
+    const col = node.appendChild(h("div", "st-reel-text"));
+    col.append(h("div", "st-tag", x.tag), h("div", "st-txt", x.text));
+    if (x.who) col.appendChild(h("div", "st-who", x.who));
+    fitText(node.querySelector(".st-big"), 30);
+  }
+  function reelBox(ins) {
+    const box = h("div", "st-reel");
+    box.__items = ins;
+    draw(box.appendChild(h("div", "st-reel-item")), `${ins[0].id}|0`, (node) => fillReelItem(node, ins[0]));
+    const dots = box.appendChild(h("div", "st-dots"));
+    ins.forEach((_, i) => dots.appendChild(h("i", i === 0 ? "on" : null)));
+    return box;
+  }
+  function startReel() {
+    stopReel();
+    let i = 0;
+    const step = () => {
+      reelRun.timer = null;
+      const box = document.querySelector("#panel-last-game .st-reel");
+      const items = box?.__items;
+      if (rotator._current !== "last-game" || !items || items.length < 2) return;
+      i = (i + 1) % items.length;
+      const x = items[i];
+      swap(box.querySelector(".st-reel-item"), `${x.id}|${i}`, (node) => fillReelItem(node, x));
+      elementsOf(box.querySelector(".st-dots")).forEach((d, k) => d.classList.toggle("on", k === i));
+      reelRun.timer = setTimeout(step, REEL_MS);
+    };
+    reelRun.timer = setTimeout(step, REEL_MS);
+  }
+
+  const LOOKS = {
+    story(panel, v, s) {
+      titleBeats(panel, v);
+      const story = storyOf(v, s);
+      if (story) panel.appendChild(storyCard(v, story));
+      const ins = take(v.ins, s, 2);
+      if (ins.length) panel.appendChild(grid(ins.map((x) => calloutBox(x))));
+      panel.appendChild(factsRow(v, 3));
+      for (const key of keysFor(v, ["opk", "neutral", "punish"])) panel.appendChild(statPill(v, key));
+    },
+    reel(panel, v, s) {
+      titleBeats(panel, v);
+      const ins = take(v.ins, s, 4);
+      if (ins.length) panel.appendChild(reelBox(ins));
+      for (const key of keysFor(v, ["neutral", "damage", "counter", "dpo"])) panel.appendChild(sharePill(v, key));
+      panel.appendChild(factsRow(v, 3));
+    },
+    box(panel, v, s) {
+      titleBeats(panel, v);
+      const ins = take(v.ins, s, 4);
+      if (ins.length) panel.appendChild(grid(ins.map((x) => calloutBox(x, "small"))));
+      panel.appendChild(ledger(v, keysFor(v, ["kills", "opk", "neutral", "punish"])));
+      const story = storyOf(v, s);
+      if (story) panel.appendChild(sentence("st-line", story));
+      panel.appendChild(factsRow(v, 3));
+    },
+  };
+
+  /** Shrink a sentence in a box of fixed height until it fits (to 62% of its size). */
+  function fitBlock(el) {
+    el.style.fontSize = "";
+    const base = parseFloat(getComputedStyle(el).fontSize) || 16;
+    const floor = base * 0.62;
+    let size = base;
+    for (let i = 0; i < 12 && el.scrollHeight > el.clientHeight + 1 && size > floor; i++) {
+      size = Math.max(floor, size * 0.92);
+      el.style.fontSize = `${size.toFixed(1)}px`;
+    }
+  }
+  const each = (panel, sel, fn) => panel.querySelectorAll(sel).forEach(fn);
+  function fitCard(panel) {
+    for (const sel of [".st-say", ".st-line", ".st-txt"]) each(panel, sel, fitBlock);
+    each(panel, ".st-name", (n) => fitText(n, 24));
+    for (const sel of [".st-tag", ".st-who", ".st-lab", ".st-set", ".st-sub"]) each(panel, sel, (n) => fitText(n, 9));
+    for (const sel of [".st-big", ".st-v"]) each(panel, sel, (n) => fitText(n, 18));
+    each(panel, ".st-fact-val", (n) => fitText(n, 12));
+  }
+
+  function renderGameCard() {
+    const panel = document.getElementById("panel-last-game");
+    if (!panel) return;
+    stopReel();
+    const s = shows["last-game"];
+    const v = statsView("game");
+    panel.className = `info-panel stats-panel look-${s.look}`;
+    panel.dataset.look = s.look;
+    panel.replaceChildren();
+    if (!v) return;
+    LOOKS[s.look](panel, v, s);
+    fitCard(panel);
+    if (s.look === "reel") startReel();
+  }
+
+  function renderSetRecap() {
+    const panel = document.getElementById("panel-set-recap");
+    if (!panel) return;
+    const s = shows["set-recap"];
+    const v = statsView("set");
+    panel.replaceChildren();
+    if (!v) return;
+    titleBeats(panel, v);
+    panel.appendChild(ledger(v, keysFor(v, ["kills", "neutral", "opk", "dpo", "punish"]), "recap"));
+    const story = storyOf(v, s);
+    if (story) panel.appendChild(storyCard(v, story));
+    const ins = take(v.ins, s, 2);
+    if (ins.length) panel.appendChild(grid(ins.map((x) => calloutBox(x))));
+    panel.appendChild(factsRow(v, 4));
+    fitCard(panel);
+  }
+
   // Each panel remembers the slice it last drew and skips the rebuild when
   // that slice is unchanged — a score bump must not re-cascade the visible
   // panel, nor re-run fitText's measuring. A change goes through the rotator,
@@ -920,6 +1278,8 @@
     renderIfChanged("completed-sets", completedView(), renderCompletedSets);
     renderIfChanged("crew-1", crewView(0), () => renderCrew(0), () => patchCrew(0));
     renderIfChanged("crew-2", crewView(1), () => renderCrew(1), () => patchCrew(1));
+    renderIfChanged("last-game", statsView("game"), renderGameCard);
+    renderIfChanged("set-recap", statsView("set"), renderSetRecap);
     // After rendering: buildSlots can restart the rotation, and the panel it
     // fades in should already hold the new content.
     rotator.buildSlots();
@@ -992,11 +1352,14 @@
   ov.select("scoreboard", (s) => { sb = s; refresh(); });
   ov.select("tournament", (t) => setTournamentName(t?.name));
   ov.on("stats", (snap) => { stats = snap; refresh(); });
+  ov.select("setStats", (d) => { setStats = d; refresh(); });
+  ov.select("statsShot", (s) => { statsShot = s; refresh(); });
   ov.on("clip:saved", showClipToast);
   ov.ready.then(() => rotator.start());
 
   // For tests/side-panel.test.js, and for poking at from OBS's devtools.
   root.SidePanel = {
     rotator, historyView, runView, h2hView, completedView, luckyPlayer, projectionView, crewView, slotHasContent, scoreLabels, cascadeOffsets,
+    statsView, shows, GAME_LOOKS,
   };
 })(window);

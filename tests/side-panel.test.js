@@ -22,6 +22,10 @@
  * reported as a bare winner reads W/L on the winner's side; doubles shows no
  * player cards or head-to-head.
  *
+ * **The stats cards stuck on one look, or on screen twice.** Last Game must
+ * take its next look each time it comes on, and both stats cards stand down
+ * while the stats popup itself is up.
+ *
  * Usage: node tests/side-panel.test.js
  */
 
@@ -34,6 +38,7 @@ const { createOverlayChannel } = require("../app/lib/overlay/channel");
 const { loadPayload } = require("../app/lib/event/set-model");
 const { buildBracket } = require("../app/lib/event/bracket-model");
 const N = require("../app/lib/stats/normalize");
+const { buildSetView } = require("../app/lib/set-stats/set-view");
 const { eventFrom } = require("./helpers/fake-startgg");
 const { loadOverlay, fakeIo, texts, sleep, fire } = require("./helpers/overlay-sandbox");
 
@@ -112,6 +117,23 @@ function statsFor(payload, { cards = "done", h2h = "done", wins = [22, 8], h2hPa
     updatedAt: 0,
   };
 }
+
+/**
+ * A Slippi game recorded on the scoreboard, and the stats popup's numbers for
+ * the set rebuilt through the real set-view.js. Each port's numbers are
+ * game-stats.js's shape, written out (reading .slp files is set-stats' to check).
+ */
+const portStats = (port, o = {}) => ({ port, characterId: 2, costume: 0, kills: 4, damage: 400, opk: 5, dpo: 18, neutral: 20, counter: 5,
+  punish: 70, combo: 6, earliest: 90, avgkill: 110, lcancel: 85, ipm: 400, sd: 0, stocksLeft: 2, maxDeficit: 0, ...o });
+function playGame(store, winnerSide, file) {
+  const read = { ok: true, complete: true, stageId: 31, seconds: 200, players: {
+    0: portStats(0, winnerSide === 0 ? {} : { stocksLeft: 0, kills: 2 }),
+    3: portStats(3, { characterId: 9, ...(winnerSide === 1 ? {} : { stocksLeft: 0, kills: 2 }) }) } };
+  store.recordGame({ winnerSide, replay: { file, players: [[{ port: 0 }], [{ port: 3 }]] } });
+  played.set(file, read);
+  store.setSetStats(buildSetView(store.scoreboard(), (f) => played.get(f)));
+}
+const played = new Map();
 
 /** The store, the channel and the page, with `payload` on the scoreboard. */
 async function setup(payload, stats = statsFor(payload)) {
@@ -404,6 +426,39 @@ const plain = (v) => JSON.parse(JSON.stringify(v)); // the page's arrays are ano
     env.store.clearSet();
     await env.settle();
     assert.ok(!env.sp.rotator._slots.some((id) => id.startsWith("crew-")), "a roster stayed in the rotation");
+  });
+
+  // ── The stats cards ────────────────────────────────────────────────────────
+
+  await test("stats cards: Last Game takes its next look each time it comes on; Set Recap from the second game; neither while the popup is up", async () => {
+    const env = await setup(GRAND_FINAL);
+    env.store.clearScore(); // from 0–0: the captured final is already won
+    playGame(env.store, 0, "g1.slp");
+    await env.settle();
+    assert.ok(env.sp.rotator._slots.includes("last-game"), "a counted game, and no Last Game card");
+    assert.ok(!env.sp.rotator._slots.includes("set-recap"), "a recap of one game is that game again");
+
+    const looks = [];
+    for (let i = 0; i < 4; i++) {
+      env.sp.rotator._transitionTo("logo-primary", () => {});
+      env.sp.rotator._transitionTo("last-game", () => {});
+      looks.push(env.page.$("#panel-last-game").dataset.look);
+    }
+    assert.deepStrictEqual(looks, ["story", "reel", "box", "story"], "the card didn't take the next look each time it came on");
+    assert.ok(visibleText(env.page, "#panel-last-game").includes("Game 1"), "the card isn't about the game just played");
+
+    playGame(env.store, 1, "g2.slp");
+    await env.settle();
+    assert.ok(env.sp.rotator._slots.includes("set-recap"), "two counted games, and no Set Recap");
+    assert.ok(visibleText(env.page, "#panel-set-recap").includes("The Set So Far"));
+
+    // The popup up shows the same numbers: the cards stand down until it's gone.
+    env.store.setStatsShot({ shown: true, mode: "game" });
+    await env.settle();
+    assert.ok(!env.sp.rotator._slots.some((id) => id === "last-game" || id === "set-recap"), "a stats card stayed in the rotation under the popup");
+    env.store.setStatsShot({ shown: false });
+    await env.settle();
+    assert.ok(env.sp.rotator._slots.includes("last-game"));
   });
 
   await test("no stats at all (no token, nothing loaded) still rotates the logos", async () => {
