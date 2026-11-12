@@ -31,7 +31,8 @@
     if (v == null || v === false) return "";
     if (v instanceof Raw) return v.s;
     if (Array.isArray(v)) return v.map(esc).join("");
-    return String(v).replace(/[&<>"']/g, (c) => ESC[c]);
+    // A score (3–2) or range never splits at its dash: Chrome breaks a line after an en dash.
+    return String(v).replace(/[&<>"']/g, (c) => ESC[c]).replace(/(\d)–(?=\d)/g, "$1\u2060–\u2060");
   }
   function html(strings, ...vals) {
     let out = strings[0];
@@ -55,9 +56,6 @@
       { img: 1, filter: "saturate(0.85) contrast(1.12)" },
       { img: 1, filter: "sepia(1) saturate(5) hue-rotate(-25deg)", blend: "screen", o: 0.4, off: [7, 0], fx: "reg" },
       { fill: "repeating-linear-gradient(180deg, rgba(4,10,12,0.6) 0 2px, transparent 2px 5px)", fx: "scan" }] },
-    halftone: { opK: 1.25, pieces: [
-      { img: 1, filter: "grayscale(1) brightness(0.55)", o: 0.4 },
-      { img: 1, filter: "grayscale(1) sepia(0.7) contrast(1.45) brightness(1.2)", mask: "radial-gradient(circle, #000 2.4px, transparent 3.1px) 0 0 / 8px 8px" }] },
     riso:     { opK: 1.3, pieces: [
       { img: 1, filter: "grayscale(1) contrast(1.35) brightness(1.08)" },
       { fill: "#16404a", blend: "lighten" },
@@ -67,13 +65,6 @@
       { fill: "#f2a65a", off: [4, -3], fx: "rim" },
       { fill: "#0d1f25" },
       { img: 1, filter: "grayscale(1) brightness(1.6) contrast(1.3)", blend: "screen", o: 0.1 }] },
-    silLine:  { opK: 1.7, pieces: [
-      { fill: "#e08a3c", off: [-3, 0], fx: "rim" }, { fill: "#e08a3c", off: [3, 0], fx: "rim" }, { fill: "#e08a3c", off: [0, -3], fx: "rim" }, { fill: "#e08a3c", off: [0, 3], fx: "rim" },
-      { fill: "linear-gradient(180deg, #13282f, #0b1a1f 70%)" },
-      { img: 1, filter: "grayscale(1) brightness(1.5)", blend: "screen", o: 0.08 }] },
-    silCream: { opK: 1.2, pieces: [
-      { fill: "linear-gradient(180deg, rgba(245,219,162,0.95) 0%, rgba(245,219,162,0.75) 45%, rgba(224,138,60,0.55) 100%)" },
-      { img: 1, filter: "grayscale(1) contrast(1.6) brightness(1.05)", blend: "multiply", o: 0.55 }] },
     silSketch:{ opK: 1.1, pieces: [
       { fill: "#b0581a", off: [-2.5, 0], fx: "rim" }, { fill: "#b0581a", off: [2.5, 0], fx: "rim" }, { fill: "#b0581a", off: [0, -2.5], fx: "rim" }, { fill: "#b0581a", off: [0, 2.5], fx: "rim" },
       { fill: "linear-gradient(180deg, #f3e6c6, #e6d3a6)" },
@@ -123,7 +114,7 @@
     if (R.set) return { eyebrow: [d.round, `${d.total} ${d.total === 1 ? "game" : "games"}`].filter(Boolean).join(" · "), title: d.over ? "Set Complete" : "The Set So Far" };
     return { eyebrow: [d.round, d.bestOf ? `Best of ${d.bestOf}` : d.format].filter(Boolean).join(" · "), title: `Game ${R.last ? R.last.n : ""}` };
   }
-  const storyLabel = (R) => (R.set ? `The set · ${R.d.total} games` : `The story of game ${R.last ? R.last.n : ""}`);
+  const storyLabel = (R) => (R.set ? `The set · ${R.d.total} ${R.d.total === 1 ? "game" : "games"}` : `The story of game ${R.last ? R.last.n : ""}`);
   const story = (segs) => join((segs || []).map((s) => (s.em != null ? html`<em>${s.em}</em>` : s.t)));
   const val = (x) => html`${x.big}${x.unit ? html`<span class="u">${x.unit}</span>` : ""}`;
   const edge = (x) => (x.side === 0 ? "e-l" : x.side === 1 ? "e-r" : "");
@@ -229,11 +220,13 @@
 
   const title = (R, style) => { const t = titles(R); return html`<div class="ttl" style="${style}"><div class="eyebrow" data-beat data-fit>${t.eyebrow}</div><div class="title" data-beat>${t.title}</div></div>`; };
 
-  function stageCorner(R, style, r) {
+  /** `cls` "stack": the picture over the words, for a corner kept inside a narrow margin. */
+  // `attrs` (html``): the corner's own way in (data-fx …), instead of the text lift.
+  function stageCorner(R, style, r, cls = "", attrs = "") {
     const games = R.d.games;
     if (!R.set) {
       const s = R.last.stage || {};
-      return html`<div class="corner ${r ? "r" : ""}" data-corner style="${style}">
+      return html`<div class="corner ${r ? "r" : ""} ${cls}" data-corner ${attrs} style="${style}">
         ${s.pic ? html`<div class="thumb" style="background-image:url('${s.pic}')"></div>` : ""}
         <div><div class="lab">Stage</div><div class="cval" data-fit>${s.name || "—"}</div></div></div>`;
     }
@@ -241,14 +234,14 @@
     games.forEach((g) => { if (g.stage && g.stage.name) counts[g.stage.name] = (counts[g.stage.name] || 0) + 1; });
     const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
     const pics = games.filter((g) => g.stage && g.stage.pic);
-    return html`<div class="corner ${r ? "r" : ""}" data-corner style="${style}">
+    return html`<div class="corner ${r ? "r" : ""} ${cls}" data-corner ${attrs} style="${style}">
       ${pics.length ? html`<div class="thumbs">${join(pics.map((g) => html`<div class="thumb" style="background-image:url('${g.stage.pic}')"></div>`))}</div>` : ""}
       <div><div class="lab">${games.length} ${games.length === 1 ? "stage" : "stages"}</div><div class="cval" data-fit>${top ? `${top[0]}${top[1] > 1 ? ` ×${top[1]}` : ""}` : "—"}</div></div></div>`;
   }
-  function timeCorner(R, style, r = true) {
+  function timeCorner(R, style, r = true, cls = "", attrs = "") {
     const total = R.d.games.reduce((t, g) => t + (g.seconds || 0), 0);
     const len = R.set ? `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}` : R.last.len;
-    return html`<div class="corner ${r ? "r" : ""}" data-corner style="${style}">
+    return html`<div class="corner ${r ? "r" : ""} ${cls}" data-corner ${attrs} style="${style}">
       <div class="clock"></div>
       <div><div class="lab">${R.set ? "Set length" : "Game length"}</div><div class="cval time num">${len || "—"}</div></div></div>`;
   }
@@ -267,22 +260,32 @@
     if (st.better === "lo") l = 1 - l;
     return html`<div class="share"><i class="${w === 0 ? "on" : ""}" style="width:${(l * 100).toFixed(1)}%"></i><i class="${w === 1 ? "on" : ""}" style="width:${((1 - l) * 100).toFixed(1)}%"></i></div>`;
   }
+  /**
+   * One ledger row. `inner`: the big numbers inside, next to the label, and the
+   * small ones outside (the field notes, whose notes are written in the
+   * label's gap: `notes`, by row, from innerNotes()).
+   */
   function rowLedger(R, key, opts = {}) {
     const st = R.ST[key], w = R.lead(key);
-    return html`<div class="lr" data-beat>
-      <div class="g num l ${leadCls(w, 0)}">${w === 0 ? pip : ""}${R.big(key, 0)}</div><div class="s num">${R.small(key, 0)}</div>
-      <div class="k"><div class="lab">${st.label}</div>${st.hint && !opts.share ? html`<div class="hint">${st.hint}</div>` : ""}</div>
-      <div class="s num">${R.small(key, 1)}</div><div class="g num r ${leadCls(w, 1)}">${R.big(key, 1)}${w === 1 ? pip : ""}</div>${opts.share ? shareBar(R, key) : ""}</div>`;
+    const n = opts.notes && opts.notes[key];
+    const big = (s) => (n && n.side === s && NUM_MARK[n.kind] ? html`<span class="mk-at">${R.big(key, s)}${NUM_MARK[n.kind]}</span>` : R.big(key, s));
+    const g = (s) => html`<div class="g num ${s ? "r" : "l"} ${leadCls(w, s)}">${w === s && !s ? pip : ""}${big(s)}${w === s && s ? pip : ""}</div>`;
+    const sm = (s) => html`<div class="s num">${R.small(key, s)}</div>`;
+    const k = html`<div class="k"><div class="kl"><div class="lab">${st.label}</div>${st.hint && !opts.share ? html`<div class="hint">${st.hint}</div>` : ""}</div>${n ? noteIn(n) : ""}</div>`;
+    const cells = opts.inner ? [sm(0), g(0), k, g(1), sm(1)] : [g(0), sm(0), k, sm(1), g(1)];
+    return html`<div class="lr ${opts.inner ? "in" : ""}" data-beat>${cells}${opts.share ? shareBar(R, key) : ""}</div>`;
   }
-  function ledgerCap(R) {
+  function ledgerCap(R, inner) {
     const a = R.set ? "Set" : `Game ${R.last.n}`, b = R.set ? "By game" : "Set";
-    return html`<div class="cap" data-beat><div class="lab" style="text-align:right">${a}</div><div class="lab" style="text-align:center">${b}</div><div></div><div class="lab" style="text-align:center">${b}</div><div class="lab">${a}</div></div>`;
+    const A = (side) => html`<div class="lab" style="text-align:${side}">${a}</div>`, B = html`<div class="lab sm" style="text-align:center">${b}</div>`;
+    const cells = inner ? [B, A("right"), html`<div></div>`, A("left"), B] : [A("right"), B, html`<div></div>`, B, A("left")];
+    return html`<div class="cap" data-beat>${cells}</div>`;
   }
-  const ledger = (R, keys, opts) => html`${ledgerCap(R)}${join(keys.map((k) => rowLedger(R, k, opts)))}`;
+  const ledger = (R, keys, opts = {}) => html`${ledgerCap(R, opts.inner)}${join(keys.map((k) => rowLedger(R, k, opts)))}`;
 
   // Callouts, the spotlight strip, the highlight reel.
-  const mini = (x, cls = "", style = "") => html`<div class="mini ${edge(x)} ${cls}" data-beat style="${style}"><div class="ins-big num">${val(x)}</div><div><div class="ins-tag">${x.tag}</div><div class="ins-txt" data-fitbox>${x.text}</div><div class="ins-who">${x.who}</div></div></div>`;
-  const railMini = (x, style) => html`<div class="mini glass ${edge(x)}" data-beat style="${style}"><div class="ins-big num">${val(x)}</div><div><div class="ins-tag">${x.tag}</div><div class="ins-txt" data-fitbox>${x.text}</div></div></div>`;
+  const mini = (x, cls = "", style = "") => html`<div class="mini ${edge(x)} ${cls}" data-beat style="${style}"><div class="ins-big num" data-fit>${val(x)}</div><div><div class="ins-tag" data-fit>${x.tag}</div><div class="ins-txt" data-fitbox>${x.text}</div><div class="ins-who" data-fit>${x.who}</div></div></div>`;
+  const railMini = (x, style) => html`<div class="mini glass ${edge(x)}" data-beat style="${style}"><div class="ins-big num" data-fit>${val(x)}</div><div><div class="ins-tag" data-fit>${x.tag}</div><div class="ins-txt" data-fitbox>${x.text}</div></div></div>`;
   const sayItem = (segs, cls = "say") => html`<div class="${cls}" data-beat data-fitbox>${story(segs)}</div>`;
   const dotsFor = (id, n) => html`<div class="dots" data-dots="${id}">${join(Array.from({ length: n }, (_, i) => html`<i class="${i === 0 ? "on" : ""}"></i>`))}</div>`;
   const storyRot = (R, id, cls = "say") => ({ id, items: R.stories.map((s) => sayItem(s, cls)) });
@@ -290,34 +293,42 @@
     return html`<div class="strip glass" data-beat-card style="${style}"><div><div class="ins-tag" style="white-space:normal">${storyLabel(R)}</div>${dotsFor(id, R.stories.length)}</div><div data-rot="${id}">${R.stories.length ? sayItem(R.stories[0]) : ""}</div></div>`;
   }
 
-  // Field notes. A note goes in its player's margin, beside its row — never
-  // over that player's face (`faces`: each side's face height, window px).
-  function marginNotes(R, keys, firstRowTop, rh, { lx, rx, max = 4, faces = [] } = {}) {
-    const notes = [];
-    const clear = (x, i) => faces[x.side] == null || Math.abs(firstRowTop + i * rh + rh / 2 - faces[x.side]) > FACE_CLEAR;
+  // Field notes. Up to `max` handwritten notes, each in the gap between its
+  // row's label and its player's number (so never over a portrait), marked
+  // one of the layout's ways (`kinds`), no two alike while there are kinds to
+  // go round. No two on one row or saying the same, none a row from another on its side.
+  function innerNotes(R, keys, { kinds, max = 3 }) {
+    const used = [];
     R.ins.filter((x) => x.row && x.note && x.side >= 0 && keys.includes(x.row)).forEach((x) => {
       const i = keys.indexOf(x.row);
-      if (notes.length < max && clear(x, i) && !notes.some((n) => n.side === x.side && Math.abs(keys.indexOf(n.row) - i) < 2)) notes.push(x);
+      if (used.length < max && !used.some((n) => n.row === x.row || n.note === x.note || (n.side === x.side && Math.abs(keys.indexOf(n.row) - i) < 2))) used.push(x);
     });
-    const arrow = new Raw('<svg width="40" height="24" viewBox="0 0 40 24"><path pathLength="1" data-draw d="M3 18 C 13 4, 26 2, 37 11"/><path pathLength="1" data-draw d="M30 5 L 37 11 L 28 14"/></svg>');
-    return {
-      used: notes,
-      markup: join(notes.map((x) => {
-        const top = firstRowTop + keys.indexOf(x.row) * rh + rh / 2 - 22;
-        return html`<div class="fn hand ${x.side ? "r" : ""}" data-beat data-fx="write" style="top:${top}px;${x.side ? `right:${rx}px` : `left:${lx}px`}"><span>${x.note}</span>${arrow}</div>`;
-      })),
-    };
+    // Where the kinds start turns with the game, so the next game's notes are marked differently.
+    const start = R.set ? 0 : R.last ? R.last.n : 0;
+    const byRow = {};
+    used.forEach((x, i) => { byRow[x.row] = { side: x.side, text: x.note, kind: kinds[(start + i) % kinds.length] }; });
+    return { used, byRow };
   }
-  /** How far (px) a margin note's middle stays from a face's height: about a head. */
-  const FACE_CLEAR = 110;
-  /** Each side's face height in the window (a box offset `top` added), for the notes to keep clear of. */
-  const faceHeights = (R, P, top = 0) => [0, 1].map((s) => { const p = placed(R, s, P); return p ? p.fy + top : null; });
+  // A note's own stroke, beside its words: an arrow out to the number, a star.
+  const NOTE_MARK = {
+    arrow: new Raw('<svg class="nm" width="38" height="22" viewBox="0 0 40 24"><path pathLength="1" data-draw d="M3 18 C 13 4, 26 2, 37 11"/><path pathLength="1" data-draw d="M30 5 L 37 11 L 28 14"/></svg>'),
+    star: new Raw('<svg class="nm" width="24" height="24" viewBox="0 0 24 24"><path pathLength="1" data-draw d="M12 2.5 L17.6 20 L2.8 9.2 L21.2 9.2 L6.4 20 L12.5 3.6"/></svg>'),
+  };
+  // Or a stroke on the number itself, drawn once the words are written: circled, boxed, underlined.
+  const numMark = (cls, vb, d) => new Raw(`<svg class="mk ${cls}" data-beat data-fx="draw" data-delay="360" viewBox="${vb}" preserveAspectRatio="none"><path pathLength="1" data-draw d="${d}"/></svg>`);
+  const NUM_MARK = {
+    circle: numMark("ring", "0 0 100 50", "M60 5 C 30 1, 3 11, 5 27 C 7 43, 42 49, 68 45 C 91 41, 99 29, 94 17 C 89 6, 68 2, 44 6"),
+    box: numMark("box", "0 0 100 50", "M5 7 C 35 5, 70 6, 97 4 M 94 2 C 96 18, 95 34, 96 48 M 98 46 C 66 47, 34 46, 3 47 M 6 49 C 4 33, 5 18, 3 3"),
+    swash: numMark("swash", "0 0 100 16", "M2 9 C 22 2, 46 15, 70 7 C 82 3, 92 5, 98 10 M 14 14 C 40 11, 66 15, 88 13"),
+  };
+  const noteIn = (n) => html`<div class="an ${n.side ? "r" : "l"} ${n.kind}" data-beat data-fx="write" data-delay="160">${NOTE_MARK[n.kind] || ""}<span class="hand" data-fitbox>${n.text}</span></div>`;
   const uline = (w) => html`<svg width="${w}" height="14" viewBox="0 0 ${w} 14"><path pathLength="1" data-draw d="M4 9 C ${w * 0.25} 2, ${w * 0.55} 13, ${w - 4} 4"/></svg>`;
-  const stamp = (x, style, r) => html`<div data-beat data-fx="press" style="${style}"><div class="stamp-in" style="--r:${r}deg"><div class="ins-tag">${x.tag}</div><div class="ins-big num">${val(x)}</div><div class="ins-txt" data-fitbox>${x.text}${x.side >= 0 ? ` · ${x.who}` : ""}</div></div></div>`;
+  const stamp = (x, style, r) => html`<div data-beat data-fx="press" style="${style}"><div class="stamp-in" style="--r:${r}deg"><div class="ins-tag">${x.tag}</div><div class="ins-big num">${val(x)}</div><div class="ins-txt" data-fitbox>${x.text}</div>${x.who ? html`<div class="ins-who" data-fit>${x.who}</div>` : ""}</div></div>`;
   const rest = (list, used) => list.filter((x) => !used.includes(x));
 
   // ── The layouts ─────────────────────────────────────────────────────────────
 
+  const RANGER_MARKS = ["arrow", "star", "box"];
   const KEYS7 = ["kills", "damage", "opk", "dpo", "neutral", "punish", "lcancel"];
 
   const LAYOUTS = {
@@ -334,7 +345,7 @@
         return html`${title(R, at(368, 30, 800))}${corners(R)}
           ${strip(R, "story", at(318, 138, 900, 98))}
           <div class="surface glass sep-rows" data-beat-card style="${at(318, 250, 900)}padding:12px 30px 8px;--rh:54px">${ledger(R, keys)}</div>
-          <div style="${at(318, 698, 900, 100)}display:grid;grid-template-columns:repeat(3,1fr);gap:14px">${join(minis.map((x) => mini(x, "glass")))}</div>`;
+          <div style="${at(318, 696, 900, 118)}display:grid;grid-template-columns:repeat(3,1fr);gap:14px">${join(minis.map((x) => mini(x, "glass")))}</div>`;
       },
       rots: (R) => [storyRot(R, "story")],
     },
@@ -358,7 +369,7 @@
       rots: (R) => [storyRot(R, "story")],
     },
 
-    /** Field notes: the page is the window; halftone portraits printed in the margins under handwritten notes. */
+    /** Field notes: the page is the window; portraits printed in the margins under handwritten notes. */
     margins: {
       style: "cream", packs: ["CSProject_AltFull", "CSProject_MeleeFull", "full", "portrait"], skin: "page",
       por: { op: 0.66, tilt: "rotate(-3deg)", w: 520, fx: 200, fy: 340, scale: 1.75, mask: FADE(45, 100), wash: PAGE_WASH },
@@ -367,16 +378,15 @@
       render(R) {
         const t = titles(R), rh = 56, L = 206, top = L + 24, M = 300;
         const keys = keysFor(R, ["kills", "damage", "combo", "opk", "neutral", "punish", "earliest"]);
-        const notes = marginNotes(R, keys, top, rh, { lx: M - 146, rx: M - 146, faces: faceHeights(R, this.por) });
+        const notes = innerNotes(R, keys, { kinds: ["arrow", "circle", "swash"] });
         const stamps = rest(R.ins, notes.used).slice(0, 3);
         return html`<div class="rules" data-fx="rule" style="${at(0, top, 1536, keys.length * rh)}--rh:${rh}px"></div><div class="mrule" data-fx="rule" data-delay="120" style="left:${M}px"></div><div class="mrule" data-fx="rule" data-delay="120" style="right:${M}px"></div>
-          <div class="htitle hand" data-beat data-fx="write" style="${at(M + 30, 34)}">${t.title}${uline(250)}</div>
-          <div class="eyebrow" data-beat data-fit style="right:${M + 30}px;top:60px;max-width:520px;text-align:right">${t.eyebrow}</div>
+          <div class="htitle hand" data-beat data-fx="write" data-fit style="${at(M + 30, 34, 420)}white-space:nowrap">${t.title}${uline(250)}</div>
+          <div class="eyebrow" data-beat data-fit style="right:${M + 30}px;top:60px;max-width:440px;text-align:right">${t.eyebrow}</div>
           <div data-rot="story" style="${at(M + 30, 116, 876, 86)}">${R.stories.length ? sayItem(R.stories[0], "hsay") : ""}</div>
-          <div style="${at(M, L, 936)}--rh:${rh}px">${ledger(R, keys)}</div>
-          ${notes.markup}
-          ${join(stamps.map((x, i) => stamp(x, at(378 + i * 290, 640, 260, 140), [-3, 2, -1.5][i])))}
-          ${stageCorner(R, "left:30px;bottom:26px")}${timeCorner(R, "right:30px;bottom:26px")}`;
+          <div style="${at(M, L, 936)}--rh:${rh}px;--cols:80px 120px 1fr 120px 80px">${ledger(R, keys, { inner: true, notes: notes.byRow })}</div>
+          ${join(stamps.map((x, i) => stamp(x, at(378 + i * 290, 634, 260, 168), [-3, 2, -1.5][i])))}
+          ${stageCorner(R, "left:30px;bottom:26px;max-width:236px", false, "stack")}${timeCorner(R, "right:30px;bottom:26px;max-width:236px", true, "stack")}`;
       },
       rots: (R) => [storyRot(R, "story", "hsay")],
     },
@@ -390,25 +400,24 @@
       render(R) {
         const t = titles(R), rh = 54, L = 180, top = L + 24, M = 308;
         const keys = keysFor(R, KEYS7);
-        const notes = marginNotes(R, keys, top, rh, { lx: M - 146, rx: M - 146, max: 3, faces: faceHeights(R, this.por) });
+        const notes = innerNotes(R, keys, { kinds: RANGER_MARKS });
         const boxes = rest(R.ins, notes.used).slice(0, 2);
         let reel = rest(R.ins, boxes);
         if (reel.length < 2) reel = R.ins;
-        const box = (x, style) => html`<div data-beat style="${style}"><div class="box-in"><div class="ins-tag">${x.tag}</div><div class="ins-big num" style="margin-top:4px">${val(x)}</div><div class="ins-txt" data-fitbox>${x.text}</div></div></div>`;
+        const box = (x, style) => html`<div data-beat style="${style}"><div class="box-in"><div class="ins-tag">${x.tag}</div><div class="ins-big num" style="margin-top:4px" data-fit>${val(x)}</div><div class="ins-txt" data-fitbox>${x.text}</div>${x.who ? html`<div class="ins-who" data-fit>${x.who}</div>` : ""}</div></div>`;
         return html`<div class="clip" data-fx="settle" data-delay="-60" style="top:2px"></div>
           <div class="paper bare">
             <div class="rules" data-fx="rule" style="${at(0, top, 1492, keys.length * rh)}--rh:${rh}px"></div><div class="mrule" data-fx="rule" data-delay="120" style="left:${M}px"></div><div class="mrule" data-fx="rule" data-delay="120" style="right:${M}px"></div>
-            <div class="eyebrow" data-beat data-fit style="${at(M + 30, 30, 330)}font-size:12px">${["Ranger log", R.d.round].filter(Boolean).join(" · ")}</div>
-            <div class="htitle hand" data-beat data-fx="write" style="${at(M + 30, 54)}font-size:52px">${t.title}</div>
-            <div class="facts-patch" data-beat data-fx="write" style="${at(680, 30, 470)}display:grid;grid-template-columns:repeat(2,1fr);gap:10px 24px">${join(R.facts.map((f) => html`<div class="field"><div class="lab" style="font-size:10px">${f.lab}</div><div class="fv hand" data-fit>${f.val}</div></div>`))}</div>
-            <div style="${at(M + 10, L, 856)}--rh:${rh}px;--cols:110px 84px 1fr 84px 110px;--gs:36px">${ledger(R, keys, { share: true })}</div>
-            ${notes.markup}
-            ${reel.length ? html`<div data-beat-card style="${at(M + 30, 604, 420, 140)}"><div class="box-in reel-in" style="display:flex;flex-direction:column;padding:10px 18px"><div class="eyebrow" style="font-size:11px">Sighting of the ${R.set ? "set" : "game"}</div><div data-rot="reel" style="flex:1">${logItem(reel[0])}</div><div class="reel-foot"><div class="track"><i data-prog="reel"></i></div>${dotsFor("reel", reel.length)}</div></div></div>` : ""}
-            ${join(boxes.map((x, i) => box(x, at(M + 470 + i * 196, 604, 180, 140))))}
+            <div class="eyebrow" data-beat data-fit style="${at(M + 30, 30, 360)}font-size:14px">${["Ranger log", R.d.round].filter(Boolean).join(" · ")}</div>
+            <div class="htitle hand" data-beat data-fx="write" data-fit style="${at(M + 30, 54, 352)}font-size:52px;white-space:nowrap">${t.title}</div>
+            <div class="facts-patch" data-beat data-fx="write" style="${at(740, 30, 440)}display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 24px">${join(R.facts.map((f) => html`<div class="field"><div class="lab" style="font-size:13px">${f.lab}</div><div class="fv hand" data-fit>${f.val}</div></div>`))}</div>
+            <div style="${at(M + 10, L, 856)}--rh:${rh}px;--cols:72px 112px 1fr 112px 72px;--gs:36px">${ledger(R, keys, { share: true, inner: true, notes: notes.byRow })}</div>
+            ${reel.length ? html`<div data-beat-card style="${at(M + 30, 604, 420, 174)}"><div class="box-in reel-in" style="display:flex;flex-direction:column;padding:12px 18px 10px"><div class="eyebrow" style="font-size:13px">Sighting of the ${R.set ? "set" : "game"}</div><div data-rot="reel" style="flex:1">${logItem(reel[0])}</div><div class="reel-foot"><div class="track"><i data-prog="reel"></i></div>${dotsFor("reel", reel.length)}</div></div></div>` : ""}
+            ${join(boxes.map((x, i) => box(x, at(M + 470 + i * 202, 604, 192, 174))))}
           </div>`;
       },
       rots(R) {
-        const notes = marginNotes(R, keysFor(R, KEYS7), 180 + 24, 54, { max: 3, faces: faceHeights(R, this.por) }).used;
+        const notes = innerNotes(R, keysFor(R, KEYS7), { kinds: RANGER_MARKS }).used;
         const boxes = rest(R.ins, notes).slice(0, 2);
         let reel = rest(R.ins, boxes);
         if (reel.length < 2) reel = R.ins;
@@ -417,11 +426,28 @@
     },
   };
   function logItem(x) {
-    return html`<div style="display:grid;grid-template-columns:120px 1fr;align-items:center;height:100%"><div class="rb num" data-beat>${val(x)}</div><div><div class="ins-tag" data-beat>${x.tag}</div><div class="rt hand" data-beat data-fitbox>${x.text}</div><div class="ins-who" data-beat>${x.who}</div></div></div>`;
+    return html`<div style="display:grid;grid-template-columns:116px minmax(0,1fr);gap:14px;align-items:center;height:100%"><div class="rb num" data-beat data-fit>${val(x)}</div><div><div class="ins-tag" data-beat data-fit>${x.tag}</div><div class="rt hand" data-beat data-fitbox>${x.text}</div><div class="ins-who" data-beat data-fit>${x.who}</div></div></div>`;
   }
-  /** A callout big, its words beside it: the Tale of the tape's band. */
-  function tapeHero(x) {
-    return html`<div class="hi"><div class="hb num" data-beat>${val(x)}</div><div><div class="ins-tag" data-beat>${x.tag}${x.side >= 0 && x.who ? ` · ${x.who}` : ""}</div><div class="htx" data-beat data-fitbox>${x.text}</div></div></div>`;
+  // The Tale of the tape's band: the summaries and the callouts' long forms in
+  // turn (a summary, then two callouts), each a stub (its title, its number,
+  // whose it is, an arrow toward their side) beside its sentence.
+  const TAPE_MAX = 12;
+  function tapeItems(R) {
+    const S = R.stories, I = R.ins;
+    const out = [];
+    let s = 0, i = 0;
+    while (out.length < TAPE_MAX && (s < S.length || i < I.length)) {
+      if ((out.length % 3 === 0 && s < S.length) || i >= I.length) out.push(tapeStory(R, S[s++]));
+      else out.push(tapeCall(I[i++]));
+    }
+    return out;
+  }
+  const tapeItem = (cls, tag, big, who, say) => html`<div class="tb ${cls}"><div class="tb-stub"><div class="ins-tag" data-beat data-fit>${tag}</div><div class="tb-big num" data-beat data-fit>${big}</div>${who ? html`<div class="ins-who tb-who" data-beat>${who}</div>` : ""}</div><div class="tb-say" data-beat data-fitbox>${say}</div></div>`;
+  const tapeCall = (x) => tapeItem(x.side === 0 ? "l" : x.side === 1 ? "r" : "", x.tag, val(x), x.side >= 0 ? html`<span data-fit>${x.who}</span>` : "", x.long ? story(x.long) : x.text);
+  function tapeStory(R, segs) {
+    const sc = R.d.score || [0, 0];
+    const when = R.set ? (R.over ? "Final" : "So far") : `After game ${R.last ? R.last.n : ""}`;
+    return tapeItem("story", R.set ? "The set" : "The story", `${sc[0]}–${sc[1]}`, when, story(segs));
   }
 
   const KEYS8 = ["kills", "damage", "opk", "dpo", "neutral", "punish", "earliest", "lcancel"];
@@ -435,16 +461,17 @@
       motion: { por: "walkout", lead: 260 },
       render(R) {
         const keys = keysFor(R, KEYS8);
+        const band = tapeItems(R);
         const row = (key) => {
           const w = R.lead(key);
           return html`<div class="tape-row" data-beat data-fx="converge"><div class="tv num l ${leadCls(w, 0)}">${R.big(key, 0)}</div><div class="tk"><div class="lab">${R.ST[key].label}</div>${shareBar(R, key)}</div><div class="tv num r ${leadCls(w, 1)}">${R.big(key, 1)}</div></div>`;
         };
         return html`${title(R, at(368, 24, 800))}${corners(R)}
           <div class="surface glass" data-beat-card style="${at(498, 132, 540, 548)}padding:6px 22px">${join(keys.map(row))}</div>
-          ${R.ins.length ? html`<div class="hero tape-band" data-beat-card data-fx="rise" style="${at(168, 700, 1200, 132)}"><div data-rot="tape">${tapeHero(R.ins[0])}</div>
-            <div class="reel-foot"><div class="track"><i data-prog="tape"></i></div>${dotsFor("tape", R.ins.length)}</div></div>` : ""}`;
+          ${band.length ? html`<div class="tape-band" data-beat-card data-fx="rise" style="${at(328, 700, 880, 116)}"><div data-rot="tape">${band[0]}</div>
+            ${dotsFor("tape", band.length)}<div class="track"><i data-prog="tape"></i></div></div>` : ""}`;
       },
-      rots: (R) => [{ id: "tape", items: R.ins.map(tapeHero) }],
+      rots: (R) => [{ id: "tape", items: tapeItems(R) }],
     },
 
     /** Field notes: each player's portrait as a taped instant photo, their best callout as its caption; the ledger on ruled lines between. */
@@ -465,12 +492,12 @@
             ${x ? html`<div class="pcap hand" data-fitbox><span class="pbig num">${val(x)}</span> ${x.tag.toLowerCase()}<small>${x.text}</small></div>` : ""}</div></div>`;
         };
         return html`<div class="rules" data-fx="rule" style="${at(0, top, 1536, keys.length * rh)}--rh:${rh}px"></div>
-          <div class="htitle hand" data-beat data-fx="write" style="${at(430, 30)}">${t.title}${uline(250)}</div>
-          <div class="eyebrow" data-beat data-fit style="right:430px;top:58px;max-width:330px;text-align:right">${t.eyebrow}</div>
+          <div class="htitle hand" data-beat data-fx="write" data-fit style="${at(430, 30, 350)}white-space:nowrap">${t.title}${uline(250)}</div>
+          <div class="eyebrow" data-beat data-fit style="right:430px;top:58px;max-width:310px;text-align:right">${t.eyebrow}</div>
           <div data-rot="story" style="${at(430, 112, 676, 90)}">${R.stories.length ? sayItem(R.stories[0], "hsay") : ""}</div>
           ${snap(0, 64, -4)}${snap(1, 1142, 3.5)}
           <div style="${at(420, L, 696)}--rh:${rh}px;--cols:104px 80px 1fr 80px 104px;--gs:36px">${ledger(R, keys)}</div>
-          ${join(rest(R.ins, used).slice(0, 3).map((x, i) => stamp(x, at(430 + i * 228, 650, 210, 140), [-2.5, 1.5, -1][i])))}`;
+          ${join(rest(R.ins, used).slice(0, 3).map((x, i) => stamp(x, at(430 + i * 228, 644, 210, 168), [-2.5, 1.5, -1][i])))}`;
       },
       rots: (R) => [storyRot(R, "story", "hsay")],
     },
@@ -491,14 +518,71 @@
       },
       rots: (R) => [storyRot(R, "story")],
     },
+
+    /**
+     * Round the Players bar, the middle left clear for the cam: a small column
+     * of the head-to-head out of the round card, each player's own numbers and
+     * callouts standing on their name card, the title, summary, stages and
+     * length along the top, and the portraits bookending the bar's corners
+     * (cut where the name cards are, so each stands behind its card's outer end).
+     * The window is the whole frame, with no background; each piece is its own
+     * plate. Positions are the frame's: they match /o/scoreboard/players.
+     */
+    condensed: {
+      style: "plain", packs: ["CSProject_AltFull", "CSProject_MeleeFull", "full", "portrait"], skin: "bare", win: { l: 0, t: 0, w: 1920, h: 1080 },
+      // Standing in the corner beside the card, the face well above the bar; faded off before the stack's plates.
+      por: { op: 1, tilt: "none", w: 430, fx: 150, fy: 812, scale: 1.05, mask: FADE(62, 100), wash: "none" },
+      // Everything from the outside in: the column and stacks up out of the bar's
+      // cards, the top band down from the top edge, the corners in from their
+      // sides, the portraits in through the frame's edges. No window motion.
+      motion: { win: "none" },
+      render(R) {
+        const t = titles(R);
+        const mid = pickKeys(R, ["kills", "damage", "opk", "neutral"], 4);
+        const own = pickKeys(R, ["punish", "lcancel", "ipm", "combo", "avgkill", "earliest", "counter", "dpo"], 3, mid);
+        // One plate, one entrance: what's inside rides in with it (data-carry).
+        const piece = (cls, style, fx, delay, inner, from = "") => html`<div class="cz ${cls}" data-beat-card data-carry data-fx="${fx}" data-delay="${delay}" ${from ? new Raw(`data-from="${from}"`) : ""} style="${style}">${inner}</div>`;
+        const chip = (key, s) => html`<div class="cz-chip ${leadCls(R.lead(key), s)}"><div class="cz-v num" data-fit>${R.big(key, s)}</div><div class="lab" data-fit>${R.ST[key].label}</div></div>`;
+        const acc = (x) => html`<div class="cz-in"><div class="ins-big num" data-fit>${val(x)}</div><div class="cz-tx"><div class="ins-tag" data-fit>${x.tag}</div><div class="ins-txt" data-fitbox>${x.text}</div></div></div>`;
+        // Each player's stack stands on the inner part of their card (the outer end is the portrait's).
+        const stack = (s) => {
+          const l = s ? CZ.p2[0] : CZ.p1[1] - CZ.stackW;
+          const keys = s ? own.slice().reverse() : own; // mirrored, so each stat sits the same way from the middle
+          const mine = R.ins.filter((x) => x.side === s).slice(0, 2);
+          return html`${piece(`cz-chips ${s ? "r" : "l"}`, at(l, CZ.foot - 56, CZ.stackW, 56), "emerge", -100, join(keys.map((k) => chip(k, s))))}
+            ${join(mine.map((x, i) => piece(`cz-acc ${s ? "r" : "l"}`, at(l, CZ.foot - 56 - 12 - 80 - i * 92, CZ.stackW, 80), "emerge", -40 + i * 40, acc(x))))}`;
+        };
+        const row = (key) => {
+          const w = R.lead(key);
+          return html`<div class="cz-row"><div class="v num l ${leadCls(w, 0)}" data-fit>${R.big(key, 0)}</div><div class="lab" data-fit>${R.ST[key].label}</div><div class="v num r ${leadCls(w, 1)}" data-fit>${R.big(key, 1)}</div>${shareBar(R, key)}</div>`;
+        };
+        const colH = 36 + mid.length * 44;
+        const fx = (from, delay) => new Raw(`data-fx="inward" data-from="${from}" data-delay="${delay}"`);
+        return html`${piece("cz-title", at(680, 24, 560, 74), "inward", -60, html`<div class="eyebrow" data-fit>${t.eyebrow}</div><div class="t" data-fit>${t.title}</div>`, "t")}
+          ${R.stories.length ? piece("cz-story", at(540, 110, 840, 88), "inward", 0, html`<div data-rot="story">${sayItem(R.stories[0])}</div>${R.stories.length > 1 ? html`<div class="track"><i data-prog="story"></i></div>` : ""}`, "t") : ""}
+          ${stageCorner(R, "left:40px;top:30px", false, "", fx("l", 80))}${timeCorner(R, "right:40px;top:30px", true, "", fx("r", 80))}
+          ${piece("cz-mid", at(CZ.mid[0], CZ.foot - colH, CZ.mid[1] - CZ.mid[0], colH), "emerge", -140, html`<div class="cz-cap lab">${R.set ? (R.over ? "The set" : "The set so far") : `Game ${R.last ? R.last.n : ""}`}</div>${join(mid.map(row))}`)}
+          ${stack(0)}${stack(1)}`;
+      },
+      rots: (R) => [storyRot(R, "story")],
+    },
   });
+
+  // The Players bar (/o/scoreboard/players), in the frame: the name cards and
+  // the round card between them, and where the condensed pieces stand on them.
+  const CZ = { p1: [164, 714], p2: [1206, 1756], mid: [815, 1105], foot: 992, stackW: 414 };
+  /** `n` of the keys a layout asks for that the set has, none of `not`, topped up from the rest. */
+  function pickKeys(R, prefer, n, not = []) {
+    return prefer.concat(FALLBACK).filter((k, i, all) => R.rows[k] && !not.includes(k) && all.indexOf(k) === i).slice(0, n);
+  }
 
   /**
    * Each side's portrait from the chosen pack, each game's stage picture from
-   * the chosen stage set: the app sends one from every installed pack and set
-   * (lib/set-stats/portraits.js), by id, the dock's order first. One that isn't
-   * there (not downloaded, or no picture of this character or stage) falls
-   * back to the first that is; stages "none" draws no stage pictures.
+   * the first installed stage set (or a source's ?stages=): the app sends one
+   * from every installed pack and set (lib/set-stats/portraits.js), by id, the
+   * dock's order first. One that isn't there (not downloaded, or no picture of
+   * this character or stage) falls back to the first that is; with nothing
+   * installed there's no picture, and stages "none" draws none.
    */
   /** Pack "random": random poses (randomPair). */
   const RANDOM = "random";
@@ -564,6 +648,12 @@
     return pairs.length ? pairs[Math.min(pairs.length - 1, Math.floor(seeded(seed)() * pairs.length))] : null;
   }
 
+  /** Style "random": any style, picked by the show's seed (salted, so it doesn't follow the random poses' pick). */
+  function randomStyle(seed) {
+    const ids = Object.keys(STYLES);
+    return ids[Math.min(ids.length - 1, Math.floor(seeded((Number(seed) || 0) ^ 0x5bd1e995)() * ids.length))];
+  }
+
   function withPack(d, pack, stages, alts, ok = () => true, pair = null) {
     if (!d || !Array.isArray(d.sides)) return d;
     const mirror = isMirror(d);
@@ -598,7 +688,8 @@
   function bestFit(layout, cfg = {}) {
     const L = LAYOUTS[layout] || LAYOUTS.spotlight;
     const fav = cfg.combos && cfg.combos[layout];
-    const style = cfg.style && cfg.style !== "auto" && STYLES[cfg.style] ? cfg.style : fav && STYLES[fav.style] ? fav.style : L.style;
+    const known = (s) => s === RANDOM || !!STYLES[s];
+    const style = cfg.style && cfg.style !== "auto" && known(cfg.style) ? cfg.style : fav && known(fav.style) ? fav.style : L.style;
     const picked = cfg.pack && cfg.pack !== "auto" ? cfg.pack : fav && fav.pack ? fav.pack : null;
     const random = picked === RANDOM;
     const real = (id) => id && id !== RANDOM;
@@ -611,13 +702,15 @@
    * them behind everything), the content, and the rotating sections.
    * @param {object} d — setStats
    * @param {{ layout: string, style: string, mode: "game"|"set", pack?: string, stages?: string, combos?: object, fit?: object, seed?: number }} o — style / pack "auto" = the layout's
-   *   best fit (`combos[layout]` if saved, else its own); pack = a portrait pack id, or "random" (random poses, picked by `seed`); stages = a stage set id, or "none"; fit = a portrait-fit map to use instead of the file's (the tuning page)
+   *   best fit (`combos[layout]` if saved, else its own); style "random" = one picked by `seed`; pack = a portrait pack id, or "random" (random poses, picked by `seed`);
+   *   stages = a stage set id (unset: the first installed), or "none"; fit = a portrait-fit map to use instead of the file's (the tuning page)
    * @returns {{ skin: string, portraits: string, content: string, rots: Array<{ id, items: string[] }>, style: string }}
    */
   function render(d, o) {
     const id = LAYOUTS[o.layout] ? o.layout : "spotlight", L = LAYOUTS[id];
     const fit = bestFit(id, o);
-    const style = fit.style;
+    // Style "random": one per show, from its seed, so every source draws the same.
+    const style = fit.style === RANDOM ? randomStyle(o.seed) : fit.style;
     // A pose that can't look inward (lettering that can't be mirrored) gives way to the next pack's.
     const inward = (pack, src, side) => {
       const P = Array.isArray(L.por) ? L.por[side] : L.por;

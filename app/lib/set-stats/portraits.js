@@ -41,7 +41,7 @@ function pngSize(file) {
 
 const isPortraitPack = (conf) => !!conf?.eyesights && [].concat(conf.type ?? []).some((t) => t === "full" || t === "portrait");
 const isStagePack = (conf) => [].concat(conf?.type ?? []).includes("stage_icon");
-const listed = (p) => ({ id: p.id, name: p.name, credits: typeof p.conf.credits === "string" ? p.conf.credits : null });
+const listed = (p) => ({ id: p.id, name: p.name, credits: typeof p.conf.credits === "string" ? p.conf.credits : null, ...(p.cut ? { cut: true } : {}) });
 
 /**
  * @param {{ dir: string }} opts — the packs folder (overlays/assets/packs)

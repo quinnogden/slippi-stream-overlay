@@ -16,6 +16,8 @@
  * scoreboard's (the game's `replay.players`), and Switch Sides moves it.
  */
 
+const { funStats } = require("./fun-stats");
+
 /** Frames before Slippi's frame 0 (the countdown). */
 const FIRST_FRAME = -123;
 /** A kill's conversion ends within this many frames of the stock it took. */
@@ -110,10 +112,22 @@ function readGameStats(file) {
     };
   }
 
+  // The numbers the accolades read (accolades.js): what each player did, not how well.
+  // A frame walk on top of slippi-js's stats; a failure here costs the trivia, never the ledger.
+  let extra = null;
+  try {
+    extra = funStats(game, stats, players, settings.stageId);
+  } catch (err) {
+    extra = null;
+  }
+  for (const p of players) out[p.playerIndex].fun = extra ? extra.ports[p.playerIndex] : null;
+
   const winner = end?.placements?.find((x) => x.position === 0)?.playerIndex;
   return {
     ok: true,
     players: out,
+    leadChanges: extra ? extra.leadChanges : null,
+    bothLastStock: extra ? extra.bothLastStock : null,
     stageId: settings.stageId ?? null,
     lastFrame,
     seconds: lastFrame == null ? null : Math.max(0, Math.round((lastFrame - FIRST_FRAME) / 60)),

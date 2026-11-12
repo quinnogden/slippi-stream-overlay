@@ -140,24 +140,25 @@ The set stats popup (`/o/set-stats`), built in [lib/set-stats/](../app/lib/set-s
 
 ```js
 statsConfig: {               // saved with the scoreboard; the dock's Stats tab (POST /api/set-stats/config)
-  layout: "spotlight",       // "spotlight" | "players" | "margins" | "rangerlog" | "tape" | "polaroids" | "lowerthird"  (lib/set-stats/catalog.js),
-                             // or "random": a different one at each show (never the same twice running) — statsShot.layout says which
-  style: "auto",             // a portrait style id, or "auto" = the layout's best fit
+  layout: "spotlight",       // "spotlight" | "players" | "margins" | "rangerlog" | "tape" | "polaroids" | "lowerthird" | "condensed"  (lib/set-stats/catalog.js),
+                             // or "auto": one from `pools` at each show (never the same twice running) — statsShot.layout says which. An old save's "random" reads as "auto"
+  pools: { mid: [ids], over: [ids] },  // the layouts "auto" draws from while the set is on / once it's won; each at least one, every layout by default.
+                             // POST one phase and the other keeps its list. The dock's Layouts table (Mid-set / Over ticks)
+  style: "auto",             // a picture style id, "auto" = the layout's best fit, or "random" = one per show, drawn from statsShot.seed
   pack: "auto",              // the portrait pack that draws the characters, or "auto" = the layout's best fit (any id; one not downloaded falls back to one that is),
                              // or "random": a pack per side at each show from statsShot.seed — full-body renders only, both from one family (layouts.js randomPair)
-  combos: {},                // the operator's saved best fit per layout, { [layout]: { style, pack } } (never "auto"; pack may be "random"): what "auto" draws for it instead of
-                             // the layout's own pick (catalog.js LAYOUTS[].style / .packs, best first). The dock's ★ Save / Forget; replaced whole
-  stages: "stage_icon",      // the stage picture set, likewise; "none" = no stage pictures
+  combos: {},                // the operator's saved best fit per layout, { [layout]: { style, pack } } (never "auto"; either may be "random"): what "auto" draws for it instead of
+                             // the layout's own pick (catalog.js LAYOUTS[].style / .packs, best first). The dock's ★ Save / Forget and Layouts table; replaced whole
   auto: true, delaySec: 8,   // up delaySec after each counted game
   holdSec: 0,                // an automatic show comes down after this long; 0 = when the next game starts
-  mode: "auto"               // "auto" (the wrap-up once the set is won) | "game" | "set"
-}
+  mode: "auto"               // "auto" (the wrap-up once the set is won) | "game" | "set" | "random" (either, picked at each show; the game with one game counted)
+}                            // no stage setting: the stage pictures are the first installed set's (a source can pin one with ?stages=, or "none"); an old save's `stages` is dropped
 statsShot: {                 // not saved: a restart starts with it down (lib/set-stats/director.js)
   shown: false, mode: "game" | "set", since: 1790000000000,
   pendingAt: 1790000008000 | null,  // when an automatic show is due — the dock's countdown
   auto: false,                      // whether the one up went up by itself
-  layout: "tape" | null,            // the layout it draws: the config's, or the one director.js picked for this show with "random"
-  seed: 123456789 | null            // new at each show: pack "random" picks its poses from it, so every source draws the same ones
+  layout: "tape" | null,            // the layout it draws: the config's, or the one director.js picked for this show under "auto" (again if the set is won while it's up)
+  seed: 123456789 | null            // new at each show: pack and style "random" pick from it, so every source draws the same ones
 }
 setStats: {                  // derived from the set's replays (lib/set-stats/set-view.js); not saved
   available: true, reason: null,    // false + a reason: doubles, a crew battle, no Slippi game yet
@@ -169,7 +170,7 @@ setStats: {                  // derived from the set's replays (lib/set-stats/se
   games: [{ n, winner, stage: { id, name, icon, pics: { [stageSetId]: url } | null }, len: "4:12", seconds, stocks }],
   stats: { kills: { label, dp: [game, set], better: "hi" | "lo", agg, unit?, hint?, setWord? }, … },
   rows: { kills: { g: [l, r], s: [l, r], pg: [[…], […]], lead: { g: 0 | 1 | null, s } }, … },
-  insights: { game: [{ id, tag, big, unit?, text, who, side: 0 | 1 | -1, row?, note? }, …], set: […] },
+  insights: { game: [{ id, kind?: "accolade", tag, big, unit?, text, long: [segments] | null, who, side: 0 | 1 | -1, row?, note? }, …], set: […] },  // callouts and accolades, best first, ≤ 12
   stories: { game: [[{ t: "text" } | { em: "lit" }, …], …], set: […] },
   facts: { game: [{ lab, val }, …], set: […] }
 }
@@ -401,8 +402,8 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `POST` | `/api/bracket-url` | `{ url }` → load the event a pasted start.gg URL names. Same reply as `/api/bracket` |
 | `POST` | `/api/bracket-view` | `{ view?, phaseGroupId? }` — what every bracket source not pinned with `?view=` shows: `winners`, `losers`, `top8`, `top16`, `full` or `upnext`. `phaseGroupId: null` goes back to following the set on air. 400 for an unknown view or a group not in the loaded event |
 | `POST` | `/api/bracket-camera` | What the bracket overlay is pointed at (`bracketShot`): `{ action: "auto" }` (tour from the action page), `"next"` / `"prev"` / `"live"` (hold a page), `{ action: "page", page }`, and the Board: `{ action: "pan", dir: "up"\|"down"\|"left"\|"right" }`, `{ action: "zoom", dir: "in"\|"out" }`, `{ action: "overview" }` (again: back to a readable zoom at the action), `{ action: "goto", cx, cy }` (board pixels — the dock's minimap). The first Board press frames the page that was up rather than moving. `{ ok, shot }`; 400 for a bad action, page or direction, 409 with no bracket or for the Board in Up Next |
-| `GET` | `/api/set-stats` | The stats popup's layouts, styles and modes (`lib/set-stats/catalog.js`), its `config` and `shot`, `packs` — the installed portrait packs, `[{ id, name, credits }]` — and `stagePacks`, the installed stage picture sets, the same shape |
-| `POST` | `/api/set-stats/config` | Any of `{ layout, style, pack, stages, auto, delaySec, holdSec, mode, combos }` → `statsConfig`. Applies live, the popup up or not. `{ ok, config }`; 400 for an unknown id or a value out of range |
+| `GET` | `/api/set-stats` | The stats popup's layouts, styles and modes (`lib/set-stats/catalog.js`), its `config` and `shot`, `packs` — the installed portrait packs, `[{ id, name, credits, cut? }]` (`cut`: a bust pack, which Random poses never draws) — and `stagePacks`, the installed stage picture sets (`[{ id, name, credits }]`; the first one draws) |
+| `POST` | `/api/set-stats/config` | Any of `{ layout, style, pack, auto, delaySec, holdSec, mode, combos, pools }` → `statsConfig` (`combos` replaced whole; `pools` per phase given). Applies live, the popup up or not. `{ ok, config }`; 400 for an unknown id or a value out of range |
 | `POST` | `/api/set-stats/show` | `{ action: "show" \| "hide" \| "toggle" }` (the dock's Show / Hide, the strip's Stats key; the hotkey is `toggle`). Hide also cancels an automatic show that's counting down. `{ ok, shot }` |
 | `POST` | `/api/set-stats/refresh` | Read every game's replay again |
 | `POST` | `/api/set-rules` | The best-of rule, any of `{ topN, defaultLabel, topLabel }`: `defaultLabel` until the set's loser is guaranteed top `topN` (one of 0 = never, 3, 4, 6, 8, 12, 16), `topLabel` from there; each `Flex`, `Bo3` or `Bo5`. Saved (`setRules`); the strip's override still wins. `{ ok, rules }`; 400 for anything else |

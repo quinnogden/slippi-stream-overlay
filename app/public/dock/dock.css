@@ -1305,10 +1305,30 @@ kbd {
 /* ── Stats popup ── */
 .format-rule { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 10px; align-items: end; }
 .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; align-items: end; }
-.stats-grid.three { grid-template-columns: 2fr 1fr 1fr; }
 .stats-grid.gone, .stats-combo .gone { display: none; }
 .stats-combo { display: flex; align-items: center; gap: 6px; margin-top: 8px; min-height: 28px; }
 .stats-combo > .hint { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stats-combo > .key { flex: 0 0 auto; }
 .stats-status.live { color: var(--d-ink); }
-#stats-styles > .key { flex-basis: 84px; }
+/* The Layouts table: a row per layout — its look, and the phases Auto draws it in. */
+.stats-table { display: grid; grid-template-columns: minmax(64px, .9fr) minmax(0, 1fr) minmax(0, 1.15fr) 40px 40px; gap: 4px 6px; align-items: center; margin-top: 6px; }
+.stats-table .th { font: 600 10px/1.1 var(--d-sign); letter-spacing: .1em; text-transform: uppercase; color: var(--d-ink-dim); padding-bottom: 2px; }
+.stats-table .th.tick, .stats-table .tick { text-align: center; justify-self: center; }
+.stats-table .lname { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 12.5px; color: var(--d-ink); }
+.stats-table .lname > b { font-weight: 500; line-height: 1.15; min-width: 0; overflow-wrap: anywhere; }
+.stats-table .gone { display: none; }
+.stats-table .lname.on > b { color: rgb(var(--d-accent-rgb)); }
+.stats-table .lname .star { flex: 0 0 auto; color: var(--d-amber); font-size: 11px; }
+.stats-table .lname .linkish { flex: 0 0 auto; padding: 0 2px; text-decoration: none; font-size: 13px; }
+.stats-table select {
+  width: 100%; min-width: 0; min-height: 30px; padding: 3px 4px; font-size: 12px;
+  color: var(--d-ink); background: var(--d-well); border: 1px solid var(--d-line); border-radius: 6px; outline: none;
+}
+.stats-table select:focus { border-color: rgba(var(--d-accent-rgb), .9); }
+.stats-table select:disabled { opacity: .5; }
+.stats-table input[type="checkbox"] { width: 17px; height: 17px; margin: 0; accent-color: rgb(var(--d-accent-rgb)); }
+.stats-table.dim .tick { opacity: .45; }
+.stats-table-note { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+.stats-table-note > .hint { flex: 1 1 auto; margin: 0; min-width: 0; }
+.stats-table-note > .key { flex: 0 0 auto; }
+.stats-table-note > .gone { display: none; }

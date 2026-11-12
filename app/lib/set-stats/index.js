@@ -29,6 +29,8 @@ const RECHECK_MS = 2000;
 const READ_TIMEOUT_MS = 30000;
 /** A read that failed for a reason that can pass (a timeout, the worker dying, a half-written file) is tried this many times in all. */
 const MAX_TRIES = 3;
+/** How many sets back an accolade the audience saw is still scored down. */
+const RECENT_SETS = 3;
 
 /**
  * One long-lived worker thread reading files in turn; restarted if it dies.
@@ -103,6 +105,13 @@ function createSetStats(ctx, opts = {}) {
   let busy = false;
   let recheck = null;
   let lastCount = store.scoreboard().games.length;
+  /**
+   * The accolades the last few sets showed (accolades.js scores them down), so
+   * a new set doesn't open on the same ones the audience just saw. Taken as a
+   * set closes — never mid-show, which would reword a popup that's up.
+   */
+  const pastSets = [];
+  let recent = new Map();
 
   const statsOf = (file) => cache.get(file)?.result;
   /** Read mid-write (no game end yet), or failed for a reason that can pass and not tried out yet. */
@@ -175,7 +184,7 @@ function createSetStats(ctx, opts = {}) {
     try {
       const sb = store.scoreboard();
       for (const g of sb.games) if (g.replay?.file) want(g.replay.file);
-      const view = buildSetView(sb, statsOf, portraits.portraitsOf);
+      const view = buildSetView(sb, statsOf, portraits.portraitsOf, { recent });
       for (const g of view.games) {
         try { g.stage.pics = portraits.stagePicsOf(g.stage.icon); } catch { g.stage.pics = null; }
       }
@@ -202,6 +211,19 @@ function createSetStats(ctx, opts = {}) {
     if (keys.includes("statsConfig")) director.onConfig();
   }
 
+  function onSetClosing() {
+    try {
+      const d = store.setStats();
+      const ids = new Set();
+      for (const mode of ["game", "set"]) for (const x of d?.insights?.[mode] ?? []) if (x.kind === "accolade") ids.add(x.id.replace(/^acc-|-\d$/g, ""));
+      if (!ids.size) return;
+      pastSets.unshift(ids);
+      pastSets.length = Math.min(pastSets.length, RECENT_SETS);
+      recent = new Map();
+      for (const set of pastSets) for (const id of set) recent.set(id, (recent.get(id) || 0) + 1);
+    } catch { /* a memory, not a feature: losing it costs variety only */ }
+  }
+
   function onSetLoaded() {
     lastCount = store.scoreboard().games.length;
     // Only this set's replays are wanted again: a long event's reads don't pile up.
@@ -217,6 +239,7 @@ function createSetStats(ctx, opts = {}) {
     start() {
       store.on("change", onChange);
       store.on("set-loaded", onSetLoaded);
+      store.on("set-closing", onSetClosing);
       rebuild();
       const ids = portraits.packs().map((p) => p.id);
       console.log(`[set-stats] Portraits: ${ids.length ? ids.join(", ") : "none downloaded (the dock's Setup tab → Art packs)"}`);
@@ -224,6 +247,7 @@ function createSetStats(ctx, opts = {}) {
     stop() {
       store.off("change", onChange);
       store.off("set-loaded", onSetLoaded);
+      store.off("set-closing", onSetClosing);
       if (recheck) timers.clearInterval(recheck);
       recheck = null;
     },

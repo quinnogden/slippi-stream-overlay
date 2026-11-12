@@ -16,17 +16,21 @@
  *
  * `mode` is what the popup reads: "game" (the game just played, the set so far
  * underneath) or "set" (the wrap-up). Config mode "auto" picks "set" once the
- * set is won, else "game".
+ * set is won, else "game"; "random" picks either at each show (and when it's
+ * picked), and holds it for the show — with one game counted the two are the
+ * same game, so it reads the game.
  *
- * `layout` is the layout it draws: the config's, or with layout "random" one
- * picked at each show (never the last one twice running) — here, once, so the
- * dock and every source agree on it.
+ * `layout` is the layout it draws: the config's, or with layout "auto" one
+ * picked at each show from the pool for where the set is (`pools.mid`, or
+ * `pools.over` once it's won; never the last one twice running when the pool
+ * has another) — here, once, so the dock and every source agree on it. The set
+ * being won while it's up, or the pool losing the layout up, picks again.
  *
  * `seed` is a fresh number at each show: with pack "random" every source
  * draws the same random poses from it (layouts.js randomPair), held for the
  * show and new at the next.
  */
-const { RANDOM, layoutFor } = require("./catalog");
+const { AUTO, layoutFor, poolsOf } = require("./catalog");
 
 /** How long an automatic show waits for a game's stats to be read before giving up. */
 const WAIT_FOR_STATS_MS = 20000;
@@ -44,10 +48,12 @@ function createStatsDirector({ store, now = Date.now, timers = { setTimeout, cle
   let waitedSince = null;
 
   const config = () => store.statsConfig();
+  let modeWas = config().mode; // a "random" reading is picked again only when the setting changes to it
   const data = () => store.setStats();
 
   function modeFor(cfg = config()) {
     if (cfg.mode === "game" || cfg.mode === "set") return cfg.mode;
+    if (cfg.mode === "random") return (data()?.counted ?? 0) > 1 && rand() < 0.5 ? "set" : "game";
     return data()?.over ? "set" : "game";
   }
 
@@ -61,7 +67,7 @@ function createStatsDirector({ store, now = Date.now, timers = { setTimeout, cle
     pendingTimer = clear(pendingTimer);
     holdTimer = clear(holdTimer);
     waitedSince = null;
-    publish({ shown: true, mode: modeFor(), since: now(), pendingAt: null, auto, layout: layoutFor(config().layout, store.statsShot().layout, rand), seed: 1 + Math.floor(rand() * 0x7ffffffe) });
+    publish({ shown: true, mode: modeFor(), since: now(), pendingAt: null, auto, layout: layoutFor(config(), store.statsShot().layout, !!data()?.over, rand), seed: 1 + Math.floor(rand() * 0x7ffffffe) });
     const hold = config().holdSec;
     if (auto && hold > 0) holdTimer = timers.setTimeout(() => { holdTimer = null; hide(); }, hold * 1000);
     return { ok: true };
@@ -107,12 +113,24 @@ function createStatsDirector({ store, now = Date.now, timers = { setTimeout, cle
   /** The next game is starting, or another set was loaded. */
   function onInterrupt() { hide(); }
 
-  /** The config changed while the popup is up: it reads the new mode, and draws a layout picked by hand at once. */
+  /** The config (or the set) changed: it reads the new mode, and draws a layout picked by hand at once. */
   function onConfig() {
     const s = store.statsShot();
-    if (s.shown && s.mode !== modeFor()) publish({ mode: modeFor() });
-    const want = config().layout;
-    if (want !== RANDOM ? s.layout !== want : s.shown && !s.layout) publish({ layout: layoutFor(want, s.layout, rand) });
+    const cfg = config();
+    const modeChanged = cfg.mode !== modeWas;
+    modeWas = cfg.mode;
+    if (s.shown && (cfg.mode !== "random" || modeChanged)) {
+      const m = modeFor(cfg);
+      if (s.mode !== m) publish({ mode: m });
+    }
+    // A layout picked by hand is drawn at once; under Auto the one up stays while its phase's pool has it.
+    const over = !!data()?.over;
+    if (cfg.layout !== AUTO) {
+      const want = layoutFor(cfg, s.layout, over, rand);
+      if (s.layout !== want) publish({ layout: want });
+    } else if (s.shown && !(s.layout && poolsOf(cfg.pools)[over ? "over" : "mid"].includes(s.layout))) {
+      publish({ layout: layoutFor(cfg, s.layout, over, rand) });
+    }
     if (!config().auto && s.pendingAt) {
       pendingTimer = clear(pendingTimer);
       publish({ pendingAt: null });

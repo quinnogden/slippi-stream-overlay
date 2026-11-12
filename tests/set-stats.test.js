@@ -160,9 +160,37 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
     r.ss.stop();
   });
 
+  await test("accolades: on the right player, worded afresh each game, every wording within its slot's budget", async () => {
+    const fun = (o) => ({ char: "fox", ledgegrabs: 3, wavedash: 10, deaths: { down: 0, side: 0, up: 0, star: 0, screen: 0 }, ...o });
+    const g = () => read({ fox: { fun: fun({ ledgegrabs: 22 }) }, marth: { fun: fun({ char: "marth", ledgegrabs: 4 }) } });
+    const r = rig({ reads: { a: g(), b: g() } });
+    r.game("a", 0);
+    await flush();
+    const first = r.store.setStats().insights.game.find((x) => x.id === "acc-ledge-0");
+    assert.ok(first && first.who === "Juniper" && first.big === "22", "Juniper's 22 ledge grabs are an accolade, on the left");
+    assert.ok(first.long.some((s) => s.em === "22") && first.long.every((s) => !/[<>]/.test(s.t ?? "")), "with a long form, the number lit");
+    r.game("b", 0);
+    await flush();
+    const second = r.store.setStats().insights.game.find((x) => x.id === "acc-ledge-0");
+    assert.ok(second, "the same feat in game 2 is still told");
+    assert.notStrictEqual(`${second.tag}|${second.text}`, `${first.tag}|${first.text}`, "…in other words");
+    r.ss.stop();
+
+    // A wording too long for its slot is cut or squeezed on stream: tags sit on one line, notes in a ledger gap.
+    const { allWordings, fill } = require("../app/lib/set-stats/accolades");
+    const v = { who: "Kestrel Long", opp: "Juniper Long", n: "188", o: "120", move: "Double-Edge Dance", noun: "missiles and blasts", span: "this game", inSpan: "across 5 games", g: 3, s: "s" };
+    const budget = { tags: 20, short: 34, note: 14, long: 140 };
+    for (const w of allWordings()) for (const [k, max] of Object.entries(budget)) for (const t of w[k]) {
+      assert.ok(fill(t, v).length <= max, `${w.id} ${k} "${fill(t, v)}" is over ${max} characters`);
+    }
+  });
+
   await test("a ± game is in the score, not the stats; the wrap-up comes once the set is won", async () => {
     const r = rig({ bestOf: "Bo3", reads: { a: read(), b: read() } });
     r.game("a", 0);
+    await flush();
+    const said = (v) => v.stories.set[0].map((s) => (s.em != null ? s.em : s.t)).join("");
+    assert.match(said(r.store.setStats()), /leads|is up/, "the set reading mid-set: ahead, not yet the winner");
     r.store.bump(1, 1); // a game Slippi didn't see
     await flush();
     let d = r.store.setStats();
@@ -277,11 +305,12 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
     r.ss.stop();
   });
 
-  await test("Random draws a different layout at each show, and a layout picked by hand at once", async () => {
+  await test("Auto draws a layout from its phase's pool at each show, and a layout picked by hand at once", async () => {
     const r = rig({ reads: { a: read() } });
     r.game("a", 0);
     await flush();
     r.store.setStatsConfig({ layout: "random", auto: false });
+    assert.strictEqual(r.store.statsConfig().layout, "auto", "the old Random is Auto (every layout by default)");
     const seen = [];
     for (let i = 0; i < 6; i++) {
       r.ss.command({ action: "show" });
@@ -297,13 +326,48 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
     r.ss.command({ action: "show" });
     r.store.setStatsConfig({ layout: "tape" });
     assert.strictEqual(r.store.statsShot().layout, "tape", "picked by hand: drawn now, while it's up");
-    assert.ok(!configError({ layout: "random" }) && configError({ layout: "nope" }), "random is a layout the config takes");
+    assert.ok(!configError({ layout: "auto" }) && configError({ layout: "nope" }), "auto is a layout the config takes");
+    // The pools: the mid-set one before the set is won, the set-over one after — and the set won while it's up picks again.
+    assert.ok(configError({ pools: { mid: [] } }) && configError({ pools: { over: ["nope"] } }) && !configError({ pools: { over: ["tape"] } }));
+    r.ss.command({ action: "hide" });
+    r.store.setStatsConfig({ layout: "auto", pools: { mid: ["players", "margins"], over: ["polaroids"] } });
+    const mid = [];
+    for (let i = 0; i < 4; i++) { r.ss.command({ action: "show" }); mid.push(r.store.statsShot().layout); r.ss.command({ action: "hide" }); }
+    assert.ok(mid.every((l, i) => ["players", "margins"].includes(l) && (i === 0 || l !== mid[i - 1])), `mid-set pool, never twice running: ${mid}`);
+    r.ss.command({ action: "show" });
+    r.store.setStatsConfig({ layout: "lowerthird" });
+    assert.strictEqual(r.store.statsShot().layout, "lowerthird", "a pick by hand takes Auto off");
+    r.store.setStatsConfig({ layout: "auto" });
+    assert.ok(["players", "margins"].includes(r.store.statsShot().layout), "Auto back on: a layout from the pool");
+    r.store.setOverrides({ bestOf: "Bo1" });
+    assert.strictEqual(r.store.statsShot().layout, "polaroids", "the set won while it's up: the set-over pool");
+    r.ss.command({ action: "hide" });
+    r.ss.command({ action: "show" });
+    assert.strictEqual(r.store.statsShot().layout, "polaroids", "a pool of one: that one every time");
+    r.store.setOverrides({ bestOf: "Bo5" });
+    r.store.setStatsConfig({ pools: { mid: CATALOG_LAYOUTS.map((l) => l.id), over: CATALOG_LAYOUTS.map((l) => l.id) } });
+    // A random reading: the game with one game counted; once there's a set, either, held through other changes while up.
+    r.ss.command({ action: "hide" });
+    r.store.setStatsConfig({ mode: "random" });
+    for (let i = 0; i < 4; i++) { r.ss.command({ action: "show" }); assert.strictEqual(r.store.statsShot().mode, "game", "one game: its own reading"); r.ss.command({ action: "hide" }); }
+    r.game("a", 1);
+    await flush();
+    const modes = new Set();
+    for (let i = 0; i < 16; i++) {
+      r.ss.command({ action: "show" });
+      const m = r.store.statsShot().mode;
+      modes.add(m);
+      r.store.setStatsConfig({ delaySec: 3 + (i % 2) });
+      assert.strictEqual(r.store.statsShot().mode, m, "held while it's up");
+      r.ss.command({ action: "hide" });
+    }
+    assert.deepStrictEqual([...modes].sort(), ["game", "set"], "either reading");
     r.ss.stop();
   });
 
   await test("every layout draws both readings in every style the dock offers, and names can't inject markup", async () => {
     assert.deepStrictEqual(CATALOG_LAYOUTS.map((l) => l.id).sort(), Object.keys(Layouts.LAYOUTS).sort(), "the dock's layouts are the overlay's");
-    for (const s of CATALOG_STYLES) if (s.id !== "auto") assert.ok(Layouts.STYLES[s.id], `style ${s.id} isn't drawn`);
+    for (const s of CATALOG_STYLES) if (s.id !== "auto" && s.id !== "random") assert.ok(Layouts.STYLES[s.id], `style ${s.id} isn't drawn`);
     for (const l of CATALOG_LAYOUTS) {
       assert.ok(Layouts.STYLES[l.style] && Layouts.LAYOUTS[l.id].style === l.style, `${l.id}'s own style`);
       assert.deepStrictEqual(Layouts.LAYOUTS[l.id].packs, l.packs, `${l.id}'s best-fit packs: the dock's are the overlay's`);
@@ -373,7 +437,10 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
       assert.ok(ids[0] !== ids[1] && FAM[ids[0]] === "c" && FAM[ids[1]] === "c", `a mirror: two poses from one family (${ids})`);
     }
     assert.strictEqual(sidesIn(rd, { seed: 3, combos: { spotlight: { style: "riso", pack: "csp" } } }).style, "riso", "random poses keep the saved style");
-    assert.strictEqual(sidesIn(rd, { seed: 3, style: "halftone" }).style, "halftone", "and a style picked by hand");
+    assert.strictEqual(sidesIn(rd, { seed: 3, style: "scan" }).style, "scan", "and a style picked by hand");
+    // Style "random": a real style from the show's seed — the same for that seed, and more than one across shows.
+    const rs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((seed) => sidesIn(rd, { seed, style: "random" }).style);
+    assert.ok(rs.every((x) => Layouts.STYLES[x]) && new Set(rs).size > 2 && sidesIn(rd, { seed: 4, style: "random" }).style === rs[3], "random style: one per seed");
     const savedRandom = sidesIn(rd, { seed: 3, pack: "auto", combos: { spotlight: { style: "cream", pack: "random" } } });
     assert.ok(savedRandom.style === "cream" && savedRandom.ids.length === 2 && !savedRandom.ids.includes("bust"), "random saved as a layout's best fit");
     assert.deepStrictEqual(normalizeStatsConfig({ pack: "random", combos: { tape: { style: "riso", pack: "random" } } }).combos, { tape: { style: "riso", pack: "random" } });
@@ -387,7 +454,7 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
     assert.strictEqual(draw(saved).style, "riso", "a saved combo is the layout's best fit");
     assert.ok(draw(saved).portraits.includes("/assets/packs/csp/"), "with its pack");
     assert.strictEqual(draw(Object.assign({}, saved, { layout: "tape" })).style, Layouts.LAYOUTS.tape.style, "only for its layout");
-    assert.strictEqual(draw(Object.assign({}, saved, { style: "halftone" })).style, "halftone", "a style picked by hand still wins");
+    assert.strictEqual(draw(Object.assign({}, saved, { style: "scan" })).style, "scan", "a style picked by hand still wins");
     const cfg = normalizeStatsConfig({ combos: { spotlight: { style: "riso", pack: "csp" }, nope: { style: "riso", pack: "x" }, tape: { style: "auto", pack: "full" } } });
     assert.deepStrictEqual(cfg.combos, { spotlight: { style: "riso", pack: "csp" } }, "only whole combos for real layouts are kept");
     assert.ok(configError({ combos: { tape: { style: "auto", pack: "full" } } }), "a combo can't be auto");

@@ -85,19 +85,24 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .ttl { text-align: center; }
 
 /* Insight pieces: one thing worth pointing out, with an edge on the side of the player it's about */
-.ins-tag { font-family: var(--ss-label-font); font-weight: 700; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--trim-c); white-space: nowrap; }
+.ins-tag { font-family: var(--ss-label-font); font-weight: 700; font-size: 14px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--trim-c); white-space: nowrap; }
 .ins-big { font-size: 44px; line-height: 1; white-space: nowrap; }
-.ins-txt { font-family: var(--ss-label-font); font-weight: 600; font-size: 14px; line-height: 1.3; color: rgba(var(--text-color-rgb), 0.75); }
-.ins-who { font-family: var(--ss-label-font); font-weight: 700; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-color); margin-top: 4px; }
+.ins-txt { font-family: var(--ss-label-font); font-weight: 600; font-size: 16px; line-height: 1.3; color: rgba(var(--text-color-rgb), 0.75); }
+.ins-who { font-family: var(--ss-label-font); font-weight: 700; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-color); margin-top: 4px; }
+.ins-who[data-fit] { white-space: nowrap; overflow: hidden; flex: none; }
 .e-l, .e-r { position: relative; overflow: hidden; }
 .e-l::before, .e-r::after { content: ""; position: absolute; top: 0; bottom: 0; width: 3px; background: var(--trim-c); }
 .e-l::before { left: 0; } .e-r::after { right: 0; }
 
 /* Surfaces */
 .surface { border-radius: 22px; background: linear-gradient(180deg, rgba(var(--text-color-rgb), 0.04), rgba(var(--text-color-rgb), 0.01)), var(--surface); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.09), 0 18px 44px rgba(0,0,0,0.4); box-sizing: border-box; }
-.mini { display: flex; gap: 14px; align-items: center; padding: 12px 18px; border-radius: 16px; box-sizing: border-box; background: var(--surface-hi); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.08), 0 10px 22px rgba(0,0,0,0.35); }
-.mini .ins-big { font-size: 34px; min-width: 64px; text-align: center; }
-.mini .ins-txt { font-size: 13px; margin-top: 2px; }
+.mini { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-radius: 16px; box-sizing: border-box; background: var(--surface-hi); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.08), 0 10px 22px rgba(0,0,0,0.35); }
+/* The number in a column of one width, so a row of minis' words line up. */
+.mini .ins-big { font-size: 38px; width: 80px; flex: none; text-align: center; }
+.mini > div:last-child { min-width: 0; flex: 1; }
+.mini .ins-txt { font-size: 15px; margin-top: 2px; }
+/* A long title takes a second line rather than shrink. */
+.mini .ins-tag { white-space: normal; line-height: 1.15; }
 .mini.tall { flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px; }
 .mini.tall .ins-big { text-align: left; min-width: 0; font-size: 40px; }
 .e-r.mini.tall { align-items: flex-end; text-align: right; }
@@ -105,6 +110,9 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 /* Corners */
 .corner { display: flex; gap: 16px; align-items: center; }
 .corner.r { flex-direction: row-reverse; text-align: right; }
+.corner.stack { flex-direction: column; align-items: flex-start; gap: 8px; }
+.corner.r.stack { align-items: flex-end; }
+.corner.stack > div { max-width: 100%; }
 .thumb { width: 128px; height: 72px; border-radius: 12px; background-size: cover; background-position: center; box-shadow: 0 0 0 1px rgba(var(--text-color-rgb), 0.16), 0 6px 16px rgba(0,0,0,0.5); flex: none; }
 .thumbs { display: flex; }
 .thumbs .thumb { width: 76px; height: 50px; border-radius: 10px; }
@@ -143,12 +151,16 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .lr { height: var(--rh, 56px); }
 .lr .g { font-size: var(--gs, 40px); display: flex; align-items: center; gap: 10px; white-space: nowrap; }
 .lr .g.l { justify-content: flex-end; } .lr .g.r { justify-content: flex-start; }
-.lr .s { font-size: 21px; color: rgba(var(--text-color-rgb), 0.45); text-align: center; white-space: nowrap; }
+.lr .s { font-size: 22px; color: rgba(var(--text-color-rgb), 0.45); text-align: center; white-space: nowrap; }
 .lr .k { text-align: center; }
-.lr .k .lab { color: var(--text-color); font-size: 14px; }
-.lr .k .hint { font-family: var(--ss-label-font); font-weight: 600; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(var(--text-color-rgb), 0.35); margin-top: 2px; }
+.lr .k .lab { color: var(--text-color); font-size: 15px; }
+.lr .s .u { font-size: 0.62em; }
+.lr .k .hint { font-family: var(--ss-label-font); font-weight: 600; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(var(--text-color-rgb), 0.35); margin-top: 2px; }
 .cap { padding-bottom: 4px; }
-.cap .lab { font-size: 11px; letter-spacing: 0.2em; }
+/* One line each, tracked tight enough for a 70px column; the small column's
+   header dimmed like its numbers, so two headers side by side read as two. */
+.cap .lab { font-size: 13px; letter-spacing: 0.08em; white-space: nowrap; }
+.cap .lab.sm { opacity: 0.6; }
 .sep-rows .lr + .lr::before { content: ""; position: absolute; top: 0; left: 4%; right: 4%; height: 1px; background: linear-gradient(90deg, transparent, rgba(var(--text-color-rgb), 0.10) 20%, rgba(var(--text-color-rgb), 0.10) 80%, transparent); }
 .lr .share { position: absolute; left: 50%; bottom: 7px; width: 110px; margin-left: -55px; }
 .share { display: flex; gap: 3px; height: 4px; }
@@ -159,7 +171,7 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .strip { display: grid; grid-template-columns: 170px 1fr; align-items: center; gap: 22px; padding: 0 30px; border-radius: 20px; box-sizing: border-box;
   background: radial-gradient(ellipse 40% 140% at 0% 50%, rgba(var(--trim-rgb-c), 0.16), transparent 70%), var(--surface); box-shadow: inset 0 0 0 1px rgba(var(--trim-rgb-c), 0.3), 0 14px 30px rgba(0,0,0,0.35); }
 .strip .dots { margin-top: 10px; }
-.strip .say { font-size: 21px; }
+.strip .say { font-size: 22px; }
 .say { font-size: 23px; line-height: 1.3; }
 .say em { font-style: normal; color: var(--trim-c); }
 
@@ -195,17 +207,37 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 [data-draw] { stroke-dasharray: 1 1; }
 .hsay { font-size: 25px; line-height: 1.32; color: rgba(var(--text-color-rgb), 0.9); }
 .hsay em { font-style: normal; color: var(--trim-c); }
-.fn { width: 140px; display: flex; align-items: center; gap: 2px; }
-.fn.r { flex-direction: row-reverse; text-align: right; }
-.fn span { font-size: 20px; line-height: 1.05; color: var(--trim-c); display: block; }
-.fn svg { flex: none; overflow: visible; }
-.fn path { fill: none; stroke: rgba(var(--trim-rgb-c), 0.8); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.fn.r svg { transform: scaleX(-1); }
+/* The field notes' ledger (.lr.in): the big numbers inside, by the label; a note
+   written in the gap between the label and its player's number, its stroke
+   (an arrow, a star) at the number's end, or a stroke on the number itself
+   (circled, boxed, underlined: .mk, stretched over the number). */
+.lr.in .k { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+.lr.in .kl { grid-column: 2; grid-row: 1; }
+.an { grid-row: 1; display: flex; align-items: center; gap: 4px; min-width: 0; max-height: calc(var(--rh, 56px) - 6px); }
+.an.l { grid-column: 1; justify-self: start; text-align: left; padding: 0 12px 0 6px; }
+.an.r { grid-column: 3; justify-self: end; flex-direction: row-reverse; text-align: right; padding: 0 6px 0 12px; }
+.an span { font-size: 20px; line-height: 1.02; color: var(--trim-c); min-width: 0; }
+.an svg, .mk { flex: none; overflow: visible; }
+.an path, .mk path { fill: none; stroke: rgba(var(--trim-rgb-c), 0.85); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.an.l.arrow .nm { transform: scaleX(-1); }
+/* room for a stroke that runs past the number: the words clear of it, and the lead pip */
+.an.l.circle { padding-left: 22px; } .an.r.circle { padding-right: 22px; }
+.an.l.box { padding-left: 16px; } .an.r.box { padding-right: 16px; }
+.an.l.swash { padding-left: 10px; } .an.r.swash { padding-right: 10px; }
+.lr .g.l .mk-at { margin-left: 6px; } .lr .g.r .mk-at { margin-right: 6px; }
+.mk-at { position: relative; }
+.mk { position: absolute; pointer-events: none; }
+.mk.ring { left: -15px; top: -3px; width: calc(100% + 30px); height: calc(100% + 6px); }
+.mk.box { left: -9px; top: -1px; width: calc(100% + 18px); height: calc(100% + 2px); }
+.mk.swash { left: -6px; bottom: -9px; width: calc(100% + 12px); height: 14px; }
 /* a stamp: a unique stat inked on the page (rotation on the inner box, so the motion's transform stays free) */
 .stamp-in { border: 2px dashed rgba(var(--trim-rgb-c), 0.65); border-radius: 14px; padding: 10px 14px 12px; text-align: center; background: rgba(var(--trim-rgb-c), 0.06); transform: rotate(var(--r, -2deg)); height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; }
 .stamp-in .ins-big { font-size: 40px; color: var(--text-color); }
 .stamp-in .ins-tag, .sticky-in .ins-tag, .box-in .ins-tag { white-space: normal; line-height: 1.25; }
-.stamp-in .ins-txt { font-size: 12px; margin-top: 4px; }
+.stamp-in .ins-txt { font-size: 14px; margin-top: 4px; }
+/* A long "who" ("… held on") takes a second line rather than shrink. */
+.stamp-in .ins-who, .box-in .ins-who { white-space: normal; line-height: 1.2; }
+.stamp-in .ins-who { margin-top: 7px; }
 /* sticky notes */
 .sticky-in { background: linear-gradient(180deg, #f3dca6, #ebcf8e); color: var(--ink); border-radius: 4px 4px 16px 4px; padding: 26px 22px 18px; box-sizing: border-box; height: 100%; transform: rotate(var(--r, -2deg)); box-shadow: 0 12px 24px rgba(0,0,0,0.45); position: relative; }
 .sticky-in::before { content: ""; position: absolute; top: -10px; left: 50%; width: 90px; height: 24px; margin-left: -45px; background: rgba(245, 235, 210, 0.55); transform: rotate(3deg); box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
@@ -218,7 +250,7 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .sticky-in .dots i { background: rgba(var(--ink-rgb), 0.2); } .sticky-in .dots i.done { background: rgba(var(--ink-rgb), 0.45); }
 .sticky-in .track { background: rgba(var(--ink-rgb), 0.15); }
 .facts { display: flex; gap: 34px; align-items: flex-end; }
-.fact .lab { font-size: 11px; }
+.fact .lab { font-size: 12px; }
 .fact .fv { font-size: 28px; line-height: 1.1; margin-top: 3px; white-space: nowrap; }
 /* the clipboard and its paper */
 .board { border-radius: 26px; background: linear-gradient(180deg, var(--board-top), var(--board-mid) 60%, var(--board-bottom)); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 26px 60px rgba(0,0,0,0.5); }
@@ -238,16 +270,18 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .paper .rules { background: repeating-linear-gradient(180deg, transparent 0 calc(var(--rh) - 1px), rgba(60, 110, 130, 0.25) calc(var(--rh) - 1px) var(--rh)); }
 .paper .mrule { background: rgba(196, 70, 50, 0.45); }
 .paper .share i { background: rgba(var(--ink-rgb), 0.15); }
+.paper .share i.on { background: var(--trim-c); box-shadow: 0 0 6px rgba(var(--trim-rgb-c), 0.35); }
 .paper .ins-txt { color: rgba(var(--ink-rgb), 0.78); }
 .paper .ins-who { color: var(--ink); }
 .paper .ins-tag { color: #b0581a; }
-.paper .fn span { color: #b0581a; } .paper .fn path { stroke: rgba(176, 88, 26, 0.85); }
+.paper .an span { color: #b0581a; } .paper .an path, .paper .mk path { stroke: rgba(176, 88, 26, 0.85); }
 .field { border-bottom: 1.5px solid rgba(var(--ink-rgb), 0.35); padding-bottom: 4px; }
 /* Ranger log's form fields (stage, length…): a patch of clean paper over the sketches */
 .paper .facts-patch { padding: 8px 14px; margin: -8px -14px; border-radius: 14px; background: rgba(239, 225, 191, 0.84); box-shadow: 0 0 16px 8px rgba(239, 225, 191, 0.84); }
 .field .fv { font-size: 30px; line-height: 1.1; margin-top: 2px; white-space: nowrap; }
 .box-in { border: 1.5px solid rgba(var(--ink-rgb), 0.35); border-radius: 10px; padding: 12px 16px; height: 100%; box-sizing: border-box; background: rgba(255,255,255,0.25); }
 .box-in .ins-big { color: var(--ink); font-size: 36px; }
+.box-in .ins-txt { font-size: 15px; }
 .paper .reel-in .rb { font-size: 64px; line-height: 1; white-space: nowrap; }
 .paper .reel-in .rt { font-size: 21px; line-height: 1.2; }
 .paper .dots i { background: rgba(var(--ink-rgb), 0.2); } .paper .dots i.done { background: rgba(var(--ink-rgb), 0.45); }
@@ -263,6 +297,9 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 /* Portraits inside cards */
 .rail { border-radius: 22px; overflow: hidden; background: linear-gradient(180deg, rgba(var(--bg-color-light-rgb), 0.3), transparent 60%), var(--score-bg-color); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.09), 0 18px 44px rgba(0,0,0,0.4); }
 .rail > .mini { position: absolute !important; z-index: 3; }
+/* The rails' cards are wider and taller than a row of minis: the words and the number a size up. */
+.rail .mini .ins-big { font-size: 42px; width: 88px; }
+.rail .mini .ins-txt { font-size: 16px; }
 .hero.vs { background: radial-gradient(ellipse 30% 90% at 50% 50%, rgba(var(--trim-rgb-c), 0.16), transparent 70%), linear-gradient(180deg, #13262c, #0a181d); }
 .hero.vs > :not(.por) { z-index: 3; }
 .hero .hic { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
@@ -282,13 +319,8 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .win-bg.bg-paper::after { inset: 22px; border-radius: 12px; background: linear-gradient(180deg, #f3e7c8, var(--paper)); box-shadow: 0 6px 18px rgba(0,0,0,0.45); }
 .win.skin-paper .win-clip { inset: 22px; border-radius: 12px; }
 .paper.bare { background: none; box-shadow: none; overflow: visible; }
-/* a note written over a printed portrait: the ink sits on a patch of clean page */
-.skin-page .fn span { text-shadow: 0 0 3px rgb(var(--page-rgb)), 0 0 8px rgb(var(--page-rgb)); padding: 8px 10px; margin: -8px -10px; border-radius: 40%;
-  background: radial-gradient(closest-side, rgba(var(--page-rgb), 0.95) 55%, rgba(var(--page-rgb), 0) 100%); }
-.skin-paper .fn span { padding: 8px 10px; margin: -8px -10px; border-radius: 40%; background: radial-gradient(closest-side, rgba(239, 225, 191, 0.95) 55%, rgba(239, 225, 191, 0) 100%); }
-.skin-page .lr .g, .skin-page .hsay, .skin-page .htitle, .skin-page .corner { text-shadow: 0 2px 12px rgba(10,24,28,0.95), 0 0 3px rgba(10,24,28,0.8); }
-.skin-paper .fn span { text-shadow: 0 0 3px var(--paper), 0 0 8px var(--paper), 0 0 14px var(--paper); }
-.skin-paper .lr .g { text-shadow: 0 0 10px rgba(239,225,191,0.95); }
+.skin-page .lr .g, .skin-page .lr .s, .skin-page .hsay, .skin-page .htitle, .skin-page .corner { text-shadow: 0 2px 12px rgba(10,24,28,0.95), 0 0 3px rgba(10,24,28,0.8); }
+.skin-paper .lr .g, .skin-paper .lr .s { text-shadow: 0 0 10px rgba(239,225,191,0.95); }
 
 /* ── Tale of the tape ── */
 .tape-row { display: grid; grid-template-columns: 130px 1fr 130px; align-items: center; height: 66px; }
@@ -296,13 +328,28 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .tape-row .tv { font-size: 44px; white-space: nowrap; text-shadow: 0 2px 14px rgba(0,0,0,0.75); }
 .tape-row .tv.l { text-align: right; } .tape-row .tv.r { text-align: left; }
 .tape-row .tk { text-align: center; padding: 0 18px; }
-.tape-row .tk .lab { font-size: 13px; color: var(--text-color); }
+.tape-row .tk .lab { font-size: 15px; color: var(--text-color); }
 .tape-row .share { height: 7px; margin-top: 8px; }
-.tape-band .hi { grid-template-columns: 250px 1fr; }
-.tape-band .hb { font-size: 72px; }
-.tape-band .htx { font-size: 24px; }
-.tape-band [data-rot] { bottom: 26px; }
-.tape-band .reel-foot { bottom: 14px; }
+/* The band: a stub (title, number, whose) ruled off from the sentence; squared like the corners, its own progress for an underline */
+.tape-band { position: absolute; box-sizing: border-box; border-radius: 12px; overflow: hidden;
+  background: linear-gradient(90deg, rgba(var(--trim-rgb-c), 0.15), rgba(var(--trim-rgb-c), 0.03) 24%, transparent 40%), var(--surface);
+  box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.07), 0 14px 30px rgba(0,0,0,0.45); }
+.tape-band [data-rot] { position: absolute; inset: 0; }
+.tape-band > .track { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 0; }
+.tape-band > .dots { position: absolute; left: 26px; bottom: 14px; gap: 5px; }
+.tape-band > .dots i { width: 5px; height: 5px; }
+.tb { display: grid; grid-template-columns: 220px 1fr; height: 100%; }
+.tb-stub { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 8px 16px 24px 26px; border-right: 1px solid rgba(var(--trim-rgb-c), 0.3); }
+.tb-big { font-size: 40px; line-height: 1.08; white-space: nowrap; text-shadow: 0 0 24px rgba(var(--trim-rgb-c), 0.3); }
+.tb.story .tb-big { color: var(--trim-c); }
+.tb-who { display: flex; align-items: center; gap: 6px; margin-top: 2px; color: rgba(var(--text-color-rgb), 0.72); white-space: nowrap; min-width: 0; }
+.tb-who span { min-width: 0; }
+/* An arrow toward the player's side of the poster */
+.tb.l .tb-who::before, .tb.r .tb-who::after { content: ""; flex: none; width: 0; height: 0; border-style: solid; }
+.tb.l .tb-who::before { border-width: 4px 6px 4px 0; border-color: transparent var(--trim-c) transparent transparent; }
+.tb.r .tb-who::after { border-width: 4px 0 4px 6px; border-color: transparent transparent transparent var(--trim-c); }
+.tb-say { align-self: center; padding: 10px 30px 10px 26px; font-size: 24px; line-height: 1.25; text-shadow: 0 1px 10px rgba(0,0,0,0.6); }
+.tb-say em { font-style: normal; color: var(--trim-c); }
 
 /* ── Polaroids: a taped instant photo per player (the rotation on the inner box, so the motion's transform stays free) ── */
 .polaroid { height: 100%; box-sizing: border-box; padding: 14px 14px 0; background: linear-gradient(180deg, #f6efdc, #e9dfc4); border-radius: 3px; transform: rotate(var(--r, -3deg)); box-shadow: 0 16px 34px rgba(0,0,0,0.55); position: relative; }
@@ -311,14 +358,66 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .polaroid .ph .por { z-index: 1; }
 .polaroid .pcap { color: var(--ink); font-size: 22px; line-height: 1.15; padding: 10px 6px 0; text-align: center; height: 124px; box-sizing: border-box; overflow: hidden; }
 .polaroid .pcap .pbig { font-size: 34px; color: #b0581a; }
-.polaroid .pcap small { display: block; font-family: var(--ss-label-font); font-weight: 600; font-size: 12px; color: rgba(var(--ink-rgb), 0.7); margin-top: 4px; }
+.polaroid .pcap small { display: block; font-family: var(--ss-label-font); font-weight: 600; font-size: 15px; line-height: 1.25; color: rgba(var(--ink-rgb), 0.7); margin-top: 4px; }
 
 /* ── Lower third ── */
 /* Short columns: no hint line under a label, and labels that can take two tight lines. */
 .lt-half .lr .k .hint { display: none; }
-.lt-half .lr .k .lab { font-size: 12px; letter-spacing: 0.1em; line-height: 1.1; }
+.lt-half .lr .k .lab { font-size: 13px; letter-spacing: 0.1em; line-height: 1.1; }
 .lt-facts { display: flex; justify-content: space-between; align-items: center; padding: 0 18px; box-sizing: border-box; border-radius: 10px; background: var(--plate); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.07); font-family: var(--ss-label-font); font-weight: 600; font-size: 15px; color: rgba(var(--text-color-rgb), 0.8); text-shadow: 0 1px 6px rgba(0,0,0,0.8); white-space: nowrap; }
-.lt-facts b { color: var(--trim-c); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-size: 11px; margin-right: 6px; }
+.lt-facts b { color: var(--trim-c); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-size: 13px; margin-right: 6px; }
+
+/* ── Condensed: pieces round the frame, over the Players bar ── */
+/* The window is the whole frame with no background of its own. */
+.win-bg.bg-bare { background: none; box-shadow: none; }
+.win-bg.bg-bare::after, .win.skin-bare .hairline { display: none; }
+.win.skin-bare .win-clip { border-radius: 0; }
+/* The portraits stand behind the name cards' outer ends: the cards' boxes (to
+   the frame's foot, rounded like the cards on top) are cut out of them. The
+   window doesn't move, so the holes stay on the cards. */
+.win[data-layout="condensed"] .win-clip {
+  clip-path: path(evenodd, "M0 0 H1920 V1080 H0 Z M164 1080 V1016 A14 14 0 0 1 178 1002 H700 A14 14 0 0 1 714 1016 V1080 Z M1206 1080 V1016 A14 14 0 0 1 1220 1002 H1742 A14 14 0 0 1 1756 1016 V1080 Z");
+}
+/* One plate per piece, in the bar's own card style: solid enough over the cam, a trim line along the top. */
+.cz { box-sizing: border-box; border-radius: var(--border-radius, 14px);
+  background: linear-gradient(180deg, rgba(var(--text-color-rgb), 0.06), transparent 70%), rgba(var(--score-bg-color-rgb), 0.9);
+  box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.09), 0 8px 22px rgba(0,0,0,0.42); }
+.cz::before { content: ""; position: absolute; top: 0; left: 18%; right: 18%; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--trim-c), transparent); opacity: 0.55; }
+/* The title and the summary, top centre */
+.cz-title { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 24px; text-align: center; }
+.cz-title .eyebrow { font-size: 14px; letter-spacing: 0.24em; max-width: 100%; }
+.cz-title .t { font-size: 37px; line-height: 1.05; margin-top: 4px; white-space: nowrap; overflow: hidden; max-width: 100%; }
+.cz-story { padding: 10px 28px 12px; overflow: hidden; }
+.cz-story [data-rot] { height: 100%; display: flex; align-items: center; justify-content: center; text-align: center; }
+.cz-story .say { font-size: 22px; line-height: 1.28; }
+.cz-story > .track { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 0; background: transparent; }
+/* The head-to-head column on the round card */
+.cz-mid { padding: 10px 14px 4px; }
+.cz-cap { font-size: 14px; letter-spacing: 0.22em; text-align: center; height: 22px; line-height: 22px; color: var(--trim-c); }
+.cz-row { display: grid; grid-template-columns: minmax(0,1fr) 132px minmax(0,1fr); align-items: center; height: 44px; position: relative; }
+.cz-row + .cz-row { border-top: 1px solid rgba(var(--text-color-rgb), 0.07); }
+.cz-row .v { font-size: 28px; white-space: nowrap; overflow: hidden; }
+.cz-row .v.l { text-align: left; } .cz-row .v.r { text-align: right; }
+.cz-row .lab { font-size: 14px; letter-spacing: 0.05em; line-height: 1.1; text-align: center; color: var(--text-color); white-space: nowrap; overflow: hidden; }
+.cz-row .share { position: absolute; left: 50%; bottom: 5px; width: 64px; margin-left: -32px; height: 3px; }
+/* Each player's own numbers, standing on their card */
+.cz-chips { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); align-items: center; }
+.cz-chip { text-align: center; padding: 0 10px; min-width: 0; position: relative; }
+.cz-chip + .cz-chip { border-left: 1px solid rgba(var(--text-color-rgb), 0.08); }
+.cz-chip .cz-v { font-size: 30px; line-height: 1.05; white-space: nowrap; overflow: hidden; }
+.cz-chip .lab { font-size: 14px; letter-spacing: 0.06em; margin-top: 2px; white-space: nowrap; overflow: hidden; }
+.cz-chip.lead .cz-v { color: var(--trim-c); }
+/* Their callouts above, the number on the outer side */
+.cz-in { display: grid; grid-template-columns: 104px minmax(0,1fr); align-items: center; gap: 12px; height: 100%; padding: 0 18px 0 12px; box-sizing: border-box; }
+.cz-acc.r .cz-in { grid-template-columns: minmax(0,1fr) 104px; padding: 0 12px 0 18px; text-align: right; }
+.cz-acc.r .ins-big { order: 2; }
+.cz-in .ins-big { font-size: 36px; text-align: center; overflow: hidden; }
+.cz-tx { min-width: 0; }
+.cz-in .ins-tag { overflow: hidden; }
+.cz-in .ins-txt { font-size: 17px; line-height: 1.22; margin-top: 3px; max-height: 42px; overflow: hidden; }
+.cz-acc.l { box-shadow: inset 3px 0 0 var(--trim-c), inset 0 0 0 1px rgba(var(--text-color-rgb), 0.09), 0 8px 22px rgba(0,0,0,0.42); }
+.cz-acc.r { box-shadow: inset -3px 0 0 var(--trim-c), inset 0 0 0 1px rgba(var(--text-color-rgb), 0.09), 0 8px 22px rgba(0,0,0,0.42); }
 
 /* ── Runtime hooks (set-stats.js) ── */
 /* The right portrait is the left one mirrored; the motion composes on it. */

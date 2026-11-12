@@ -3150,8 +3150,8 @@
 
   // ── Stats popup ─────────────────────────────────────────────────────────────
   // The set stats popup (/o/set-stats): Show / Hide (also the strip's Stats
-  // key and the global hotkey), the layout (or Random: a different one at each
-  // show), the look — each layout's best fit, or a style and portraits picked
+  // key and the global hotkey), the layout (or Auto: one from the Layouts
+  // table's ticks for where the set is, a different one at each show), the look — each layout's best fit, or a style and portraits picked
   // by hand, which ★ Save makes the drawn layout's best fit — which reading it
   // shows, and the automatic show after each game. All of it switches live.
   // Fed by three state sections: statsConfig, statsShot and setStats.
@@ -3163,9 +3163,23 @@
   const statsSet = (body) => act("/api/set-stats/config", body, null, "Stats popup");
   const statsShow = (action) => act("/api/set-stats/show", { action }, null, "Stats popup");
   const nameIn = (list, id) => ((list || []).find((x) => x.id === id) || {}).name || id || "";
+  const STYLE_TIPS = {
+    auto: "Each layout's own style: the one saved for it, else the recommended one",
+    random: "A different style at each show",
+  };
   /** A portrait pack's name; "random" is random poses (layouts.js randomPair). */
   const statsPackName = (id) => (id === "random" ? "Random poses" : nameIn(statsCatalog && statsCatalog.packs, id));
 
+  /**
+   * The portrait choices: only what's downloaded (Setup → Art packs), and
+   * Random poses only with a full-body pack among them (it never draws a bust).
+   */
+  function statsPackItems() {
+    const packs = (statsCatalog && statsCatalog.packs) || [];
+    if (!packs.length) return [["", "None downloaded"]];
+    const random = packs.some((p) => !p.cut) ? [["random", "Random poses", "A different pose each side at each show: full-body renders only, the two from one set of renders"]] : [];
+    return [...random, ...packs.map((p) => [p.id, p.name, p.credits || ""])];
+  }
   /** A <select>'s options, from [id, name, title]; a pick goes straight to the config. */
   function statsOptions(sel, items) {
     sel.replaceChildren(...items.map(([id, name, title]) => {
@@ -3182,25 +3196,21 @@
     api("/api/set-stats").then((r) => {
       if (!r.ok) return;
       statsCatalog = r;
-      statsOptions($("stats-layout"), [["random", "Random"], ...r.layouts.map((l) => [l.id, l.name, l.note])]);
+      statsOptions($("stats-layout"), [["auto", "Auto", "A ticked layout from the Layouts table at each show"], ...r.layouts.map((l) => [l.id, l.name, l.note])]);
       // "Best fit" here: each layout's own style (saved, else recommended) under the portraits picked by hand.
-      statsOptions($("stats-style"), r.styles.map((s) => [s.id, s.name, s.id === "auto" ? "Each layout's own style: the one saved for it, else the recommended one" : ""]));
-      const packs = r.packs || [];
-      statsOptions($("stats-pack"), packs.length
-        ? [["random", "Random poses", "A different pose each side at each show: full-body renders only, the two from one set of renders"], ...packs.map((p) => [p.id, p.name, p.credits || ""])]
-        : [["", "None downloaded"]]);
-      // "None" is always there: the popup without stage pictures.
-      statsOptions($("stats-stages"), [...(r.stagePacks || []).map((p) => [p.id, p.name, p.credits || ""]), ["none", "None"]]);
+      statsOptions($("stats-style"), r.styles.map((s) => [s.id, s.name, STYLE_TIPS[s.id] || ""]));
+      statsOptions($("stats-pack"), statsPackItems());
+      buildStatsTable();
       renderStats();
     });
   }
-  for (const [id, key] of [["stats-layout", "layout"], ["stats-mode", "mode"], ["stats-style", "style"], ["stats-pack", "pack"], ["stats-stages", "stages"]]) {
+  for (const [id, key] of [["stats-layout", "layout"], ["stats-mode", "mode"], ["stats-style", "style"], ["stats-pack", "pack"]]) {
     $(id).addEventListener("change", (e) => { if (e.target.value) statsSet({ [key]: e.target.value }); e.target.blur(); });
   }
 
-  /** The layout the combo row is about: the one picked, or with Random the one up now (null before the first show). */
+  /** The layout the combo row is about: the one picked, or under Auto the one up now (null before the first show). */
   function statsLayout(cfg) {
-    if (cfg.layout !== "random") return cfg.layout;
+    if (cfg.layout !== "auto") return cfg.layout;
     return (statsShot && statsShot.layout) || null;
   }
   /** What the overlay draws for one layout (the same rule as layouts.js bestFit): picked by hand, else its saved combo, else its own pick. */
@@ -3210,9 +3220,10 @@
     const style = cfg.style && cfg.style !== "auto" ? cfg.style : fav ? fav.style : L.style;
     const order = cfg.pack && cfg.pack !== "auto" ? [cfg.pack] : fav ? [fav.pack, ...L.packs] : L.packs;
     const packs = (statsCatalog && statsCatalog.packs) || [];
-    // "random" is a pick of its own (random poses), not a pack that can be missing.
-    const pack = order[0] === "random" && packs.length ? "random" : order.find((id) => packs.some((p) => p.id === id)) || (packs[0] && packs[0].id) || null;
-    const recPack = (L.packs || []).find((id) => packs.some((p) => p.id === id)) || null;
+    // "random" is a pick of its own (random poses), drawable with any full-body pack.
+    const pack = order[0] === "random" && packs.some((p) => !p.cut) ? "random" : order.find((id) => id !== "random" && packs.some((p) => p.id === id)) || (packs[0] && packs[0].id) || null;
+    // The recommended pack as drawn: the layout's first downloaded one, else whatever is downloaded.
+    const recPack = (L.packs || []).find((id) => packs.some((p) => p.id === id)) || (packs[0] && packs[0].id) || null;
     return { style, pack, fav, own: L, recPack };
   }
   const statsManual = (cfg) => !(cfg.style === "auto" && cfg.pack === "auto");
@@ -3223,7 +3234,7 @@
     const save = $("btn-stats-save-combo");
     const forget = $("btn-stats-forget-combo");
     if (!layout) {
-      $("stats-combo").textContent = statsManual(cfg) ? "Random: every layout in this look" : "Random: each layout in its best fit";
+      $("stats-combo").textContent = statsManual(cfg) ? "Auto: every layout in this look" : "Auto: each layout in its best fit";
       save.classList.add("gone");
       forget.classList.add("gone");
       return;
@@ -3266,6 +3277,113 @@
     statsSet({ combos });
   });
 
+  // ── The Layouts table ──
+  // A row per layout: its look — the combo saved for it (★; the card's ★ Save
+  // writes the same one) or its recommended one — with a Style and a
+  // Portraits pick that save its combo (the recommended look again drops it),
+  // and the phases Auto draws it in: Mid-set (the set still on) and Over (the
+  // set won), each a random pick among the ticked, never one twice running.
+  const statsRows = new Map(); // layout id → its row's controls
+
+  /** A layout's own look, whatever the card's Look: its saved combo, else its recommended one, as drawn. */
+  const statsRowLook = (cfg, id) => statsBestFit(Object.assign({}, cfg, { style: "auto", pack: "auto" }), id);
+  const statsAllIds = () => ((statsCatalog && statsCatalog.layouts) || []).map((l) => l.id);
+
+  function buildStatsTable() {
+    const styles = ((statsCatalog && statsCatalog.styles) || []).filter((x) => x.id !== "auto");
+    const th = (text, cls, tip) => { const e = h("span", "th" + (cls ? " " + cls : ""), text); if (tip) e.title = tip; return e; };
+    const cells = [th("Layout"), th("Style"), th("Portraits"),
+      th("Mid-set", "tick", "Auto draws one of these while the set is on"), th("Over", "tick", "Auto draws one of these once the set is won")];
+    statsRows.clear();
+    for (const L of (statsCatalog && statsCatalog.layouts) || []) {
+      const name = h("span", "lname");
+      const star = h("span", "star gone", "★");
+      const reset = button("linkish gone", "↺");
+      name.append(h("b", null, L.name), star, reset);
+      const style = h("select");
+      statsOptions(style, styles.map((x) => [x.id, x.name, STYLE_TIPS[x.id] || ""]));
+      const pack = h("select");
+      statsOptions(pack, statsPackItems());
+      const tick = (phase) => {
+        const box = h("input");
+        box.type = "checkbox";
+        const wrap = h("label", "tick");
+        wrap.title = `${L.name} ${phase === "mid" ? "while the set is on" : "once the set is won"}, under Auto`;
+        wrap.append(box);
+        box.addEventListener("change", () => statsPool(phase, L.id, box.checked));
+        return { box, wrap };
+      };
+      const mid = tick("mid"), over = tick("over");
+      style.addEventListener("change", () => { statsSaveRow(L.id, { style: style.value }); style.blur(); });
+      pack.addEventListener("change", () => { if (pack.value) statsSaveRow(L.id, { pack: pack.value }); pack.blur(); });
+      reset.addEventListener("click", () => {
+        const combos = Object.assign({}, (statsCfg || {}).combos);
+        delete combos[L.id];
+        statsSet({ combos });
+      });
+      statsRows.set(L.id, { L, name, star, reset, style, pack, mid: mid.box, over: over.box });
+      cells.push(name, style, pack, mid.wrap, over.wrap);
+    }
+    $("stats-table").replaceChildren(...cells);
+  }
+
+  /** A row's Style or Portraits picked: its combo, or none if that's its recommended look again. */
+  function statsSaveRow(id, change) {
+    const cfg = statsCfg || {};
+    const fit = statsRowLook(cfg, id);
+    const style = change.style || fit.style;
+    const pack = change.pack || fit.pack || (fit.own.packs || [])[0];
+    const combos = Object.assign({}, cfg.combos);
+    if (style === fit.own.style && pack === fit.recPack) delete combos[id];
+    else combos[id] = { style, pack };
+    statsSet({ combos });
+  }
+
+  /** A Mid-set or Over tick: the phase's pool with or without the layout (never empty). */
+  function statsPool(phase, id, on) {
+    const cfg = statsCfg || {};
+    const ids = statsAllIds();
+    const pool = new Set((cfg.pools && cfg.pools[phase]) || ids);
+    if (on) pool.add(id);
+    else pool.delete(id);
+    const list = ids.filter((x) => pool.has(x));
+    if (!list.length) { toast(`Keep at least one layout ticked for ${phase === "mid" ? "mid-set" : "the set over"}`, false); return renderStats(); }
+    return statsSet({ pools: { [phase]: list } });
+  }
+
+  function renderStatsTable(cfg, shot) {
+    const auto = cfg.layout === "auto";
+    const ids = statsAllIds();
+    const pools = cfg.pools || {};
+    const packs = (statsCatalog && statsCatalog.packs) || [];
+    const styleName = (id) => nameIn(statsCatalog && statsCatalog.styles, id);
+    for (const [id, r] of statsRows) {
+      const fit = statsRowLook(cfg, id);
+      const rec = `${styleName(fit.own.style)} · ${statsPackName(fit.recPack) || "no portraits"}`;
+      statsPick(r.style, fit.style);
+      statsPick(r.pack, fit.pack || "");
+      r.pack.disabled = !packs.length;
+      r.star.classList.toggle("gone", !fit.fav);
+      r.reset.classList.toggle("gone", !fit.fav);
+      r.reset.title = `Back to ${r.L.name}'s recommended look: ${rec}`;
+      r.name.title = `${r.L.note}. ${fit.fav ? "Saved look ★" : "Its recommended look"}: ${fit.fav ? `${styleName(fit.style)} · ${statsPackName(fit.pack)}` : rec}`;
+      r.name.classList.toggle("on", !!shot.shown && shot.layout === id);
+      r.mid.checked = (pools.mid || ids).includes(id);
+      r.over.checked = (pools.over || ids).includes(id);
+    }
+    $("stats-table").classList.toggle("dim", !auto);
+    const notes = [];
+    if (!auto) notes.push(`${nameIn(statsCatalog && statsCatalog.layouts, cfg.layout)} is picked by hand: the ticks pick the layout under Auto.`);
+    else notes.push("Auto draws a ticked layout at each show, a different one each time it can.");
+    if (statsManual(cfg)) notes.push("The Look is Manual, so every layout draws the card's style and portraits; these looks are Best fit's.");
+    $("stats-table-hint").textContent = notes.join(" ");
+    $("btn-stats-use-auto").classList.toggle("gone", auto);
+    const n = (phase) => (pools[phase] || ids).length;
+    const saved = Object.keys(cfg.combos || {}).length;
+    setSum("sum-stats-table", [auto ? "Auto" : "Auto off", `mid-set ${n("mid")}`, `over ${n("over")}`, saved ? `${saved} ★` : ""].filter(Boolean).join(" · "));
+  }
+  $("btn-stats-use-auto").addEventListener("click", () => statsSet({ layout: "auto" }));
+
   const secs = (ms) => Math.max(0, Math.ceil(ms / 1000));
   const renderStats = guard("stats", () => {
     const cfg = statsCfg || {};
@@ -3283,8 +3401,7 @@
     statsPick($("stats-style"), cfg.style === "auto" ? "auto" : fit.style);
     statsPick($("stats-pack"), fit.pack || "");
     renderCombo(cfg, layout, fit);
-    const sets = (statsCatalog && statsCatalog.stagePacks) || [];
-    statsPick($("stats-stages"), cfg.stages === "none" || !sets.length ? "none" : sets.some((p) => p.id === cfg.stages) ? cfg.stages : sets[0].id);
+    renderStatsTable(cfg, shot);
 
     const auto = $("stats-auto");
     if (document.activeElement !== auto) auto.checked = !!cfg.auto;
@@ -3299,7 +3416,7 @@
     let line;
     if (!d) line = "Waiting for the app…";
     else if (!available) line = d.reason || "No stats yet";
-    else if (shot.shown) line = `On: ${shot.mode === "set" ? "wrap-up" : `game ${d.games[d.games.length - 1].n}`}${cfg.layout === "random" && shot.layout ? ` · ${nameIn(layouts, shot.layout)}` : ""}${shot.auto ? " · auto" : ""}`;
+    else if (shot.shown) line = `On: ${shot.mode === "set" ? (d.over ? "wrap-up" : "the set so far") : `game ${d.games[d.games.length - 1].n}`}${cfg.layout === "auto" && shot.layout ? ` · ${nameIn(layouts, shot.layout)}` : ""}${shot.auto ? " · auto" : ""}`;
     else if (pending != null) line = `Up in ${pending}s`;
     else line = "Down";
     if (available) {
@@ -3321,10 +3438,11 @@
     strip.title = shot.shown ? "Take the stats popup down" : available ? "Put the stats popup on stream" : (d && d.reason) || "No stats yet";
 
     const packs = (statsCatalog && statsCatalog.packs) || [];
-    const sum = [cfg.layout === "random" ? "Random" : nameIn(layouts, cfg.layout),
+    const sum = [cfg.layout === "auto" ? "Auto" : nameIn(layouts, cfg.layout),
       manual ? [fit.pack && statsPackName(fit.pack), cfg.style === "auto" ? "best-fit style" : nameIn(statsCatalog && statsCatalog.styles, fit.style)].filter(Boolean).join(" · ") : "best fit",
       cfg.auto ? `auto ${cfg.delaySec}s` : "auto off"].filter(Boolean).join(" · ");
     $("sum-stats").textContent = shot.shown ? `On · ${sum}` : sum;
+    const sets = (statsCatalog && statsCatalog.stagePacks) || [];
     $("stats-source").textContent = statsCatalog && !packs.length && !sets.length ? "No art yet: Setup → Art packs" : "OBS: in the Players bar, or /o/set-stats above it";
   });
 

@@ -11,8 +11,9 @@
  * into by whatever comes next):
  * down → up (the window grows up out of the players bar, the portraits slide
  * in from the window's outer edges, the cards, then the rows cascade top to
- * bottom); up → down (rows out top first, quickly, the portraits back out the
- * way they came, then the window); up → up with something different (a new
+ * bottom); up → down (everything out at once, quicker than any entrance or
+ * swap — CLOSE — the rows barely staggered, the portraits back out the way
+ * they came, the window going with them); up → up with something different (a new
  * layout or style from the dock, the next game's numbers, the other reading)
  * swaps the window's insides without taking the window down — so the
  * operator can mix and match live. Portraits that would be drawn the same
@@ -27,7 +28,9 @@
  * strokes drawn after, stamps pressed, ruled lines drawn down the page, the
  * clipboard's clip settling first); the polaroids are tossed onto the page and
  * develop; the Tale of the tape's fighters walk out first and each row's
- * numbers close in from their own side; the Lower third opens from its middle.
+ * numbers close in from their own side; the Lower third opens from its middle;
+ * the Condensed pieces come from the outside in (out of the players bar's
+ * cards, down from the top edge, in from the sides) and go back the same way.
  * A swap leaves the old layout's way and arrives the new one's.
  *
  * The players bar's logo stands where the window's foot lands. It sinks into
@@ -53,6 +56,11 @@
   const HOLD = 6500; // a rotating section's dwell: not animation speed, so not the tempo's
   const CASCADE_IN = { gap: 70, min: 28, max: 480 };
   const CASCADE_OUT = { gap: 36, min: 14, max: 240 };
+  // Going down is quicker than any entrance or swap: the popup gets out of the
+  // way. The rows barely stagger, everything fades faster, and the window
+  // leaves with its insides rather than after them (about a third of the time
+  // a swap's way out takes). scoreboard.js's LOGO.backDelay is timed to it.
+  const CLOSE = { cascade: { gap: 12, min: 5, max: 60 }, textMs: 120, porMs: 200, fadeMs: 160, winDelay: 20, winMs: 200 };
   // The logo's head start (it sinks in scoreboard.js's LOGO.outMs, 280).
   const WINDOW_IN_DELAY = 120;
   // Portraits travel from their side's outer edge: a share of their own width,
@@ -73,7 +81,7 @@
   const CLIP = { full: "inset(-30% -40px -30% -40px)", L0: "inset(-30% 100% -30% -40px)", top0: "inset(0px 0px 100% 0px)", all: "inset(0px 0px 0px 0px)", mid0: "inset(0px 50% 0px 50%)" };
   // The Lower third's window opens from its middle line (the box reaches past
   // the window for its shadow).
-  const WIN_WIPE = { full: "inset(-80px -80px -80px -80px)", mid: "inset(-80px 50% -80px 50%)", inMs: 640, outMs: 300 };
+  const WIN_WIPE = { full: "inset(-80px -80px -80px -80px)", mid: "inset(-80px 50% -80px 50%)", inMs: 640 };
 
   let data = null;
   let cfg = { layout: "spotlight", style: "auto" };
@@ -159,6 +167,10 @@
         { duration: ms(640), delay: ms(delay), fill: "backwards" });
       el.querySelectorAll("[data-draw]").forEach((p, i) => drawStroke(p, delay + 420 + i * 120));
     },
+    /** A stroke on the page (a field note's circle round a number): only its lines, drawn. */
+    draw(el, delay) {
+      el.querySelectorAll("[data-draw]").forEach((p, i) => drawStroke(p, delay + i * 120));
+    },
     /** A stamp: pressed down onto the page, from a little above it. */
     press(el, delay) {
       animate(el, [{ opacity: "0", transform: moved(el, { scale: 1.12 }) }, { opacity: "1", transform: moved(el, { scale: 1.02 }), offset: 0.45 }, { opacity: "1", transform: moved(el) }],
@@ -193,6 +205,38 @@
       animate(el, [{ opacity: "0", transform: moved(el, { y: -22 }) }, { opacity: "1", transform: moved(el) }],
         { duration: ms(520), delay: ms(delay), fill: "backwards", easing: ease("spring") });
     },
+    /**
+     * Up out of what's under it (the Condensed pieces on the bar's cards): it
+     * rises from behind its own foot, the clip holding that line still while
+     * it moves, so it comes out of the card rather than across it.
+     */
+    emerge(el, delay) {
+      const d = emergeBy(el);
+      animate(el, [{ transform: moved(el, { y: d }), clipPath: footClip(d), opacity: "0" }, { opacity: "1", offset: 0.3 }, { transform: moved(el), clipPath: footClip(0), opacity: "1" }],
+        { duration: ms(600), delay: ms(delay), fill: "backwards" });
+    },
+    /** In from the frame's edge it's nearest (data-from: t, l or r), outside in. */
+    inward(el, delay) {
+      animate(el, [{ opacity: "0", transform: moved(el, edgeOffset(el)) }, { opacity: "1", transform: moved(el) }],
+        { duration: ms(520), delay: ms(delay), fill: "backwards" });
+    },
+  };
+  // How far a piece rises out of its card: its whole height (and the gap to the card) unless it says.
+  const emergeBy = (el) => parseFloat(el.dataset.travel) || Math.min(240, el.offsetHeight + 10);
+  const footClip = (d) => `inset(-40px -40px ${d}px -40px)`;
+  const edgeOffset = (el) => ({ t: { y: -24 }, l: { x: -28 }, r: { x: 28 }, b: { y: 24 } }[el.dataset.from] || { y: -24 });
+  /**
+   * A piece with its own way in leaves the same way back (from where it is,
+   * now()), instead of the text lift: back into its card, back out to its edge.
+   */
+  const FX_OUT = {
+    emerge(el, from, opts) {
+      const d = emergeBy(el);
+      animate(el, [{ transform: from.transform, clipPath: from.clipPath || footClip(0), opacity: String(from.opacity) }, { transform: moved(el, { y: d }), clipPath: footClip(d), opacity: "0" }], { fill: "forwards", ...opts });
+    },
+    inward(el, from, opts) {
+      animate(el, [{ transform: from.transform, opacity: String(from.opacity) }, { transform: moved(el, edgeOffset(el)), opacity: "0" }], { fill: "forwards", ...opts });
+    },
   };
   /** A beat (a row, a title) in: its own way if it has one, else the layout's rows (`slide`: from the left) or the text lift. */
   function beatIn(el, delay, m) {
@@ -221,17 +265,27 @@
   // One-line values shrink to their width (Overlay.fitText); a sentence in a
   // fixed box steps its size down until it fits the box.
 
-  const BOXES = ".strip, .mini, .stamp-in, .box-in, .reel-in, [data-rot], .foot-story, .pcap";
+  const BOXES = ".strip, .mini, .stamp-in, .box-in, .reel-in, [data-rot], .foot-story, .pcap, .an, .cz";
+  // Every box it sits in, not just the nearest: a rotating section grows with
+  // its sentence (and is centred), so only the card round it says it's too big.
   function fitBox(el) {
-    const box = el.closest(BOXES) || el.parentElement;
-    if (!box) return;
+    const boxes = [];
+    for (let b = el.closest(BOXES); b && boxes.length < 3; b = b.parentElement && b.parentElement.closest(BOXES)) boxes.push(b);
+    if (!boxes.length && el.parentElement) boxes.push(el.parentElement);
+    if (!boxes.length) return;
     el.style.fontSize = "";
     const base = parseFloat(getComputedStyle(el).fontSize) || 16;
+    const floor = Math.max(base * 0.6, Math.min(base, 11));
+    const over = () => {
+      const r = el.getBoundingClientRect();
+      return boxes.some((b) => {
+        const B = b.getBoundingClientRect();
+        return b.scrollHeight > b.clientHeight + 1 || r.bottom > B.bottom + 1 || r.top < B.top - 1;
+      });
+    };
     let size = base;
-    for (let i = 0; i < 12; i++) {
-      const over = box.scrollHeight > box.clientHeight + 1 || el.getBoundingClientRect().bottom > box.getBoundingClientRect().bottom + 1;
-      if (!over || size <= base * 0.6) break;
-      size *= 0.93;
+    for (let i = 0; i < 14 && over() && size > floor; i++) {
+      size = Math.max(floor, size * 0.93);
       el.style.fontSize = `${size.toFixed(1)}px`;
     }
   }
@@ -290,13 +344,14 @@
     if (!data || !data.available) return null;
     if (!(PIN.show || (shot && shot.shown))) return null;
     const mode = shot && (shot.mode === "set" || shot.mode === "game") ? shot.mode : (data.over ? "set" : "game");
-    // "random": the layout the app picked for this show (statsShot.layout).
-    const layout = PIN.layout || (cfg.layout === "random" ? shot && shot.layout : cfg.layout) || "spotlight";
+    // "auto": the layout the app picked for this show (statsShot.layout).
+    const layout = PIN.layout || (cfg.layout === "auto" || cfg.layout === "random" ? shot && shot.layout : cfg.layout) || "spotlight";
     // The layout's saved combo rides along: style / pack "auto" draw it (layouts.js bestFit).
     const combos = cfg.combos && cfg.combos[layout] ? { [layout]: cfg.combos[layout] } : {};
     // Pack "random": the show's seed picks the poses (layouts.js randomPair), the same in every source.
     const seed = (shot && shot.seed) || 0;
-    return { layout, style: PIN.style || cfg.style, pack: PIN.pack || cfg.pack, stages: PIN.stages || cfg.stages, mode, combos, seed };
+    // The stage pictures: the first installed set's, unless the source pins one (or "none").
+    return { layout, style: PIN.style || cfg.style, pack: PIN.pack || cfg.pack, stages: PIN.stages || undefined, mode, combos, seed };
   }
   const sigOf = (w) => JSON.stringify([w.layout, w.style, w.pack, w.stages, w.mode, w.combos, w.seed, data]);
 
@@ -412,8 +467,9 @@
       if (fx) fx(el, delay + 80 + own(el));
     });
     win.querySelectorAll("[data-beat-card]").forEach((el) => cardIn(el, delay + lead + 200 + own(el), m));
-    win.querySelectorAll("[data-corner]").forEach((el) => liftIn(el, delay + lead + 200));
-    const beats = [...win.querySelectorAll("[data-beat]")];
+    win.querySelectorAll("[data-corner]").forEach((el) => { if (!el.dataset.fx) liftIn(el, delay + lead + 200); });
+    // A plate that carries its insides (data-carry) is their one entrance.
+    const beats = [...win.querySelectorAll("[data-beat]")].filter((el) => !el.closest("[data-carry]"));
     const off = cascadeOffsets(beats.length, CASCADE_IN);
     beats.forEach((el, i) => {
       const t = delay + lead + 240 + off[i] + own(el);
@@ -428,11 +484,12 @@
    * the portraits back out to their edges (unless `keepPor`). Each starts from
    * where it is, so a hide in the middle of an entrance doesn't flash.
    */
-  function exitInsides({ keepPor = false } = {}) {
+  function exitInsides({ keepPor = false, quick = false } = {}) {
     ROT.stop();
     const content = win.querySelector(".content");
     const m = motion;
-    const beats = content ? [...new Set(content.querySelectorAll("[data-beat], [data-corner], [data-beat-card], [data-fx]"))] : [];
+    // What a plate carries (data-carry) leaves with it.
+    const beats = content ? [...new Set(content.querySelectorAll("[data-beat], [data-corner], [data-beat-card], [data-fx]"))].filter((el) => !(el.parentElement && el.parentElement.closest("[data-carry]"))) : [];
     const porScope = keepPor ? content : win; // kept: only the window's portraits stay
     // Portraits that ride in a card leave with it.
     const pors = porScope && m.por !== "ride" ? [...porScope.querySelectorAll("[data-por]")] : [];
@@ -440,8 +497,18 @@
     stopScripted(content);
     pors.forEach((el) => stopScripted(el, { subtree: false }));
 
-    const off = cascadeOffsets(beats.length, CASCADE_OUT);
+    const off = cascadeOffsets(beats.length, quick ? CLOSE.cascade : CASCADE_OUT);
+    const textMs = quick ? CLOSE.textMs : TEXT.outMs;
+    const porMs = quick ? CLOSE.porMs : POR.outMs;
+    const fadeMs = quick ? CLOSE.fadeMs : POR.fadeOutMs;
     beats.forEach((el, i) => {
+      const back = FX_OUT[el.dataset.fx];
+      if (back) {
+        const f = from.get(el);
+        if (f.opacity < 0.02) el.style.visibility = "hidden";
+        else back(el, f, { duration: ms(textMs), delay: ms(off[i]) });
+        return;
+      }
       const rest = restOf(el);
       // Text drifts up out of focus; a card (glass, whose backdrop a blur
       // would smear — and too big a layer to blur) and the page's furniture
@@ -449,7 +516,7 @@
       const card = el.hasAttribute("data-beat-card") || (el.hasAttribute("data-fx") && !el.hasAttribute("data-beat"));
       const to = card ? pose(rest, { y: -6, scale: 0.985, opacity: 0 }) : pose(rest, { ...TEXT.out, opacity: 0 });
       if (card) delete to.filter;
-      leave(el, from.get(el), to, { duration: ms(TEXT.outMs), delay: ms(off[i]) });
+      leave(el, from.get(el), to, { duration: ms(textMs), delay: ms(off[i]) });
     });
     pors.forEach((el) => {
       const f = from.get(el);
@@ -457,19 +524,19 @@
       const base = restOf(el).transform;
       if (m.por === "wipe") {
         // Back into their margin: covered from the inner edge out.
-        animate(el, [{ clipPath: f.clipPath || CLIP.all, opacity: String(f.opacity) }, { clipPath: "inset(0px 100% 0px 0px)", opacity: "0" }], { duration: ms(WIPE.outMs), fill: "forwards" });
+        animate(el, [{ clipPath: f.clipPath || CLIP.all, opacity: String(f.opacity) }, { clipPath: "inset(0px 100% 0px 0px)", opacity: "0" }], { duration: ms(quick ? porMs : WIPE.outMs), fill: "forwards" });
         return;
       }
       if (m.por === "develop") {
-        animate(el, [{ opacity: String(f.opacity) }, { opacity: "0" }], { duration: ms(POR.fadeOutMs), fill: "forwards" });
+        animate(el, [{ opacity: String(f.opacity) }, { opacity: "0" }], { duration: ms(fadeMs), fill: "forwards" });
         return;
       }
       const travel = m.por === "walkout" ? WALKOUT.travel : POR.travel;
-      animate(el, [{ transform: f.transform }, { transform: `${base} translateX(${travel})`.trim() }], { duration: ms(POR.outMs), fill: "forwards" });
-      animate(el, [{ opacity: String(f.opacity) }, { opacity: "0" }], { duration: ms(POR.fadeOutMs), fill: "forwards" });
+      animate(el, [{ transform: f.transform }, { transform: `${base} translateX(${travel})`.trim() }], { duration: ms(porMs), fill: "forwards" });
+      animate(el, [{ opacity: String(f.opacity) }, { opacity: "0" }], { duration: ms(fadeMs), fill: "forwards" });
     });
     const lastOff = off[off.length - 1] || 0;
-    return { lastOff, ms: Math.max(ms(lastOff + TEXT.outMs), pors.length ? ms(POR.outMs) : 0) };
+    return { lastOff, ms: Math.max(ms(lastOff + textMs), pors.length ? ms(porMs) : 0) };
   }
 
   // The window moves on transform and opacity only: no blur on a layer this
@@ -502,7 +569,9 @@
     win.classList.add("shown");
     const rest = restOf(win);
     const delay = reboxed ? 0 : WINDOW_IN_DELAY;
-    if (motion.win === "wipe") {
+    if (motion.win === "none") {
+      // The whole frame, no background (the Condensed pieces): only its pieces move.
+    } else if (motion.win === "wipe") {
       // The Lower third opens out from its middle, like a bar run across the screen.
       animate(win, [{ clipPath: WIN_WIPE.mid, opacity: "0" }, { clipPath: "inset(-80px 48% -80px 48%)", opacity: "1", offset: 0.06 }, { clipPath: WIN_WIPE.full, opacity: "1" }],
         { duration: ms(WIN_WIPE.inMs), delay: ms(delay), fill: "backwards" });
@@ -514,19 +583,21 @@
 
   async function exit() {
     const winFrom = now(win);
-    const { lastOff, ms: insides } = exitInsides();
+    const { lastOff, ms: insides } = exitInsides({ quick: true });
     stopScripted(win, { subtree: false });
     const rest = restOf(win);
-    let winMs = 320;
-    if (motion.win === "wipe") {
-      winMs = WIN_WIPE.outMs;
+    const winMs = CLOSE.winMs;
+    const winDelay = lastOff + CLOSE.winDelay;
+    if (motion.win === "none") {
+      animate(win, [{ opacity: String(winFrom.opacity) }, { opacity: "0" }], { duration: ms(winMs), delay: ms(winDelay), fill: "forwards" });
+    } else if (motion.win === "wipe") {
       animate(win, [{ clipPath: winFrom.clipPath || WIN_WIPE.full, opacity: String(winFrom.opacity) }, { clipPath: "inset(-80px 46% -80px 46%)", opacity: String(winFrom.opacity), offset: 0.8 }, { clipPath: WIN_WIPE.mid, opacity: "0" }],
-        { duration: ms(winMs), delay: ms(lastOff + 60), fill: "forwards" });
+        { duration: ms(winMs), delay: ms(winDelay), fill: "forwards" });
     } else {
       animate(win, [{ opacity: String(winFrom.opacity), transform: winFrom.transform }, lift(rest, { y: -12, scale: 0.985, opacity: 0 })],
-        { duration: ms(winMs), delay: ms(lastOff + 60), fill: "forwards" });
+        { duration: ms(winMs), delay: ms(winDelay), fill: "forwards" });
     }
-    await wait(Math.max(insides, ms(lastOff + 60 + winMs)) + 30);
+    await wait(Math.max(insides, ms(winDelay + winMs)) + 30);
     up = false;
     drawn = null;
     portraitsDrawn = null;
@@ -608,6 +679,9 @@
     get up() { return up; },
     get data() { return data; },
     get drawn() { return drawn; },
+    /** The rotating sections on screen ({ id, items }), and the fitting a rotation runs on each item. */
+    get rots() { return rots; },
+    fit,
     reconcile,
   };
 })();

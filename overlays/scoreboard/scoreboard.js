@@ -42,7 +42,7 @@
      --logo-y is a registered property, so script can animate it; the CSS
      entrance stays as it is underneath (a script animation wins over it). */
   const logo = document.querySelector(".logo");
-  const LOGO = { outMs: 280, inMs: 560, backDelay: 380 };
+  const LOGO = { outMs: 280, inMs: 560, backDelay: 170 };
   const popup = { shown: false, available: false };
   let tucked = null;   // null until the first state: a page loaded under the popup starts tucked, unanimated
   let tuckAnims = [];

@@ -258,10 +258,10 @@
 
           <div class="stats-grid">
             <label class="field"><span>Layout</span>
-              <select id="stats-layout" title="Random draws a different layout each time it goes up"></select></label>
+              <select id="stats-layout" title="Auto: a layout from the Layouts table's Mid-set ticks, then its Set-over ticks once the set is won, a different one at each show. A layout picked here takes Auto off"></select></label>
             <label class="field"><span>Reads</span>
-              <select id="stats-mode" title="Auto: the game just played, then the wrap-up once the set is won">
-                <option value="auto">Auto</option><option value="game">Last game</option><option value="set">Wrap-up</option>
+              <select id="stats-mode" title="Auto: the game just played, then the wrap-up once the set is won. Random: either one, picked at each show">
+                <option value="auto">Auto</option><option value="game">Last game</option><option value="set">Wrap-up</option><option value="random">Random</option>
               </select></label>
           </div>
           <div class="field">
@@ -280,14 +280,26 @@
             <button class="key mini" id="btn-stats-save-combo" type="button">★ Save</button>
             <button class="key mini" id="btn-stats-forget-combo" type="button">Forget</button>
           </div>
-          <div class="stats-grid three">
-            <label class="field"><span>Stages</span><select id="stats-stages"></select></label>
+          <div class="stats-grid">
             <label class="field"><span>Wait s</span><input type="number" id="stats-delay" min="0" max="120" step="1" title="Seconds after the game before it goes up: the camera gets the players' reaction first" /></label>
             <label class="field"><span>Hold s</span><input type="number" id="stats-hold" min="0" max="600" step="1" title="How long an automatic show stays up; 0 = until the next game starts" /></label>
           </div>
           <div class="card-foot">
             <span class="hint" id="stats-source">OBS: /o/set-stats above the Players bar</span>
             <button class="linkish" id="btn-stats-refresh" type="button" title="Read every game's replay again">Re-read replays</button>
+          </div>
+        </div>
+
+        <!-- Each layout's look (its saved combo, else the recommended one) and which layouts Auto draws in each phase. -->
+        <div class="card" data-fold="stats.table">
+          <div class="card-head">
+            <span class="label">Layouts</span>
+            <span class="fold-sum" id="sum-stats-table"></span>
+          </div>
+          <div class="stats-table" id="stats-table"></div>
+          <div class="stats-table-note">
+            <span class="hint" id="stats-table-hint"></span>
+            <button class="key mini gone" id="btn-stats-use-auto" type="button" title="Back to Auto: the ticks pick the layout">Use Auto</button>
           </div>
         </div>
       </div>

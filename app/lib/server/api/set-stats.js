@@ -19,13 +19,15 @@ function register(app, { store, setStats }) {
       config: store.statsConfig(), shot: store.statsShot(), packs: setStats?.portraits?.packs() ?? [], stagePacks: setStats?.portraits?.stagePacks() ?? [] });
   });
 
-  // { layout?, style?, pack?, stages?, auto?, delaySec?, holdSec?, mode?, combos? } — any subset
-  // (combos, the saved combo per layout, is replaced whole).
+  // { layout?, style?, pack?, auto?, delaySec?, holdSec?, mode?, combos?, pools? } — any subset
+  // (combos, the saved combo per layout, is replaced whole; pools per phase given).
   app.post("/api/set-stats/config", (req, res) => {
     const err = configError(req.body);
     if (err) return res.status(400).json({ ok: false, error: err });
     const pick = {};
-    for (const k of ["layout", "style", "pack", "stages", "auto", "delaySec", "holdSec", "mode", "combos"]) if (req.body[k] !== undefined) pick[k] = req.body[k];
+    for (const k of ["layout", "style", "pack", "auto", "delaySec", "holdSec", "mode", "combos"]) if (req.body[k] !== undefined) pick[k] = req.body[k];
+    // A phase left out keeps its pool.
+    if (req.body.pools !== undefined) pick.pools = Object.assign(store.statsConfig().pools, req.body.pools);
     res.json({ ok: true, config: store.setStatsConfig(pick) });
   });
 
