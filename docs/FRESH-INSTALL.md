@@ -21,9 +21,19 @@ node scripts/preflight.js --offline    # files and config only — no network
 node scripts/preflight.js --json       # machine-readable
 ```
 
-[preflight.js](../app/scripts/preflight.js) automates Phases 2 and 7: dependencies, config, the hotkeys, the player file, the icons, the overlay pages, the theme pack, the clipper settings, then live probes of the app, the start.gg token, this week's short link and both bracket buttons, and OBS (including the replay buffer's length). It exits non-zero if anything fails.
+[preflight.js](../app/scripts/preflight.js) automates Phases 2 and 7: dependencies, config, the hotkeys, the player file, the icons, the overlay pages, the theme pack, the stats popup's art, the clipper settings, then live probes of the app, the start.gg token, this week's short link and both bracket buttons, and OBS (including the replay buffer's length). It exits non-zero if anything fails.
 
 It is **read-only** — it prints the exact command or menu path to fix each finding rather than changing anything itself. It also runs before `npm install`, so it can diagnose a missing `node_modules`.
+
+### Updating a machine that already runs it
+
+Not a fresh install — just these, in order:
+
+1. Close the app's window. `git status` at the repo root: a tracked file changed on this machine (a Theme switch in `overlays/theme.css`, say) blocks the pull — `git checkout -- <file>` puts it back. Then `git pull`.
+2. `app/package.json` changed in the pull? `npm install` in `app/` — `start.bat` installs only when `node_modules` is missing.
+3. Compare `app/config.local.example.js` with your `config.local.js` for keys you don't have yet.
+4. `node app/scripts/preflight.js` — it names anything still missing, the stats popup's art included.
+5. `start.bat`, then in OBS refresh every browser source and the dock (a loaded page keeps its old scripts until refreshed).
 
 ---
 
@@ -146,7 +156,7 @@ The dock's **Setup** tab lists every url with a copy button. All are on the app'
 
 - [ ] Canvas **1920 × 1080** (Settings → Video)
 - [ ] On each source: **uncheck "Shutdown source when not visible"** and **"Refresh browser when scene becomes active"** — otherwise the side panel's rotation and the socket restart on every scene change
-- [ ] **Stats popup art**: not in the repo apart from the VS screen pack (committed upscaled, already installed) — the dock's **Setup → Art packs → Download all** fetches the portrait sets and stage pictures (~280 MB from GitHub) into `overlays/assets/packs/`. Do it before the event, on a good connection, not on venue Wi-Fi. The app logs `[set-stats] Portraits: …` at startup; the Stats tab says when none is downloaded and picks which set draws the characters. Without them the popup works, just without characters and stage pictures
+- [ ] **Stats popup art**: not in the repo apart from the VS screen pack (committed upscaled, already installed) — the dock's **Setup → Art packs → Download all** fetches the portrait sets and stage pictures (~250 MB from GitHub) into `overlays/assets/packs/`. Do it before the event, on a good connection, not on venue Wi-Fi. Preflight lists any that are missing. The app logs `[set-stats] Portraits: …` at startup; the Stats tab says when none is downloaded and picks which set draws the characters. Without them the popup works, just without characters and stage pictures
 - [ ] **Highlights geometry** must match the clip and cam sources' transforms or you get a visible gap between frame and footage. Don't edit CSS — copy the numbers out of OBS's **Edit Transform** and pass them on the URL (`?clip=x,y,w,h&cam=y,w,h&camx=leftX,rightX`), then load it once with `?guides=1` to check the labelled rectangles against OBS. Defaults assume clip `480,140 960×800` and cams at `0,288` / `1520,288`, each `400×504`.
 
 ### Operator dock
@@ -219,7 +229,7 @@ With the app and OBS up, every live section should pass: the app identifies itse
 | Dock | `http://localhost:5001/dock` (the Setup tab has every url) |
 | Overlays | `http://localhost:5001/o/…` |
 | obs-websocket | `ws://127.0.0.1:4455` |
-| Hotkeys (defaults) | `Ctrl+Shift+S` swap ports · `Ctrl+Shift+X` switch sides · `Ctrl+Shift+1`/`2` a game to left/right · add `Alt` to take one away |
+| Hotkeys (defaults) | `Ctrl+Shift+S` swap ports · `Ctrl+Shift+X` switch sides · `Ctrl+Shift+1`/`2` a game to left/right · add `Alt` to take one away · `Ctrl+Shift+0` clear score · `Ctrl+Shift+G` stats popup |
 | Player DB | `app/data/local_players.json`, or `PLAYERS_FILE` |
 
 **Never commit:** `config.local.js` (start.gg token), `clipper-settings.json` (OBS password + per-venue tuning), `data/` (players, live state). All gitignored; `config.js` is not, so no secrets there.

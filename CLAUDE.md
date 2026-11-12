@@ -16,7 +16,7 @@ One Node app that runs a Melee tournament stream: it reads live Slippi games, ow
 
 ### Companion docs — read the relevant one before working, don't re-derive it
 
-- **[docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md)** — setting up a machine or a fresh OBS profile. **When the user says "run the fresh-install checklist", work that document.** Start with `node app/scripts/preflight.js`, which automates its mechanical half (deps, config, hotkeys, the player file, icons, overlay pages, theme pack, then live probes of the app, start.gg and OBS). Read-only; exits non-zero on any failure.
+- **[docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md)** — setting up a machine or a fresh OBS profile. **When the user says "run the fresh-install checklist", work that document.** Start with `node app/scripts/preflight.js`, which automates its mechanical half (deps, config, hotkeys, the player file, icons, overlay pages, theme pack, the stats popup's art, then live probes of the app, start.gg and OBS). Read-only; exits non-zero on any failure.
 - **[docs/TESTING.md](docs/TESTING.md)** — verifying a change with no bracket running: the automated checks, replaying `.slp` files *faithfully* (a finished replay does **not** reproduce live conditions — see the `rawDataLength` note there), booting the app against a past event, screenshotting overlays, and the regression checklist.
 - **[docs/BRIDGE-API.md](docs/BRIDGE-API.md)** — the state sections, event payloads and `/api/*` routes, with the traps in each. Consult it before changing anything a browser consumes; nothing on either side validates, so a shape change fails silently in a browser source.
 

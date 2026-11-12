@@ -18,7 +18,7 @@
  * to run before `npm install` does. Local modules are required inside the check
  * that uses them, and only the dependency-free ones before the dependency check
  * has passed (config.js, hotkey.js, char_map.js, api/setup.js,
- * clipper-settings.js and port-guard.js need only Node built-ins). tests/preflight.test.js runs this
+ * clipper-settings.js, port-guard.js and set-stats/art-packs.js need only Node built-ins). tests/preflight.test.js runs this
  * script, so a broken lazy require fails a test rather than a pre-event check.
  */
 
@@ -379,6 +379,40 @@ function checkThemePack() {
             `Paths are relative to an overlay, so they read "../themes/${pack}/<file>.png"`);
 }
 
+/**
+ * The stats popup's art: only the VS screen pack is in the repo; the rest is
+ * downloaded from the dock. Missing art doesn't break the popup (it falls back
+ * to what's there, or draws no portraits), so this warns — but it's a download
+ * to do at home, not on venue Wi-Fi. Read straight off the disk: the module's
+ * own reader would also tidy an interrupted swap, and preflight changes nothing.
+ */
+function checkArtPacks() {
+  let KNOWN;
+  try {
+    ({ KNOWN } = require("../lib/set-stats/art-packs"));
+  } catch (e) {
+    fail("Stats popup art", `could not check: ${e.message}`);
+    return;
+  }
+  const dir = path.join(OVERLAYS_DIR, "assets", "packs");
+  const missing = KNOWN.filter((k) => !exists(path.join(dir, k.id, "config.json")));
+  if (!missing.length) { pass("Stats popup art", `all ${KNOWN.length} packs installed`); return; }
+  const names = missing.map((k) => k.name).join(", ");
+  if (missing.some((k) => k.id === "full")) {
+    warn("Stats popup art", `missing: ${names} — the VS screen pack is committed, so it's been deleted`,
+         "git checkout -- overlays/assets/packs/full, then the dock's Setup → Art packs → Download all for the rest");
+    return;
+  }
+  const tar = process.platform === "win32" ? path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe") : null;
+  if (tar && !exists(tar)) {
+    warn("Stats popup art", `missing: ${names}, and ${tar} isn't there to unpack a download`,
+         `Copy ${rel(dir)} over from a machine that has them`);
+    return;
+  }
+  warn("Stats popup art", `missing: ${names} — the popup draws what's installed`,
+       "The dock's Setup → Art packs → Download all (~250 MB from GitHub; do it on a good connection, not venue Wi-Fi)");
+}
+
 // ── Checks: clipper ───────────────────────────────────────────────────────────
 
 function checkClipper(config) {
@@ -674,6 +708,7 @@ function report() {
   checkIcons();
   checkPages(depsOk);
   checkThemePack();
+  checkArtPacks();
   const clipper = config ? checkClipper(config) : null;
   checkLeftovers();
 
