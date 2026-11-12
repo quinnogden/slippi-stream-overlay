@@ -523,7 +523,9 @@ const plain = (v) => JSON.parse(JSON.stringify(v)); // the page's arrays are ano
     env.channel.emit("slippi_clip_saved", { playerName: "Player2", moveCount: 4, damage: 30 });
     env.channel.emit("slippi_clip_saved", { playerName: "Player3", moveCount: 6, damage: 55 });
     assert.strictEqual(toast.querySelector(".clip-toast-detail").textContent, "Player1 · 5 moves, 41%");
-    assert.strictEqual(toast.getAnimations().length, 1, "two toasts animating at once");
+    // The moves only: each toast's blur is an animation of its own (Overlay.motion.play).
+    const moving = toast.getAnimations().filter((a) => a.keyframes.some((k) => k.transform));
+    assert.strictEqual(moving.length, 1, "two toasts animating at once");
     await sleep(80);
     assert.strictEqual(toast.querySelector(".clip-toast-detail").textContent, "Player3 · 6 moves, 55%",
       "the queued clip shown next wasn't the newest");

@@ -208,11 +208,15 @@ const turns = (page, before) => JSON.parse(JSON.stringify(page.animations.slice(
     store.setPlayer(0, 0, { tag: "Renamed", pronoun: "" });
     store.setCharacter(0, 0, { codename: "marth", name: "Marth", skin: 0 });
     await settle();
-    const exits = page.animations.slice(before).map(({ anim }) => anim.keyframes[anim.keyframes.length - 1].transform);
+    // The moves (a blur is an animation of its own: Overlay.motion.play).
+    const exits = page.animations.slice(before).map(({ anim }) => anim.keyframes[anim.keyframes.length - 1].transform).filter(Boolean);
     assert.ok(exits.length >= 3, `only ${exits.length} exits started`);
     for (const t of exits) {
       assert.match(t, /translate\(0px, -6px\) scale\(1\)$/, `an exit that isn't the text motion: ${t}`);
     }
+    // Chrome composites no animation with a blur in it: a move that carried one would tick on the main thread.
+    const moves = page.animations.slice(before).map(({ anim }) => anim.keyframes).filter((k) => k.some((f) => f.transform));
+    assert.ok(moves.every((k) => k.every((f) => !/blur\(/.test(f.filter || ""))), "a blur rides in the same animation as a move");
   });
 
   test("the name slides over when the character icon arrives or a sponsor comes in, rather than jumping", async () => {

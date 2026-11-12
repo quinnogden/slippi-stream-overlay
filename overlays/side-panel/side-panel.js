@@ -34,7 +34,7 @@
   "use strict";
 
   const { h, fitText, fitGroup, icon, param, swap, draw, reel } = Overlay;
-  const { ease, ms, restOf, pose, TEXT } = Overlay.motion;
+  const { ease, ms, restOf, pose, play, TEXT } = Overlay.motion;
 
   // Animation durations are at tempo 1; Overlay.motion.ms() scales them by
   // overlay.css's --motion-tempo. The interval is a dwell, and doesn't.
@@ -302,8 +302,10 @@
     });
   }
 
+  // Poses go through play(): the blur on its own animation, so a row's rise
+  // and fade run on the compositor.
   function tween(el, frames, rest, { duration, delay = 0, easing }) {
-    const anim = el.animate(frames, { duration, delay, easing, fill: "both" });
+    const anim = play(el, frames, { duration, delay, easing, fill: "both" });
     anim.finished.then(() => { Object.assign(el.style, rest); anim.cancel(); }, () => {});
     return anim;
   }
@@ -402,7 +404,7 @@
       const from = getComputedStyle(b).opacity;
       stopAnims(b);
       const rest = restOf(b);
-      return b.animate([pose(rest, { opacity: from }), pose(rest, { ...BEAT_OUT, opacity: 0 })],
+      return play(b, [pose(rest, { opacity: from }), pose(rest, { ...BEAT_OUT, opacity: 0 })],
         { duration: ms(BEAT_OUT_MS), delay: delays[i], easing: ease("out"), fill: "both" });
     });
   }
@@ -594,7 +596,7 @@
           const from = getComputedStyle(outgoing).opacity;
           stopAnims(outgoing);
           const rest = restOf(outgoing);
-          anims = [outgoing.animate([pose(rest, { opacity: from }), pose(rest, { ...LOGO_OUT, opacity: 0 })],
+          anims = [play(outgoing, [pose(rest, { opacity: from }), pose(rest, { ...LOGO_OUT, opacity: 0 })],
             { duration: ms(LOGO_OUT_MS), easing: ease("out"), fill: "forwards" })];
           // The logo stands for the whole card, gone half-way (--ease-out: ~97%).
           outSpans = [{ top: -Infinity, bottom: Infinity }];
@@ -1385,7 +1387,7 @@
     const tIn = ms(TOAST_IN), tOut = ms(TOAST_OUT); // the hold is a dwell, unscaled
     const total = tIn + TOAST_HOLD + tOut;
     const shown = at(0, 1, 0, 1);
-    const anim = el.animate([
+    const anim = play(el, [
       { ...at(160, 0.9, 6, 0), offset: 0, easing: ease("spring") },
       { ...shown, offset: tIn / total },
       { ...shown, offset: (tIn + TOAST_HOLD) / total, easing: ease("out") },

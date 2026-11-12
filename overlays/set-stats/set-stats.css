@@ -140,7 +140,7 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 
 /* Dots and tracks for the small rotating sections */
 .dots { display: flex; gap: 8px; align-items: center; }
-.dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(var(--text-color-rgb), 0.18); transition: background calc(0.16s * var(--motion-tempo)) var(--ease-out); }
+.dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(var(--text-color-rgb), 0.18); transition: background-color calc(0.16s * var(--motion-tempo)) var(--ease-out); }
 .dots i.on { background: var(--trim-c); box-shadow: 0 0 10px rgba(var(--trim-rgb-c), 0.7); }
 .dots i.done { background: rgba(var(--text-color-rgb), 0.45); }
 .track { height: 3px; border-radius: 2px; background: rgba(var(--text-color-rgb), 0.12); overflow: hidden; }

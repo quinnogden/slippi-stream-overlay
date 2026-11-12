@@ -49,7 +49,7 @@
 
   const O = window.Overlay;
   const Layouts = window.SetStatsLayouts;
-  const { ms, ease, restOf, pose, TEXT } = O.motion;
+  const { ms, ease, restOf, pose, play, TEXT } = O.motion;
   const win = document.getElementById("win");
 
   const PIN = { layout: O.param("layout"), style: O.param("style"), pack: O.param("pack"), stages: O.param("stages"), show: O.param("show") === "1" };
@@ -106,9 +106,11 @@
   // animations, and a transition waiting on one would never end (the side
   // panel's rotation learned the same).
   const wait = (t) => new Promise((r) => setTimeout(r, still() ? 0 : Math.max(0, t)));
+  // Through play(): a blur ticks on its own, so the move and fade it rides
+  // with stay on the compositor.
   function animate(el, frames, opts) {
     if (still() || !el.animate) return null;
-    return el.animate(frames, { easing: ease("out"), ...opts });
+    return play(el, frames, { easing: ease("out"), ...opts });
   }
   function liftIn(el, delay = 0) {
     const rest = restOf(el);

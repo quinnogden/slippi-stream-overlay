@@ -207,11 +207,19 @@
     spring: "cubic-bezier(0.34, 1.4, 0.64, 1)",
   };
 
+  // The tokens are read once, when the stylesheet is there to answer: they
+  // can't change under a page (a theme switch reloads it), and every read is a
+  // forced style recalc — a cascade that asked per beat recalculated the
+  // page's style once for every animate() it had just started.
+  const curves = {};
+  let tempo = 0;
+
   /** overlay.css's --ease-<name>, so CSS and script move on the same curves. */
   function ease(name) {
+    if (curves[name]) return curves[name];
     try {
       const v = getComputedStyle(document.documentElement).getPropertyValue(`--ease-${name}`);
-      if (v && v.trim()) return v.trim();
+      if (v && v.trim()) return (curves[name] = v.trim());
     } catch (_) { /* no stylesheet yet */ }
     return EASE_FALLBACK[name] || "ease";
   }
@@ -223,11 +231,15 @@
    * animation, CSS and script alike. Write durations at tempo 1.
    */
   function ms(n) {
-    let t = NaN;
-    try {
-      t = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--motion-tempo"));
-    } catch (_) { /* no stylesheet yet */ }
-    return n * (t > 0 ? t : TEMPO_FALLBACK);
+    if (!tempo) {
+      let t = NaN;
+      try {
+        t = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--motion-tempo"));
+      } catch (_) { /* no stylesheet yet */ }
+      if (!(t > 0)) return n * TEMPO_FALLBACK;
+      tempo = t;
+    }
+    return n * tempo;
   }
 
   const still = () => !document.body || document.body.classList.contains("no-animate");
@@ -251,6 +263,40 @@
       transform: `${rest.transform} translate(${x}px, ${y}px) scale(${scale})`.trim(),
       filter: `${rest.filter} blur(${blur}px)`.trim(),
     };
+  }
+
+  const TIMING_KEYS = new Set(["offset", "easing", "composite"]);
+
+  /**
+   * el.animate() for poses: the blur on an animation of its own. Chrome
+   * composites no animation whose filter moves pixels (a blur), so a pose's
+   * transform and opacity would tick on the main thread with it and stutter
+   * whenever the page is busy (a popup building, fonts landing). Split, they
+   * run on the compositor and only the blur's radius is the main thread's. A
+   * filter that's the same in every keyframe is the element's own (a pose
+   * with no blur): dropped rather than animated, so a card's move is all
+   * compositor. The caller sees one animation, the move: cancelling or
+   * finishing it does the same to the blur, which shares its timing.
+   */
+  function play(el, frames, opts) {
+    const filters = frames.map((f) => f.filter);
+    if (filters.every((f) => f === undefined)) return el.animate(frames, opts);
+    const move = frames.map(({ filter, ...rest }) => rest);
+    if (filters.every((f) => f === filters[0])) return el.animate(move, opts);
+    if (!move.some((f) => Object.keys(f).some((k) => !TIMING_KEYS.has(k)))) return el.animate(frames, opts);
+    const anim = el.animate(move, opts);
+    const blur = el.animate(frames.map(({ filter, offset, easing }) => {
+      const f = {};
+      if (filter !== undefined) f.filter = filter;
+      if (offset !== undefined) f.offset = offset;
+      if (easing !== undefined) f.easing = easing;
+      return f;
+    }), opts);
+    const cancel = anim.cancel;
+    anim.cancel = function () { blur.cancel(); return cancel.call(anim); };
+    const finish = anim.finish;
+    if (finish) anim.finish = function () { if (blur.finish) blur.finish(); return finish.call(anim); };
+    return anim;
   }
 
   // The one text motion: everything that changes or comes and goes — text,
@@ -412,7 +458,7 @@
     const from = getComputedStyle(el).opacity;
     if (el.__ovAnim) el.__ovAnim.cancel();
     const rest = restOf(el);
-    const out = el.__ovAnim = el.animate(
+    const out = el.__ovAnim = play(el,
       [pose(rest, { opacity: from }), pose(rest, { ...m.out, opacity: 0 })],
       { duration: ms(SWAP_OUT_MS), easing: ease("out"), fill: "forwards" });
     el.__ovPhase = "out";
@@ -427,7 +473,7 @@
       // the entrance below, so no frame is painted in between.
       out.cancel();
       const back = restOf(el); // the render may have re-squeezed it
-      const enter = el.__ovAnim = el.animate(
+      const enter = el.__ovAnim = play(el,
         [pose(back, { ...m.in, opacity: 0 }), pose(back)],
         { duration: ms(SWAP_IN_MS), easing: ease("out") });
       el.__ovPhase = "in";
@@ -492,13 +538,13 @@
       const rest = restOf(el);
       // Overtaking a hide: carry on from where it got to, in place.
       const start = from === null ? pose(rest, { ...SHOW.from, opacity: 0 }) : pose(rest, { opacity: from });
-      const anim = el.__ovPresAnim = el.animate([start, pose(rest)], { duration: ms(SHOW.ms), easing: ease("out") });
+      const anim = el.__ovPresAnim = play(el, [start, pose(rest)], { duration: ms(SHOW.ms), easing: ease("out") });
       anim.finished.then(() => { if (el.__ovPresAnim === anim) el.__ovPresAnim = null; }, () => {});
       return;
     }
 
     const rest = restOf(el);
-    const anim = el.__ovPresAnim = el.animate(
+    const anim = el.__ovPresAnim = play(el,
       [pose(rest, { opacity: from === null ? 1 : from }), pose(rest, { ...HIDE.to, opacity: 0 })],
       { duration: ms(HIDE.ms), easing: ease("out"), fill: "forwards" });
     anim.finished.then(() => {
@@ -878,7 +924,7 @@
     return node;
   }
 
-  const motion = { ease, ms, restOf, pose, TEXT };
+  const motion = { ease, ms, restOf, pose, play, TEXT };
 
   root.Overlay = { ...api, connect, reveal, followTheme, swap, draw, presence, text, reel, glide, motion, squeeze, fitText, fitGroup, h, param };
 })(typeof window !== "undefined" ? window : globalThis);
