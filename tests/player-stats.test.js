@@ -376,6 +376,33 @@ function set(id, sides, winnerSide, extra = {}) {
     } finally { stats.stop(); }
   });
 
+  await test("an answer of a shape nobody expected never ends the app: that part shows nothing, and the pair is tried again", async () => {
+    // Node ends the process on a rejection nobody hears: this test dies with it.
+    const gf = payloadNamed("Grand Final");
+    const [a, b] = pidsOf(gf);
+    const gg = cardsGg({ [a]: "501", [b]: "502" });
+    const answer = gg.backgroundQuery;
+    let cardReads = 0;
+    gg.backgroundQuery = async (q) => {
+      const res = await answer(q);
+      if (!q.includes("playerSets") && ++cardReads === 1) res.data.p0.recentStandings = { not: "a list" };
+      return res;
+    };
+    const lucky = fakeLucky();
+    lucky.players = async () => { throw new Error("a client that throws instead of answering"); };
+    const store = new ScoreboardStore();
+    const stats = createPlayerStats({ store, event: null, startgg: gg, io: { emit() {} } },
+      { cacheDir: null, lucky, log() {}, retryMs: 20 });
+    stats.start();
+    try {
+      store.loadSet(gf);
+      await until(() => stats.snapshot().players[a]?.state === "done" && stats.snapshot().lucky?.state === "error", "the retried cards, and luckystats' error");
+      assert.strictEqual(cardReads, 2, "the garbled cards weren't tried again");
+      assert.strictEqual(stats.snapshot().players[b].state, "done");
+      assert.strictEqual(stats.snapshot().h2h.state, "done");
+    } finally { stats.stop(); }
+  });
+
   await test("with no luckystats key nothing is asked and the snapshot has no lucky section", async () => {
     const gf = payloadNamed("Grand Final");
     const [a, b] = pidsOf(gf);

@@ -12,12 +12,21 @@
  * the popup goes up, `delaySec` later. A set restored on boot has its games
  * read then.
  *
+ * Singles only. A doubles set's (or a crew battle's) replays are never read
+ * and its games start no automatic show; a four-player game played while a
+ * singles set is up isn't counted, and calls off the show it started.
+ *
+ * Whatever goes wrong costs the stats, never the score: a view that can't be
+ * built publishes none (`available: false`, never the last set's numbers), so
+ * the popup can't be shown and comes down if it's up, and the side panel's
+ * stats cards drop out of its rotation. A broken art pack costs the portraits.
+ *
  * Nothing here talks to the network or writes a file.
  */
 
 const fs = require("fs");
 const path = require("path");
-const { buildSetView } = require("./set-view");
+const { buildSetView, unavailable } = require("./set-view");
 const { createStatsDirector } = require("./director");
 const { createPortraits } = require("./portraits");
 const { createArtPacks } = require("./art-packs");
@@ -31,6 +40,9 @@ const READ_TIMEOUT_MS = 30000;
 const MAX_TRIES = 3;
 /** How many sets back an accolade the audience saw is still scored down. */
 const RECENT_SETS = 3;
+
+/** The stats are singles only: a doubles set or a crew battle has none (set-view.js says why). */
+const singles = (sb) => !sb.isDoubles && !sb.crew;
 
 /**
  * One long-lived worker thread reading files in turn; restarted if it dies.
@@ -151,7 +163,11 @@ function createSetStats(ctx, opts = {}) {
         cache.set(file, { result: result ?? { ok: false, transient: true, error: "no answer" }, size, tries });
         if (!result?.ok) console.warn(`[set-stats] ${path.basename(file)}: ${result?.error ?? "unreadable"}${result?.transient && tries < MAX_TRIES ? " — trying again" : ""}`);
         rebuild();
+        if (result?.notSingles) callOff(file);
       }
+    } catch (err) {
+      // Never a rejection nobody hears: in Node that ends the app.
+      console.error(`[set-stats] reading the replays stopped: ${err?.stack ?? err}`);
     } finally {
       busy = false;
       reading.clear(); // nothing is in flight now: a file dropped by a throw can be wanted again
@@ -175,40 +191,77 @@ function createSetStats(ctx, opts = {}) {
   }
 
   /**
+   * The game just counted turned out to have four players (doubles played
+   * while a singles set was still up): its automatic show is called off, or
+   * the popup would come up on the game before it.
+   */
+  function callOff(file) {
+    const games = store.scoreboard().games;
+    if (games[games.length - 1]?.replay?.file !== file) return;
+    const s = store.statsShot();
+    if (s.pendingAt && !s.shown) director.hide();
+  }
+
+  /** A character's portraits, or none: a pack that throws costs the pictures, not the popup. */
+  function portraitsOf(character) {
+    try { return portraits.portraitsOf(character); } catch { return null; }
+  }
+
+  /**
    * The set's stats again. Never throws: it runs inside the store's change
-   * event, so a throw here would come out of whatever changed the scoreboard —
-   * a Slippi game end, a score bump, a set load. A view that can't be built
-   * leaves the last one up and says so in the log.
+   * event and after each read. A view that can't be built publishes none —
+   * never the last one, which may be the previous set's — and says so in the
+   * log. Returns whether the popup was up with nothing to draw and so came down.
    */
   function rebuild() {
     try {
       const sb = store.scoreboard();
-      for (const g of sb.games) if (g.replay?.file) want(g.replay.file);
-      const view = buildSetView(sb, statsOf, portraits.portraitsOf, { recent });
+      // Singles only: a doubles set's replays aren't read at all (set-view.js says why there's nothing).
+      if (singles(sb)) for (const g of sb.games) if (g.replay?.file) want(g.replay.file);
+      const view = buildSetView(sb, statsOf, portraitsOf, { recent });
       for (const g of view.games) {
         try { g.stage.pics = portraits.stagePicsOf(g.stage.icon); } catch { g.stage.pics = null; }
       }
       store.setSetStats(view);
     } catch (err) {
       console.error(`[set-stats] couldn't build the set's stats: ${err?.stack ?? err}`);
+      try { store.setSetStats(unavailable("The set's stats couldn't be worked out (see the app's log)")); } catch { /* the store refused: nothing else to try */ }
+    }
+    return dropIfEmpty();
+  }
+
+  /**
+   * Up with nothing to draw (Doubles switched on, the score cleared, a view that
+   * failed): down, or it would pop back up by itself once stats returned.
+   * Still being read (↻) keeps it up.
+   */
+  function dropIfEmpty() {
+    try {
+      const d = store.setStats();
+      if (!store.statsShot().shown || d?.available || d?.pending) return false;
+      director.hide();
+      return true;
+    } catch (err) {
+      console.error(`[set-stats] ${err?.stack ?? err}`);
+      return false;
     }
   }
 
   function onChange({ keys }) {
-    if (keys.includes("scoreboard")) {
-      const sb = store.scoreboard();
-      const n = sb.games.length;
-      const added = n > lastCount && sb.games[n - 1]?.replay?.file;
-      lastCount = n;
-      rebuild();
-      // Stats gone with the popup up (Doubles switched on, the score cleared): down, or it
-      // would pop back up by itself once they returned. Still being read (↻) keeps it up.
-      const d = store.setStats();
-      if (store.statsShot().shown && d && !d.available && !d.pending) director.hide();
-      else if (added) director.onGameRecorded();
-      else director.onConfig(); // the set may have just been won: an "auto" reading follows it
+    try {
+      if (keys.includes("scoreboard")) {
+        const sb = store.scoreboard();
+        const n = sb.games.length;
+        const added = n > lastCount && sb.games[n - 1]?.replay?.file;
+        lastCount = n;
+        if (rebuild()) { /* came down: nothing to draw */ }
+        else if (added && singles(sb)) director.onGameRecorded(); // a doubles game starts no countdown
+        else director.onConfig(); // the set may have just been won: an "auto" reading follows it
+      }
+      if (keys.includes("statsConfig")) director.onConfig();
+    } catch (err) {
+      console.error(`[set-stats] ${err?.stack ?? err}`);
     }
-    if (keys.includes("statsConfig")) director.onConfig();
   }
 
   function onSetClosing() {

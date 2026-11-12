@@ -19,7 +19,9 @@
  * here falls back to start.gg's keyless web endpoint, so the dock works without
  * a token (reporting and starting don't).
  *
- * Emits `change` whenever the event, its graphs or its status change.
+ * Emits `change` whenever the event, its graphs or its status change, and
+ * `set-load-settled` when no set load is in flight any more (`loadingSet`): a
+ * game that ends while one is re-read waits for it (lib/modes/index.js).
  */
 
 const { EventEmitter } = require("events");
@@ -58,9 +60,13 @@ class EventService extends EventEmitter {
     this._refreshing = null;
     this._switching = false;
     this._timer = null;
+    this._loadingSets = 0;
   }
 
   get shortLink() { return this._brackets.shortLink; }
+
+  /** A set load is between the operator's press and the scoreboard (re-reading the set from start.gg). */
+  get loadingSet() { return this._loadingSets > 0; }
 
   /** { state: "none" | "ok" | "error", error, updatedAt } of the last read. */
   status() { return { ...this._status }; }
@@ -421,7 +427,15 @@ class EventService extends EventEmitter {
     const id = String(setId);
     const group = this._groups.find((g) => g.graph?.sets[id]);
     if (!group) return { ok: false, error: `Set ${id} isn't in the loaded event — refresh the list` };
+    this._loadingSets++;
+    try {
+      return await this._loadSet(id, group);
+    } finally {
+      if (--this._loadingSets === 0) this.emit("set-load-settled");
+    }
+  }
 
+  async _loadSet(id, group) {
     let warning;
     if (!id.startsWith("preview")) {
       const fresh = await this._startgg.getSet(id);

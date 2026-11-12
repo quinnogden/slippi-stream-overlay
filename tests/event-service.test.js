@@ -184,8 +184,17 @@ async function until(cond, what, ms = 1000) {
     assert.ok(ok.ok && !ok.warning);
     assert.deepStrictEqual(called(startgg, "getSet").map((c) => c.args[0]), [row.setId]);
 
-    startgg.getSet = async () => ({ ok: false, error: "network down" });
-    const degraded = await svc.loadSet(row.setId);
+    // While the re-read is out, a game that ends waits for the set (lib/modes): it says so, and when it's done.
+    let release;
+    startgg.getSet = () => new Promise((r) => { release = () => r({ ok: false, error: "network down" }); });
+    let settled = 0;
+    svc.on("set-load-settled", () => settled++);
+    const loading = svc.loadSet(row.setId);
+    assert.strictEqual(svc.loadingSet, true, "a load waiting on start.gg isn't said to be in flight");
+    release();
+    const degraded = await loading;
+    assert.strictEqual(svc.loadingSet, false);
+    assert.strictEqual(settled, 1);
     assert.ok(degraded.ok);
     assert.match(degraded.warning, /network down/);
     assert.strictEqual(store.scoreboard().setId, row.setId);

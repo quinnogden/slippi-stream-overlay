@@ -36,14 +36,16 @@ const convDamage = (c) => (c.endPercent ?? c.currentPercent ?? c.startPercent) -
  * @param {string} file
  * @returns {{ ok: true, players: object, stageId: number|null, lastFrame: number|null, seconds: number|null,
  *             winnerPort: number|null, endMethod: number|null, complete: boolean }
- *          | { ok: false, error: string }}
+ *          | { ok: false, error: string, notSingles?: true }}
  */
 function readGameStats(file) {
   const { SlippiGame } = require("@slippi/slippi-js");
   const game = new SlippiGame(file);
   const settings = game.getSettings();
   const players = (settings?.players ?? []).filter((p) => p && p.characterId != null);
-  if (players.length !== 2) return { ok: false, error: players.length ? "not a singles game" : "no players in the file" };
+  if (!players.length) return { ok: false, error: "no players in the file" };
+  // Doubles (or a free-for-all) played while a singles set was up: not this popup's to draw.
+  if (players.length !== 2) return { ok: false, notSingles: true, error: "not a singles game" };
   const raw = game.getStats();
   if (!raw) return { ok: false, error: "no stats in the file" };
   // A file read very early can be missing a list: an empty one reads as "nothing happened yet".

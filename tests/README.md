@@ -30,12 +30,12 @@ One line per file. **The file's own header comment says exactly what it pins and
 
 | File | Guards |
 |---|---|
-| `side-panel.test.js` | The side panel's rotation doesn't flash, its stats and win projection follow the players through Switch Sides, a crew battle shows its rosters, and the Last Game card takes its next look each time it comes on (never under the popup). |
+| `side-panel.test.js` | The side panel's rotation doesn't flash, its stats and win projection follow the players through Switch Sides, a crew battle shows its rosters, and the Last Game card takes its next look each time it comes on (never under the popup); a card that can't be populated (nothing to draw, a draw that throws, odd data) never comes on, and the rest rotate on. |
 | `bracket-overlay.test.js` | The bracket overlay's layout, pages, Board camera, tour, Up Next and live feed, on every capture. |
 | `overlay-patch.test.js` | Every browser source's copy of the state stays equal to the app's. |
 | `overlay-motion.test.js` | Show/hide and swap animations end on the right content; the score reel turns the right way. |
 | `overlays-static.test.js` | Every URL an overlay page loads resolves, and every character and costume has an icon. |
-| `set-stats.test.js` | The stats popup's numbers follow the players through Switch Sides; it comes up after a game, never into the next one; every layout draws in every style without letting a name inject markup; a hide ends in a source that isn't painting; the players bar's logo makes way for it; a layout with its own window box goes up in it; the pack picked draws the portraits; the art packs download in one click and a failed update keeps the old pack. |
+| `set-stats.test.js` | The stats popup's numbers follow the players through Switch Sides; it comes up after a game, never into the next one; every layout draws in every style without letting a name inject markup; a hide ends in a source that isn't painting; the players bar's logo makes way for it; a layout with its own window box goes up in it; the pack picked draws the portraits; a broken read costs its game, and a view that can't be built shows nothing and takes the popup down; doubles is never read or shown, a four-player game on a singles set included; the art packs download in one click and a failed update keeps the old pack. |
 
 ### 🎛️ Dock and hotkeys
 
@@ -49,9 +49,9 @@ One line per file. **The file's own header comment says exactly what it pins and
 
 | File | Guards |
 |---|---|
-| `port-map.test.js` | The point goes to the right side, however the ports were matched or corrected. |
+| `port-map.test.js` | The point goes to the right side, however the ports were matched or corrected; a game and its .slp go on the set up when it ends, even one whose load from start.gg was still in flight. |
 | `game-winner.test.js` | The right port wins each game, including rage quits in doubles. |
-| `scoreboard-store.test.js` | Reports name the real winner after any Switch Sides; the scoreboard survives a restart. |
+| `scoreboard-store.test.js` | Reports name the real winner after any Switch Sides; the scoreboard survives a restart; a listener that throws can't stop a game being recorded or heard. |
 | `crew.test.js` | A crew battle's stocks move right at game end, and it stays out of the normal flow. |
 | `set-text.test.js` | Flex / Bo5 and the dock's rule for it, when a set is won by its format (Flex at 2–0 or 3), [L] marks and the set picker's order. |
 | `mains-learning.test.js` | What players played is learned into the DB, and only when it should be. |
@@ -66,7 +66,7 @@ One line per file. **The file's own header comment says exactly what it pins and
 | `bracket-target.test.js` | Singles / Doubles pick the right event, and refuse to guess. |
 | `start-set.test.js` | The Start button doesn't spend start.gg's rate limit. |
 | `startgg-fallback.test.js` | Reads fall back to the keyless endpoint; mutations never do. |
-| `player-stats.test.js` | Head-to-head rules, checked against hand-verified records; luckystats answers land on the right player. |
+| `player-stats.test.js` | Head-to-head rules, checked against hand-verified records; luckystats answers land on the right player; an answer of an unexpected shape never ends the app. |
 
 ### ⚙️ App plumbing
 

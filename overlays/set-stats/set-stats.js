@@ -624,6 +624,10 @@
   // Transitions run one at a time; whatever changed meanwhile is caught up after.
   let running = false;
   let again = false;
+  // A draw that threw isn't tried again until something about it changes: one
+  // bad layout would otherwise flash half a popup at every state push.
+  let attempt = null;
+  let failed = null;
   async function reconcile() {
     if (running) { again = true; return; }
     running = true;
@@ -631,11 +635,12 @@
       do {
         again = false;
         const w = wanted();
-        if (!w) {
+        const sig = w && sigOf(w);
+        if (!w || sig === failed) {
           if (up) await exit();
           continue;
         }
-        const sig = sigOf(w);
+        attempt = sig;
         if (!up) { await enter(w); drawn = sig; continue; }
         if (sig !== drawn && boxOf(w) !== drawnBox) { await exit(); await enter(w, { reboxed: true }); drawn = sig; continue; }
         if (sig !== drawn) { drawn = sig; await swap(w); }
@@ -644,6 +649,7 @@
       // Never leave half a popup on stream: clear the window back to down, so the
       // next change draws from scratch (and a Hide still works).
       console.error("[set-stats] draw failed", err);
+      failed = attempt;
       reset();
     } finally {
       running = false;

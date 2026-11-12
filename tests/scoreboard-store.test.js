@@ -150,6 +150,22 @@ const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sb-store-"));
     assert.strictEqual(store.rev, rev + 3);
   });
 
+  await test("a listener that throws (a stats bug) costs only itself: the game is recorded and every other listener hears it", async () => {
+    const store = freshStore();
+    const heard = [];
+    const err = console.error;
+    console.error = () => {};
+    store.on("change", () => { throw new Error("a stats bug"); });
+    store.on("change", ({ keys }) => heard.push(keys[0]));    // the overlay channel, the save
+    try {
+      store.recordGame({ winnerSide: 1, replay: { file: "Game_1.slp" } }); // threw into the game source before
+    } finally {
+      console.error = err;
+    }
+    assert.deepStrictEqual(heard, ["scoreboard"]);
+    assert.deepStrictEqual(store.scoreboard().sides.map((s) => s.score), [0, 1]);
+  });
+
   await test("persist: a restart restores the set, score, games, casters and view", async () => {
     const file = path.join(tmpDir, "live-state.json");
     const a = freshStore();

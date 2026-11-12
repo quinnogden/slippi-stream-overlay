@@ -38,9 +38,12 @@
  *                    mains learning commits it (lib/players/mains-learning.js)
  *   `set-loaded`     a different set (or a cleared one) is now on the scoreboard
  *   `sides-switched` the two sides traded columns
+ *
+ * Every listener runs on its own (lib/safe-emitter.js): one that throws is
+ * logged, and neither stops the others nor comes back out of the command.
  */
 
-const { EventEmitter } = require("events");
+const { SafeEmitter } = require("../safe-emitter");
 const { bestOfLabel, losersMarks, normalizeSetRules } = require("./set-text");
 const Crew = require("../crew/crew-model");
 const { defaultStatsConfig, normalizeStatsConfig } = require("../set-stats/catalog");
@@ -99,13 +102,13 @@ const emptyStatsShot = () => ({ shown: false, mode: "game", since: 0, pendingAt:
 
 const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
 
-class ScoreboardStore extends EventEmitter {
+class ScoreboardStore extends SafeEmitter {
   /**
    * @param {{ setText?: object }} [opts] — config.SET_TEXT (topN, topLabel, defaultLabel): the
    *   best-of rule's starting values; the dock's saved `setRules` win once there are any
    */
   constructor(opts = {}) {
-    super();
+    super("store");
     this._setRules = normalizeSetRules(opts.setText ?? {});
     this._rev = 0;
     this._set = emptySet();

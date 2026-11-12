@@ -229,15 +229,35 @@
     if (!d?.available || isDoubles() || isCrew() || !d.games?.length) return null;
     if (mode === "set" && d.counted < 2) return null;
     const last = d.games[d.games.length - 1];
-    return {
+    const v = {
       mode, key: d.key, round: d.round, format: d.format, bestOf: d.bestOf, over: !!d.over,
       total: d.total, counted: d.counted, last: mode === "game" ? last : { n: last.n },
       stats: d.stats ?? {}, rows: d.rows ?? {},
       ins: d.insights?.[mode] ?? [], stories: d.stories?.[mode] ?? [], facts: d.facts?.[mode] ?? [],
     };
+    // A title over nothing isn't a card: it needs a stat to show, a callout or a summary.
+    if (!keysFor(v, FALLBACK_KEYS).length && !v.ins.length && !v.stories.length) return null;
+    return v;
   }
 
+  /**
+   * A panel whose data couldn't be read or drawn (data of a shape the code
+   * didn't expect, a bug): emptied, and out of the rotation until its data
+   * changes and draws. Never half a card on stream, never a stalled rotation.
+   */
+  const broken = {};
+
   function slotHasContent(id) {
+    if (broken[id]) return false;
+    try {
+      return hasContent(id);
+    } catch (err) {
+      console.error(`[side-panel] ${id}: couldn't read its data`, err);
+      return false;
+    }
+  }
+
+  function hasContent(id) {
     switch (id) {
       case "logo-primary":
       case "logo-sponsor":   return true;
@@ -551,6 +571,13 @@
       // Nothing but these two may be on screen — so a stray panel can never
       // survive more than one transition.
       this._hideAllExcept([id, this._current]);
+      // Drawn while it's still hidden: a render held while it was leaving, and a
+      // stats card's next look. One that turns out to have nothing (or couldn't
+      // be drawn) never comes on: the panel up stays, and the rotation moves on.
+      delete this._busy[id];
+      this._flush(id);
+      if (BEFORE_SHOW[id]) BEFORE_SHOW[id]();
+      if (!HOLD_PANEL && !slotHasContent(id)) { this._skip(); return; }
       const leaving = this._current;
       this._current = id;
       const run = ++this._run;
@@ -585,10 +612,6 @@
           if (this._busy[leaving] === token) this._settleHidden(leaving, outgoing);
         }, () => {});
       }
-      delete this._busy[id];
-      this._flush(id); // a render held while it was leaving is drawn before it shows
-      // A stats card takes its next look now, drawn while it's still hidden.
-      if (BEFORE_SHOW[id]) BEFORE_SHOW[id]();
       const allGone = outEnds.length ? Math.max(...outEnds) : 0;
 
       // In. A logo arrives whole once everything has gone. An info panel
@@ -614,6 +637,13 @@
       // On a timer, not an animation's promise: a beat cancelled later (a
       // re-render) must never stall the rotation.
       setTimeout(() => { if (run === this._run) onDone(); }, end);
+    }
+
+    /** The panel about to come on has nothing: out of the list, and on to the next now. */
+    _skip() {
+      const run = this._run;
+      this.buildSlots(); // may restart the rotation itself (the panel up left the list too)
+      if (run === this._run) this._advance();
     }
 
     _isLogo(id) {
@@ -958,8 +988,8 @@
 
   /** Called by the rotator as a panel comes on screen, while it's still hidden. */
   const BEFORE_SHOW = {
-    "last-game": () => nextShowing("last-game"),
-    "set-recap": () => nextShowing("set-recap"),
+    "last-game": () => drawSafely("last-game", () => nextShowing("last-game")),
+    "set-recap": () => drawSafely("set-recap", () => nextShowing("set-recap")),
   };
 
   function nextShowing(id) {
@@ -1271,15 +1301,48 @@
     return p && [p.tag, p.prefix, p.character?.name ?? null];
   };
 
+  /**
+   * Draw a panel, or — if drawing it throws — empty it and take it out of the
+   * rotation (`broken`) until its data changes. Whenever the draw runs (now,
+   * or held until the panel has left), the rotation hears about it.
+   */
+  function drawSafely(id, render) {
+    try {
+      render();
+      delete broken[id];
+    } catch (err) {
+      broken[id] = true;
+      console.error(`[side-panel] ${id} couldn't be drawn — out of the rotation until its data changes`, err);
+      if (id === "last-game") stopReel();
+      try { rotator._el(id)?.replaceChildren(); } catch (_) { /* nothing more to clear */ }
+      setTimeout(() => rotator.buildSlots(), 0);
+    }
+  }
+
+  /** Each panel: the slice of the state it draws, how to draw it, and (the crews) how to patch it in place. */
+  const FEEDS = [
+    ["player-1", () => [identity(0), historyView(0), runView(0), luckyLine(0)], () => renderPlayerCard(0)],
+    ["player-2", () => [identity(1), historyView(1), runView(1), luckyLine(1)], () => renderPlayerCard(1)],
+    ["recent-sets", () => [h2hCardView(), identity(0), identity(1)], renderRecentSets],
+    ["completed-sets", completedView, renderCompletedSets],
+    ["crew-1", () => crewView(0), () => renderCrew(0), () => patchCrew(0)],
+    ["crew-2", () => crewView(1), () => renderCrew(1), () => patchCrew(1)],
+    ["last-game", () => statsView("game"), renderGameCard],
+    ["set-recap", () => statsView("set"), renderSetRecap],
+  ];
+
+  /** Every panel on its own: one whose data can't be read is out of the rotation, and the rest still update. */
   function refresh() {
-    renderIfChanged("player-1", [identity(0), historyView(0), runView(0), luckyLine(0)], () => renderPlayerCard(0));
-    renderIfChanged("player-2", [identity(1), historyView(1), runView(1), luckyLine(1)], () => renderPlayerCard(1));
-    renderIfChanged("recent-sets", [h2hCardView(), identity(0), identity(1)], renderRecentSets);
-    renderIfChanged("completed-sets", completedView(), renderCompletedSets);
-    renderIfChanged("crew-1", crewView(0), () => renderCrew(0), () => patchCrew(0));
-    renderIfChanged("crew-2", crewView(1), () => renderCrew(1), () => patchCrew(1));
-    renderIfChanged("last-game", statsView("game"), renderGameCard);
-    renderIfChanged("set-recap", statsView("set"), renderSetRecap);
+    for (const [id, slice, render, patch] of FEEDS) {
+      try {
+        const safePatch = patch && (() => { try { return patch(); } catch (_) { return false; } });
+        renderIfChanged(id, slice(), () => drawSafely(id, render), safePatch);
+      } catch (err) {
+        broken[id] = true;
+        delete lastRendered[id]; // drawn again once it can be read
+        console.error(`[side-panel] ${id}: couldn't read its data — out of the rotation`, err);
+      }
+    }
     // After rendering: buildSlots can restart the rotation, and the panel it
     // fades in should already hold the new content.
     rotator.buildSlots();

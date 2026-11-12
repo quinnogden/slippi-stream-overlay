@@ -107,19 +107,25 @@ function buildSetView(sb, statsOf, portraitsOf = () => null, opts = {}) {
     if (!file) return;
     const r = statsOf(file);
     if (r === undefined) { pending++; return; }
-    if (!r.ok) { unreadable++; return; }
-    const per = [0, 1].map((side) => r.players[g.replay.players?.[side]?.[0]?.port]);
-    if (!per[0] || !per[1]) { unreadable++; return; }
-    games.push({
-      n: i + 1,
-      winner: g.winnerSide,
-      stage: stageOf(r.stageId),
-      seconds: r.seconds,
-      per,
-      chars: per.map((x) => ({ codename: CHAR_MAP[x.characterId]?.codename ?? null, skin: x.costume ?? 0 })),
-      leadChanges: r.leadChanges ?? null,
-      bothLastStock: r.bothLastStock ?? null,
-    });
+    if (r?.notSingles) return; // a doubles game on a singles scoreboard: not counted, like a ± game
+    if (!r?.ok) { unreadable++; return; }
+    // A read of a shape nobody expected costs that game, never the view.
+    try {
+      const per = [0, 1].map((side) => r.players?.[g.replay.players?.[side]?.[0]?.port]);
+      if (!per.every((x) => x && typeof x === "object")) { unreadable++; return; }
+      games.push({
+        n: i + 1,
+        winner: g.winnerSide,
+        stage: stageOf(r.stageId),
+        seconds: r.seconds,
+        per,
+        chars: per.map((x) => ({ codename: CHAR_MAP[x.characterId]?.codename ?? null, skin: x.costume ?? 0 })),
+        leadChanges: r.leadChanges ?? null,
+        bothLastStock: r.bothLastStock ?? null,
+      });
+    } catch {
+      unreadable++;
+    }
   });
 
   const score = sb.sides.map((s) => s.score);
@@ -587,4 +593,4 @@ function setFacts({ games }, sb) {
   ];
 }
 
-module.exports = { buildSetView, STATS, bestOfNumber, leader };
+module.exports = { buildSetView, unavailable, STATS, bestOfNumber, leader };

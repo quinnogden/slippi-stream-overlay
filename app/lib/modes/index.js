@@ -11,6 +11,14 @@
  *   set-loaded     → the port map belongs to the previous set: clear it, and
  *                    re-detect now if a game is running
  *   sides-switched → flip the map; the store already moved the characters
+ *
+ * A game belongs to the set on the scoreboard when it ends — its point, its
+ * characters and its .slp — so a set loaded during game 1 gets game 1. A game
+ * that ends while a load from start.gg is still in flight (the event service
+ * re-reading the set, `loadingSet`) is held until the load lands, then
+ * recorded on the set it brought, against its re-detected ports — not on the
+ * set being replaced. A hold ends at HOLD_MAX_MS, or at the next game's start,
+ * whichever comes first.
  */
 
 const { resolveCharacter } = require("../char_map");
@@ -19,12 +27,46 @@ const { createSingles } = require("./singles");
 const { createDoubles } = require("./doubles");
 const { createGameEnd } = require("./game-end");
 
+/** The longest a game end waits for a set load in flight: start.gg's timeout and its keyless fallback's, and some. */
+const HOLD_MAX_MS = 30000;
+
+/** @param {object} ctx — { store, portMap, io, state, event? } (event: lib/event/event-service.js) */
 function createModes(ctx) {
   const { store, portMap, io, state } = ctx;
 
   const singles = createSingles(ctx);
   const doubles = createDoubles(ctx);
-  const { onGameEnd } = createGameEnd(ctx);
+  const { onGameEnd: endGame } = createGameEnd(ctx);
+
+  let held = null; // { result, timer } — a game end waiting for a set load to land
+
+  /** Called by the game source when a game ends. */
+  function onGameEnd(result) {
+    releaseHeld();
+    const loader = ctx.event;
+    if (!loader?.loadingSet) return endGame(result);
+    console.log("[bridge] Game over while a set is loading — it goes on that set once the load lands");
+    const timer = setTimeout(releaseHeld, HOLD_MAX_MS);
+    timer.unref?.();
+    held = { result, timer };
+    loader.once("set-load-settled", releaseHeld);
+    return undefined;
+  }
+
+  /** The held game end, recorded now (the load landed, timed out, or the next game is starting). */
+  function releaseHeld() {
+    if (!held) return;
+    const { result, timer } = held;
+    held = null;
+    clearTimeout(timer);
+    ctx.event?.off("set-load-settled", releaseHeld);
+    // Released from a timer or the event service's event: a throw here would end the app or the load.
+    try {
+      endGame(result);
+    } catch (err) {
+      console.error(`[bridge] Recording the held game failed: ${err?.stack ?? err}`);
+    }
+  }
 
   /**
    * What each side's players are expected to be playing.
@@ -84,6 +126,7 @@ function createModes(ctx) {
    * @param {Array} rawPlayers — from slippi-js getSettings()
    */
   function onGameStart(rawPlayers) {
+    releaseHeld(); // the last game is recorded before this one takes the ports
     state.clipsThisGame = 0;
 
     const sorted = activePlayers(rawPlayers).sort((a, b) => a.playerIndex - b.playerIndex);

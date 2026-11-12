@@ -10,10 +10,14 @@
  *
  * The loaded event's finished sets come from the event service's own reads
  * (every set of every phase group, refreshed every 90s and after a report),
- * so they cost no request of their own and need no token. Players in the
- * event's next playable sets are pre-fetched while idle (the event service
- * lists them), so a first-timer's history is usually saved before their set
- * is on air.
+ * so they cost no request of their own and need no token. Players in a
+ * singles event's next playable sets are pre-fetched while idle (the event
+ * service lists them), so a first-timer's history is usually saved before
+ * their set is on air.
+ *
+ * Singles only: a doubles set (or a crew battle) on the scoreboard has no
+ * pair, so no cards, head-to-head or luckystats request — the finished sets,
+ * which name teams, are all a doubles event gets.
  *
  * Each pair's Lucky Ranks, classes, regions and win probability come from
  * luckystats.gg (luckystats.js), asked by the start.gg user ids the player-card
@@ -24,6 +28,12 @@
  * Emits `player_stats` on every change and to each new connection. Without a
  * start.gg token `enabled` is false: no player cards or head-to-head, but the
  * finished sets still come through.
+ *
+ * Nothing here can end the app or show half a card: an answer of a shape the
+ * code didn't expect (a throw in normalize.js, say) puts whatever of the pair
+ * wasn't loaded yet in `error` — the side panel draws nothing for that — and
+ * the pair is tried again like any failed read. A rejection nobody hears ends
+ * a Node process, so every async path here ends in a catch.
  */
 
 const path = require("path");
@@ -144,6 +154,9 @@ function createPlayerStats(ctx, opts = {}) {
       const ratings = loadLucky(my, t);
       if (pids.length === 2) ok = (await loadH2h(my, t, force)) && ok;
       await ratings;
+    } catch (err) {
+      ok = false;
+      if (my === gen) failPair(t, err);
     } finally {
       if (my === gen) busy = false;
     }
@@ -156,6 +169,21 @@ function createPlayerStats(ctx, opts = {}) {
       retryTimer = setTimeout(() => { if (my === gen) { loadedKey = null; evaluate(); } }, retryMs);
     }
     prewarm();
+  }
+
+  /**
+   * Whatever of the pair wasn't loaded yet goes to `error` (no card, no
+   * head-to-head on the side panel); what was keeps showing.
+   */
+  function failPair(t, err) {
+    const error = err?.message ?? String(err);
+    log(`the pair's stats failed: ${err?.stack ?? err}`);
+    for (const p of t.players) {
+      if (snap.players[p.playerId]?.state === "done") continue;
+      snap.players[p.playerId] = { playerId: p.playerId, name: p.name, state: "error", error, history: [], run: [] };
+    }
+    if (snap.h2h && snap.h2h.state !== "done") snap.h2h = { ...snap.h2h, state: "error", error, wins: {}, total: 0, recent: [] };
+    emit();
   }
 
   /** @returns {Promise<boolean>} false when start.gg didn't answer (a stale load says true: nothing to retry) */
@@ -231,8 +259,21 @@ function createPlayerStats(ctx, opts = {}) {
     return true;
   }
 
-  /** Lucky Ranks, classes, regions and the win probability, from luckystats.gg. */
+  /** Lucky Ranks, classes, regions and the win probability, from luckystats.gg. Never rejects. */
   async function loadLucky(my, t) {
+    try {
+      await readLucky(my, t);
+    } catch (err) {
+      if (my !== gen) return;
+      log(`luckystats failed: ${err?.stack ?? err}`);
+      // A refresh of the same pair keeps what it had.
+      if (snap.lucky?.state === "done") return;
+      snap.lucky = { players: t.players.map((p) => p.playerId), state: "error", error: err?.message ?? String(err), ratings: {}, matchup: null };
+      emit();
+    }
+  }
+
+  async function readLucky(my, t) {
     const pids = t.players.map((p) => p.playerId);
     if (!lucky || pids.length === 0) return;
     const asked = pids.filter((pid) => userIds.get(pid));
@@ -286,6 +327,18 @@ function createPlayerStats(ctx, opts = {}) {
 
   /** The event service read (or lost) the event: its finished sets, and who's next. */
   function onEvent() {
+    try {
+      readEvent();
+    } catch (err) {
+      log(`the event's finished sets failed: ${err?.stack ?? err}`);
+      // Unsure which event's they'd be: none, rather than a list that may be stale.
+      if (snap.completedSets.state === "error") return;
+      snap.completedSets = { state: "error", sets: [] };
+      emit();
+    }
+  }
+
+  function readEvent() {
     const info = eventService?.eventInfo() ?? null;
     const status = eventService?.status().state;
     const next = {
@@ -301,9 +354,13 @@ function createPlayerStats(ctx, opts = {}) {
     if (startgg.enabled) queuePlayable();
   }
 
-  /** The players in the next playable sets, from the event service. */
+  /**
+   * The players in the next playable sets, from the event service. A singles
+   * event's only: the histories are for a singles head-to-head, and a doubles
+   * event's players would spend start.gg's budget on cards never drawn.
+   */
   function queuePlayable() {
-    queued = eventService?.playablePlayerIds(PREWARM_SETS) ?? [];
+    queued = snap.event?.singles ? eventService?.playablePlayerIds(PREWARM_SETS) ?? [] : [];
     prewarm();
   }
 
@@ -322,6 +379,8 @@ function createPlayerStats(ctx, opts = {}) {
         if (store.has(pid)) continue;
         await store.sync(pid);
       }
+    } catch (err) {
+      log(`pre-fetching stopped: ${err?.stack ?? err}`);
     } finally {
       prewarming = false;
     }

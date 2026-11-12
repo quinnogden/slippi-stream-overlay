@@ -207,16 +207,37 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
     r.ss.stop();
   });
 
-  await test("doubles and crew battles have no stats, and say why", async () => {
-    const r = rig();
+  await test("doubles has no stats and says why: its replays aren't read, and a doubles game never brings the popup up", async () => {
+    let reads = 0;
+    const r = rig({ reads: { a: () => (reads++, read()) } });
     r.store.setDoubles(true);
+    r.game("a", 0);
     await flush();
+    assert.strictEqual(reads, 0, "a doubles set's replays aren't read");
+    assert.strictEqual(r.store.statsShot().pendingAt, null, "…and its games start no countdown");
     assert.strictEqual(r.store.setStats().available, false);
     assert.match(r.store.setStats().reason, /singles/i);
     const shown = r.ss.command({ action: "show" });
     assert.strictEqual(shown.ok, false, "Show refuses: nothing to draw");
     assert.strictEqual(r.store.statsShot().shown, false, "…so it can't pop up by itself when stats arrive");
+    r.store.setDoubles(false); // switched on by mistake
+    await flush();
+    assert.strictEqual(r.store.setStats().available, true, "Doubles off: the set's games are read");
     r.ss.stop();
+
+    // Four players while a singles set is still up (the doubles set not loaded yet).
+    const s = rig({ reads: { a: read(), q: { ok: false, notSingles: true, error: "not a singles game" } } });
+    s.game("a", 0);
+    await s.clock.advance(10000);
+    s.ss.onGameStart();
+    s.game("q", 1);
+    await flush();
+    assert.strictEqual(s.store.statsShot().pendingAt, null, "the four-player game's show is called off");
+    await s.clock.advance(30000);
+    assert.strictEqual(s.store.statsShot().shown, false, "…never the game before it, up as if just played");
+    const d = s.store.setStats();
+    assert.deepStrictEqual([d.counted, d.total, d.unreadable], [1, 2, 0], "not counted, like a ± game — not a read that failed");
+    s.ss.stop();
   });
 
   await test("a stats failure never stops the score, a read that can pass is tried again, and the popup goes when its stats do", async () => {
@@ -237,6 +258,29 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
     r.store.clearScore();
     await flush();
     assert.strictEqual(r.store.statsShot().shown, false, "no stats left: down, so it can't pop back up by itself");
+    r.ss.stop();
+  });
+
+  await test("a broken read costs its game; a view that can't be built shows nothing — never the last one — and takes the popup down", async () => {
+    const r = rig({ reads: { a: read(), b: { ok: true, complete: true, players: "garbled" } } });
+    r.store.setStatsConfig({ auto: false });
+    r.game("a", 0);
+    r.game("b", 1);
+    await flush();
+    let d = r.store.setStats();
+    assert.strictEqual(d.available, true, "one garbled read took the whole popup");
+    assert.deepStrictEqual([d.counted, d.unreadable, d.total], [1, 1, 2]);
+    assert.ok(r.ss.command({ action: "show" }).ok);
+
+    const err = console.error;
+    console.error = () => {};
+    const scoreboard = r.store.scoreboard;
+    r.store.scoreboard = () => { throw new Error("a bug in the view"); };
+    try { r.ss.refresh(); } finally { r.store.scoreboard = scoreboard; console.error = err; }
+    d = r.store.setStats();
+    assert.strictEqual(d.available, false, "the last set's numbers stayed up after a failed rebuild");
+    assert.strictEqual(r.store.statsShot().shown, false, "the popup stayed up over nothing");
+    assert.strictEqual(r.ss.command({ action: "show" }).ok, false, "Show still works with nothing to draw");
     r.ss.stop();
   });
 

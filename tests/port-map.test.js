@@ -12,11 +12,14 @@
  *   - the same ports next game keep the mapping (a manual correction sticks);
  *     moved ports are matched against what each side just played;
  *   - the winner's side is read at game end, so a port swap, a set loaded
- *     mid-game, or Switch Sides during the game all credit the right player;
+ *     mid-game, or Switch Sides during the game all credit the right player —
+ *     and the game, with its .slp, goes on the set that's up when it ends,
+ *     even if that set's load from start.gg was still in flight;
  *   - doubles: Slippi teams map as wholes, non-adjacent ports included.
  */
 
 const assert = require("assert");
+const { EventEmitter } = require("events");
 
 const { ScoreboardStore } = require("../app/lib/scoreboard/store");
 const { PortMap, matchSingles } = require("../app/lib/ports/port-map");
@@ -46,13 +49,14 @@ const main = (codename, skin = 0) => ({ name: display(codename), skin });
 /** A slippi-js player entry. Port is 0-based, as slippi-js has it. */
 const raw = (port, codename, skin = 0, teamId) => ({ playerIndex: port, characterId: id(codename), characterColor: skin, teamId });
 
-function rig() {
+function rig({ event = null } = {}) {
   const emitted = [];
   const ctx = {
     store: new ScoreboardStore(),
     portMap: new PortMap(),
     state: createState(),
     io: { emit: (ev, data) => emitted.push([ev, data]) },
+    event,
   };
   const modes = createModes(ctx);
   return { ...ctx, modes, emitted };
@@ -71,7 +75,11 @@ function loadSingles(store, l, r, extra = {}) {
 }
 
 const score = (store) => store.scoreboard().sides.map((s) => s.score);
-const win = (modes, port) => modes.onGameEnd({ winnerPlayerIndex: port, isHandwarmer: false });
+/** A game end as the game source sends it, with the game's .slp. */
+const win = (modes, port, file = null) => modes.onGameEnd({ winnerPlayerIndex: port, isHandwarmer: false,
+  replay: file ? { file, startMs: 0, lastFrame: 9000, stageId: 31 } : undefined });
+/** Each side's ports in a recorded game's replay. */
+const replayPorts = (g) => g.replay.players.map((side) => side.map((p) => p.port));
 
 log("port-map");
 
@@ -153,9 +161,37 @@ test("a set loaded mid-game re-detects against the new set's mains", () => {
   assert.strictEqual(portMap.sideOf(3), 0);
   assert.strictEqual(store.scoreboard().sides[0].players[0].character.codename, "fox",
     "the live character replaces the loaded main");
-  win(modes, 3);
+  win(modes, 3, "Game_1.slp");
   assert.deepStrictEqual(score(store), [1, 0]);
-  assert.strictEqual(store.scoreboard().setId, "1002");
+  const sb = store.scoreboard();
+  assert.strictEqual(sb.setId, "1002");
+  assert.strictEqual(sb.games[0].replay.file, "Game_1.slp", "the game's .slp goes with it");
+  assert.deepStrictEqual(replayPorts(sb.games[0]), [[3], [0]], "…its ports on the new set's sides");
+});
+
+test("a game that ends while its set is still loading from start.gg goes on that set, not the one being replaced", () => {
+  const event = Object.assign(new EventEmitter(), { loadingSet: false });
+  const { store, modes } = rig({ event });
+  loadSingles(store, main("peach"), main("jigglypuff"));          // the previous set, still up
+  modes.onGameStart([raw(0, "marth"), raw(3, "fox")]);
+  event.loadingSet = true;                                         // the operator pressed load: start.gg is re-reading it
+  win(modes, 3, "Game_1.slp");
+  assert.deepStrictEqual(score(store), [0, 0], "the game went on the set being replaced");
+  loadSingles(store, main("fox"), main("marth"), { setId: "1002" });
+  event.loadingSet = false;
+  event.emit("set-load-settled");
+  const sb = store.scoreboard();
+  assert.strictEqual(sb.setId, "1002");
+  assert.deepStrictEqual(score(store), [1, 0], "Lefty (Fox, port 4) won it, on the new set's ports");
+  assert.strictEqual(sb.games[0].replay.file, "Game_1.slp");
+
+  // A load that never lands doesn't lose the game: the next game start records it first.
+  event.loadingSet = true;
+  modes.onGameStart([raw(0, "marth"), raw(3, "fox")]);
+  win(modes, 0, "Game_2.slp");
+  modes.onGameStart([raw(0, "marth"), raw(3, "fox")]);
+  assert.deepStrictEqual(score(store), [1, 1]);
+  assert.strictEqual(store.scoreboard().games[1].replay.file, "Game_2.slp");
 });
 
 test("Switch Sides mid-game: the point still goes to the player who won it", () => {

@@ -59,6 +59,11 @@ function createStatsDirector({ store, now = Date.now, timers = { setTimeout, cle
 
   function clear(t) { if (t) timers.clearTimeout(t); return null; }
 
+  /** A timer's work, which must never throw: out of a timer, a throw ends the app. */
+  const guarded = (fn) => () => {
+    try { fn(); } catch (err) { console.error(`[set-stats] the popup's timer failed: ${err?.stack ?? err}`); }
+  };
+
   function publish(shot) {
     store.setStatsShot({ ...store.statsShot(), ...shot });
   }
@@ -69,7 +74,7 @@ function createStatsDirector({ store, now = Date.now, timers = { setTimeout, cle
     waitedSince = null;
     publish({ shown: true, mode: modeFor(), since: now(), pendingAt: null, auto, layout: layoutFor(config(), store.statsShot().layout, !!data()?.over, rand), seed: 1 + Math.floor(rand() * 0x7ffffffe) });
     const hold = config().holdSec;
-    if (auto && hold > 0) holdTimer = timers.setTimeout(() => { holdTimer = null; hide(); }, hold * 1000);
+    if (auto && hold > 0) holdTimer = timers.setTimeout(guarded(() => { holdTimer = null; hide(); }), hold * 1000);
     return { ok: true };
   }
 
@@ -94,7 +99,7 @@ function createStatsDirector({ store, now = Date.now, timers = { setTimeout, cle
       publish({ pendingAt: null });
       return undefined;
     }
-    pendingTimer = timers.setTimeout(fire, RETRY_MS);
+    pendingTimer = timers.setTimeout(guarded(fire), RETRY_MS);
     return undefined;
   }
 
@@ -107,7 +112,7 @@ function createStatsDirector({ store, now = Date.now, timers = { setTimeout, cle
     waitedSince = null;
     const at = now() + cfg.delaySec * 1000;
     publish({ pendingAt: at });
-    pendingTimer = timers.setTimeout(fire, cfg.delaySec * 1000);
+    pendingTimer = timers.setTimeout(guarded(fire), cfg.delaySec * 1000);
   }
 
   /** The next game is starting, or another set was loaded. */

@@ -16,11 +16,16 @@
  *
  * index.js binds to these events rather than reading .slp files itself, which
  * keeps the core handlers testable with a mock emitter.
+ *
+ * A listener that throws can't stop the watcher (lib/safe-emitter.js), and a
+ * finished file is let go before its game end is announced: a throw that got
+ * back in here would leave the watcher on the finished file, and no later game
+ * would be recorded.
  */
 
 const fs           = require("fs");
 const path         = require("path");
-const EventEmitter = require("events");
+const { SafeEmitter } = require("./safe-emitter");
 const { SlippiGame, GameEndMethod } = require("@slippi/slippi-js");
 const { wasHandwarmer } = require("./handwarmer");
 
@@ -118,7 +123,7 @@ function listSlp(folder) {
  * @returns {EventEmitter}
  */
 function createFolderSource(config, detector) {
-  const emitter = new EventEmitter();
+  const emitter = new SafeEmitter("bridge");
 
   console.log(`[bridge] Folder mode — watching: ${config.SLP_FOLDER}`);
 
@@ -225,10 +230,12 @@ function createFolderSource(config, detector) {
             stageId: game.getSettings()?.stageId ?? null,
           };
 
-          emitter.emit("game-end", { winnerPlayerIndex, isHandwarmer, stocks, replay });
+          // Done with this file before anything hears about it: the next game's
+          // file is picked up whatever happens in the listeners.
           knownFiles.add(currentFile);
           currentFile = null;
           game        = null;
+          emitter.emit("game-end", { winnerPlayerIndex, isHandwarmer, stocks, replay });
         }
       }
 

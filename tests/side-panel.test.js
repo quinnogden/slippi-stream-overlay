@@ -461,6 +461,46 @@ const plain = (v) => JSON.parse(JSON.stringify(v)); // the page's arrays are ano
     assert.ok(env.sp.rotator._slots.includes("last-game"));
   });
 
+  await test("a card that can't be populated never comes on: nothing under its title, a draw that throws, data of a shape nobody expected", async () => {
+    const env = await setup(GRAND_FINAL);
+    env.store.clearScore();
+    playGame(env.store, 0, "g1.slp");
+    await env.settle();
+    const good = env.store.setStats();
+    const others = ["player-1", "player-2", "recent-sets", "completed-sets"];
+    const slots = () => plain(env.sp.rotator._slots);
+
+    // Counted, but with no number, callout or summary to draw: a title over nothing.
+    env.store.setSetStats({ ...good, rows: {}, insights: { game: [], set: [] }, stories: { game: [], set: [] } });
+    await env.settle();
+    assert.ok(!slots().includes("last-game"), "an empty Last Game card is in the rotation");
+    env.sp.rotator._transitionTo("last-game", () => {});
+    assert.notStrictEqual(env.sp.rotator._current, "last-game", "an empty card came on screen");
+
+    // Its renderer throws on the data (facts that aren't a list): emptied, out, and the rest rotate on.
+    const errors = [];
+    const err = env.page.window.console.error;
+    env.page.window.console.error = (...a) => errors.push(a.join(" "));
+    env.store.setSetStats({ ...good, facts: { game: {}, set: {} } });
+    await env.settle();
+    assert.ok(!slots().includes("last-game"), "a card that couldn't be drawn stayed in the rotation");
+    assert.ok(errors.some((e) => e.includes("last-game")), "…and nobody was told");
+    assert.ok(others.every((id) => slots().includes(id)), "one card's failure took the others out");
+    env.store.setSetStats(good);
+    await env.settle();
+    assert.ok(slots().includes("last-game"), "drawn again once its data changes");
+    assert.ok(visibleText(env.page, "#panel-last-game").includes("Game 1"));
+
+    // A head-to-head of an unexpected shape costs that card, not the panel.
+    const odd = statsFor(GRAND_FINAL);
+    odd.h2h.recent = { not: "a list" };
+    env.channel.emit("player_stats", odd);
+    await env.settle();
+    env.page.window.console.error = err;
+    assert.ok(!slots().includes("recent-sets"));
+    assert.ok(["player-1", "player-2", "completed-sets", "last-game"].every((id) => slots().includes(id)));
+  });
+
   await test("no stats at all (no token, nothing loaded) still rotates the logos", async () => {
     const env = await setup(GRAND_FINAL, null);
     assert.deepStrictEqual(plain(env.sp.rotator._slots), ["logo-primary", "logo-sponsor"]);
