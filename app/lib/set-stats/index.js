@@ -12,9 +12,11 @@
  * the popup goes up, `delaySec` later. A set restored on boot has its games
  * read then.
  *
- * Singles only. A doubles set's (or a crew battle's) replays are never read
- * and its games start no automatic show; a four-player game played while a
- * singles set is up isn't counted, and calls off the show it started.
+ * Singles sets loaded from start.gg only. A doubles set's, a crew battle's or
+ * a set with no start.gg id's (typed names, or unlinked by a tag edit)
+ * replays are never read and its games start no automatic show; a four-player
+ * game played while a singles set is up isn't counted, and calls off the show
+ * it started.
  *
  * Whatever goes wrong costs the stats, never the score: a view that can't be
  * built publishes none (`available: false`, never the last set's numbers), so
@@ -41,8 +43,8 @@ const MAX_TRIES = 3;
 /** How many sets back an accolade the audience saw is still scored down. */
 const RECENT_SETS = 3;
 
-/** The stats are singles only: a doubles set or a crew battle has none (set-view.js says why). */
-const singles = (sb) => !sb.isDoubles && !sb.crew;
+/** The stats are for a singles set loaded from start.gg only: anything else has none (set-view.js says why). */
+const hasStats = (sb) => !!sb.setId && !sb.isDoubles && !sb.crew;
 
 /**
  * One long-lived worker thread reading files in turn; restarted if it dies.
@@ -216,8 +218,8 @@ function createSetStats(ctx, opts = {}) {
   function rebuild() {
     try {
       const sb = store.scoreboard();
-      // Singles only: a doubles set's replays aren't read at all (set-view.js says why there's nothing).
-      if (singles(sb)) for (const g of sb.games) if (g.replay?.file) want(g.replay.file);
+      // A doubles set's or a manual set's replays aren't read at all (set-view.js says why there's nothing).
+      if (hasStats(sb)) for (const g of sb.games) if (g.replay?.file) want(g.replay.file);
       const view = buildSetView(sb, statsOf, portraitsOf, { recent });
       for (const g of view.games) {
         try { g.stage.pics = portraits.stagePicsOf(g.stage.icon); } catch { g.stage.pics = null; }
@@ -255,7 +257,7 @@ function createSetStats(ctx, opts = {}) {
         const added = n > lastCount && sb.games[n - 1]?.replay?.file;
         lastCount = n;
         if (rebuild()) { /* came down: nothing to draw */ }
-        else if (added && singles(sb)) director.onGameRecorded(); // a doubles game starts no countdown
+        else if (added && hasStats(sb)) director.onGameRecorded(); // a doubles or manual set's game starts no countdown
         else director.onConfig(); // the set may have just been won: an "auto" reading follows it
       }
       if (keys.includes("statsConfig")) director.onConfig();

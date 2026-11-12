@@ -98,6 +98,7 @@ function buildSetView(sb, statsOf, portraitsOf = () => null, opts = {}) {
   if (!sb) return unavailable("No set on the scoreboard");
   if (sb.crew) return unavailable("Crew battle — no set stats");
   if (sb.isDoubles) return unavailable("Doubles — set stats are singles only");
+  if (!sb.setId) return unavailable("No start.gg set loaded — set stats need one");
 
   let pending = 0;
   let unreadable = 0;

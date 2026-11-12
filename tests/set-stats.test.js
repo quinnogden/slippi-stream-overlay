@@ -103,9 +103,9 @@ const flush = () => new Promise((r) => setImmediate(r));
  * A store with a Bo5 between Juniper (left) and Kestrel (right), the real
  * set-stats module on it, and replays "read" from `reads` (file → result).
  */
-function rig({ bestOf = "Bo5", reads = {} } = {}) {
+function rig({ bestOf = "Bo5", reads = {}, setId = "9" } = {}) {
   const store = new ScoreboardStore();
-  store.loadSet({ setId: "9", roundName: "Winners Final", sides: [{ players: [{ tag: "Juniper" }] }, { players: [{ tag: "Kestrel" }] }] });
+  store.loadSet({ setId, roundName: "Winners Final", sides: [{ players: [{ tag: "Juniper" }] }, { players: [{ tag: "Kestrel" }] }] });
   store.setOverrides({ bestOf });
   const clock = fakeClock();
   const held = new Map();
@@ -237,6 +237,31 @@ function rig({ bestOf = "Bo5", reads = {} } = {}) {
     assert.strictEqual(s.store.statsShot().shown, false, "…never the game before it, up as if just played");
     const d = s.store.setStats();
     assert.deepStrictEqual([d.counted, d.total, d.unreadable], [1, 2, 0], "not counted, like a ± game — not a read that failed");
+    s.ss.stop();
+  });
+
+  await test("a set not loaded from start.gg has no stats: its replays aren't read, and unlinking one mid-set takes them down", async () => {
+    let reads = 0;
+    const r = rig({ setId: null, reads: { a: () => (reads++, read()) } });
+    r.game("a", 0);
+    await flush();
+    assert.strictEqual(reads, 0, "a manual set's replays aren't read");
+    assert.strictEqual(r.store.statsShot().pendingAt, null, "…and its games start no countdown");
+    assert.strictEqual(r.store.setStats().available, false);
+    assert.match(r.store.setStats().reason, /start\.gg/);
+    assert.strictEqual(r.ss.command({ action: "show" }).ok, false, "Show refuses");
+    r.ss.stop();
+
+    // A tag edit on the strip unlinks the set (store.detachSet): its stats go, and the popup with them.
+    const s = rig({ reads: { a: read() } });
+    s.game("a", 0);
+    await flush();
+    s.ss.command({ action: "show" });
+    assert.strictEqual(s.store.statsShot().shown, true);
+    s.store.detachSet();
+    await flush();
+    assert.strictEqual(s.store.setStats().available, false, "unlinked: no stats");
+    assert.strictEqual(s.store.statsShot().shown, false, "…and the popup comes down");
     s.ss.stop();
   });
 
