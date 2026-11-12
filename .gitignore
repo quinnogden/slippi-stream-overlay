@@ -34,8 +34,12 @@ __pycache__/
 .claude/
 
 # The stats popup's art packs, downloaded from the dock's Setup tab (~280 MB;
-# lib/set-stats/art-packs.js). Never committed: a clone downloads its own.
-overlays/assets/packs/
+# lib/set-stats/art-packs.js). Not committed, a clone downloads its own, except
+# the VS screen pack (full): committed upscaled 2x, since the release's copy is
+# too low-res for the popup. Its .installed.json is per machine.
+overlays/assets/packs/*
+!overlays/assets/packs/full/
+overlays/assets/packs/full/.installed.json
 
 # Local scratch: render comparisons and other throwaway artefacts.
 .scratch/
