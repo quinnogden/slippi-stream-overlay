@@ -1292,18 +1292,23 @@ body {
 .clip-toast-detail:empty { display: none; }
 
 
-/* ── Stats cards: Last Game (four looks) and Set Recap ────────
+/* ── Stats cards: Last Game (three looks) and Set Recap ───────
    The stats popup's numbers, built by side-panel.js. Left and right are the
    scoreboard's columns; the side ahead on a stat is lit (the other .trail),
-   and a callout is edged in the trim on its player's side. Sizes are px:
-   every piece has a fixed place, and sentences step down to fit their box. */
+   and a callout is edged in the trim on its player's side.
+
+   Every size is a multiple of --k, which side-panel.js sets to the largest
+   that still fits the card (scaleCard): a card with less to say says it
+   bigger, a full one steps down. The title grows a third as fast. Sentences
+   then step down to fit their box. */
 
 .stats-panel {
+  --k:           1;
   --st-label:    var(--label-font, var(--font));
   --st-num:      var(--score-font, var(--font));
   --st-trim:     var(--trim-color, var(--text-color));
   --st-trim-rgb: var(--trim-rgb, var(--text-color-rgb));
-  gap: 9px;
+  gap:           calc(7px * var(--k));
 }
 
 .stats-panel .lead-l { --edge-l: var(--st-trim); }
@@ -1314,7 +1319,7 @@ body {
   flex-shrink:    0;
   text-align:     center;
   font-family:    var(--font);
-  font-size:      44px;
+  font-size:      calc(42px * (0.67 + 0.33 * var(--k)));
   line-height:    1;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1329,19 +1334,25 @@ body {
 .panel-header.st-sub {
   font-family:    var(--st-label);
   font-weight:    700;
-  font-size:      13px;
-  letter-spacing: 0.26em;
+  font-size:      calc(15px * var(--k));
+  letter-spacing: 0.24em;
   color:          var(--st-trim);
   padding:        0 0 2px;
   white-space:    nowrap;
 }
 
-/* Small type shared by the pieces. */
+/* Small type shared by the pieces. Four voices, each its own way, so they
+   don't run together: the title (trim, spaced caps), the number (the score
+   face, biggest), the line under it (upright, bright — the words that go
+   with the number) and, last and quietest, whose it is (dimmer italic caps,
+   a player's behind a dot). Colour only from the pack's tokens, so any pack
+   reads the same way. */
 .st-tag {
   font-family:    var(--st-label);
   font-weight:    700;
-  font-size:      12px;
-  letter-spacing: 0.16em;
+  font-size:      calc(15px * var(--k));
+  line-height:    1.2;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color:          var(--st-trim);
   white-space:    nowrap;
@@ -1351,23 +1362,38 @@ body {
 .st-txt {
   font-family: var(--st-label);
   font-weight: 600;
-  font-size:   14px;
-  line-height: 1.25;
-  color:       rgba(var(--text-color-rgb), 0.78);
-  max-height:  36px;
+  font-size:   calc(17.5px * var(--k));
+  line-height: 1.22;
+  color:       rgba(var(--text-color-rgb), 0.94);
+  max-height:  calc(43px * var(--k));   /* two lines; a longer one steps down to fit */
   overflow:    hidden;
 }
 .st-who {
   font-family:    var(--st-label);
   font-weight:    700;
-  font-size:      11.5px;
-  letter-spacing: 0.1em;
+  font-style:     italic;
+  font-size:      calc(14px * var(--k));
+  line-height:    1.2;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color:          var(--text-color);
-  margin-top:     3px;
+  color:          rgba(var(--text-color-rgb), 0.62);
+  margin-top:     calc(3px * var(--k));
+  padding-right:  0.15em;               /* the slant's overhang, inside the box */
   white-space:    nowrap;
   overflow:       hidden;
   text-overflow:  ellipsis;
+}
+/* A player's name (a callout with a side) behind a dot; "Games 1, 2 and 3" has none. */
+.stats-panel .lead-l .st-who::before,
+.stats-panel .lead-r .st-who::before {
+  content:        "";
+  display:        inline-block;
+  width:          0.45em;
+  height:         0.45em;
+  margin-right:   0.5em;
+  border-radius:  50%;
+  vertical-align: 0.1em;
+  background:     var(--st-trim);
 }
 .st-big,
 .st-v {
@@ -1385,8 +1411,9 @@ body {
 .stats-panel .trail { color: rgba(var(--text-color-rgb), 0.42); }
 .st-lab {
   font-family:    var(--font);
-  font-size:      15px;
-  letter-spacing: 0.06em;
+  font-size:      calc(21px * var(--k));
+  line-height:    1.15;
+  letter-spacing: 0.05em;
   color:          var(--text-color);
   text-align:     center;
   white-space:    nowrap;
@@ -1397,7 +1424,7 @@ body {
 /* The summary: a sentence in a lit box. */
 .st-story {
   flex-shrink:   0;
-  padding:       11px 18px 13px;
+  padding:       calc(9px * var(--k)) calc(18px * var(--k)) calc(11px * var(--k));
   border-radius: 10px;
   background:
     radial-gradient(ellipse 70% 120% at 50% 0%, rgba(var(--st-trim-rgb), 0.12), transparent 70%),
@@ -1405,39 +1432,64 @@ body {
   box-shadow: inset 0 0 0 1px rgba(var(--st-trim-rgb), 0.28), 0 2px 8px rgba(0,0,0,0.4);
 }
 .st-say {
-  margin-top:  5px;
+  margin-top:  calc(4px * var(--k));
   font-family: var(--font);
-  font-size:   21px;
-  line-height: 1.28;
-  color:       rgba(var(--text-color-rgb), 0.92);
-  max-height:  81px;   /* three lines; a longer one steps down to fit */
+  font-size:   calc(24px * var(--k));
+  line-height: 1.25;
+  color:       rgba(var(--text-color-rgb), 0.94);
+  max-height:  calc(90px * var(--k));   /* three lines; a longer one steps down to fit */
   overflow:    hidden;
 }
+/* In a sentence too: the numbers lit, a player's name in a callout's name voice
+   (italic caps), at the sentence's own brightness so the words still lead. */
 .st-say em,
 .st-line em { font-style: normal; color: var(--st-trim); }
+.st-say .nm,
+.st-line .nm {
+  font-family:    var(--st-label);
+  font-weight:    700;
+  font-style:     italic;
+  font-size:      0.8em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding-right:  0.1em;
+}
 
 /* Callouts, two (or four) side by side. */
 .st-grid {
   flex-shrink:           0;
   display:               grid;
   grid-template-columns: 1fr 1fr;
-  gap:                   9px;
+  gap:                   calc(8px * var(--k));
 }
+/* A callout: its title, the number on the player's side (by the lit edge),
+   its line across the box, and whose it is under that. */
 .st-box {
-  position:      relative;
-  overflow:      hidden;
-  min-width:     0;
-  padding:       9px 15px 10px;
-  border-radius: 10px;
-  background:    var(--pill-bg, rgba(255,255,255,0.06));
-  box-shadow:    0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+  position:        relative;
+  overflow:        hidden;
+  min-width:       0;
+  display:         flex;
+  flex-wrap:       wrap;
+  align-items:     center;
+  align-content:   flex-start;
+  column-gap:      calc(12px * var(--k));
+  padding:         calc(8px * var(--k)) calc(15px * var(--k)) calc(10px * var(--k));
+  border-radius:   10px;
+  background:      var(--pill-bg, rgba(255,255,255,0.06));
+  box-shadow:      0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
 }
-.st-box .st-big { font-size: 34px; margin-top: 3px; }
-.st-box .st-txt { margin-top: 3px; }
-.st-box.lead-r  { text-align: right; }
-.st-box.small   { padding: 7px 13px 8px; }
-.st-box.small .st-big { font-size: 28px; margin-top: 2px; }
-.st-box.small .st-txt { font-size: 12.5px; max-height: 32px; }
+.st-box.lead-r { flex-direction: row-reverse; text-align: right; }
+/* Sized for the pool's longest wordings (accolades.js: a tag ≤ 20 characters,
+   a line ≤ 34 — two lines here), which fit before they step down. */
+.st-box .st-tag { flex: 0 0 100%; font-size: calc(17px * var(--k)); }
+.st-box .st-big { flex: none; max-width: 100%; font-size: calc(58px * var(--k)); }
+.st-box .st-txt { flex: 0 0 100%; margin-top: calc(2px * var(--k)); font-size: calc(20px * var(--k)); line-height: 1.2; max-height: calc(48px * var(--k)); }
+.st-box .st-who { flex: 0 0 100%; margin-top: calc(4px * var(--k)); font-size: calc(15px * var(--k)); }
+.st-box.small   { padding: calc(7px * var(--k)) calc(13px * var(--k)) calc(9px * var(--k)); column-gap: calc(10px * var(--k)); }
+.st-box.small .st-tag { font-size: calc(15px * var(--k)); }
+.st-box.small .st-big { font-size: calc(46px * var(--k)); }
+.st-box.small .st-txt { font-size: calc(17px * var(--k)); max-height: calc(41px * var(--k)); }
+.st-box.small .st-who { font-size: calc(14px * var(--k)); margin-top: calc(4px * var(--k)); }
 
 /* The lead edges: 3px bars, wiped down as the piece lands (side-panel.js). */
 .st-box::before,
@@ -1458,18 +1510,18 @@ body {
   flex-shrink:   0;
   display:       flex;
   align-items:   center;
-  gap:           14px;
-  height:        58px;
-  padding:       0 16px;
+  gap:           calc(14px * var(--k));
+  height:        calc(66px * var(--k));
+  padding:       0 calc(16px * var(--k));
   border-radius: 10px;
   background:    var(--pill-bg, rgba(255,255,255,0.06));
   box-shadow:    0 2px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
 }
-.st-facts.with-pic { padding-left: 9px; }
+.st-facts.with-pic { padding-left: calc(9px * var(--k)); }
 .st-thumb {
   flex-shrink:   0;
-  width:         72px;
-  height:        42px;
+  width:         calc(84px * var(--k));
+  height:        calc(50px * var(--k));
   border-radius: 7px;
   background:    center / cover no-repeat;
   box-shadow:    0 0 0 1px rgba(var(--text-color-rgb), 0.16), 0 3px 8px rgba(0,0,0,0.5);
@@ -1479,44 +1531,46 @@ body {
 .st-fact-lab {
   font-family:    var(--st-label);
   font-weight:    700;
-  font-size:      10.5px;
-  letter-spacing: 0.16em;
+  font-size:      calc(13px * var(--k));
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color:          var(--darkened-text);
   white-space:    nowrap;
 }
 .st-fact-val {
   font-family:   var(--font);
-  font-size:     21px;
-  height:        26px;          /* a fitted (smaller) value keeps its line, so the cells stay level */
-  line-height:   26px;
+  font-size:     calc(25px * var(--k));
+  height:        calc(30px * var(--k));   /* a fitted (smaller) value keeps its line, so the cells stay level */
+  line-height:   calc(30px * var(--k));
   color:         var(--text-color);
-  margin-top:    2px;
+  margin-top:    calc(1px * var(--k));
   white-space:   nowrap;
   overflow:      hidden;
   text-overflow: ellipsis;
   text-shadow:   0 1px 4px rgba(0,0,0,0.6);
 }
 
-/* A stat: the numbers either side, the label and the set's between. */
+/* A stat: the numbers either side, the label between. A pill grows from its
+   floor (min-height) to its ceiling with the room the card has. */
 .panel-pill.st-pill {
   display:               grid;
-  grid-template-columns: 96px minmax(0, 1fr) 96px;
-  max-height:            66px;
-  padding:               0 18px;
+  grid-template-columns: calc(124px * var(--k)) minmax(0, 1fr) calc(124px * var(--k));
+  min-height:            calc(54px * var(--k));
+  max-height:            calc(72px * var(--k));
+  padding:               0 calc(18px * var(--k));
 }
-.st-pill .st-v,
-.st-share .st-v { font-size: 30px; }
+.st-pill .st-v  { font-size: calc(42px * var(--k)); }
+.st-share .st-v { font-size: calc(38px * var(--k)); }
 .st-v.r { text-align: right; }
 .st-k   { min-width: 0; text-align: center; }
 .st-set {
   font-family:    var(--st-label);
   font-weight:    700;
-  font-size:      10.5px;
+  font-size:      calc(12.5px * var(--k));
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color:          rgba(var(--text-color-rgb), 0.45);
-  margin-top:     3px;
+  color:          rgba(var(--text-color-rgb), 0.5);
+  margin-top:     calc(2px * var(--k));
   white-space:    nowrap;
 }
 
@@ -1525,21 +1579,22 @@ body {
   flex-direction:  column;
   align-items:     stretch;
   justify-content: center;
-  gap:             8px;
-  max-height:      78px;
-  padding:         0 18px;
+  gap:             calc(8px * var(--k));
+  min-height:      calc(64px * var(--k));
+  max-height:      calc(84px * var(--k));
+  padding:         0 calc(18px * var(--k));
 }
 .st-share-row {
   display:               grid;
-  grid-template-columns: 96px minmax(0, 1fr) 96px;
+  grid-template-columns: calc(112px * var(--k)) minmax(0, 1fr) calc(112px * var(--k));
   align-items:           center;
 }
 .st-bar {
   --p:           50%;
   --bar-l:       rgba(var(--text-color-rgb), 0.2);
   --bar-r:       rgba(var(--text-color-rgb), 0.2);
-  height:        7px;
-  border-radius: 4px;
+  height:        calc(9px * var(--k));
+  border-radius: 5px;
   background: linear-gradient(90deg,
     var(--bar-l) 0, var(--bar-l) calc(var(--p) - 2px),
     transparent calc(var(--p) - 2px), transparent calc(var(--p) + 2px),
@@ -1551,10 +1606,10 @@ body {
 /* The reel: one callout at a time, big, its dots under it. */
 .st-reel {
   flex-shrink:    0;
-  height:         168px;
+  height:         calc(178px * var(--k));
   display:        flex;
   flex-direction: column;
-  padding:        14px 20px 12px;
+  padding:        calc(12px * var(--k)) calc(20px * var(--k)) calc(10px * var(--k));
   border-radius:  12px;
   background:
     radial-gradient(ellipse 60% 100% at 50% 0%, rgba(var(--st-trim-rgb), 0.16), transparent 70%),
@@ -1565,28 +1620,16 @@ body {
   flex:                  1;
   min-height:            0;
   display:               grid;
-  grid-template-columns: 170px minmax(0, 1fr);
+  grid-template-columns: calc(178px * var(--k)) minmax(0, 1fr);
   align-items:           center;
-  gap:                   14px;
+  gap:                   calc(14px * var(--k));
 }
-.st-reel-item .st-big { font-size: 62px; text-align: center; }
+.st-reel-item .st-big { font-size: calc(84px * var(--k)); text-align: center; }
 .st-reel-text         { min-width: 0; }
-.st-reel-item .st-tag { font-size: 13px; }
-.st-reel-item .st-txt { font-size: 18px; line-height: 1.22; max-height: 66px; margin-top: 4px; color: rgba(var(--text-color-rgb), 0.88); }
-.st-reel-item .st-who { font-size: 12.5px; margin-top: 6px; }
-.st-reel-item.lead-l .st-who::before,
-.st-reel-item.lead-r .st-who::before {
-  content:        "";
-  display:        inline-block;
-  width:          7px;
-  height:         7px;
-  margin-right:   8px;
-  border-radius:  50%;
-  vertical-align: 1px;
-  background:     var(--st-trim);
-  box-shadow:     0 0 10px rgba(var(--st-trim-rgb), 0.9);
-}
-.st-dots { display: flex; justify-content: center; gap: 7px; padding-top: 8px; }
+.st-reel-item .st-tag { font-size: calc(17px * var(--k)); }
+.st-reel-item .st-txt { font-size: calc(24px * var(--k)); line-height: 1.2; max-height: calc(87px * var(--k)); margin-top: calc(4px * var(--k)); }
+.st-reel-item .st-who { font-size: calc(16px * var(--k)); margin-top: calc(6px * var(--k)); }
+.st-dots { display: flex; justify-content: center; gap: 7px; padding-top: calc(7px * var(--k)); }
 .st-dots i {
   width:         22px;
   height:        3px;
@@ -1596,30 +1639,31 @@ body {
 }
 .st-dots i.on { background: var(--st-trim); }
 
-/* A ledger: big numbers outside, small ones inside, the label between. */
+/* A ledger: big numbers outside, small ones inside, the label between. After
+   a game it's three columns (the set's numbers are Set Recap's). */
 .st-ledger {
   flex:           1 1 auto;
-  min-height:     0;
   display:        flex;
   flex-direction: column;
 }
 .st-row {
   flex:                  1 1 0;
-  min-height:            30px;
-  max-height:            42px;
+  min-height:            calc(38px * var(--k));
+  max-height:            calc(52px * var(--k));
   display:               grid;
-  grid-template-columns: 76px 70px minmax(0, 1fr) 70px 76px;
+  grid-template-columns: calc(96px * var(--k)) calc(84px * var(--k)) minmax(0, 1fr) calc(84px * var(--k)) calc(96px * var(--k));
   align-items:           center;
   border-top:            1px solid rgba(var(--text-color-rgb), 0.08);
 }
-.st-row.st-cap  { flex: none; min-height: 0; height: 18px; border-top: 0; }
-.st-row .st-v   { font-size: 27px; }
+.st-ledger.game .st-row { grid-template-columns: calc(132px * var(--k)) minmax(0, 1fr) calc(132px * var(--k)); }
+.st-row.st-cap  { flex: none; min-height: 0; height: calc(20px * var(--k)); border-top: 0; }
+.st-row .st-v   { font-size: calc(34px * var(--k)); }
 .st-row .st-v.l { text-align: left; }
 .st-c {
   font-family:    var(--st-label);
   font-weight:    700;
-  font-size:      10px;
-  letter-spacing: 0.16em;
+  font-size:      calc(12px * var(--k));
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color:          var(--darkened-text);
   text-align:     center;
@@ -1629,27 +1673,27 @@ body {
 .st-c.r { text-align: right; }
 .st-small {
   font-family: var(--st-num);
-  font-size:   16px;
+  font-size:   calc(19px * var(--k));
   color:       rgba(var(--text-color-rgb), 0.45);
   text-align:  center;
   white-space: nowrap;
 }
-.st-spark          { display: inline-block; vertical-align: middle; overflow: visible; }
+.st-spark          { display: inline-block; vertical-align: middle; overflow: visible; width: calc(78px * var(--k)); height: calc(26px * var(--k)); }
 .st-spark polyline { fill: none; stroke: rgba(var(--text-color-rgb), 0.45); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
 .st-spark circle   { fill: rgba(var(--text-color-rgb), 0.55); }
 .st-spark circle.hi { fill: var(--st-trim); }
-.st-ledger.recap .st-row        { max-height: 46px; }
-.st-ledger.recap .st-row .st-v  { font-size: 30px; }
+.st-ledger.recap .st-row        { min-height: calc(40px * var(--k)); max-height: calc(56px * var(--k)); }
+.st-ledger.recap .st-row .st-v  { font-size: calc(36px * var(--k)); }
 
 /* The box score's summary, on a line of its own. */
 .st-line {
   flex-shrink: 0;
   font-family: var(--font);
-  font-size:   17px;
+  font-size:   calc(20px * var(--k));
   line-height: 1.25;
   text-align:  center;
-  color:       rgba(var(--text-color-rgb), 0.88);
-  max-height:  44px;
+  color:       rgba(var(--text-color-rgb), 0.9);
+  max-height:  calc(50px * var(--k));
   overflow:    hidden;
   padding:     0 6px;
 }

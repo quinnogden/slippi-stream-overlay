@@ -375,15 +375,16 @@ const POOL = [
 function fill(tpl, v) {
   return tpl.replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? String(v[k]) : m));
 }
-/** One template as segments: the numbers and the move/noun lit. */
+/** One template as segments: the numbers and the move/noun lit, the players' names marked (stories.js's segments). */
 const LIT = new Set(["n", "o", "move"]);
+const NAMES = new Set(["who", "opp"]);
 function segments(tpl, v) {
   const out = [];
   let last = 0;
   tpl.replace(/\{(\w+)\}/g, (m, k, at) => {
     if (at > last) out.push({ t: tpl.slice(last, at) });
     const val = v[k] != null ? String(v[k]) : m;
-    out.push(LIT.has(k) ? { em: val } : { t: val });
+    out.push(LIT.has(k) ? { em: val } : NAMES.has(k) && v[k] != null ? { t: val, name: true } : { t: val });
     last = at + m.length;
     return m;
   });

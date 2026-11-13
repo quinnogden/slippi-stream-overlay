@@ -342,7 +342,7 @@ The same information in a bar along the bottom, with the tournament logo above t
 </tr>
 </table>
 
-A 611 × 1080 panel that sits beside the webcam. The header shows the tournament name. The bottom card rotates every 20 seconds through:
+A 611 × 1080 panel that sits beside the webcam. The header shows the tournament name. The bottom card rotates every 20 seconds (the stats cards 25) through:
 
 - the tournament and sponsor logos
 - each player's **current run** and **recent results**

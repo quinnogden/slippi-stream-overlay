@@ -84,28 +84,32 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .title { font-size: 60px; line-height: 1.05; letter-spacing: 0.03em; margin-top: 6px; }
 .ttl { text-align: center; }
 
-/* Insight pieces: one thing worth pointing out, with an edge on the side of the player it's about */
-.ins-tag { font-family: var(--ss-label-font); font-weight: 700; font-size: 14px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--trim-c); white-space: nowrap; }
-.ins-big { font-size: 44px; line-height: 1; white-space: nowrap; }
-.ins-txt { font-family: var(--ss-label-font); font-weight: 600; font-size: 16px; line-height: 1.3; color: rgba(var(--text-color-rgb), 0.75); }
-.ins-who { font-family: var(--ss-label-font); font-weight: 700; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-color); margin-top: 4px; }
+/* Insight pieces: one thing worth pointing out, with an edge on the side of the player it's about.
+   Four voices, each its own way, so they don't run together (the side panel's stats cards speak
+   the same): the title (trim, spaced caps), the number (the score face, biggest), the line under
+   it (upright, bright) and, last and quietest, whose it is (dimmer italic caps, a player's behind
+   a dot). A player's name in a sentence (.nm) takes the "whose" voice at the sentence's brightness.
+   Colour only from the pack's tokens (the paper, its ink). */
+.ins-tag { font-family: var(--ss-label-font); font-weight: 700; font-size: 16px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--trim-c); white-space: nowrap; }
+.ins-big { font-size: 48px; line-height: 1; white-space: nowrap; }
+.ins-txt { font-family: var(--ss-label-font); font-weight: 600; font-size: 18px; line-height: 1.3; color: rgba(var(--text-color-rgb), 0.92); }
+.ins-who { font-family: var(--ss-label-font); font-weight: 700; font-style: italic; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(var(--text-color-rgb), 0.62); margin-top: 5px; padding-right: 0.15em; }
 .ins-who[data-fit] { white-space: nowrap; overflow: hidden; flex: none; }
+.ins-who.pl::before { content: ""; display: inline-block; width: 0.45em; height: 0.45em; margin-right: 0.5em; border-radius: 50%; vertical-align: 0.1em; background: var(--trim-c); }
+.nm { font-family: var(--ss-label-font); font-weight: 700; font-style: italic; font-size: 0.8em; letter-spacing: 0.06em; text-transform: uppercase; padding-right: 0.1em; }
 .e-l, .e-r { position: relative; overflow: hidden; }
 .e-l::before, .e-r::after { content: ""; position: absolute; top: 0; bottom: 0; width: 3px; background: var(--trim-c); }
 .e-l::before { left: 0; } .e-r::after { right: 0; }
 
 /* Surfaces */
 .surface { border-radius: 22px; background: linear-gradient(180deg, rgba(var(--text-color-rgb), 0.04), rgba(var(--text-color-rgb), 0.01)), var(--surface); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.09), 0 18px 44px rgba(0,0,0,0.4); box-sizing: border-box; }
-.mini { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-radius: 16px; box-sizing: border-box; background: var(--surface-hi); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.08), 0 10px 22px rgba(0,0,0,0.35); }
-/* The number in a column of one width, so a row of minis' words line up. */
-.mini .ins-big { font-size: 38px; width: 80px; flex: none; text-align: center; }
-.mini > div:last-child { min-width: 0; flex: 1; }
-.mini .ins-txt { font-size: 15px; margin-top: 2px; }
-/* A long title takes a second line rather than shrink. */
-.mini .ins-tag { white-space: normal; line-height: 1.15; }
-.mini.tall { flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px; }
-.mini.tall .ins-big { text-align: left; min-width: 0; font-size: 40px; }
-.e-r.mini.tall { align-items: flex-end; text-align: right; }
+.mini { display: grid; grid-template-columns: auto minmax(0, 1fr); align-content: center; align-items: center; gap: 6px 16px; padding: 12px 18px; border-radius: 16px; box-sizing: border-box; background: var(--surface-hi); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.08), 0 10px 22px rgba(0,0,0,0.35); }
+/* A callout card uses the whole card, its four voices in reading order: the
+   title across the top, the number beside its line, whose it is across the foot. */
+.mini .ins-tag, .mini .ins-who { grid-column: 1 / -1; overflow: hidden; }
+.mini .ins-who { margin-top: 0; }
+.mini .ins-big { min-width: 60px; max-width: 128px; overflow: hidden; text-align: center; }
+.mini .ins-txt { min-width: 0; }
 
 /* Corners */
 .corner { display: flex; gap: 16px; align-items: center; }
@@ -151,15 +155,17 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .lr { height: var(--rh, 56px); }
 .lr .g { font-size: var(--gs, 40px); display: flex; align-items: center; gap: 10px; white-space: nowrap; }
 .lr .g.l { justify-content: flex-end; } .lr .g.r { justify-content: flex-start; }
-.lr .s { font-size: 22px; color: rgba(var(--text-color-rgb), 0.45); text-align: center; white-space: nowrap; }
+.lr .s { font-size: 25px; color: rgba(var(--text-color-rgb), 0.45); text-align: center; white-space: nowrap; }
 .lr .k { text-align: center; }
-.lr .k .lab { color: var(--text-color); font-size: 15px; }
+.lr .k .lab { color: var(--text-color); font-size: 18px; }
+/* The field notes' labels share their gap with the handwritten notes. */
+.lr.in .k .lab { font-size: 17px; }
 .lr .s .u { font-size: 0.62em; }
-.lr .k .hint { font-family: var(--ss-label-font); font-weight: 600; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(var(--text-color-rgb), 0.35); margin-top: 2px; }
+.lr .k .hint { font-family: var(--ss-label-font); font-weight: 600; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(var(--text-color-rgb), 0.35); margin-top: 2px; }
 .cap { padding-bottom: 4px; }
 /* One line each, tracked tight enough for a 70px column; the small column's
    header dimmed like its numbers, so two headers side by side read as two. */
-.cap .lab { font-size: 13px; letter-spacing: 0.08em; white-space: nowrap; }
+.cap .lab { font-size: 14px; letter-spacing: 0.08em; white-space: nowrap; }
 .cap .lab.sm { opacity: 0.6; }
 .sep-rows .lr + .lr::before { content: ""; position: absolute; top: 0; left: 4%; right: 4%; height: 1px; background: linear-gradient(90deg, transparent, rgba(var(--text-color-rgb), 0.10) 20%, rgba(var(--text-color-rgb), 0.10) 80%, transparent); }
 .lr .share { position: absolute; left: 50%; bottom: 7px; width: 110px; margin-left: -55px; }
@@ -205,7 +211,7 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .htitle path, .uline path { fill: none; stroke: var(--trim-c); stroke-width: 3; stroke-linecap: round; }
 /* A drawn stroke (set-stats.js drawStroke): one dash the path's length (pathLength="1"), at rest offset 0. */
 [data-draw] { stroke-dasharray: 1 1; }
-.hsay { font-size: 25px; line-height: 1.32; color: rgba(var(--text-color-rgb), 0.9); }
+.hsay { font-size: 26px; line-height: 1.32; color: rgba(var(--text-color-rgb), 0.9); }
 .hsay em { font-style: normal; color: var(--trim-c); }
 /* The field notes' ledger (.lr.in): the big numbers inside, by the label; a note
    written in the gap between the label and its player's number, its stroke
@@ -232,9 +238,9 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .mk.swash { left: -6px; bottom: -9px; width: calc(100% + 12px); height: 14px; }
 /* a stamp: a unique stat inked on the page (rotation on the inner box, so the motion's transform stays free) */
 .stamp-in { border: 2px dashed rgba(var(--trim-rgb-c), 0.65); border-radius: 14px; padding: 10px 14px 12px; text-align: center; background: rgba(var(--trim-rgb-c), 0.06); transform: rotate(var(--r, -2deg)); height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; }
-.stamp-in .ins-big { font-size: 40px; color: var(--text-color); }
+.stamp-in .ins-big { font-size: 46px; color: var(--text-color); }
 .stamp-in .ins-tag, .sticky-in .ins-tag, .box-in .ins-tag { white-space: normal; line-height: 1.25; }
-.stamp-in .ins-txt { font-size: 14px; margin-top: 4px; }
+.stamp-in .ins-txt { font-size: 17px; margin-top: 4px; }
 /* A long "who" ("… held on") takes a second line rather than shrink. */
 .stamp-in .ins-who, .box-in .ins-who { white-space: normal; line-height: 1.2; }
 .stamp-in .ins-who { margin-top: 7px; }
@@ -271,8 +277,9 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .paper .mrule { background: rgba(196, 70, 50, 0.45); }
 .paper .share i { background: rgba(var(--ink-rgb), 0.15); }
 .paper .share i.on { background: var(--trim-c); box-shadow: 0 0 6px rgba(var(--trim-rgb-c), 0.35); }
-.paper .ins-txt { color: rgba(var(--ink-rgb), 0.78); }
-.paper .ins-who { color: var(--ink); }
+.paper .ins-txt { color: rgba(var(--ink-rgb), 0.9); }
+.paper .ins-who { color: rgba(var(--ink-rgb), 0.62); }
+.paper .ins-who.pl::before { background: #b0581a; }
 .paper .ins-tag { color: #b0581a; }
 .paper .an span { color: #b0581a; } .paper .an path, .paper .mk path { stroke: rgba(176, 88, 26, 0.85); }
 .field { border-bottom: 1.5px solid rgba(var(--ink-rgb), 0.35); padding-bottom: 4px; }
@@ -280,10 +287,10 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .paper .facts-patch { padding: 8px 14px; margin: -8px -14px; border-radius: 14px; background: rgba(239, 225, 191, 0.84); box-shadow: 0 0 16px 8px rgba(239, 225, 191, 0.84); }
 .field .fv { font-size: 30px; line-height: 1.1; margin-top: 2px; white-space: nowrap; }
 .box-in { border: 1.5px solid rgba(var(--ink-rgb), 0.35); border-radius: 10px; padding: 12px 16px; height: 100%; box-sizing: border-box; background: rgba(255,255,255,0.25); }
-.box-in .ins-big { color: var(--ink); font-size: 36px; }
-.box-in .ins-txt { font-size: 15px; }
-.paper .reel-in .rb { font-size: 64px; line-height: 1; white-space: nowrap; }
-.paper .reel-in .rt { font-size: 21px; line-height: 1.2; }
+.box-in .ins-big { color: var(--ink); font-size: 44px; }
+.box-in .ins-txt { font-size: 17px; }
+.paper .reel-in .rb { font-size: 72px; line-height: 1; white-space: nowrap; }
+.paper .reel-in .rt { font-size: 25px; line-height: 1.2; }
 .paper .dots i { background: rgba(var(--ink-rgb), 0.2); } .paper .dots i.done { background: rgba(var(--ink-rgb), 0.45); }
 .paper .track { background: rgba(var(--ink-rgb), 0.15); }
 
@@ -297,9 +304,8 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 /* Portraits inside cards */
 .rail { border-radius: 22px; overflow: hidden; background: linear-gradient(180deg, rgba(var(--bg-color-light-rgb), 0.3), transparent 60%), var(--score-bg-color); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.09), 0 18px 44px rgba(0,0,0,0.4); }
 .rail > .mini { position: absolute !important; z-index: 3; }
-/* The rails' cards are wider and taller than a row of minis: the words and the number a size up. */
-.rail .mini .ins-big { font-size: 42px; width: 88px; }
-.rail .mini .ins-txt { font-size: 16px; }
+/* The rails' cards are wider than a row of minis: the number a size up. */
+.rail .mini .ins-big { font-size: 52px; }
 .hero.vs { background: radial-gradient(ellipse 30% 90% at 50% 50%, rgba(var(--trim-rgb-c), 0.16), transparent 70%), linear-gradient(180deg, #13262c, #0a181d); }
 .hero.vs > :not(.por) { z-index: 3; }
 .hero .hic { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
@@ -323,12 +329,12 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .skin-paper .lr .g, .skin-paper .lr .s { text-shadow: 0 0 10px rgba(239,225,191,0.95); }
 
 /* ── Tale of the tape ── */
-.tape-row { display: grid; grid-template-columns: 130px 1fr 130px; align-items: center; height: 66px; }
+.tape-row { display: grid; grid-template-columns: 136px 1fr 136px; align-items: center; height: 66px; }
 .tape-row + .tape-row { border-top: 1px solid rgba(var(--text-color-rgb), 0.07); }
-.tape-row .tv { font-size: 44px; white-space: nowrap; text-shadow: 0 2px 14px rgba(0,0,0,0.75); }
+.tape-row .tv { font-size: 50px; white-space: nowrap; text-shadow: 0 2px 14px rgba(0,0,0,0.75); }
 .tape-row .tv.l { text-align: right; } .tape-row .tv.r { text-align: left; }
 .tape-row .tk { text-align: center; padding: 0 18px; }
-.tape-row .tk .lab { font-size: 15px; color: var(--text-color); }
+.tape-row .tk .lab { font-size: 18px; color: var(--text-color); }
 .tape-row .share { height: 7px; margin-top: 8px; }
 /* The band: a stub (title, number, whose) ruled off from the sentence; squared like the corners, its own progress for an underline */
 .tape-band { position: absolute; box-sizing: border-box; border-radius: 12px; overflow: hidden;
@@ -338,9 +344,9 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .tape-band > .track { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 0; }
 .tape-band > .dots { position: absolute; left: 26px; bottom: 14px; gap: 5px; }
 .tape-band > .dots i { width: 5px; height: 5px; }
-.tb { display: grid; grid-template-columns: 220px 1fr; height: 100%; }
+.tb { display: grid; grid-template-columns: 236px 1fr; height: 100%; }
 .tb-stub { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 8px 16px 24px 26px; border-right: 1px solid rgba(var(--trim-rgb-c), 0.3); }
-.tb-big { font-size: 40px; line-height: 1.08; white-space: nowrap; text-shadow: 0 0 24px rgba(var(--trim-rgb-c), 0.3); }
+.tb-big { font-size: 46px; line-height: 1.08; white-space: nowrap; text-shadow: 0 0 24px rgba(var(--trim-rgb-c), 0.3); }
 .tb.story .tb-big { color: var(--trim-c); }
 .tb-who { display: flex; align-items: center; gap: 6px; margin-top: 2px; color: rgba(var(--text-color-rgb), 0.72); white-space: nowrap; min-width: 0; }
 .tb-who span { min-width: 0; }
@@ -348,7 +354,7 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .tb.l .tb-who::before, .tb.r .tb-who::after { content: ""; flex: none; width: 0; height: 0; border-style: solid; }
 .tb.l .tb-who::before { border-width: 4px 6px 4px 0; border-color: transparent var(--trim-c) transparent transparent; }
 .tb.r .tb-who::after { border-width: 4px 0 4px 6px; border-color: transparent transparent transparent var(--trim-c); }
-.tb-say { align-self: center; padding: 10px 30px 10px 26px; font-size: 24px; line-height: 1.25; text-shadow: 0 1px 10px rgba(0,0,0,0.6); }
+.tb-say { align-self: center; padding: 10px 30px 10px 26px; font-size: 26px; line-height: 1.25; text-shadow: 0 1px 10px rgba(0,0,0,0.6); }
 .tb-say em { font-style: normal; color: var(--trim-c); }
 
 /* ── Polaroids: a taped instant photo per player (the rotation on the inner box, so the motion's transform stays free) ── */
@@ -356,16 +362,17 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .polaroid::before { content: ""; position: absolute; top: -12px; left: 50%; width: 110px; height: 26px; margin-left: -55px; background: rgba(245, 235, 210, 0.6); transform: rotate(-2deg); box-shadow: 0 1px 3px rgba(0,0,0,0.2); z-index: 3; }
 .polaroid .ph { position: relative; height: 300px; overflow: hidden; background: radial-gradient(ellipse at 50% 30%, #2a4447, #10242a); }
 .polaroid .ph .por { z-index: 1; }
-.polaroid .pcap { color: var(--ink); font-size: 22px; line-height: 1.15; padding: 10px 6px 0; text-align: center; height: 124px; box-sizing: border-box; overflow: hidden; }
-.polaroid .pcap .pbig { font-size: 34px; color: #b0581a; }
-.polaroid .pcap small { display: block; font-family: var(--ss-label-font); font-weight: 600; font-size: 15px; line-height: 1.25; color: rgba(var(--ink-rgb), 0.7); margin-top: 4px; }
+.polaroid .pcap { color: var(--ink); font-size: 30px; line-height: 1.15; padding: 16px 8px 0; text-align: center; height: 148px; box-sizing: border-box; overflow: hidden; }
+.polaroid .pcap .pbig { font-size: 48px; color: #b0581a; }
+.polaroid .pcap small { display: block; font-family: var(--ss-label-font); font-weight: 600; font-size: 21px; line-height: 1.25; color: rgba(var(--ink-rgb), 0.86); margin-top: 8px; }
 
 /* ── Lower third ── */
 /* Short columns: no hint line under a label, and labels that can take two tight lines. */
 .lt-half .lr .k .hint { display: none; }
-.lt-half .lr .k .lab { font-size: 13px; letter-spacing: 0.1em; line-height: 1.1; }
-.lt-facts { display: flex; justify-content: space-between; align-items: center; padding: 0 18px; box-sizing: border-box; border-radius: 10px; background: var(--plate); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.07); font-family: var(--ss-label-font); font-weight: 600; font-size: 15px; color: rgba(var(--text-color-rgb), 0.8); text-shadow: 0 1px 6px rgba(0,0,0,0.8); white-space: nowrap; }
-.lt-facts b { color: var(--trim-c); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-size: 13px; margin-right: 6px; }
+.lt-half .lr .k .lab { font-size: 14px; letter-spacing: 0.1em; line-height: 1.1; }
+.lt-half .lr .s { font-size: 22px; }
+.lt-facts { display: flex; justify-content: space-between; align-items: center; padding: 0 18px; box-sizing: border-box; border-radius: 10px; background: var(--plate); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.07); font-family: var(--ss-label-font); font-weight: 600; font-size: 17px; color: rgba(var(--text-color-rgb), 0.8); text-shadow: 0 1px 6px rgba(0,0,0,0.8); white-space: nowrap; }
+.lt-facts b { color: var(--trim-c); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; font-size: 14px; margin-right: 6px; }
 
 /* ── Condensed: pieces round the frame, over the Players bar ── */
 /* The window is the whole frame with no background of its own. */
@@ -386,36 +393,34 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
   background: linear-gradient(90deg, transparent, var(--trim-c), transparent); opacity: 0.55; }
 /* The title and the summary, top centre */
 .cz-title { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 24px; text-align: center; }
-.cz-title .eyebrow { font-size: 14px; letter-spacing: 0.24em; max-width: 100%; }
-.cz-title .t { font-size: 37px; line-height: 1.05; margin-top: 4px; white-space: nowrap; overflow: hidden; max-width: 100%; }
+.cz-title .eyebrow { font-size: 15px; letter-spacing: 0.24em; max-width: 100%; }
+.cz-title .t { font-size: 41px; line-height: 1.05; margin-top: 4px; white-space: nowrap; overflow: hidden; max-width: 100%; }
 .cz-story { padding: 10px 28px 12px; overflow: hidden; }
 .cz-story [data-rot] { height: 100%; display: flex; align-items: center; justify-content: center; text-align: center; }
-.cz-story .say { font-size: 22px; line-height: 1.28; }
+.cz-story .say { font-size: 24px; line-height: 1.28; }
 .cz-story > .track { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 0; background: transparent; }
 /* The head-to-head column on the round card */
 .cz-mid { padding: 10px 14px 4px; }
-.cz-cap { font-size: 14px; letter-spacing: 0.22em; text-align: center; height: 22px; line-height: 22px; color: var(--trim-c); }
-.cz-row { display: grid; grid-template-columns: minmax(0,1fr) 132px minmax(0,1fr); align-items: center; height: 44px; position: relative; }
+.cz-cap { font-size: 15px; letter-spacing: 0.22em; text-align: center; height: 24px; line-height: 24px; color: var(--trim-c); }
+.cz-row { display: grid; grid-template-columns: minmax(0,1fr) 140px minmax(0,1fr); align-items: center; height: 48px; position: relative; }
 .cz-row + .cz-row { border-top: 1px solid rgba(var(--text-color-rgb), 0.07); }
-.cz-row .v { font-size: 28px; white-space: nowrap; overflow: hidden; }
+.cz-row .v { font-size: 32px; white-space: nowrap; overflow: hidden; }
 .cz-row .v.l { text-align: left; } .cz-row .v.r { text-align: right; }
-.cz-row .lab { font-size: 14px; letter-spacing: 0.05em; line-height: 1.1; text-align: center; color: var(--text-color); white-space: nowrap; overflow: hidden; }
+.cz-row .lab { font-size: 15px; letter-spacing: 0.05em; line-height: 1.1; text-align: center; color: var(--text-color); white-space: nowrap; overflow: hidden; }
 .cz-row .share { position: absolute; left: 50%; bottom: 5px; width: 64px; margin-left: -32px; height: 3px; }
 /* Each player's own numbers, standing on their card */
 .cz-chips { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); align-items: center; }
 .cz-chip { text-align: center; padding: 0 10px; min-width: 0; position: relative; }
 .cz-chip + .cz-chip { border-left: 1px solid rgba(var(--text-color-rgb), 0.08); }
-.cz-chip .cz-v { font-size: 30px; line-height: 1.05; white-space: nowrap; overflow: hidden; }
-.cz-chip .lab { font-size: 14px; letter-spacing: 0.06em; margin-top: 2px; white-space: nowrap; overflow: hidden; }
+.cz-chip .cz-v { font-size: 34px; line-height: 1.05; white-space: nowrap; overflow: hidden; }
+.cz-chip .lab { font-size: 15px; letter-spacing: 0.06em; margin-top: 2px; white-space: nowrap; overflow: hidden; }
 .cz-chip.lead .cz-v { color: var(--trim-c); }
-/* Their callouts above, the number on the outer side */
-.cz-in { display: grid; grid-template-columns: 104px minmax(0,1fr); align-items: center; gap: 12px; height: 100%; padding: 0 18px 0 12px; box-sizing: border-box; }
-.cz-acc.r .cz-in { grid-template-columns: minmax(0,1fr) 104px; padding: 0 12px 0 18px; text-align: right; }
-.cz-acc.r .ins-big { order: 2; }
-.cz-in .ins-big { font-size: 36px; text-align: center; overflow: hidden; }
-.cz-tx { min-width: 0; }
-.cz-in .ins-tag { overflow: hidden; }
-.cz-in .ins-txt { font-size: 17px; line-height: 1.22; margin-top: 3px; max-height: 42px; overflow: hidden; }
+/* Their callouts above, like the minis: the title across the top, the number on the outer side beside its line */
+.cz-in { display: grid; grid-template-columns: auto minmax(0,1fr); grid-template-areas: "tag tag" "big txt"; align-content: center; align-items: center; gap: 4px 14px; height: 100%; padding: 0 20px 0 16px; box-sizing: border-box; }
+.cz-acc.r .cz-in { grid-template-columns: minmax(0,1fr) auto; grid-template-areas: "tag tag" "txt big"; padding: 0 16px 0 20px; text-align: right; }
+.cz-in .ins-tag { grid-area: tag; overflow: hidden; }
+.cz-in .ins-big { grid-area: big; font-size: 42px; min-width: 56px; max-width: 128px; text-align: center; overflow: hidden; }
+.cz-in .ins-txt { grid-area: txt; min-width: 0; font-size: 18px; line-height: 1.22; max-height: 44px; overflow: hidden; }
 .cz-acc.l { box-shadow: inset 3px 0 0 var(--trim-c), inset 0 0 0 1px rgba(var(--text-color-rgb), 0.09), 0 8px 22px rgba(0,0,0,0.42); }
 .cz-acc.r { box-shadow: inset -3px 0 0 var(--trim-c), inset 0 0 0 1px rgba(var(--text-color-rgb), 0.09), 0 8px 22px rgba(0,0,0,0.42); }
 

@@ -39,6 +39,7 @@
   // Animation durations are at tempo 1; Overlay.motion.ms() scales them by
   // overlay.css's --motion-tempo. The interval is a dwell, and doesn't.
   const PANEL_INTERVAL = 20000;   // ms per slot, logos included
+  const PANEL_HOLD     = { "last-game": 25000, "set-recap": 25000 };   // the stats cards: more to read
   const H2H_SHOWN      = 7;       // the pair's newest sets on the head-to-head (the app sends 7)
   const HOLD_PANEL     = param("panel");
 
@@ -233,7 +234,9 @@
       mode, key: d.key, round: d.round, format: d.format, bestOf: d.bestOf, over: !!d.over,
       total: d.total, counted: d.counted, last: mode === "game" ? last : { n: last.n },
       stats: d.stats ?? {}, rows: d.rows ?? {},
-      ins: d.insights?.[mode] ?? [], stories: d.stories?.[mode] ?? [], facts: d.facts?.[mode] ?? [],
+      // Last Game leaves what's about the set (a streak) to Set Recap, which follows it.
+      ins: (d.insights?.[mode] ?? []).filter((x) => mode !== "game" || x.span !== "set"),
+      stories: d.stories?.[mode] ?? [], facts: d.facts?.[mode] ?? [],
     };
     // A title over nothing isn't a card: it needs a stat to show, a callout or a summary.
     if (!keysFor(v, FALLBACK_KEYS).length && !v.ins.length && !v.stories.length) return null;
@@ -553,7 +556,7 @@
       const id = this._slots[this._index];
       this._index = (this._index + 1) % this._slots.length;
       this._transitionTo(id, () => {
-        this._timer = setTimeout(() => this._advance(), PANEL_INTERVAL);
+        this._timer = setTimeout(() => this._advance(), PANEL_HOLD[this._current] ?? PANEL_INTERVAL);
       });
     }
 
@@ -980,7 +983,7 @@
 
   const GAME_LOOKS = ["story", "reel", "box"];
   const PIN_LOOK   = GAME_LOOKS.includes(param("look")) ? param("look") : null;
-  const REEL_MS    = 5000;   // a dwell: each callout on the reel
+  const REEL_MS    = 6000;   // a dwell: each callout on the reel (four fill the card's 25s)
 
   /** Per card: showings so far, the look, and where in the callouts and summaries this showing starts. */
   const shows = {
@@ -1032,8 +1035,6 @@
   const fixed = (v, dp) => Number(v).toFixed(dp);
   /** A stat's number at the game's (0) or the set's (1) decimals, "–" when there isn't one. */
   const statText = (st, v, set) => (v == null ? "–" : fixed(v, st.dp[set]));
-  const withPct = (st, v, set) => statText(st, v, set) + (v != null && st.unit === "%" ? "%" : "");
-  const SET_WORD = { avg: "Set avg", max: "Set best", min: "Set best", sum: "Set total" };
 
   /** A number with its unit small beside it. */
   function numEl(cls, value, unit) {
@@ -1043,10 +1044,14 @@
   }
   const statEl = (st, v, set, cls) => numEl(cls, v == null ? null : statText(st, v, set), st.unit);
 
-  /** A sentence from segments ({ t } plain, { em } lit) — never parsed as markup. */
+  /** A sentence from segments ({ t } plain, { em } lit, { t, name } a player) — never parsed as markup. */
   function sentence(cls, segs) {
     const el = h("div", cls);
-    for (const s of segs || []) el.appendChild(s.em != null ? h("em", null, String(s.em)) : document.createTextNode(String(s.t ?? "")));
+    for (const s of segs || []) {
+      el.appendChild(s.em != null ? h("em", null, String(s.em))
+        : s.name ? h("span", "nm", String(s.t ?? ""))
+        : document.createTextNode(String(s.t ?? "")));
+    }
     return el;
   }
 
@@ -1096,14 +1101,13 @@
     return row;
   }
 
-  /** One stat: the game's numbers either side, the label and the set's between. */
+  /** One stat: the game's numbers either side, the label between (the set's are Set Recap's). */
   function statPill(v, key) {
     const st = v.stats[key], r = v.rows[key], lead = r.lead.g;
     const pill = h("div", `panel-pill st-pill${sideCls(lead)}`);
     const mid = h("div", "st-k");
     mid.appendChild(h("div", "st-lab", st.label));
-    const sub = v.counted >= 2 ? `${SET_WORD[st.agg] || "Set"} ${withPct(st, r.s[0], 1)} – ${withPct(st, r.s[1], 1)}` : (st.hint || "");
-    if (sub) mid.appendChild(h("div", "st-set", sub));
+    if (st.hint) mid.appendChild(h("div", "st-set", st.hint));
     pill.append(statEl(st, r.g[0], 0, "st-v" + (lead === 1 ? " trail" : "")), mid, statEl(st, r.g[1], 0, "st-v r" + (lead === 0 ? " trail" : "")));
     return pill;
   }
@@ -1148,23 +1152,23 @@
 
   /**
    * A ledger: a caption, then a row per stat — the big number on the outside,
-   * the small one inside, the label between. After a game: the game big and
-   * the set small. The recap: the set big and each player's line small.
+   * the label between. The recap: the set big, and inside it each player's
+   * line across the games. After a game: the game's numbers alone.
    */
   function ledger(v, keys, extra) {
     const set = v.mode === "set";
-    const t = h("div", "st-ledger beat-group" + (extra ? " " + extra : ""));
+    const t = h("div", `st-ledger beat-group ${v.mode}${extra ? " " + extra : ""}`);
     const big = set ? "Set" : `Game ${v.last.n}`;
-    const small = set ? "By game" : (v.counted >= 2 ? "Set" : "");
     const cap = t.appendChild(h("div", "st-row st-cap"));
-    cap.append(h("div", "st-c l", big), h("div", "st-c", small), h("div"), h("div", "st-c", small), h("div", "st-c r", big));
+    if (set) cap.append(h("div", "st-c l", big), h("div", "st-c", "By game"), h("div"), h("div", "st-c", "By game"), h("div", "st-c r", big));
+    else cap.append(h("div", "st-c l", big), h("div"), h("div", "st-c r", big));
     for (const key of keys) {
       const st = v.stats[key], r = v.rows[key];
       const lead = set ? r.lead.s : r.lead.g;
       const bigEl = (s) => statEl(st, set ? r.s[s] : r.g[s], set ? 1 : 0, `st-v ${s ? "r" : "l"}${lead === 1 - s ? " trail" : ""}`);
-      const smallEl = (s) => (set ? spark(r, s, st) : h("div", "st-small", v.counted >= 2 ? withPct(st, r.s[s], 1) : ""));
       const row = t.appendChild(h("div", "st-row"));
-      row.append(bigEl(0), smallEl(0), h("div", "st-lab", st.label), smallEl(1), bigEl(1));
+      if (set) row.append(bigEl(0), spark(r, 0, st), h("div", "st-lab", st.label), spark(r, 1, st), bigEl(1));
+      else row.append(bigEl(0), h("div", "st-lab", st.label), bigEl(1));
     }
     return t;
   }
@@ -1180,6 +1184,7 @@
     col.append(h("div", "st-tag", x.tag), h("div", "st-txt", x.text));
     if (x.who) col.appendChild(h("div", "st-who", x.who));
     fitText(node.querySelector(".st-big"), 30);
+    fitBlock(node.querySelector(".st-txt"));
   }
   function reelBox(ins) {
     const box = h("div", "st-reel");
@@ -1245,13 +1250,39 @@
       el.style.fontSize = `${size.toFixed(1)}px`;
     }
   }
+  /**
+   * The card's type scale (--k, side-panel.css): the largest that fits, so a
+   * card with less to say says it bigger. Heights don't wait on the fits below
+   * (a sentence has a max-height, a one-liner doesn't wrap), so each step is
+   * one layout. Pills and ledger rows are measured at their floor; whatever
+   * is left they grow into. A card that overflows even at K_MIN is clipped
+   * as before — its sentences still step down.
+   */
+  const K_MIN = 0.8;
+  const K_MAX = 1.4;
+  function scaleCard(panel) {
+    const fits = (k) => {
+      panel.style.setProperty("--k", k.toFixed(3));
+      return panel.scrollHeight <= panel.clientHeight + 1;
+    };
+    if (!panel.clientHeight || fits(K_MAX)) return;
+    let lo = K_MIN, hi = K_MAX;
+    for (let i = 0; i < 7; i++) {
+      const mid = (lo + hi) / 2;
+      if (fits(mid)) lo = mid; else hi = mid;
+    }
+    fits(lo);
+  }
+
   const each = (panel, sel, fn) => panel.querySelectorAll(sel).forEach(fn);
   function fitCard(panel) {
+    scaleCard(panel);
     for (const sel of [".st-say", ".st-line", ".st-txt"]) each(panel, sel, fitBlock);
     each(panel, ".st-name", (n) => fitText(n, 24));
     for (const sel of [".st-tag", ".st-who", ".st-lab", ".st-set", ".st-sub"]) each(panel, sel, (n) => fitText(n, 9));
     for (const sel of [".st-big", ".st-v"]) each(panel, sel, (n) => fitText(n, 18));
     each(panel, ".st-fact-val", (n) => fitText(n, 12));
+    each(panel, ".st-fact-lab", (n) => fitText(n, 9));
   }
 
   function renderGameCard() {

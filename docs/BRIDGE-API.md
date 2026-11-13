@@ -170,8 +170,8 @@ setStats: {                  // derived from the set's replays (lib/set-stats/se
   games: [{ n, winner, stage: { id, name, icon, pics: { [stageSetId]: url } | null }, len: "4:12", seconds, stocks }],
   stats: { kills: { label, dp: [game, set], better: "hi" | "lo", agg, unit?, hint?, setWord? }, … },
   rows: { kills: { g: [l, r], s: [l, r], pg: [[…], […]], lead: { g: 0 | 1 | null, s } }, … },
-  insights: { game: [{ id, kind?: "accolade", tag, big, unit?, text, long: [segments] | null, who, side: 0 | 1 | -1, row?, note? }, …], set: […] },  // callouts and accolades, best first, ≤ 12
-  stories: { game: [[{ t: "text" } | { em: "lit" }, …], …], set: […] },
+  insights: { game: [{ id, kind?: "accolade", tag, big, unit?, text, long: [segments] | null, who, side: 0 | 1 | -1, row?, note?, span?: "set" }, …], set: […] },  // callouts and accolades, best first, ≤ 12; span "set": a game callout about the set (a streak), which the side panel's Last Game leaves to Set Recap
+  stories: { game: [[{ t: "text" } | { em: "lit" } | { t: "Name", name: true }, …], …], set: […] },  // name: a player's name, drawn in the callouts' "whose" voice (insights' long segments too)
   facts: { game: [{ lab, val }, …], set: […] }
 }
 ```

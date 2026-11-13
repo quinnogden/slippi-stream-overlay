@@ -8,9 +8,11 @@
  * not the game, a seesaw of lead changes, a ledge battle, a quick finish…)
  * told in one of several wordings, picked by the seed, so a set's five
  * summaries — and the next set's — don't read alike. Segments: { t } text,
- * { em } lit; a name is always { t }, never parsed.
+ * { em } lit, { t, name: true } a player's name (as typed, never parsed), so
+ * a page can set the names apart from the words and the numbers.
  *
- * Templates: {name} plain, {*name} lit.
+ * Templates: {key} plain, {*key} lit; the keys in NAME_KEYS are players' names.
+ * A value can be segments already (a clause with a name in it).
  *
  * ctx: { games, last, names, score, seed } — set-view.js's counted games
  * (per side: game-stats numbers with `fun`), the newest, the two names, the
@@ -28,23 +30,30 @@ const avg = (list) => { const v = nums(list); return v.length ? sum(v) / v.lengt
 const fun = (p, k) => (p && p.fun ? p.fun[k] : null);
 const gameList = (ns) => (ns.length === 1 ? String(ns[0]) : ns.length === 2 ? `${ns[0]} and ${ns[1]}` : `${ns.slice(0, -1).join(", ")} and ${ns[ns.length - 1]}`);
 
-/** A template to segments: {*k} lit, {k} plain. Opens on a capital unless it opens on a value. */
+/** The template keys that are a player's name (the callouts' long forms use who and opp). */
+const NAME_KEYS = new Set(["W", "L", "N", "K", "X", "Y", "A", "B", "who", "opp"]);
+const plain = (s) => s.t != null && !s.name;
+
+/** A template to segments: {*k} lit, {k} plain, a name marked. Opens on a capital unless it opens on a value. */
 function say(tpl, v) {
   const out = [];
   let last = 0;
   tpl.replace(/\{(\*?)(\w+)\}/g, (m, star, k, at) => {
     if (at > last) out.push({ t: tpl.slice(last, at) });
-    const val = v[k] == null ? "" : String(v[k]);
-    if (val) out.push(star ? { em: val } : { t: val });
+    if (Array.isArray(v[k])) out.push(...v[k]);
+    else {
+      const val = v[k] == null ? "" : String(v[k]);
+      if (val) out.push(star ? { em: val } : NAME_KEYS.has(k) ? { t: val, name: true } : { t: val });
+    }
     last = at + m.length;
     return m;
   });
   if (last < tpl.length) out.push({ t: tpl.slice(last) });
-  if (tpl[0] !== "{" && out[0] && out[0].t) out[0] = { t: out[0].t.charAt(0).toUpperCase() + out[0].t.slice(1) };
+  if (tpl[0] !== "{" && out[0] && plain(out[0])) out[0] = { t: out[0].t.charAt(0).toUpperCase() + out[0].t.slice(1) };
   // Adjacent plain pieces in one: fewer nodes, and nothing reads as two.
   return out.reduce((acc, s) => {
     const prev = acc[acc.length - 1];
-    if (prev && prev.t != null && s.t != null) prev.t += s.t; else acc.push({ ...s });
+    if (prev && plain(prev) && plain(s)) prev.t += s.t; else acc.push({ ...s });
     return acc;
   }, []);
 }
@@ -66,7 +75,10 @@ function gameStories(ctx) {
   // The result, and where it leaves the set.
   const left = P[W].stocksLeft;
   const [a, b] = [score[W], score[L]];
-  const scoreline = a > b ? `${names[W]} leads ${a}–${b}` : a === b ? `the set is tied ${a}–${b}` : `${names[L]} still leads ${b}–${a}`;
+  // Segments, so its name is marked like the sentence's own; {Line} opens a sentence.
+  const scoreline = a > b ? [{ t: names[W], name: true }, { t: ` leads ${a}–${b}` }]
+    : a === b ? [{ t: `the set is tied ${a}–${b}` }]
+    : [{ t: names[L], name: true }, { t: ` still leads ${b}–${a}` }];
   const deficit = P[W].maxDeficit ?? 0;
   out.push(story("result", 10, deficit >= 2 ? [
     "{W} took game {g}{on} from {*deficit} stocks down; {line}.",
@@ -78,7 +90,7 @@ function gameStories(ctx) {
     "{W} closed out game {g}{on} on {*left} {stocks}. {Line}.",
   ] : ["{W} took game {g}{on}; {line}."], {
     W: names[W], g: last.n, on: stage ? ` on ${stage}` : "", left, stocks: plural(left, "stock"), deficit,
-    line: scoreline, Line: scoreline.charAt(0).toUpperCase() + scoreline.slice(1),
+    line: scoreline, Line: scoreline.map((s, i) => (i === 0 && plain(s) ? { t: s.t.charAt(0).toUpperCase() + s.t.slice(1) } : s)),
   }));
 
   // Neutral against efficiency.
@@ -166,9 +178,9 @@ function gameStories(ctx) {
     const km = fun(P[s], "killMove");
     if (km && km.n >= 2 && km.of >= 3 && km.n < km.of) {
       out.push(story(`killmove-${s}`, 4, [
-        "{X}'s {*move} did the heavy lifting: {*k} of {*K} kills.",
-        "{*k} of {X}'s {*K} kills came from {*move}.",
-      ], { X: names[s], move: km.name, k: km.n, K: km.of }));
+        "{X}'s {*move} did the heavy lifting: {*k} of {*of} kills.",
+        "{*k} of {X}'s {*of} kills came from {*move}.",
+      ], { X: names[s], move: km.name, k: km.n, of: km.of }));
     }
   }
   const air = [fun(P[0], "airPct"), fun(P[1], "airPct")];

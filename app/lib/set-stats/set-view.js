@@ -325,7 +325,7 @@ function gameInsights({ games, last, names, score, seed }) {
         if (!leads.every((l) => l === s)) continue;
         const down = score[s] < score[1 - s];
         const ahead = STREAK[key];
-        C({ id: `streak-${key}`, big: `${n}/${n}`, who: who(s), side: s, row: key, score: 5 + (down ? 4 : 0) + (key === "neutral" ? 1 : 0) }, {
+        C({ id: `streak-${key}`, big: `${n}/${n}`, who: who(s), side: s, row: key, span: "set", score: 5 + (down ? 4 : 0) + (key === "neutral" ? 1 : 0) }, {
           tag: down ? ["Streak", "Still pushing"] : ["Streak", "Every game", "Consistent"],
           text: down ? [`Games ${ahead}, and still down {a}–{b}`] : [`Games ${ahead}`, `${ahead.charAt(0).toUpperCase()}${ahead.slice(1)} every game`],
           note: ["{n} of {n}", "every game"],
@@ -353,7 +353,7 @@ function gameInsights({ games, last, names, score, seed }) {
     let k = 0;
     for (let i = n - 1; i >= 0 && games[i].per[games[i].winner].stocksLeft === 1; i--) k++;
     if (k >= 2) {
-      C({ id: "laststock", big: String(k), unit: "×", who: `Games ${gameList(games.slice(-k).map((g) => g.n))}`, side: -1, score: 6 + k }, {
+      C({ id: "laststock", big: String(k), unit: "×", who: `Games ${gameList(games.slice(-k).map((g) => g.n))}`, side: -1, span: "set", score: 6 + k }, {
         tag: ["Down to the wire", "Nail-biters", "Heart rates up"], text: ["Last-stock finishes in a row", "Last stock, again"],
         long: k >= 3 ? ["{*k} last-stock finishes in a row. Nobody is getting comfortable.", "Last stock, last stock, last stock: {*k} in a row now."]
           : ["Two last-stock finishes in a row. Nobody is getting comfortable.", "Back-to-back games down to the last stock."],
