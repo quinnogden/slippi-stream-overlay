@@ -289,7 +289,7 @@ Switching never touches the scoreboard, so a set in progress is safe.
 
 ### Stream-set replays
 
-Every set played on stream keeps its `.slp` files and a `context.json` in [Replay Reporter](https://github.com/jmlee337/replay-manager-for-slippi)'s format. With `LUCKYSTATS_UPLOAD_KEY` set, a reported set uploads to LuckyStats.gg by itself; a set the TO reports on start.gg instead uploads once start.gg shows the same score. With `REPLAY_ARCHIVE_FOLDER` set, each set is also copied there. The **Replays** tab lists them, says why one is waiting, and lets you fix a game (winner, Zelda ⇄ Sheik, a missing file) and re-upload. Uploads are only *staged* until the tournament is finished, from the tab's **Finish tournament** or by LuckyStats 6 hours after the event goes quiet.
+Every set played on stream keeps its `.slp` files and a `context.json` in [Replay Reporter](https://github.com/jmlee337/replay-manager-for-slippi)'s format. With `LUCKYSTATS_UPLOAD_KEY` set, a reported set uploads to LuckyStats.gg by itself; a set the TO reports on start.gg instead uploads once start.gg shows the same score. With `REPLAY_ARCHIVE_FOLDER` set, each set is also copied there. The **Replays** tab lists them, says why one is waiting, and lets you fix a game (winner, characters on the wrong names, Zelda ⇄ Sheik, a missing file) and re-upload. Uploads are only *staged* until the tournament is finished, from the tab's **Finish tournament** or by LuckyStats 6 hours after the event goes quiet.
 
 ---
 

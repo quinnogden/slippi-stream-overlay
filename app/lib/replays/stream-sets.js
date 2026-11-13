@@ -142,7 +142,7 @@ class StreamSets extends EventEmitter {
    * set can't put the uncorrected games back.
    * @param {string} setId
    * @param {number} index — the game, 0-based
-   * @param {{ op: "winner"|"remove"|"zelda-sheik"|"attach", side?: number, slot?: number, replay?: object, characters?: Array }} edit
+   * @param {{ op: "winner"|"ports"|"remove"|"zelda-sheik"|"attach", side?: number, slot?: number, replay?: object, characters?: Array }} edit
    * @returns {{ ok: true, record: object } | { ok: false, error: string }}
    */
   editGame(setId, index, edit) {
@@ -157,6 +157,16 @@ class StreamSets extends EventEmitter {
       case "remove":
         r.games.splice(index, 1);
         break;
+      case "ports": {
+        // The port map put this game's ports on the wrong names: each side
+        // takes the other's ports and characters. The winner stays (⇄ W is
+        // its own fix) — the player who won still won.
+        if (!g.replay?.players && !g.characters) return { ok: false, error: "That game has no ports to swap" };
+        g.replay?.players?.reverse();
+        g.replay?.teamIds?.reverse();
+        g.characters?.reverse();
+        break;
+      }
       case "zelda-sheik": {
         const p = g.replay?.players?.[edit.side]?.[edit.slot];
         if (!p || (p.characterId !== ZELDA && p.characterId !== SHEIK)) {

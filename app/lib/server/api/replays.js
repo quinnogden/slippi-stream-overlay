@@ -44,7 +44,7 @@ function register(app, { replays }) {
     res.json(replays.forget(String(setId)));
   });
 
-  // { setId, index, op: winner | remove | zelda-sheik (side, slot) | attach (file) }
+  // { setId, index, op: winner | ports | remove | zelda-sheik (side, slot) | attach (file) }
   app.post("/api/replays/game", (req, res) => {
     const { setId, index, op, side, slot, file } = req.body ?? {};
     if (!isSetId(setId)) return bad(res, "setId required");
@@ -53,7 +53,7 @@ function register(app, { replays }) {
       if (typeof file !== "string" || !file) return bad(res, "file required");
       return res.json(replays.attachFile(String(setId), index, file));
     }
-    if (!["winner", "remove", "zelda-sheik"].includes(op)) return bad(res, "op must be winner, remove, zelda-sheik or attach");
+    if (!["winner", "ports", "remove", "zelda-sheik"].includes(op)) return bad(res, "op must be winner, ports, remove, zelda-sheik or attach");
     if (op === "zelda-sheik" && (![0, 1].includes(side) || !Number.isInteger(slot))) return bad(res, "side and slot required");
     res.json(replays.editGame(String(setId), index, { op, side, slot }));
   });

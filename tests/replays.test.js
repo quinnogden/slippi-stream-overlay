@@ -255,7 +255,7 @@ function playSet(store, { winners, files }) {
     assert.strictEqual(back.get("108404138").edited, true);
   });
 
-  await test("Zelda ⇄ Sheik changes the game's character id and its icon", () => {
+  await test("Zelda ⇄ Sheik changes the game's character id and its icon; ⇄ Ports moves ports and characters, not the winner", () => {
     const s = new StreamSets(path.join(TMP, "zs.json"));
     const store = loadedStore();
     const ctx = { store, portMap: new PortMap(), io: quiet, state: createState() };
@@ -269,6 +269,12 @@ function playSet(store, { winners, files }) {
     const g = s.get("108404138").games[0];
     assert.strictEqual(g.replay.players[side][0].characterId, 19);
     assert.strictEqual(g.characters[side][0].codename, "sheik");
+
+    assert.ok(s.editGame("108404138", 0, { op: "ports" }).ok);
+    const p = s.get("108404138").games[0];
+    assert.strictEqual(p.replay.players[1 - side][0].port, g.replay.players[side][0].port);
+    assert.strictEqual(p.characters[1 - side][0].codename, "sheik");
+    assert.strictEqual(p.winnerSide, g.winnerSide);
   });
 
   // ── Bundle and archive ─────────────────────────────────────────────────────

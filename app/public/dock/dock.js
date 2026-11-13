@@ -2615,6 +2615,12 @@
     flip.title = "The other side won this game";
     flip.addEventListener("click", () => replayGame(set.setId, i, { op: "winner" }, "Winner changed"));
     tools.append(flip);
+    if ((g.characters || []).some((list) => (list || []).some(Boolean))) {
+      const ports = key("⇄ Ports", "ghost mini");
+      ports.title = "The characters are on the wrong names — swap which player played which (the winner stays; ⇄ W if the point went the wrong way too)";
+      ports.addEventListener("click", () => replayGame(set.setId, i, { op: "ports" }, "Ports swapped"));
+      tools.append(ports);
+    }
     zeldaSheik(g).forEach(({ side, slot }) => {
       const zs = key("Zelda ⇄ Sheik", "ghost mini");
       zs.title = "Slippi records the character a game started on — swap it";
