@@ -571,7 +571,7 @@ function presses(frames, idx, mask) {
 }
 ```
 
-Cost: `getFrames()` plus a pass over every frame is ~0.4 s per game (400 games in 2.5 min in the scan). That fits `lib/set-stats/worker.js`, which already parses each replay once.
+Cost: `getFrames()` plus a pass over every frame is ~0.4 s per game (400 games in 2.5 min in the scan). `fun-stats.js` runs this walk in the worker (`lib/set-stats/worker.js`, via `game-stats.js`).
 
 ---
 

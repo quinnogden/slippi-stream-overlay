@@ -173,13 +173,8 @@ function createBracketDirector({ store, now = Date.now, timers = { setTimeout, c
       store.on("change", onChange);
       reconcile();
     },
-    stop() {
-      store.off("change", onChange);
-      if (timer) timers.clearTimeout(timer);
-      timer = null;
-    },
     command,
   };
 }
 
-module.exports = { createBracketDirector, ACTIONS, DIRS };
+module.exports = { createBracketDirector };

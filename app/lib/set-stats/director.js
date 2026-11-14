@@ -36,8 +36,6 @@ const { AUTO, layoutFor, poolsOf } = require("./catalog");
 const WAIT_FOR_STATS_MS = 20000;
 const RETRY_MS = 1000;
 
-const LIMITS = { delaySec: [0, 120], holdSec: [0, 600] };
-
 /**
  * @param {{ store: import("../scoreboard/store").ScoreboardStore,
  *           now?: () => number, timers?: { setTimeout: Function, clearTimeout: Function } }} deps
@@ -160,4 +158,4 @@ function createStatsDirector({ store, now = Date.now, timers = { setTimeout, cle
   return { command, show, hide, onGameRecorded, onInterrupt, onConfig, modeFor };
 }
 
-module.exports = { createStatsDirector, LIMITS };
+module.exports = { createStatsDirector };

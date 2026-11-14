@@ -311,4 +311,4 @@ function createArtPacks({ dir, fetch: fetchImpl = globalThis.fetch, extract = bs
   return { list, status, readManifest, downloadAll, get job() { return job; } };
 }
 
-module.exports = { createArtPacks, packsFromManifest, KNOWN, ID, MANIFEST_URL };
+module.exports = { createArtPacks, KNOWN, ID, MANIFEST_URL };

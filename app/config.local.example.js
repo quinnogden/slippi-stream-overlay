@@ -4,8 +4,9 @@
 // config.local.js is gitignored and merged OVER config.js at startup, so any
 // key you set here overrides the committed default in config.js.
 //
-// The only secret today is the start.gg personal access token (Start, Report
-// and the side panel's stats):
+// The secrets go here: the start.gg personal access token (Start, Report and
+// the side panel's stats) and the two optional luckystats.gg keys below.
+// For the token:
 //   1. Go to https://start.gg/admin/profile/developer
 //   2. Click "Create new token", name it (e.g. "stream-bridge"), and copy it.
 //      You can only view it once. Tokens expire after 1 year.

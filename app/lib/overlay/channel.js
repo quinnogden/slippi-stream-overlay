@@ -49,7 +49,7 @@ const NAMESPACES = ["overlay", "dock"];
 
 /**
  * @param {{ io: import("socket.io").Server, store: import("../scoreboard/store").ScoreboardStore }} deps
- * @returns {{ emit: (event: string, payload: any) => void, namespaces: object }}
+ * @returns {{ emit: (event: string, payload: any) => void }}
  */
 function createOverlayChannel({ io, store }) {
   const nsps = Object.fromEntries(NAMESPACES.map((n) => [n, io.of(`/${n}`)]));
@@ -98,7 +98,7 @@ function createOverlayChannel({ io, store }) {
     }
   }
 
-  return { emit, namespaces: nsps };
+  return { emit };
 }
 
-module.exports = { createOverlayChannel, RELAY };
+module.exports = { createOverlayChannel };

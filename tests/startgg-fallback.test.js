@@ -69,7 +69,7 @@ const eventData = { data: { data: { event: { id: 1, name: "Melee Singles", phase
   await test("no token: mutations refuse without any request", async () => {
     const calls = stub({});
     const gg = new StartggClient({ STARTGG_TOKEN: "" });
-    for (const r of await Promise.all([gg.reportSet(1, 2), gg.startSet(1)])) {
+    for (const r of await Promise.all([gg.reportSet(1, 2), gg.getSetState(1), gg.startSet(1)])) {
       assert.strictEqual(r.ok, false);
       assert.match(r.error, /token not configured/);
     }
@@ -153,6 +153,17 @@ const eventData = { data: { data: { event: { id: 1, name: "Melee Singles", phase
     const r = await gg.getPhaseGroupSets(42);
     assert.ok(r.ok && r.sets.length === 1);
     assert.deepStrictEqual(sizes, [40, 20]);
+  });
+
+  await test("background requests wait for rate budget", async () => {
+    const gg = new StartggClient({ STARTGG_TOKEN: "t" });
+    gg._gql = async () => { gg._sent.push(Date.now()); return { ok: true, data: {} }; };
+    // 50 requests that leave the 60s window in ~150ms.
+    const t0 = Date.now();
+    gg._sent = Array.from({ length: 50 }, () => t0 - 59850);
+    await gg.backgroundQuery("{}");
+    const waited = Date.now() - t0;
+    assert.ok(waited >= 100, `a full window let a background request through after ${waited}ms`);
   });
 
   console.log(failed === 0 ? "startgg-fallback: all passed" : `startgg-fallback: ${failed} failed`);

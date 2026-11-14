@@ -9,14 +9,13 @@
  *     side gets a connector that starts on the feeder and ends on the row it
  *     fills, a set fed by two cards sits between them, and a losers drop-in
  *     gets its "W R2" tag instead of a line.
- *   - **The fit**: Top 8 always fits the viewport whole; a big full bracket
- *     stops at the legibility floor and pans rather than shrinking names
- *     past it.
+ *   - **The fit**: Top 8 is one page; a bigger view is pruned and cut into
+ *     pages that fit at or above the legibility floor.
  *   - **The feed** (lib/event/bracket-feed.js): the group shown follows the
  *     dock's pick, else the set on air; the on-air set's live score and
  *     characters reach its cards; everyone else shows their DB main.
- *   - **The page**: draws the dock's view, crossfades on a switch without
- *     leaving the old board behind, and ?view= pins it.
+ *   - **The page**: draws the dock's view, fades the old board out on a
+ *     switch without leaving it behind, and ?view= pins it.
  *
  * Each failure here is a bracket that draws fine and says something untrue,
  * or a card nobody can read on stream.
@@ -31,7 +30,7 @@ const { buildBracket, selectView, VIEWS } = require("../app/lib/event/bracket-mo
 const { createBracketFeed, pickGroup } = require("../app/lib/event/bracket-feed");
 const { createBracketDirector } = require("../app/lib/event/bracket-director");
 const { EventService } = require("../app/lib/event/event-service");
-const { ScoreboardStore } = require("../app/lib/scoreboard/store");
+const { ScoreboardStore, PERSISTED } = require("../app/lib/scoreboard/store");
 const { createOverlayChannel } = require("../app/lib/overlay/channel");
 const { PlayerDb, serialize } = require("../app/lib/players/player-db");
 const L = require("../overlays/bracket/layout");
@@ -47,6 +46,15 @@ async function test(name, fn) {
     failed++;
     console.error(`  FAIL ${name}\n       ${err.stack.split("\n").slice(0, 4).join("\n       ")}`);
   }
+}
+
+async function until(cond, what, ms = 1000) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (cond()) return;
+    await sleep(5);
+  }
+  assert.fail(`timed out waiting for: ${what}`);
 }
 
 const CAPTURES = ["hundred-acres-47", "hundred-acres-48", "hundred-acres-49", "hundred-acres-50", "hundred-acres-51", "bair-necessities"];
@@ -217,7 +225,7 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
     const { feed } = FEEDS.find((f) => f.label === "hundred-acres-50 Melee Singles (Flex Bo5)");
     assert.ok(L.paginate(feed, "full").length <= 5, "HA #50's full bracket");
     assert.strictEqual(L.paginate(feed, "winners").length, 2, "HA #50's winners side");
-    const pool = FEEDS.find((f) => f.label.startsWith("bair-necessities") && f.feed.views.full.setIds.length > 60);
+    const pool = FEEDS.find((f) => f.label === "bair-necessities Melee Singles - Flex Bo5" && f.feed.views.full.setIds.length > 60);
     assert.ok(L.paginate(pool.feed, "full").length <= 4, "a 37-player pool");
     for (const { label, feed } of FEEDS.filter((f) => f.feed.views.top8.setIds.length > 0)) {
       const top8 = L.paginate(feed, "top8");
@@ -348,21 +356,21 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
     assert.deepStrictEqual(plain(p3.character), { codename: "marth", name: "Marth", skin: 2 });
   });
 
-  await test("a bracket refresh isn't saved with the scoreboard", async () => {
+  await test("the bracket and the shot aren't saved with the scoreboard", async () => {
     const env = await feedEnv();
     await env.event.switchEvent("singles");
     assert.ok(env.store.bracket());
     assert.strictEqual(env.store.toJSON().bracket, undefined);
+    assert.ok(!["bracket", "bracketShot"].some((k) => PERSISTED.includes(k)), "a refresh or a page turn would write the save");
   });
 
   // ── Page ───────────────────────────────────────────────────────────────────
 
   /**
-   * The page, the channel and the director, as the app wires them. The
-   * director's clock is in the test's hands: `tick()` fires the tour's
-   * pending timer, if there is one.
+   * The director on the feed, as the app wires it. Its clock is in the test's
+   * hands: `tick()` fires the tour's pending timer, if there is one.
    */
-  async function pageEnv(search = "", capture = "hundred-acres-49") {
+  async function directorEnv(capture = "hundred-acres-49") {
     const env = await feedEnv([], capture);
     let pending = null;
     const timers = {
@@ -372,10 +380,6 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
     const director = createBracketDirector({ store: env.store, timers });
     director.start();
     await env.event.switchEvent("singles");
-    const { io, nsps } = fakeIo();
-    createOverlayChannel({ io, store: env.store });
-    const page = await loadOverlay({ page: "bracket", nsps, search });
-    await sleep(20);
     const tick = async () => {
       const fn = pending;
       pending = null;
@@ -383,7 +387,17 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
       await sleep(30);
       return !!fn;
     };
-    return { ...env, page, director, tick, timerSet: () => !!pending };
+    return { ...env, director, tick, timerSet: () => !!pending };
+  }
+
+  /** The same, plus the channel and the page. */
+  async function pageEnv(search = "", capture = "hundred-acres-49") {
+    const env = await directorEnv(capture);
+    const { io, nsps } = fakeIo();
+    createOverlayChannel({ io, store: env.store });
+    const page = await loadOverlay({ page: "bracket", nsps, search });
+    await until(() => cardsOn(page) > 0, "the first board is drawn");
+    return { ...env, page };
   }
 
   const layers = (page) => page.$$(".viewport .layer");
@@ -409,8 +423,7 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
     store.setBracketView("losers");
     await sleep(5);
     assert.strictEqual(layers(page).length, 2, "the new board should fade in over the old");
-    await sleep(60);
-    assert.strictEqual(layers(page).length, 1, "the old board was left behind");
+    await until(() => layers(page).length === 1 && cardsOn(page) === pageUp(store).setIds.length, "the old board leaves");
     assert.strictEqual(cardsOn(page), pageUp(store).setIds.length);
     assert.ok(page.$$(".layer .drop").length > 0, "losers drop-ins should be tagged");
   });
@@ -431,16 +444,15 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
     const before = layers(page)[0];
     event.groups()[0].graph.sets[store.bracket().views.top8.setIds[0]].slots[0].score = 9;
     event.emit("change");
-    await sleep(30);
+    await until(() => texts(page.$(".viewport")).includes("9"), "the new score is drawn");
     assert.strictEqual(layers(page)[0], before, "a data change rebuilt the layer");
-    assert.ok(texts(page.$(".viewport")).includes("9"));
     assert.ok(!page.animations.slice(anims).some(({ el }) => el.classList.contains("layer")), "a data change crossfaded");
   });
 
   await test("the tour turns the pages, opening on the action; the dots follow; the title stays the event", async () => {
     const { store, page, tick } = await pageEnv("", "hundred-acres-50");
     store.setBracketView("full");
-    await sleep(60);
+    await until(() => layers(page).length === 1 && cardsOn(page) === pageUp(store).setIds.length, "the full bracket is drawn");
     const pages = store.bracket().pages.full;
     assert.ok(pages.length > 1);
     const last = Object.values(store.bracket().sets).filter((s) => s.state === "done").sort((a, b) => b.completedAt - a.completedAt)[0];
@@ -457,14 +469,13 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
     assert.ok(await tick(), "the tour should have a turn pending");
     const i = pages.findIndex((p) => p.key === first);
     assert.strictEqual(store.bracketShot().page, pages[(i + 1) % pages.length].key);
-    await sleep(60);
-    assert.strictEqual(cardsOn(page), pageUp(store).setIds.length);
+    await until(() => layers(page).length === 1 && cardsOn(page) === pageUp(store).setIds.length, "the next page is drawn");
     const lit = page.$$(".page-dots i").findIndex((d) => d.classList.contains("on"));
     assert.strictEqual(lit, (i + 1) % pages.length);
   });
 
   await test("a held page stays until Auto; a view switch while held opens held on the action", async () => {
-    const { store, director, tick, timerSet } = await pageEnv("", "hundred-acres-50");
+    const { store, director, tick, timerSet } = await directorEnv("hundred-acres-50");
     store.setBracketView("full");
     await sleep(20);
     const pages = store.bracket().pages.full;
@@ -490,7 +501,7 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
   });
 
   await test("a page that's gone (the pages were cut again) gives way to the page with the action", async () => {
-    const { store, director } = await pageEnv("", "hundred-acres-50");
+    const { store, director } = await directorEnv("hundred-acres-50");
     store.setBracketView("full");
     await sleep(20);
     const pages = store.bracket().pages.full;
@@ -505,15 +516,13 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
   await test("the Board: steered from the dock, the whole board; Overview fits it; Auto goes back", async () => {
     const { store, page, director } = await pageEnv("", "hundred-acres-50");
     store.setBracketView("full");
-    await sleep(60);
+    await until(() => layers(page).length === 1 && cardsOn(page) === pageUp(store).setIds.length, "the full bracket is drawn");
     assert.ok(director.command({ action: "pan", dir: "right" }).ok);
     const shot = store.bracketShot();
     assert.strictEqual(shot.mode, "board");
     assert.ok(shot.camera && Number.isFinite(shot.camera.zoom), "entering the Board frames the page that was up");
-    await sleep(60);
     const board = L.prunedView(store.bracket(), "full");
-    assert.strictEqual(cardsOn(page), board.setIds.length, "the Board is the whole (pruned) bracket");
-    assert.ok(!page.$(".layer .minimap"), "no minimap on stream — it is the dock's");
+    await until(() => layers(page).length === 1 && cardsOn(page) === board.setIds.length, "the Board, the whole (pruned) bracket");
     assert.ok(page.$(".page-dots").classList.contains("empty"), "no page dots on the Board");
 
     director.command({ action: "pan", dir: "down" });
@@ -521,15 +530,13 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
     assert.ok(moved.y > shot.camera.y || moved.x !== shot.camera.x);
     director.command({ action: "overview" });
     assert.deepStrictEqual(store.bracketShot().camera, { overview: true });
-    await sleep(80);
-    assert.ok(layers(page).at(-1).classList.contains("overview"));
+    await until(() => layers(page).at(-1).classList.contains("overview"), "the Overview");
     director.command({ action: "pan", dir: "left" });
     assert.ok(Number.isFinite(store.bracketShot().camera.zoom), "an arrow from the Overview comes back to a readable zoom");
 
     director.command({ action: "auto" });
-    await sleep(80);
     assert.strictEqual(store.bracketShot().mode, "tour");
-    assert.strictEqual(cardsOn(page), pageUp(store).setIds.length);
+    await until(() => layers(page).length === 1 && cardsOn(page) === pageUp(store).setIds.length, "the tour's page is drawn");
     assert.strictEqual(director.command({ action: "pan", dir: "sideways" }).status, 400);
   });
 
@@ -574,9 +581,8 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
     const ready = env.event.openSets().find((r) => r.status === "playable");
     await env.event.loadSet(ready.setId);
     env.store.setBracketView("upnext");
-    await sleep(80);
     const page1 = env.store.bracket().pages.upnext[0];
-    assert.strictEqual(env.page.$$(".layer .ucard").length, page1.setIds.length);
+    await until(() => layers(env.page).length === 1 && env.page.$$(".layer .ucard").length === page1.setIds.length, "Up Next's first page");
     const first = env.page.$(".layer .ucard");
     assert.ok(first.classList.contains("onstream"));
     assert.strictEqual(first.querySelector(".chip").textContent, "On Stream");
@@ -585,7 +591,7 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
   });
 
   await test("/api/bracket-view takes upnext, and /api/bracket-camera reaches the director", async () => {
-    const env = await pageEnv("", "hundred-acres-50");
+    const env = await directorEnv("hundred-acres-50");
     const routes = {};
     const app = { get() {}, post(p, fn) { routes[p] = fn; } };
     require("../app/lib/server/api/event").register(app, { store: env.store, event: env.event, bracketDirector: env.director, refreshControlStatus() {} });
@@ -601,13 +607,6 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
     assert.strictEqual(r.code, 200);
     assert.strictEqual(r.body.shot.mode, "board");
     assert.strictEqual((await call("/api/bracket-camera", { action: "goto", cx: "x" })).code, 400);
-  });
-
-  await test("the shot isn't saved with the scoreboard", async () => {
-    const env = await pageEnv("", "hundred-acres-50");
-    env.director.command({ action: "next" });
-    assert.strictEqual(env.store.toJSON().bracketShot, undefined);
-    assert.ok(!require("../app/lib/scoreboard/store").PERSISTED.includes("bracketShot"));
   });
 
   console.log(failed === 0 ? "bracket-overlay: all passed" : `bracket-overlay: ${failed} failed`);

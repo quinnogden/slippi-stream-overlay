@@ -545,8 +545,8 @@ function rig({ bestOf = "Bo5", reads = {}, setId = "9" } = {}) {
     r.game("a", 0); r.game("b", 1);
     await flush();
     // Animations take 1000× their length: as good as never finishing.
-    const page = await loadOverlay({ page: "set-stats", nsps, timeScale: 1000 });
-    const bar = await loadOverlay({ page: "scoreboard", htmlFile: path.join(__dirname, "../overlays/scoreboard/players.html"), nsps, timeScale: 1000 });
+    const page = await loadOverlay({ page: "set-stats", nsps, timeScale: 1000, tempo: 0.1 });
+    const bar = await loadOverlay({ page: "scoreboard", htmlFile: path.join(__dirname, "../overlays/scoreboard/players.html"), nsps, timeScale: 1000, tempo: 0.1 });
     const logo = bar.$(".logo");
     // Where the players bar's logo is headed: the --logo-y its newest animation ends on.
     const logoTo = () => { const a = logo._anims.find((x) => x.keyframes.some((k) => "--logo-y" in k)); return a && a.keyframes[a.keyframes.length - 1]["--logo-y"]; };

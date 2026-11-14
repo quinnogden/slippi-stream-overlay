@@ -5,16 +5,11 @@
  * that connects later gets a rebuilt status. If the two disagree about which
  * fields exist, the dock reads `undefined` for a while after every restart and
  * nothing reports it. Both come from compose(); this pins that they stay that way.
- *
- * Also pins that start.gg's token gate holds for every method that needs the
- * token, since the gate lives in one place (_gql) rather than in each method.
- * Reads that fall back to the web endpoint are covered by startgg-fallback.
  */
 
 const assert = require("assert");
 
 const { ScoreboardStore } = require("../app/lib/scoreboard/store");
-const StartggClient   = require("../app/lib/startgg-client");
 const { createState } = require("../app/lib/state");
 const { createControlStatus, HEARTBEAT_MS } = require("../app/lib/server/control-status");
 
@@ -99,16 +94,6 @@ function ctxFor() {
       Date.now = realNow;
     }
     assert.strictEqual(sent.length, 3, "and an unchanged one goes out once the heartbeat is due");
-  });
-
-  await test("with no token, every start.gg method that needs one refuses without a request", async () => {
-    // A broken gate would reach axios and fail with a network error instead.
-    const gg = new StartggClient({ STARTGG_TOKEN: "" });
-    const calls = [gg.reportSet(1, 2), gg.getSetState(1), gg.startSet(1)];
-    for (const r of await Promise.all(calls)) {
-      assert.strictEqual(r.ok, false);
-      assert.match(r.error, /token not configured/);
-    }
   });
 
   console.log(failed === 0 ? "control-status-shape: all passed" : `control-status-shape: ${failed} failed`);

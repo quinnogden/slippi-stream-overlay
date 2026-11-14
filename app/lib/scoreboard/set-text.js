@@ -102,4 +102,4 @@ function stripUndefined(o) {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 }
 
-module.exports = { bestOfLabel, losersMarks, setIsWon, normalizeSetRules, setRulesError, DEFAULTS, FORMATS, SWITCH_POINTS, NO_BEST_OF };
+module.exports = { bestOfLabel, losersMarks, setIsWon, normalizeSetRules, setRulesError, DEFAULTS, NO_BEST_OF };

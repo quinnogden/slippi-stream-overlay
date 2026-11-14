@@ -108,11 +108,6 @@ function createBracketFeed({ event, store, playerDb = null }) {
       event.on("change", onEvent);
       onEvent();
     },
-    stop() {
-      store.off("change", onStore);
-      event.off("change", onEvent);
-    },
-    publish,
   };
 }
 

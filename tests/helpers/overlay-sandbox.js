@@ -342,9 +342,11 @@ function parseInto(doc, html, root = doc.documentElement) {
  *                                   without, the page has no socket.io (as with highlights)
  * @param {string}  [opts.search]    the source url's query, e.g. "?view=top8"
  * @param {number}  [opts.timeScale] animation time multiplier (default 0.01)
+ * @param {number}  [opts.tempo]     --motion-tempo on the root, which Overlay.motion.ms()
+ *                                   reads (without, it uses TEMPO_FALLBACK, 1.5)
  */
 async function loadOverlay({
-  page, nsps = null, search = "", timeScale = 0.01,
+  page, nsps = null, search = "", timeScale = 0.01, tempo = null,
   htmlFile = path.join(OVERLAYS, page, "index.html"),
   resolve = (src) => resolveOverlayPath(src, { overlaysDir: OVERLAYS }),
   fetch = null,
@@ -353,6 +355,7 @@ async function loadOverlay({
 
   const doc = { _timeScale: timeScale, _animations: [], activeElement: null };
   doc.documentElement = makeEl(doc, "html");
+  if (tempo != null) doc.documentElement.style.setProperty("--motion-tempo", String(tempo));
   parseInto(doc, html);
   const find = (sel) => doc.documentElement.querySelector(sel);
   Object.assign(doc, {
@@ -458,9 +461,11 @@ async function loadOverlay({
     vm.runInContext(fs.readFileSync(file, "utf8"), sandbox, { filename: path.relative(REPO_ROOT, file) });
   }
 
-  // Socket.io connects asynchronously; so does this.
+  // The fake socket connects at once and the channel answers with state:full
+  // in the same call; one turn of the event loop lets what the page chained
+  // on it settle.
   if (client.socket) client.socket.connect();
-  await sleep(10);
+  await new Promise((r) => setImmediate(r));
 
   return {
     window: sandbox,

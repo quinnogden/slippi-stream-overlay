@@ -21,7 +21,7 @@ node scripts/preflight.js --offline    # files and config only — no network
 node scripts/preflight.js --json       # machine-readable
 ```
 
-[preflight.js](../app/scripts/preflight.js) automates Phases 2 and 7: dependencies, config, the hotkeys, the player file, the icons, the overlay pages, the theme pack, the stats popup's art, the clipper settings, then live probes of the app, the start.gg token, this week's short link and both bracket buttons, and OBS (including the replay buffer's length). It exits non-zero if anything fails.
+[preflight.js](../app/scripts/preflight.js) automates Phases 2 and 7: dependencies, config, the hotkeys, the player file, the icons, the overlay pages, the theme pack, the stats popup's art, the clipper settings, then live probes of the app, the start.gg token, this week's short link and both bracket buttons, the luckystats.gg keys, and OBS (including the replay buffer's length). It exits non-zero if anything fails.
 
 It is **read-only** — it prints the exact command or menu path to fix each finding rather than changing anything itself. It also runs before `npm install`, so it can diagnose a missing `node_modules`.
 
@@ -47,7 +47,7 @@ Not a fresh install — just these, in order:
 | `obs-scripts/auto_replays.py` | `app/clipper-settings.json` → written by the dock's Clips tab on first save (optional) |
 | `app/data/local_players.example.json`, `app/clipper-settings.example.json` — samples of the two data files above | |
 
-`app/data/` (the player file and the saved live scoreboard), `stats-cache/` and `clipper-settings.json` are per machine and gitignored; only the `*.example.*` samples are tracked. [Starting from scratch](#starting-from-scratch) says what each one is for.
+`app/data/` (the player file, the saved live scoreboard, the saved crews and the stream-set history), `stats-cache/` and `clipper-settings.json` are per machine and gitignored; only the `*.example.*` samples are tracked. [Starting from scratch](#starting-from-scratch) says what each one is for.
 
 ---
 
@@ -90,13 +90,15 @@ You don't need any old data. You need **one** file: `config.local.js`, for `SLP_
 | `app/data/local_players.json` | the app (and you, optionally) | `app/data/local_players.example.json` | **Optional.** Leave it absent, or seed it (below). |
 | `app/clipper-settings.json` | the dock's Clips tab | `app/clipper-settings.example.json` | Leave it absent. Save the Clips tab once (Phase 5) and the file is written. The sample lists every key with its default, for reference. |
 | `app/data/live-state.json` | the app, on every scoreboard change | none | Leave it absent. It's version-stamped, so a hand-written copy would be ignored. |
+| `app/data/stream-sets.json` | the app, when a stream set is reported or replaced | none | Leave it absent. It's also the upload journal: **never delete it mid-event**, or which sets were uploaded is lost. |
+| `app/data/crews.json` | the dock's Crew tab, on Save | none | Leave it absent. |
 | `app/stats-cache/player-<id>.json` | the app, from start.gg | none | Leave it absent. Built the first time a player is on stream (~70s for two long-time regulars, then ~1.5s). |
 
 **The player DB from nothing.** With no file, the startup log and preflight show a warning (not a failure). Here's what happens over the first event:
 
 - Loading a set from start.gg adds both players, with their prefix and start.gg id. So does picking one of the loaded event's entrants in the strip's tag field. A typed name that isn't in the DB isn't added.
 - When a singles set is reported or replaced, the characters each player used are saved as their mains. Their next set opens on that character, and game 1's ports match.
-- In the dock's **Players** tab you can fix a prefix, pronoun or twitter, or pin a main. You can only edit players already in the file. There's no "add player" button.
+- In the dock's **Players** tab you can fix a prefix, pronoun or twitter, or pin a main. The player list only edits players already in the file; there's no "add player" button. Setting a main for one of the loaded event's entrants in the **Event roster** adds them.
 
 So the only reason to seed the file by hand is to have pronouns or mains right for regulars **before** their first set on stream:
 
@@ -199,7 +201,7 @@ The script is event-driven off OBS's own `REPLAY_BUFFER_SAVED`, so it picks up c
 cd app && node scripts/preflight.js
 ```
 
-With the app and OBS up, every live section should pass: the app identifies itself, an event is loaded, the Slippi folder is watched, the hotkeys bound **globally**, the token is accepted, the short link resolves to this week's tournament and both bracket buttons find exactly one event, and OBS's replay buffer is running and long enough. Then by eye:
+With the app and OBS up, every live section should pass: the app identifies itself, an event is loaded, the Slippi folder is watched, the hotkeys bound **globally**, the token (and any luckystats.gg key) is accepted, the short link resolves to this week's tournament and both bracket buttons find exactly one event, and OBS's replay buffer is running and long enough. Then by eye:
 
 - [ ] The dock's three health lights are green, and it keeps updating (lights dim after ~12s without a status)
 - [ ] Typing a caster name survives a few seconds of pushes without being overwritten
@@ -232,7 +234,7 @@ With the app and OBS up, every live section should pass: the app identifies itse
 | Hotkeys (defaults) | `Ctrl+Shift+S` swap ports · `Ctrl+Shift+X` switch sides · `Ctrl+Shift+1`/`2` a game to left/right · add `Alt` to take one away · `Ctrl+Shift+0` clear score · `Ctrl+Shift+G` stats popup |
 | Player DB | `app/data/local_players.json`, or `PLAYERS_FILE` |
 
-**Never commit:** `config.local.js` (start.gg token), `clipper-settings.json` (OBS password + per-venue tuning), `data/` (players, live state). All gitignored; `config.js` is not, so no secrets there.
+Secrets and per-machine files: see [CLAUDE.md → Known Gotchas](../CLAUDE.md#known-gotchas).
 
 **Symptom → cause shortcuts**
 
@@ -243,7 +245,7 @@ With the app and OBS up, every live section should pass: the app identifies itse
 | An OBS source is blank | It was added before the app started — refresh it |
 | Unstyled overlay / missing logo | The theme pack (`overlays/theme.css`) — preflight checks it |
 | Brackets load but Start/Report are off | No start.gg token, or it expired — preflight's live check says which |
-| Hotkeys do nothing | uiohook-napi didn't load (the Setup tab says "terminal"), or another app took the chord |
+| Hotkeys do nothing | uiohook-napi didn't load (the Setup tab says "Console only"), or another app took the chord |
 | Clipper never fires | Doubles (structurally impossible), buffer off, or thresholds too high |
 | Clips exist but start mid-combo | Replay buffer shorter than 20s (Phase 5) |
 | Port 5001 in use | Handled automatically for a stale copy of the app; anything else on 5001 and it refuses to start and says so |

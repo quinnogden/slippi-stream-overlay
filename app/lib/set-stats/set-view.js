@@ -74,8 +74,6 @@ const fixed = (v, dp) => (v == null ? null : Number(v).toFixed(dp));
 const fmt = (key, v, set = false) => fixed(v, STATS[key].dp[set ? 1 : 0]);
 const clock = (secs) => (secs == null ? "" : `${Math.floor(secs / 60)}:${String(Math.round(secs) % 60).padStart(2, "0")}`);
 const plural = (n, one, many = `${one}s`) => (n === 1 ? one : many);
-/** A label mid-sentence: "Damage dealt" → "damage dealt", but "L-cancel" stays. */
-const lower = (s) => (/^[A-Z]-/.test(s) ? s : s.charAt(0).toLowerCase() + s.slice(1));
 const em = (v) => ({ em: String(v) });
 const t = (v) => ({ t: String(v) });
 const gameList = (ns) => (ns.length === 2 ? `${ns[0]} and ${ns[1]}` : `${ns.slice(0, -1).join(", ")} and ${ns[ns.length - 1]}`);
@@ -594,4 +592,4 @@ function setFacts({ games }, sb) {
   ];
 }
 
-module.exports = { buildSetView, unavailable, STATS, bestOfNumber, leader };
+module.exports = { buildSetView, unavailable, leader };

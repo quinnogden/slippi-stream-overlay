@@ -214,7 +214,7 @@
       const fx = p.fx ? new Raw(`data-pc="${p.fx}" data-off="${(p.off || [0, 0]).join(",")}"`) : "";
       return html`<div class="pc" ${fx} style="${css.join(";")}">${inner}</div>`;
     });
-    const style = `--op:${op};opacity:${op};--mask:${P.mask || "linear-gradient(90deg, #000 0%, rgba(0,0,0,0.7) 35%, rgba(0,0,0,0.25) 70%, transparent 96%)"};`
+    const style = `opacity:${op};--mask:${P.mask || "linear-gradient(90deg, #000 0%, rgba(0,0,0,0.7) 35%, rgba(0,0,0,0.25) 70%, transparent 96%)"};`
       + `${P.wash ? `--wash:${P.wash};` : ""}${P.w ? `width:${P.w}px;` : ""}${P.blend ? `mix-blend-mode:${P.blend};` : ""}`;
     return html`<div class="por ${pos} ${role}" data-base="${pos === "r" ? "scaleX(-1)" : ""}" ${P.still ? "" : new Raw("data-por")} style="${style}">
       <div class="por-in" style="transform:${P.tilt || "none"};${shadow ? `filter:${shadow};` : ""}${cut}">${join(pieces)}</div></div>`;
@@ -739,5 +739,5 @@
     };
   }
 
-  return { render, bestFit, LAYOUTS, STYLES, html, esc };
+  return { render, LAYOUTS, STYLES };
 });

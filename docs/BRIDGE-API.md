@@ -28,7 +28,6 @@ Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/si
 - **Sticky events.** A page that connects mid-game gets `game:start` (dropped at `game:end`, a handwarmer's included) and the last `stats`; the dock also gets the last `status`.
 - **The feature modules don't know about the channel.** They emit the event names below through `ctx.io`, which is the channel's `emit()`; its `RELAY` table maps each to the names above, per namespace, and an event with no entry goes nowhere. Nothing is sent on the default namespace.
 - **Overlay urls are absolute** (`/o/shared/overlay.css`), so a source works with or without a trailing slash. Every stylesheet sits one level under `/o/`, because a theme pack's `--logo-url` resolves against the stylesheet that uses it. The theme switch is `overlays/theme.css` (`/o/theme.css`) and the packs are `overlays/themes/<pack>/`. `tests/overlays-static.test.js` resolves every page's urls through the server's own tables.
-- **Start the app before OBS**, or refresh the sources: a browser source whose page failed to load doesn't retry. Once a page has loaded, it survives app restarts, because socket.io reconnects and is sent `state:full`.
 
 ### The `scoreboard` section
 
@@ -161,7 +160,7 @@ statsShot: {                 // not saved: a restart starts with it down (lib/se
   seed: 123456789 | null            // new at each show: pack and style "random" pick from it, so every source draws the same ones
 }
 setStats: {                  // derived from the set's replays (lib/set-stats/set-view.js); not saved
-  available: true, reason: null,    // false + a reason: doubles, a crew battle, no Slippi game yet
+  available: true, reason: null,    // false + a reason: doubles, a crew battle, a set not loaded from start.gg (typed names, or unlinked by a tag edit), no Slippi game yet
   key, round, bestOf: 5,             // the number in the label; null for Flex
   format: "Bo5",                      // the best-of label on the scoreboard ("Flex", "Bo3", …)
   score: [2, 1], over: false,         // over: set-text.js setIsWon — Bo3 at 2, Bo5 at 3, Flex at 2–0 or 3
@@ -387,7 +386,7 @@ The dock's status snapshot. Identical shape to `GET /api/status`. Rebuilt every 
 
 ## HTTP routes
 
-All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the same convention as `lib/startgg-client.js` — except `/api/status` and `/api/state`, which return their object directly. The routes live in `lib/server/api/` by what they act on (`status`, `scoreboard`, `crew`, `event`, `players`, `casters`, `clipper`, `replays`, `set-stats`, `setup`), and there is **no CORS**: the dock and every overlay are served from the app's own origin.
+All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the same convention as `lib/startgg-client.js` — except `/api/status`, `/api/state` and `/api/player-stats`, which return their object directly. The routes live in `lib/server/api/` by what they act on (`status`, `scoreboard`, `crew`, `event`, `players`, `casters`, `clipper`, `replays`, `set-stats`, `setup`), and there is **no CORS**: the dock and every overlay are served from the app's own origin.
 
 | Method | Route | Purpose |
 |---|---|---|
@@ -405,7 +404,7 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `POST` | `/api/bracket-camera` | What the bracket overlay is pointed at (`bracketShot`): `{ action: "auto" }` (tour from the action page), `"next"` / `"prev"` / `"live"` (hold a page), `{ action: "page", page }`, and the Board: `{ action: "pan", dir: "up"\|"down"\|"left"\|"right" }`, `{ action: "zoom", dir: "in"\|"out" }`, `{ action: "overview" }` (again: back to a readable zoom at the action), `{ action: "goto", cx, cy }` (board pixels — the dock's minimap). The first Board press frames the page that was up rather than moving. `{ ok, shot }`; 400 for a bad action, page or direction, 409 with no bracket or for the Board in Up Next |
 | `GET` | `/api/set-stats` | The stats popup's layouts, styles and modes (`lib/set-stats/catalog.js`), its `config` and `shot`, `packs` — the installed portrait packs, `[{ id, name, credits, cut? }]` (`cut`: a bust pack, which Random poses never draws) — and `stagePacks`, the installed stage picture sets (`[{ id, name, credits }]`; the first one draws) |
 | `POST` | `/api/set-stats/config` | Any of `{ layout, style, pack, auto, delaySec, holdSec, mode, combos, pools }` → `statsConfig` (`combos` replaced whole; `pools` per phase given). Applies live, the popup up or not. `{ ok, config }`; 400 for an unknown id or a value out of range |
-| `POST` | `/api/set-stats/show` | `{ action: "show" \| "hide" \| "toggle" }` (the dock's Show / Hide, the strip's Stats key; the hotkey is `toggle`). Hide also cancels an automatic show that's counting down. `{ ok, shot }` |
+| `POST` | `/api/set-stats/show` | `{ action: "show" \| "hide" \| "toggle" }` (the dock's Show / Hide, the strip's Stats key; the hotkey is `toggle`). Hide also cancels an automatic show that's counting down. `{ ok, shot }`; 409 with `setStats.reason` when there is nothing to show (show, or toggle while down); 400 for an unknown action |
 | `POST` | `/api/set-stats/refresh` | Read every game's replay again |
 | `POST` | `/api/set-rules` | The best-of rule, any of `{ topN, defaultLabel, topLabel }`: `defaultLabel` until the set's loser is guaranteed top `topN` (one of 0 = never, 3, 4, 6, 8, 12, 16), `topLabel` from there; each `Flex`, `Bo3` or `Bo5`. Saved (`setRules`); the strip's override still wins. `{ ok, rules }`; 400 for anything else |
 | `POST` | `/api/start-set` | Mark the loaded set in progress on start.gg (`markSetInProgress`). No body |
@@ -455,11 +454,14 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `POST` | `/api/clipper/settings` | Validate, clamp, persist to `clipper-settings.json`, apply live |
 | `POST` | `/api/clipper/toggle` | `{ enabled }` — master switch, applied immediately |
 | `POST` | `/api/clipper/test` | Save the replay buffer now; proves the OBS chain |
-| `GET` | `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters[?i=N]` | OBS browser sources. `?animate=false` skips the entrances |
-| `GET` | `/o/side-panel[?panel=<id>]` | The 611×1080 panel beside the cam. `?panel=` holds one panel (for styling) |
+| `GET` | `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters[?i=N]` | OBS browser sources. `?animate=false` skips the entrances. `/o/scoreboard/players` draws the stats popup too; `?stats=0` leaves it out |
+| `GET` | `/o/side-panel[?panel=<id>]` | The 611×1080 panel beside the cam. `?panel=` holds one panel (for styling); `&look=story\|reel\|box` with `?panel=last-game` holds one Last Game look |
 | `GET` | `/o/bracket[?view=…]` | The bracket (and Up Next). Follows the dock's view and shot unless `?view=` pins a view, which then tours its own pages |
 | `GET` | `/o/highlights` | The replay-scene frame. `?clip= ?cam= ?camx= ?pad= ?guides=1` |
+| `GET` | `/o/set-stats[?layout=][&style=][&pack=][&stages=][&show=1]` | The stats popup as its own 1920×1080 source. Each parameter pins what the dock would pick (`?stages=none` drops the stage pictures); `?show=1` keeps it up |
 | `GET` | `/assets/icons/chara_2_<codename>_<NN>.png` | The stock character icons |
+| `GET` | `/assets/packs/<pack>/<file>.png` | The stats popup's portraits and stage pictures, from the art packs downloaded into `overlays/assets/packs/` |
+| `GET` | `/assets/luckystats/<file>` | luckystats.gg's class badges and Region artwork, saved once into `stats-cache/luckystats/` (the urls in `lucky.ratings`' `badge` and `regionIcon`) |
 
 ### The two swaps are not interchangeable
 

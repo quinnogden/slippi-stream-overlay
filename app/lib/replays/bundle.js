@@ -107,4 +107,4 @@ function fileData(f) {
   return f.data ?? fs.readFileSync(f.source);
 }
 
-module.exports = { buildBundle, fileData, folderName, safeName, sha256 };
+module.exports = { buildBundle, fileData, safeName, sha256 };

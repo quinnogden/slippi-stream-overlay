@@ -182,4 +182,4 @@ function installHotkeys(overrides, actions) {
 
 const publicBinding = ({ action, label, chord }) => ({ action, label, chord });
 
-module.exports = { installHotkeys, compileHotkeys, createDispatcher, parseChord, DEFAULTS, LABELS, TERMINAL_KEYS };
+module.exports = { installHotkeys, compileHotkeys, createDispatcher, parseChord, DEFAULTS };

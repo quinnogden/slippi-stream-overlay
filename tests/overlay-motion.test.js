@@ -58,6 +58,15 @@ const SWAP_DONE = 1300 * TIME_SCALE;
 const HIDE_DONE = 700 * TIME_SCALE;
 const settle = () => sleep(15); // a store change reaches the page on the next tick
 
+async function until(cond, what, ms = 1000) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (cond()) return;
+    await sleep(5);
+  }
+  assert.fail(`timed out waiting for: ${what}`);
+}
+
 async function setup(page, prepare) {
   const store = new ScoreboardStore({ setText: { topN: 8, topLabel: "Bo5", defaultLabel: "Flex" } });
   if (prepare) prepare(store);
@@ -159,23 +168,17 @@ const turns = (page, before) => JSON.parse(JSON.stringify(page.animations.slice(
     ] }));
     const crewChip = (i) => page.$(`.chips[data-side="${i}"] .crew`);
     const card = (i, sel) => page.$(`.player[data-side="${i}"] .name ${sel}`);
-    await sleep(HIDE_DONE);
-    assert.strictEqual(card(0, ".tag").textContent, "ACRES", "nobody in: the card is the crew's name");
+    await until(() => card(0, ".tag").textContent === "ACRES", "the card reads the crew's name");
     assert.ok(crewChip(0).classList.contains("empty"), "nobody in: the chip only repeats the card");
 
     store.crewPick(0, store.scoreboard().crew.teams[0].members[0].id);
-    await settle();
-    await sleep(SWAP_DONE);
-    assert.strictEqual(card(0, ".tag").textContent, "Zodd");
+    await until(() => card(0, ".tag").textContent === "Zodd" && !crewChip(0).classList.contains("empty"), "the player in, with the crew chip");
     assert.strictEqual(card(0, ".sponsor").textContent, "HA", "the player's own sponsor, not the crew");
     assert.ok(!crewChip(0).classList.contains("empty"), "the crew chip should show with someone in");
     assert.strictEqual(crewChip(0).textContent, "ACRES");
 
     store.switchSides();
-    await settle();
-    await sleep(SWAP_DONE);
-    assert.strictEqual(crewChip(1).textContent, "ACRES", "the chip moves with its crew");
-    assert.ok(crewChip(0).classList.contains("empty"), "SALTY has nobody in");
+    await until(() => crewChip(1).textContent === "ACRES" && crewChip(0).classList.contains("empty"), "the chip moves with its crew; SALTY has nobody in");
   });
 
   await test("a caster added after the page is up is shown, and one cleared is hidden", async () => {

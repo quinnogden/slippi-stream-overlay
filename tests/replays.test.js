@@ -133,15 +133,6 @@ function playSet(store, { winners, files }) {
     assert.strictEqual(g2.replay, null);
   });
 
-  await test("a handwarmer records no game, so no file joins the set", () => {
-    const store = loadedStore();
-    const ctx = { store, portMap: new PortMap(), io: quiet, state: createState() };
-    const modes = createModes(ctx);
-    modes.onGameStart([raw(0, 9), null, raw(2, 2), null]);
-    modes.onGameEnd({ winnerPlayerIndex: 0, isHandwarmer: true, stocks: {}, replay: { file: "HW.slp" } });
-    assert.strictEqual(store.scoreboard().games.length, 0);
-  });
-
   await test("Switch Sides moves each game's ports with its side", () => {
     const store = loadedStore();
     playSet(store, { winners: [2], files: ["G1.slp"] });

@@ -251,4 +251,4 @@ function charactersPlayed(games, side, slot) {
   return seen;
 }
 
-module.exports = { buildContext, contextProblem, metaFromStartgg, gameMs, BRACKET_TYPES, RR_CHARACTER_NAMES };
+module.exports = { buildContext, contextProblem, metaFromStartgg, gameMs };

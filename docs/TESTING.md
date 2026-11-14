@@ -11,7 +11,7 @@ node tests/run.js                                   # automated checks, a few se
 cd app && node scripts/preflight.js --offline
 ```
 
-Preflight covers dependencies, config, the hotkeys, the player file, the icons, the overlay pages and the theme pack without touching the network. Drop `--offline` once the app (and OBS, if the clipper matters) is up: it then also checks the running app, the start.gg token, this week's short link and both bracket buttons. See [FRESH-INSTALL.md](FRESH-INSTALL.md).
+Preflight checks the setup offline; drop `--offline` once the app (and OBS, if the clipper matters) is up for the live probes. [FRESH-INSTALL.md](FRESH-INSTALL.md) says what it covers.
 
 ---
 
@@ -35,7 +35,7 @@ It is not a general test suite and shouldn't grow into one. But if you fix an ov
 
 ## Layer 1 — Pure modules
 
-`combo-detector.js`, `handwarmer.js`, `char_map.js`, `ports/port-map.js`, `event/bracket-model.js`, `event/set-model.js`, `scoreboard/set-text.js` and `clipper-settings.js` do no I/O of their own, so they're callable directly. This is where most logic changes should be checked first.
+`combo-detector.js`, `handwarmer.js`, `char_map.js`, `ports/port-map.js`, `event/bracket-model.js`, `event/set-model.js` and `scoreboard/set-text.js` do no I/O of their own, so they're callable directly. This is where most logic changes should be checked first.
 
 ```bash
 cd app
@@ -47,11 +47,6 @@ console.log(resolveCharacter(2, 3), characterByName("Captain Falcon", 1));'
 # Port mapping — everything is passed in
 node -e 'const {PortMap}=require("./lib/ports/port-map"); const m=new PortMap();
 console.log(m.info());'
-
-# Settings validation and clamping (values arrive from a browser form)
-node -e 'const {ClipperSettings}=require("./lib/clipper-settings");
-const s=new ClipperSettings(require("./config"));
-console.log(s.save({minMoves:"999", minDamage:"abc", enabled:"true"}));'
 ```
 
 The store (`lib/scoreboard/store.js`) has no I/O either: build one, call its commands, read `snapshot()` / `reportable()`. That is the fastest way to answer "what does a report send after Switch Sides".
@@ -195,7 +190,7 @@ The app serves every page, so there is nothing to stub: open `http://localhost:5
 
 - **The rig**: `node .scratch/set-stats-rig/rig.js` (or the `set-stats-rig` entry in `.claude/launch.json`) serves the real dock, the real overlay and the real `lib/set-stats/` on a store fed real replays — no start.gg, no OBS, nothing written to `app/data/`. `/rig` has buttons for a game ending (the next file, recorded as a Slippi game end), the next game starting, Switch Sides and a reset; `SET="a.slp,b.slp,…"` picks the games. Open `/dock` (Stats tab) and `/o/set-stats` beside it. **`/rig/stage`** is the players bar at 1920×1080 with the popup drawn inside it, as OBS has it, with show/hide, layout (Auto and Condensed included) and style keys: the place to watch the logo hand-off, the swaps and the Condensed plates round the bar. Watch it with the window in view: a hidden pane doesn't paint, so its animations sit still (which is also how to check the popup survives that).
 - **In OBS, on the real app**: `node app/scripts/spoof-stats.js` (app closed) writes a set of the newest singles games in `SLP_FOLDER` — or `--from <folder>`, or named `.slp` files; `--games N`, `--tags A,B`, `--round`, `--bestof` — into `app/data/live-state.json`, keeping the real one as `live-state.before-spoof.json`. Start the app and press Stats. `--restore` puts the real scoreboard back; **do that before the event**. Run it on the OBS machine: the popup reads the `.slp` files themselves.
-- **Text**: the stress rig (`.scratch/set-stats-rig/stress.js` + `stress-run.js`, see CLAUDE.md → The stats popup) runs every layout in both readings with long names, the widest numbers and the longest wordings, and lists any text cut, overflowing or under 12px. It should list nothing.
+- **Text**: the stress rig (`.scratch/set-stats-rig/stress.js` + `stress-run.js`, see [STATS-POPUP.md](STATS-POPUP.md)) runs every layout in both readings with long names, the widest numbers and the longest wordings, and lists any text cut, overflowing or under 12px. It should list nothing.
 - **Check**: every layout in both readings, each portrait style, a hot swap while it's up (into and out of the Lower third and the Condensed, which go down and come back up), Auto with a short wait (up after the wait, down when the next game starts, the wrap-up after the deciding game), layout Auto drawing from the Layouts table's Mid-set ticks and then its Over ticks once the set is won, Switch Sides (the numbers and portraits move with the players), and a game mid-set with no replay (± on the strip — the Stats tab says "from N of M games").
 - **The numbers**: `node -e "console.log(require('./app/lib/set-stats/game-stats').readGameStats('<file.slp>'))"` from the repo root prints one game's per-port numbers to compare against slippi-set-stats or the replay itself.
 - **A background tab doesn't advance animations** — nor does an OBS source that isn't painting. The popup's transitions run on timers for exactly that reason; if it ever sticks up in a browser tab you've switched away from, that's the regression.

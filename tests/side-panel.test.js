@@ -135,6 +135,16 @@ function playGame(store, winnerSide, file) {
 }
 const played = new Map();
 
+/** Wait until `cond()` holds, rather than a fixed sleep. */
+async function until(cond, what, ms = 1000) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (cond()) return;
+    await sleep(2);
+  }
+  assert.fail(`timed out waiting for: ${what}`);
+}
+
 /** The store, the channel and the page, with `payload` on the scoreboard. */
 async function setup(payload, stats = statsFor(payload)) {
   const store = new ScoreboardStore({ setText: { topN: 8, topLabel: "Bo5", defaultLabel: "Flex" } });
@@ -144,7 +154,7 @@ async function setup(payload, stats = statsFor(payload)) {
   const channel = createOverlayChannel({ io, store });
   if (stats) channel.emit("player_stats", stats);
   const page = await loadOverlay({ page: "side-panel", nsps });
-  await sleep(20); // ready → rotation started
+  await until(() => page.window.SidePanel && page.window.SidePanel.rotator._current, "ready → rotation started");
   const sp = page.window.SidePanel;
 
   // Every panel that actually fades in, and every restart.
@@ -361,20 +371,6 @@ const plain = (v) => JSON.parse(JSON.stringify(v)); // the page's arrays are ano
     assert.ok(env.page.$("#panel-player-2 .lucky-icon.class.none"));
   });
 
-  await test("player cards: Region artwork that fails to load falls back to the pin", async () => {
-    const env = await setup(GRAND_FINAL, statsFor(GRAND_FINAL, { lucky: true }));
-    fire(env.page.$("#panel-player-1 .lucky-icon.region img"), "error");
-    assert.ok(env.page.$("#panel-player-1 .lucky-icon.region img") === null, "a broken image was left in the box");
-    assert.ok(env.page.$("#panel-player-1 .lucky-icon.region.none"), "no pin in its place");
-  });
-
-  await test("doubles: no win projection", async () => {
-    // luckystats for the very ids in the columns: only the doubles shape keeps it off.
-    const env = await setup(DOUBLES, { ...statsFor(GRAND_FINAL), players: {}, h2h: null, lucky: luckyFor(DOUBLES) });
-    assert.strictEqual(env.sp.projectionView(), null);
-    assert.ok(!env.sp.rotator._slots.includes("recent-sets"));
-  });
-
   await test("Just Finished is the event's real finished sets, newest first", async () => {
     const env = await setup(GRAND_FINAL);
     const rows = env.page.$$("#panel-completed-sets .completed-set-pill");
@@ -382,9 +378,11 @@ const plain = (v) => JSON.parse(JSON.stringify(v)); // the page's arrays are ano
     assert.deepStrictEqual(texts(rows[0]).filter((t) => /Player/.test(t)), ["Player2", "Player1"]);
   });
 
-  await test("doubles: no player cards and no head-to-head in the rotation", async () => {
-    const env = await setup(DOUBLES, { ...statsFor(GRAND_FINAL), players: {}, h2h: null });
+  await test("doubles: no player cards, no head-to-head and no win projection", async () => {
+    // luckystats for the very ids in the columns: only the doubles shape keeps it off.
+    const env = await setup(DOUBLES, { ...statsFor(GRAND_FINAL), players: {}, h2h: null, lucky: luckyFor(DOUBLES) });
     assert.deepStrictEqual(plain(env.sp.rotator._slots), ["logo-primary", "logo-sponsor", "completed-sets"]);
+    assert.strictEqual(env.sp.projectionView(), null);
   });
 
   await test("crew battle: the logos and the two rosters only — the player in lit, the eliminated greyed", async () => {

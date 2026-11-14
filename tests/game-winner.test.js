@@ -14,7 +14,7 @@ const path   = require("path");
 // Resolved from the app's node_modules — tests/ has none of its own.
 const { GameEndMethod } = require(require.resolve("@slippi/slippi-js",
   { paths: [path.join(__dirname, "..", "app")] }));
-const { pickWinner, winnerByStocks } = require("../app/lib/game-source");
+const { pickWinner, winnerByStocks, stocksByPort } = require("../app/lib/game-source");
 
 let failed = 0;
 function test(name, fn) {
@@ -90,6 +90,13 @@ test("the stock fallback reads the last frame's post-frame stocks", () => {
   // Doubles: the dead players' entries are null.
   assert.strictEqual(winnerByStocks(frame({ 0: null, 1: p(1), 2: null, 3: p(0) })), 1);
   assert.strictEqual(winnerByStocks({ getLatestFrame: () => null }), null);
+});
+
+// A crew battle carries what each port had left (game-source's game-end `stocks`).
+test("the game end's stocks are read per port, null players (doubles' dead) skipped", () => {
+  const frame = { players: { 0: { post: { stocksRemaining: 2 } }, 1: null, 2: { post: { stocksRemaining: 0 } }, 3: { post: {} } } };
+  assert.deepStrictEqual(stocksByPort(frame), { 0: 2, 2: 0 });
+  assert.deepStrictEqual(stocksByPort(null), {});
 });
 
 // Older replays carry null here. `null >= 0` is true in JS, so an unguarded

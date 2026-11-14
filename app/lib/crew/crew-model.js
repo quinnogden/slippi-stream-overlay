@@ -244,7 +244,7 @@ function crewView(crew) {
 }
 
 module.exports = {
-  MAX_MEMBERS, MAX_STOCKS, DEFAULT_STOCKS, CREW_ROUND,
-  teamError, stocksOf, createCrew, activeOf, memberOf, teamTotal, statusOf,
+  MAX_STOCKS, DEFAULT_STOCKS, CREW_ROUND,
+  teamError, stocksOf, createCrew, activeOf, teamTotal,
   pick, bumpStock, applyResult, editRoster, flip, sideView, crewView,
 };

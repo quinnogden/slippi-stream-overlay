@@ -275,4 +275,4 @@ function funStats(game, stats, players, stageId) {
   return { ports: out, leadChanges, bothLastStock };
 }
 
-module.exports = { funStats, moveName, deathKind, PROJECTILES, LEDGE_X };
+module.exports = { funStats };

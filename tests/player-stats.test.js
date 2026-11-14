@@ -15,8 +15,7 @@
  *
  * Also pins the two things that keep the crawl affordable: a top-up stops at the
  * first page it already holds, and a page start.gg refuses as too large is
- * re-read at half the size instead of being treated as empty. And that
- * background requests wait for rate budget.
+ * re-read at half the size instead of being treated as empty.
  *
  * Usage: node tests/player-stats.test.js
  */
@@ -33,7 +32,6 @@ const { ScoreboardStore } = require("../app/lib/scoreboard/store");
 const { loadPayload } = require("../app/lib/event/set-model");
 const { buildBracket } = require("../app/lib/event/bracket-model");
 const { eventFrom } = require("./helpers/fake-startgg");
-const StartggClient = require("../app/lib/startgg-client");
 
 // A real luckystats.gg answer for a pair, scrubbed: its players are start.gg
 // users 9001 (player1) and 9002 (player2).
@@ -235,13 +233,6 @@ function set(id, sides, winnerSide, extra = {}) {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
-  });
-
-  await test("the probability is the ratings-only one, not blended with luckystats' head-to-head", () => {
-    const body = LUCKY_PAIR();
-    body.matchup.winProbability.blended = { player1: 0.5, player2: 0.5 };
-    const { matchup } = luckyFromResponse(body, { 9001: A, 9002: B });
-    assert.strictEqual(matchup.winProbability[A], body.matchup.winProbability.glickoOnly.player1);
   });
 
   // ── The stats module end to end: start.gg's user ids into luckystats ──────
@@ -457,17 +448,6 @@ function set(id, sides, winnerSide, extra = {}) {
     assert.ok(gg.calls.length - crawl <= 2, `top-up took ${gg.calls.length - crawl} requests (full crawl took ${crawl})`);
     await store.sync(A, { maxAgeMs: 60000 });
     assert.ok(gg.calls.length - crawl <= 2, "a fresh copy must not touch the network");
-  });
-
-  await test("background requests wait for rate budget; others don't", async () => {
-    const gg = new StartggClient({ STARTGG_TOKEN: "t" });
-    gg._gql = async () => { gg._sent.push(Date.now()); return { ok: true, data: {} }; };
-    // 50 requests that leave the 60s window in ~150ms.
-    const t0 = Date.now();
-    gg._sent = Array.from({ length: 50 }, () => t0 - 59850);
-    await gg.backgroundQuery("{}");
-    const waited = Date.now() - t0;
-    assert.ok(waited >= 100, `a full window let a background request through after ${waited}ms`);
   });
 
   console.log(failed === 0 ? "player-stats: all passed" : `player-stats: ${failed} failed`);

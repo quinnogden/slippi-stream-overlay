@@ -181,28 +181,11 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 .say { font-size: 23px; line-height: 1.3; }
 .say em { font-style: normal; color: var(--trim-c); }
 
-/* Highlight reel: one callout at a time, big */
-.reel { border-radius: 22px; box-sizing: border-box; padding: 22px 26px 20px; display: flex; flex-direction: column;
-  background: radial-gradient(ellipse 70% 60% at 50% 0%, rgba(var(--trim-rgb-c), 0.18), transparent 70%), var(--surface); box-shadow: inset 0 0 0 1px rgba(var(--trim-rgb-c), 0.32), 0 16px 36px rgba(0,0,0,0.4); }
-.reel [data-rot] { flex: 1; position: relative; }
-.reel .rb { font-size: 86px; line-height: 1; margin: 10px 0 8px; text-shadow: 0 0 30px rgba(var(--trim-rgb-c), 0.25); white-space: nowrap; }
-.reel .rt { font-size: 22px; line-height: 1.2; }
-.reel .ins-who { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+/* The Ranger log's Sighting box: its progress foot */
 .reel-foot { display: flex; gap: 14px; align-items: center; }
 .reel-foot .track { flex: 1; }
-.hero { border-radius: 24px; box-sizing: border-box; overflow: hidden;
-  background: radial-gradient(ellipse 40% 90% at 20% 50%, rgba(var(--trim-rgb-c), 0.16), transparent 70%), var(--surface); box-shadow: inset 0 0 0 1px rgba(var(--trim-rgb-c), 0.3), 0 16px 36px rgba(0,0,0,0.4); }
-.hero [data-rot] { position: absolute; left: 40px; right: 40px; top: 0; bottom: 30px; }
-.hero .hi { display: grid; grid-template-columns: 300px 1fr; align-items: center; height: 100%; }
-.hero .hb { font-size: 110px; line-height: 1; text-align: center; text-shadow: 0 0 36px rgba(var(--trim-rgb-c), 0.25); white-space: nowrap; }
-.hero .htx { font-size: 30px; line-height: 1.2; margin-top: 6px; }
-.hero .ins-who { display: flex; gap: 8px; align-items: center; margin-top: 8px; font-size: 12px; }
-.hero .reel-foot { position: absolute; left: 40px; right: 40px; bottom: 18px; }
 
 /* ── Field notes: the notebook ── */
-.page { border-radius: 22px; background: linear-gradient(180deg, var(--page-top), var(--page-mid) 70%, var(--page-bottom)); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.11), 0 26px 60px rgba(0,0,0,0.5); overflow: hidden; }
-.page > * { position: absolute !important; }
-.page::after { content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 22px; background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(var(--text-color-rgb), 0.05), transparent 70%); }
 .rules { background: repeating-linear-gradient(180deg, transparent 0 calc(var(--rh) - 1px), rgba(var(--text-color-rgb), 0.10) calc(var(--rh) - 1px) var(--rh)); }
 .mrule { top: 0; bottom: 0; width: 1px; background: rgba(var(--trim-rgb-c), 0.4); }
 .hand { font-family: var(--font); }
@@ -239,28 +222,12 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 /* a stamp: a unique stat inked on the page (rotation on the inner box, so the motion's transform stays free) */
 .stamp-in { border: 2px dashed rgba(var(--trim-rgb-c), 0.65); border-radius: 14px; padding: 10px 14px 12px; text-align: center; background: rgba(var(--trim-rgb-c), 0.06); transform: rotate(var(--r, -2deg)); height: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; }
 .stamp-in .ins-big { font-size: 46px; color: var(--text-color); }
-.stamp-in .ins-tag, .sticky-in .ins-tag, .box-in .ins-tag { white-space: normal; line-height: 1.25; }
+.stamp-in .ins-tag, .box-in .ins-tag { white-space: normal; line-height: 1.25; }
 .stamp-in .ins-txt { font-size: 17px; margin-top: 4px; }
 /* A long "who" ("… held on") takes a second line rather than shrink. */
 .stamp-in .ins-who, .box-in .ins-who { white-space: normal; line-height: 1.2; }
 .stamp-in .ins-who { margin-top: 7px; }
-/* sticky notes */
-.sticky-in { background: linear-gradient(180deg, #f3dca6, #ebcf8e); color: var(--ink); border-radius: 4px 4px 16px 4px; padding: 26px 22px 18px; box-sizing: border-box; height: 100%; transform: rotate(var(--r, -2deg)); box-shadow: 0 12px 24px rgba(0,0,0,0.45); position: relative; }
-.sticky-in::before { content: ""; position: absolute; top: -10px; left: 50%; width: 90px; height: 24px; margin-left: -45px; background: rgba(245, 235, 210, 0.55); transform: rotate(3deg); box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
-.sticky-in .ins-tag { color: #a3561a; }
-.sticky-in .ins-big { color: var(--ink); }
-.sticky-in .ins-txt { color: rgba(var(--ink-rgb), 0.8); }
-.sticky-in .ins-who { color: var(--ink); }
-.sticky-in .rb { font-size: 74px; line-height: 1; margin: 8px 0 6px; white-space: nowrap; }
-.sticky-in .rt { font-size: 21px; line-height: 1.2; }
-.sticky-in .dots i { background: rgba(var(--ink-rgb), 0.2); } .sticky-in .dots i.done { background: rgba(var(--ink-rgb), 0.45); }
-.sticky-in .track { background: rgba(var(--ink-rgb), 0.15); }
-.facts { display: flex; gap: 34px; align-items: flex-end; }
-.fact .lab { font-size: 12px; }
-.fact .fv { font-size: 28px; line-height: 1.1; margin-top: 3px; white-space: nowrap; }
 /* the clipboard and its paper */
-.board { border-radius: 26px; background: linear-gradient(180deg, var(--board-top), var(--board-mid) 60%, var(--board-bottom)); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 26px 60px rgba(0,0,0,0.5); }
-.board > * { position: absolute !important; }
 .clip { top: -16px; left: 50%; width: 220px; margin-left: -110px; height: 50px; border-radius: 12px; background: linear-gradient(180deg, #d4d6d1, #8f948f); box-shadow: 0 6px 14px rgba(0,0,0,0.5), inset 0 1px 0 #fff; z-index: 3; }
 .clip::after { content: ""; position: absolute; left: 50%; top: 12px; width: 70px; height: 16px; margin-left: -35px; border-radius: 8px; background: #5e625e; }
 .paper { left: 22px; right: 22px; top: 22px; bottom: 22px; border-radius: 10px; background: linear-gradient(180deg, #f3e7c8, var(--paper)); color: var(--ink); box-shadow: 0 6px 18px rgba(0,0,0,0.45); overflow: hidden; }
@@ -300,22 +267,12 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
   -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); }
 .mini.glass { background: rgba(var(--score-bg-color-rgb), 0.7) !important; }
 .strip.glass { background: radial-gradient(ellipse 40% 140% at 0% 50%, rgba(var(--trim-rgb-c), 0.18), transparent 70%), rgba(var(--score-bg-color-rgb), 0.72) !important; }
-.glass .lr .g, .glass .say, .glass .ins-big, .rail .ins-big, .hero.vs .hb, .hero.vs .htx { text-shadow: 0 2px 14px rgba(0,0,0,0.75), 0 0 2px rgba(0,0,0,0.5); }
+.glass .lr .g, .glass .say, .glass .ins-big, .rail .ins-big { text-shadow: 0 2px 14px rgba(0,0,0,0.75), 0 0 2px rgba(0,0,0,0.5); }
 /* Portraits inside cards */
 .rail { border-radius: 22px; overflow: hidden; background: linear-gradient(180deg, rgba(var(--bg-color-light-rgb), 0.3), transparent 60%), var(--score-bg-color); box-shadow: inset 0 0 0 1px rgba(var(--text-color-rgb), 0.09), 0 18px 44px rgba(0,0,0,0.4); }
 .rail > .mini { position: absolute !important; z-index: 3; }
 /* The rails' cards are wider than a row of minis: the number a size up. */
 .rail .mini .ins-big { font-size: 52px; }
-.hero.vs { background: radial-gradient(ellipse 30% 90% at 50% 50%, rgba(var(--trim-rgb-c), 0.16), transparent 70%), linear-gradient(180deg, #13262c, #0a181d); }
-.hero.vs > :not(.por) { z-index: 3; }
-.hero .hic { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-.hero .hic .hb { font-size: 84px; margin-top: 4px; }
-.hero .hic .htx { font-size: 24px; margin-top: 4px; }
-.reel.cam { overflow: hidden; position: absolute; }
-.reel.cam [data-rot] { position: static; }
-.reel.cam .cameo { position: absolute; inset: 0; z-index: 1; }
-.reel.cam .rin, .reel.cam > .eyebrow, .reel.cam .reel-foot { position: relative; z-index: 3; }
-.reel.cam .rin { height: 100%; }
 /* Field notes: the page is the window, and the portraits are on it */
 /* The skin is on the background itself (bg-<skin>), so an old one can stay
    drawn while the next fades in over it. */

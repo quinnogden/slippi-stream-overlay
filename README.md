@@ -24,7 +24,8 @@ serves every OBS overlay, and gives the stream operator one panel to drive it al
 
 - 🎮 **Scores update by themselves.** Characters, costumes and the winner of each game come straight from Slippi as the game is played.
 - 🏆 **The bracket comes from start.gg.** Load the next set in one tap, then press **Report** when it's done. Nobody has to open the bracket page.
-- 🖥️ **Six OBS overlays, one look.** The scoreboard, side panel, bracket, casters and replay frame all share a theme pack you can swap.
+- 🖥️ **Seven OBS overlays, one look.** The scoreboard, players bar, side panel, bracket, casters, replay frame and stats popup all share a theme pack you can swap.
+- 📈 **Set stats after every game.** A popup puts the game just played beside the set so far, read from the replays, and wraps up the set once it's won.
 - 📊 **Player stats on stream.** The side panel shows each player's recent results, their run through today's bracket and their head-to-head. Add a [luckystats.gg](https://luckystats.gg) key for rankings and a win projection.
 - ⚔️ **Crew battles built in.** Stocks carry from game to game and are scored from Slippi, just like a normal set.
 - 🎬 **Combos clip themselves.** When a big combo lands, OBS saves its replay buffer, and the clips play back on your break scene.
@@ -43,6 +44,7 @@ It replaced [Tournament Stream Helper (TSH)](https://github.com/joaorb64/Tournam
 | [Adding it to OBS](#adding-it-to-obs) | [Reporting to start.gg](#reporting-to-startgg) | [Troubleshooting](#troubleshooting) |
 | | [Crew battles](#crew-battles) | [For developers](#for-developers) |
 | | [The overlays](#the-overlays) | |
+| | [Set stats](#set-stats) | |
 
 ---
 
@@ -96,7 +98,7 @@ module.exports = {
 | `LUCKYSTATS_UPLOAD_KEY` | `config.local.js` | A luckystats.gg **upload** key (`l7u_…`, Account → API → App uploads). Sends each [stream set's replays](#stream-set-replays) to LuckyStats. |
 | `REPLAY_ARCHIVE_FOLDER` | `config.local.js` | A folder to copy each stream set's replays into, one folder per set. |
 | `BRACKETS` | `config.js` | Your series' start.gg short link, for the [Singles / Doubles buttons](#switching-brackets). |
-| `PLAYERS_FILE` | `config.js` | Moves the player database. The default is `app/data/local_players.json`. |
+| `PLAYERS_FILE` | `config.local.js` | Moves the player database. The default is `app/data/local_players.json`. |
 | `HOTKEYS` | `config.local.js` | Changes the [global hotkeys](#hotkeys). |
 | `SET_TEXT` | `config.local.js` | The Flex / Bo5 rule's starting values (the dock's Set tab → Best-of card changes it live). |
 | `CLIPPER` | `config.local.js` | Starting values for the [combo clipper](#combo-clipper). After that, tune it from the dock. |
@@ -122,7 +124,7 @@ Double-click **`start.bat`**. The first run installs the dependencies.
 The console then shows the dock's address, addresses for a phone, the player file, the event it loaded and the hotkeys it bound. **Close the window to stop the app.**
 
 > [!NOTE]
-> Want to check your setup? Run `cd app && node scripts/preflight.js`. It tests the config, the player file, the overlays, the theme, the hotkeys, start.gg and OBS, and prints a fix for anything that fails.
+> Want to check your setup? Run `cd app && node scripts/preflight.js`. It tests the config, the player file, the overlays, the theme, the hotkeys, the stats popup's art, start.gg, the luckystats.gg keys and OBS, and prints a fix for anything that fails.
 
 ---
 
@@ -180,9 +182,10 @@ And these buttons:
 | **⇄ Ports** | Fixes ports that are the wrong way round, before a point goes to the wrong player. The scoreboard doesn't move. |
 | **↻ Detect** | Matches the ports to the players' characters again. |
 | **Start** / **Report** | start.gg's "Start match" and the result report, for sets loaded from start.gg. See [Reporting](#reporting-to-startgg). |
+| **Stats** | Puts the [stats popup](#set-stats) up, or takes it down. |
 | **Clear score** / **Clear set** | Zero the score, or take the set off the scoreboard (friendlies). |
 
-The strip folds to one line (names, score, ⇆ ⇄ and Report), and so does every card in the tabs, each keeping its main keys. The dock remembers what you folded.
+The strip folds to one line (names, score, ⇆ ⇄, Report and Stats), and so does every card in the tabs, each keeping its main keys. The dock remembers what you folded.
 
 ### The tabs
 
@@ -190,12 +193,13 @@ The strip folds to one line (names, score, ⇆ ⇄ and Report), and so does ever
 |---|---|
 | **Set** | The event's sets, with **playable sets first**. Tap one to put it on the scoreboard. For friendlies, **Clear set** on the strip. |
 | **Bracket** | What the [bracket overlay](#bracket) shows: the view, **Auto** or a held page, and the Board's arrows, zoom and minimap. Below that, **Singles** / **Doubles** for this week's event. |
+| **Stats** | The [stats popup](#set-stats): its layout (or **Auto**), the game's or the set's numbers, the look, how long it waits and holds, and **Auto** to put it up after each game. The **Layouts** table picks which layouts Auto uses. |
 | **Casters** | Up to four casters. Edits are a draft until you press **Put on stream**. |
 | **Players** | This event's entrants by seed, each with the main their sets open on (tap to set it), then the whole player database: fix a prefix or pronoun, or set a main. |
 | **Clips** | The combo clipper: on/off, the OBS connection, thresholds, recent clips, and **Test clip**. |
 | **Replays** | Each stream set's replay files, archived and uploaded to LuckyStats.gg after Report. Fix a game's winner or character, attach a missing file, re-upload. |
 | **Crew** | Build two crews and run a [crew battle](#crew-battles). |
-| **Setup** | Every OBS URL, the phone URLs, the hotkeys, the [theme](#theme-packs), and where the files are. |
+| **Setup** | Every OBS URL, the phone URLs, the hotkeys, the [theme](#theme-packs), the stats popup's **art packs** (one-click download), the **tab bar** (which tabs show and in what order; the rest go under **More**), and where the files are. |
 
 <br clear="right">
 
@@ -210,6 +214,7 @@ The hotkeys are **global**, so they work in whichever window has focus (OBS, Dol
 | Game to left / right | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd> / <kbd>2</kbd> |
 | Take a game away | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>1</kbd> / <kbd>2</kbd> |
 | Clear the score | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>0</kbd> |
+| Stats popup up or down | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd> |
 
 <details>
 <summary>Changing hotkeys, and what happens if they can't load</summary>
@@ -218,7 +223,7 @@ The hotkeys are **global**, so they work in whichever window has focus (OBS, Dol
 
 - Change each action with `HOTKEYS` in `config.local.js`. Every chord needs Ctrl, Alt or Win, and `null` turns a hotkey off.
 - Modifiers must match exactly, and holding a key down fires it once.
-- If the `uiohook-napi` native module can't load, the app falls back to single keys typed into its own console window (`s` `x` `1` `2` `q` `w` `0`). The Setup tab tells you when this happens.
+- If the `uiohook-napi` native module can't load, the app falls back to single keys typed into its own console window (`s` `x` `1` `2` `q` `w` `0` `g`). The Setup tab tells you when this happens.
 
 </details>
 
@@ -254,7 +259,7 @@ When a singles set ends, the characters each player used are saved to the player
 
 ### Doubles
 
-Doubles is detected automatically when a game has four players on Slippi teams. Each side shows its team colour (red, blue or green), and the side panel skips the per-player cards. Clips and learned mains are singles only.
+Doubles is detected automatically when a game has four players on Slippi teams. Each side shows its team colour (red, blue or green), and the side panel skips the per-player cards. Clips, learned mains and [set stats](#set-stats) are singles only.
 
 ---
 
@@ -332,6 +337,17 @@ The scoreboard shows names, prefixes, pronouns, the live character and costume, 
 
 The same information in a bar along the bottom, with the tournament logo above the round. It's at `/o/scoreboard/players`.
 
+### Set stats
+
+After each game, a popup puts the game just played beside the set so far: kills, damage, openings per kill, neutral wins, the biggest punish, a few callouts and a line on how it went. Once the set is won, it wraps up the whole set.
+
+- **Up and down.** **Stats** on the strip, the Stats tab or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd>. With **Auto** on, it comes up a few seconds after each game, so the camera gets the players' reaction first, and goes down when the next game starts.
+- **Eight layouts**, from a full window to a lower third and a Condensed one that leaves the middle clear for the cam. Pick one in the Stats tab, or leave it on **Auto** to rotate through the ones you tick.
+- **Character art** is downloaded from the dock's **Setup → Art packs** in one click. Without it, the popup has no portraits and nothing else changes.
+- **Singles sets loaded from start.gg only.** Doubles, crew battles and typed-in names have no stats.
+
+The Players bar draws the popup itself, so it needs no source of its own. To use `/o/set-stats` as a separate source, put it above the bar and add `?stats=0` to the bar's URL.
+
 ### Side panel
 
 <table>
@@ -348,6 +364,7 @@ A 611 × 1080 panel that sits beside the webcam. The header shows the tournament
 - each player's **current run** and **recent results**
 - their **head-to-head** record and latest sets
 - the event's **just-finished** sets
+- after a game, **Last Game** (its numbers and callouts) and, from the second game, **Set Recap**. Neither shows while the [stats popup](#set-stats) is up.
 
 Player stats come from start.gg and need the token. Each player's full set history is downloaded once and saved, so a regular's card appears seconds after their set loads.
 
@@ -355,7 +372,7 @@ Player stats come from start.gg and need the token. Each player's full set histo
 
 When the combo clipper saves a clip, a pill naming the player and the combo slides in over the bottom card.
 
-Doubles skips the player cards and head-to-head. A [crew battle](#crew-battles) shows each crew's roster instead.
+Doubles skips the player cards, head-to-head and stats cards. A [crew battle](#crew-battles) shows each crew's roster instead.
 
 ### Bracket
 
@@ -566,4 +583,8 @@ Everything is served from one port (**5001** by default).
 | [docs/FRESH-INSTALL.md](docs/FRESH-INSTALL.md) | setting up a machine step by step |
 | [docs/TESTING.md](docs/TESTING.md) | checking a change with no bracket running |
 | [docs/BRIDGE-API.md](docs/BRIDGE-API.md) | changing the state, events or `/api/*` routes the overlays and dock use |
+| [docs/OVERLAYS.md](docs/OVERLAYS.md) | changing an overlay page, its motion, or a theme pack |
+| [docs/STATS-POPUP.md](docs/STATS-POPUP.md) | changing the stats popup: reading the replays, the art packs, the layouts |
+| [docs/DOCK.md](docs/DOCK.md) | changing what a dock tab or the live strip does |
+| [docs/REPLAYS.md](docs/REPLAYS.md) | changing how stream sets are archived and uploaded to LuckyStats.gg |
 | [CLAUDE.md](CLAUDE.md) | changing the code: the architecture and the non-obvious rules behind it |

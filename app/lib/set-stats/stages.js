@@ -41,4 +41,4 @@ function stageOf(id) {
   return s ? { id, name: s.name, icon: s.icon } : { id: id ?? null, name: id == null ? "" : `Stage ${id}`, icon: null };
 }
 
-module.exports = { STAGES, stageOf };
+module.exports = { stageOf };

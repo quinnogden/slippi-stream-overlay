@@ -10,7 +10,7 @@ const { reclaimPort } = require("../port-guard");
 
 /**
  * @param {{ BRIDGE_PORT: number }} config
- * @returns {{ app, io, httpServer, start: () => void }}
+ * @returns {{ app, io, start: () => void }}
  */
 function createServer(config) {
   const app = express();
@@ -62,7 +62,7 @@ function createServer(config) {
     httpServer.listen(config.BRIDGE_PORT);
   }
 
-  return { app, io, httpServer, start };
+  return { app, io, start };
 }
 
 module.exports = { createServer };

@@ -14,8 +14,8 @@
  *     thrown (a typo must not stop the app at a venue);
  *   - config overrides merge per action over the defaults.
  *
- * Runs against a small fake of uiohook's key table, plus the real one when the
- * native module loads, so the defaults are known to parse.
+ * Runs against a small fake of uiohook's key table (preflight compiles the
+ * hotkeys against the real one).
  *
  * Usage: node tests/hotkey.test.js
  */
@@ -115,18 +115,6 @@ test("overrides merge per action; null turns one off; bad entries are reported, 
   assert.ok(errors.some((e) => /bogus: not an action/.test(e)));
 });
 
-test("the defaults parse against uiohook-napi's real key table", () => {
-  let real;
-  try {
-    real = require("../app/node_modules/uiohook-napi").UiohookKey;
-  } catch {
-    console.log("       (uiohook-napi didn't load here — skipped)");
-    return;
-  }
-  const { bindings, errors } = compileHotkeys(undefined, real);
-  assert.deepStrictEqual(errors, []);
-  assert.strictEqual(bindings.length, Object.keys(DEFAULTS).length);
-});
 
 console.log(failed === 0 ? "hotkey: all passed" : `hotkey: ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

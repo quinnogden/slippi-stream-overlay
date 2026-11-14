@@ -185,4 +185,4 @@ class LuckyStatsClient {
   }
 }
 
-module.exports = { LuckyStatsClient, IMAGE_DIR, IMAGE_URL };
+module.exports = { LuckyStatsClient, IMAGE_DIR };

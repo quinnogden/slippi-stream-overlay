@@ -47,27 +47,6 @@ const unplayed = (name) => {
   return { ...p, sides: p.sides.map((x) => ({ ...x, score: 0 })) };
 };
 
-/** Socket.io, as far as the channel uses it: io.emit, io.of(name).on/emit, socket.on/emit. */
-function fakeIo() {
-  const nsps = {};
-  const io = {
-    emitted: [],
-    emit(event, payload) { io.emitted.push([event, payload]); },
-    of(name) {
-      if (!nsps[name]) {
-        nsps[name] = {
-          sockets: new Set(),
-          handlers: {},
-          on(event, fn) { this.handlers[event] = fn; },
-          emit(event, payload) { for (const s of this.sockets) s.deliver(event, payload); },
-        };
-      }
-      return nsps[name];
-    },
-  };
-  return { io, nsps };
-}
-
 /**
  * A browser source on `namespace`: the real mirror, plus everything else it
  * was sent. `dropNext()` loses the next patch on the wire.
@@ -100,7 +79,7 @@ function connectClient({ nsps }, namespace = "/overlay") {
 
 function setup() {
   const store = new ScoreboardStore({ setText: { topN: 8, topLabel: "Bo5", defaultLabel: "Flex" } });
-  const wire = fakeIo();
+  const wire = sandbox.fakeIo();
   const channel = createOverlayChannel({ io: wire.io, store });
   return { store, wire, channel };
 }

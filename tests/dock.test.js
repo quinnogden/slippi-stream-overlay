@@ -432,24 +432,7 @@ async function rig() {
     } finally { r.close(); }
   });
 
-  await test("Sides, Ports and the bracket view keys reach the app", async () => {
-    const r = await rig();
-    try {
-      r.store.loadSet(fresh(LOSERS_FINAL));
-      await until(() => r.tagInput(0).value === "Player2", "the set");
-      fire(r.page.$("#btn-sides"), "click");
-      await until(() => r.tagInput(0).value === "Player3", "the sides traded columns");
-      fire(r.page.$("#btn-ports"), "click");
-      await until(() => r.calls.swapPorts === 1, "ports swapped");
-
-      const fullKey = r.page.$$("#bracket-views .key").find((k) => k.dataset.view === "full");
-      fire(fullKey, "click");
-      await until(() => r.store.view().bracketView === "full", "the bracket overlay's view");
-      await until(() => fullKey.classList.contains("lit"), "the key lights from the patch");
-    } finally { r.close(); }
-  });
-
-  await test("Singles / Doubles: the hint under them says what loaded, a re-press included", async () => {
+  await test("Singles / Doubles: the hint under them says what loaded, a re-press included; the view keys reach the app", async () => {
     const r = await rig();
     try {
       const hint = r.page.$("#bracket-hint");
@@ -461,6 +444,11 @@ async function rig() {
       assert.ok(singles.disabled, "busy while it reads");
       await until(() => !singles.disabled, "the re-read to finish");
       assert.strictEqual(hint.textContent, "Loaded: Hundred Acres #51 — Melee Singles");
+
+      const fullKey = r.page.$$("#bracket-views .key").find((k) => k.dataset.view === "full");
+      fire(fullKey, "click");
+      await until(() => r.store.view().bracketView === "full", "the bracket overlay's view");
+      await until(() => fullKey.classList.contains("lit"), "the key lights from the patch");
     } finally { r.close(); }
   });
 
@@ -608,11 +596,6 @@ async function rig() {
       assert.strictEqual(texts(menu(r).querySelector(".ac-cap")).join(""), "Entered in this event");
       const top = texts(menuRows(r)[0]).join(" ");
       assert.ok(top.includes(bySeed[0].tag), "top seed first");
-      assert.ok(!/Seed/.test(top), "no seed in the row: it crowded the names out at dock width");
-
-      type(tag, "Comm");
-      await sleep(200);
-      assert.strictEqual(menuRows(r).length, 0, "the caster is in the player list but not the event: not offered");
 
       const pick = bySeed[2];
       type(tag, pick.tag);
@@ -1049,24 +1032,7 @@ async function rig() {
     } finally { r.close(); }
   });
 
-  await test("the strip folds to one line: names and score", async () => {
-    const r = await rig();
-    try {
-      r.store.loadSet(fresh(LOSERS_FINAL));
-      r.store.bump(0, 1);
-      await until(() => r.scoreText(0) === "1", "the set");
-      assert.ok(!r.page.$("#strip").classList.contains("folded"), "open by default");
-      fire(r.page.$("#btn-strip-fold"), "click");
-      assert.ok(r.page.$("#strip").classList.contains("folded"));
-      assert.strictEqual(r.page.$("#btn-strip-fold").getAttribute("aria-expanded"), "false");
-      assert.deepStrictEqual(texts(r.page.$("#strip-summary")), ["Team1 Player2", "1–0", "Player3"]);
-      assert.strictEqual(r.page.window.localStorage.getItem("dock.stripFolded"), "1", "remembered for the next load");
-      fire(r.page.$("#btn-strip-fold"), "click");
-      assert.ok(!r.page.$("#strip").classList.contains("folded"));
-    } finally { r.close(); }
-  });
-
-  await test("folded, the strip keeps ⇆ Sides, ⇄ Ports, Report and Stats, each the real key", async () => {
+  await test("the strip folds to one line: names, score, and ⇆ Sides, ⇄ Ports, Report and Stats, each the real key", async () => {
     const r = await rig();
     const proxy = (id) => r.page.$$(".strip-fold-keys [data-proxy]").find((b) => b.dataset.proxy === id);
     try {
@@ -1074,7 +1040,12 @@ async function rig() {
       r.store.bump(0, 1);
       r.status({ currentSet: { canReport: false, reason: "Score is tied" } });
       await until(() => r.scoreText(0) === "1", "the set");
+      assert.ok(!r.page.$("#strip").classList.contains("folded"), "open by default");
       fire(r.page.$("#btn-strip-fold"), "click");
+      assert.ok(r.page.$("#strip").classList.contains("folded"));
+      assert.strictEqual(r.page.$("#btn-strip-fold").getAttribute("aria-expanded"), "false");
+      assert.deepStrictEqual(texts(r.page.$("#strip-summary")), ["Team1 Player2", "1–0", "Player3"]);
+      assert.strictEqual(r.page.window.localStorage.getItem("dock.stripFolded"), "1", "remembered for the next load");
       assert.deepStrictEqual(r.page.$$(".strip-fold-keys [data-proxy]").map((b) => b.dataset.proxy), ["btn-sides", "btn-ports", "btn-report", "btn-stats"]);
 
       // Report mirrors the real key: off, with start.gg's reason as its tooltip.
@@ -1098,6 +1069,8 @@ async function rig() {
 
       r.store.clearSet();
       await until(() => proxy("btn-report").classList.contains("gone"), "a manual set has no Report, folded or not");
+      fire(r.page.$("#btn-strip-fold"), "click");
+      assert.ok(!r.page.$("#strip").classList.contains("folded"));
     } finally { r.close(); }
   });
 

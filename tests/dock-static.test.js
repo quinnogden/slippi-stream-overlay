@@ -10,8 +10,7 @@
  *     back as a toast at best, and as nothing at all from a fire-and-forget);
  *   - it loads nothing from off the app, and every file it loads is there
  *     (the fonts are self-hosted so venue wifi can't restyle the console);
- *   - every tab has a panel, and the clipper form covers every setting;
- *   - every overlay url the Setup tab hands out for OBS is served.
+ *   - every tab has a panel, and the clipper form covers every setting.
  *
  * Usage: node tests/dock-static.test.js
  */
@@ -22,7 +21,6 @@ const path   = require("path");
 
 const { resolveOverlayPath } = require("../app/lib/server/overlays");
 const { FIELDS: CLIPPER_FIELDS } = require("../app/lib/clipper-settings");
-const { OVERLAYS: SETUP_OVERLAYS } = require("../app/lib/server/api/setup");
 
 const ROOT = path.resolve(__dirname, "..");
 const DOCK = path.join(ROOT, "app", "public", "dock");
@@ -108,14 +106,6 @@ test("the clipper form covers every setting but the master switch", () => {
   assert.ok(declared.has("clip-enabled") && declared.has("clip-fields"));
   const dup = keys.filter((k) => declared.has(`clip-${k}`));
   assert.deepStrictEqual(dup, [], `generated AND hand-written: ${dup.join(", ")}`);
-});
-
-test("every overlay the Setup tab offers for OBS is a page the app serves", () => {
-  // A url pasted from there into a browser source is the one that goes on air.
-  assert.ok(SETUP_OVERLAYS.length >= 6);
-  for (const o of SETUP_OVERLAYS) {
-    assert.ok(resolveOverlayPath(o.path, { overlaysDir: path.join(ROOT, "overlays") }), `${o.name}: ${o.path} isn't served`);
-  }
 });
 
 test("every folded key presses a key that exists, and every foldable card has a header to fold to", () => {

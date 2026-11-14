@@ -243,4 +243,4 @@ class StreamSets extends EventEmitter {
   }
 }
 
-module.exports = { StreamSets, isRealSetId };
+module.exports = { StreamSets };

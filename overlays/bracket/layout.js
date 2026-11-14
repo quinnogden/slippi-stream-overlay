@@ -317,19 +317,6 @@
       + `V${f(y2 - dir * rr)}Q${f(xm)} ${f(y2)} ${f(xm + rr)} ${f(y2)}H${f(x2)}`;
   }
 
-  /**
-   * The scale for a board in a viewport: as large as fits (never above 1),
-   * but never below the legibility floor. Past the floor, the axes that still
-   * overflow would have to pan — which only the Board mode's Overview allows.
-   */
-  function fitScale(width, height, viewW, viewH, m = METRICS) {
-    const floor = floorOf(m);
-    if (!width || !height) return { scale: 1, floor, panX: false, panY: false };
-    const fit = Math.min(1, viewW / width, viewH / height);
-    const scale = Math.max(fit, floor);
-    return { scale, floor, panX: width * scale > viewW + 0.5, panY: height * scale > viewH + 0.5 };
-  }
-
   // ── Pruning ─────────────────────────────────────────────────────────────────
 
   /** The view as `ids` alone, in round order. */
@@ -752,12 +739,12 @@
   }
 
   const api = {
-    METRICS, VIEWPORT, LIST, HOLD,
-    layoutBracket, layoutView, layoutPage, pageView, subView, prunedView, paginate, holdMs,
-    paginateList, layoutList, listCapacity,
-    actionSetId, fitScale, shortRound, elbow, splitContiguous,
-    boardZooms, clampCamera, snapCamera, cameraAt, cameraForSets, moveCamera, zoomCamera,
-    cameraTransform, overviewScale, cameraStops,
+    METRICS, VIEWPORT, LIST,
+    layoutBracket, layoutView, layoutPage, subView, prunedView, paginate, holdMs,
+    paginateList, layoutList,
+    actionSetId, shortRound,
+    boardZooms, cameraAt, cameraForSets, moveCamera, zoomCamera,
+    cameraTransform,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.BracketLayout = api;

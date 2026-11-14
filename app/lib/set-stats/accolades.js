@@ -500,4 +500,4 @@ function allWordings() {
   return POOL.map((A) => ({ id: A.id, tags: [].concat(A.tag, ...Object.values(A.tagBy || {})), short: A.short, long: A.long, note: A.note || [] }));
 }
 
-module.exports = { accolades, allWordings, pick, rotate, hash, segments, fill, POOL };
+module.exports = { accolades, allWordings, pick, rotate, segments, fill };

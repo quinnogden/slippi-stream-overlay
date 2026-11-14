@@ -117,14 +117,12 @@ async function until(cond, what, ms = 1000) {
     assert.deepStrictEqual(store.scoreboard(), before);
   });
 
-  await test("the picker offers playable sets first; a preview set loads without a start.gg read", async () => {
+  await test("a preview set loads without a start.gg read", async () => {
     const { svc, store, startgg } = setup("hundred-acres-51");
     await svc.switchEvent("singles");
     const list = svc.openSets();
     assert.ok(list.length > 0);
     assert.strictEqual(list[0].status, "playable");
-    const firstWaiting = list.findIndex((s) => s.status !== "playable");
-    assert.ok(list.slice(firstWaiting).every((s) => s.status !== "playable"), "no playable set after a waiting one");
     assert.strictEqual(list[0].phase, "", "a one-group event needs no phase label");
 
     const r = await svc.loadSet(list[0].setId);

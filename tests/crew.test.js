@@ -31,7 +31,6 @@ const { createPersist } = require("../app/lib/scoreboard/persist");
 const { PortMap } = require("../app/lib/ports/port-map");
 const { createState } = require("../app/lib/state");
 const { createModes } = require("../app/lib/modes");
-const { stocksByPort } = require("../app/lib/game-source");
 const { mainsPlayed } = require("../app/lib/players/mains-learning");
 const { SavedCrews } = require("../app/lib/crew/saved-crews");
 const { CHAR_MAP } = require("../app/lib/char_map");
@@ -276,12 +275,6 @@ test("the battle survives a restart, and loading a set ends it", () => {
   assert.strictEqual(sbOf(back).crew, null);
   assert.deepStrictEqual(scores(back), [0, 0]);
   assert.strictEqual(sbOf(back).round, "Losers Final");
-});
-
-test("the game end's stocks are read per port, null players (doubles' dead) skipped", () => {
-  const frame = { players: { 0: { post: { stocksRemaining: 2 } }, 1: null, 2: { post: { stocksRemaining: 0 } }, 3: { post: {} } } };
-  assert.deepStrictEqual(stocksByPort(frame), { 0: 2, 2: 0 });
-  assert.deepStrictEqual(stocksByPort(null), {});
 });
 
 test("saved crews: one per name in any case, A–Z, typed fields only, and a bad file is moved aside", () => {

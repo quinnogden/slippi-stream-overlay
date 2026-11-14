@@ -424,4 +424,4 @@ function summarise(remote) {
   };
 }
 
-module.exports = { LuckyStatsUploads, UploadError, putFile, BASE_URL, APP_ID };
+module.exports = { LuckyStatsUploads, BASE_URL, APP_ID };

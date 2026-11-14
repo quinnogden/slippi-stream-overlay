@@ -389,8 +389,8 @@ function createReplays(ctx, opts = {}) {
   }
 
   return {
-    sets, uploads, snapshot, start, onSetReported, editGame, attachFile, files, forget, ensureMeta, settle,
-    checkCompletion, watchCompletion,
+    sets, uploads, snapshot, start, onSetReported, editGame, attachFile, files, forget,
+    watchCompletion,
     upload: (setId) => uploads.enqueue(setId),
     flush: () => sets.flush(),
   };
