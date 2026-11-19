@@ -388,6 +388,10 @@ body {
   box-shadow:
     0 2px 8px  rgba(0,0,0,0.40),
     inset 0 1px 0 rgba(255,255,255,0.05);
+  /* Text inside sizes to the pill's height (cqh). Every cqh size has a px
+     size on the line before it — what the clamp gives at a 100px pill — for
+     a browser without container units: OBS before 31 (Chromium 103) would
+     otherwise drop the line and fall back to 16px. */
   container-type: size;
 }
 
@@ -496,11 +500,10 @@ body {
 
 .h2h-subtitle {
   font-family:    var(--font);
-  font-size:      11px;
-  letter-spacing: 0.22em;
+  font-size:      13px;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color:          var(--darkened-text);
-  opacity:        0.65;
   text-align:     center;
   margin-top:     2px;
 }
@@ -528,6 +531,7 @@ body {
 /* Secondary line inside a pill (tournament, date, round) */
 .pill-line-2 {
   font-family:    var(--font);
+  font-size:      11px;
   font-size:      clamp(10px, 11cqh, 13px);
   color:          var(--darkened-text);
   letter-spacing: 0.05em;
@@ -803,6 +807,7 @@ body {
   text-overflow: ellipsis;
   white-space:   nowrap;
   font-family:   var(--font);
+  font-size:     22px;
   font-size:     clamp(14px, 22cqh, 26px);
   color:         var(--text-color);
 }
@@ -811,6 +816,7 @@ body {
 /* Placement text (e.g. "17th/128") */
 .pill-placement {
   font-family:    var(--font);
+  font-size:      22px;
   font-size:      clamp(14px, 22cqh, 26px);
   color:          var(--text-color);
   letter-spacing: 0.06em;
@@ -839,6 +845,7 @@ body {
 
 /* ── Player card — recent results list overrides ─────────── */
 .history-list .pill-name {
+  font-size:      30px;
   font-size:      clamp(18px, 30cqh, 38px);
   letter-spacing: 0.03em;
   text-shadow:    0 1px 4px rgba(0,0,0,0.6);
@@ -848,18 +855,21 @@ body {
 .run-list .pill-name {
   flex:           1;
   text-align:     left;
+  font-size:      26px;
   font-size:      clamp(24px, 26cqh, 34px);
   letter-spacing: 0.03em;
   text-shadow:    0 1px 6px rgba(0,0,0,0.7);
 }
 
 .history-list .pill-placement {
+  font-size:      36px;
   font-size:      clamp(24px, 36cqh, 44px);
   letter-spacing: 0.08em;
 }
 
 .run-list .pill-round {
   flex:           1.5;
+  font-size:      17px;
   font-size:      clamp(13px, 17cqh, 22px);
   letter-spacing: 0.03em;
   text-align:     center;
@@ -878,6 +888,7 @@ body {
 .run-list .pill-run-score {
   flex:        1;
   text-align:  right;
+  font-size:   26px;
   font-size:   clamp(24px, 26cqh, 34px);
   text-shadow: 0 1px 6px rgba(0,0,0,0.7);
 }
@@ -891,6 +902,7 @@ body {
 
 /* Scores fill the pill height — large and bold */
 #panel-recent-sets .pill-score-val {
+  font-size:   52px;
   font-size:   clamp(36px, 52cqh, 70px);
   line-height: 1;
   text-shadow: 0 2px 6px rgba(0,0,0,0.6);
@@ -907,6 +919,7 @@ body {
 #panel-recent-sets .pill-line-2 {
   text-align: center;
   width:      100%;
+  font-size:  22px;
   font-size:  clamp(16px, 22cqh, 28px);
 }
 
@@ -969,9 +982,9 @@ body {
 }
 
 #panel-completed-sets .panel-header { padding-bottom: 10px; }
-#panel-completed-sets .pill-line-2  { font-size: clamp(13px, 16cqh, 20px); }
-#panel-completed-sets .set-score   { font-size: clamp(26px, 36cqh, 48px); }
-#panel-completed-sets .pill-name   { font-size: clamp(24px, 36cqh, 48px); }
+#panel-completed-sets .pill-line-2  { font-size: 16px; font-size: clamp(13px, 16cqh, 20px); }
+#panel-completed-sets .set-score   { font-size: 36px; font-size: clamp(26px, 36cqh, 48px); }
+#panel-completed-sets .pill-name   { font-size: 36px; font-size: clamp(24px, 36cqh, 48px); }
 
 /* ── List containers (hold dynamically generated pills) ──── */
 /* Each list is a flex column that stretches to fill remaining

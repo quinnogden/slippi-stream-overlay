@@ -83,6 +83,14 @@
   --win-color:       #3fae54;               /* meadow green — a signal, kept bright */
   --loss-color:      #e5483f;
 
+  /* The head-to-head's win-projection bar (and each side's percentage):
+     wildflower pink for the left player, the trail map's lake blue for the
+     right — as bright as each other, so neither side looks favoured, and
+     both clear of the cream marker. Never red or green, which the set pills
+     right under it use for a loss and a win. */
+  --prob-left-color:  #e08fb4;
+  --prob-right-color: #6aa6b8;
+
   /* Background flair — block to show, none to hide; combine freely.
      contours  the trail map's topographic lines, drifting very slowly
      fireflies a few warm points blinking in the dark */

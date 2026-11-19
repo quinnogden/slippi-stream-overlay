@@ -426,7 +426,7 @@
     const left = Math.min(...items.map((i) => i.x));
     const lo = screenX(left);
     for (const { el, x } of items) {
-      const to = getComputedStyle(el).opacity || "1"; // a "maybe" card rests at 0.5
+      const to = getComputedStyle(el).opacity || "1"; // the opacity it rests at
       el.animate([
         { opacity: 0, transform: `translateX(${CARD_IN_X}px)` },
         { opacity: to, transform: "none" },

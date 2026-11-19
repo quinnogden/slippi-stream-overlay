@@ -221,9 +221,19 @@ body.no-animate .page-dots b.fill { animation: none; }
   box-shadow: var(--shadow-raised);
   overflow: hidden;
 }
-.card.live  { border-color: rgba(var(--trim-rgb, var(--text-color-rgb)), 0.55); }
-/* The reset only happens if the losers-side player takes GF 1. */
-.card.maybe { opacity: 0.5; border-style: dashed; box-shadow: none; }
+/* The set being played glows on every view, so a viewer can find the action
+   on any page; Overview's own glow (below) is stronger, for a board whose
+   names are too small to read. */
+.card.live {
+  border-color: var(--trim-color, var(--text-color));
+  box-shadow: var(--shadow-raised),
+              0 0 0 2px rgba(var(--trim-rgb, var(--text-color-rgb)), 0.6),
+              0 0 24px 4px rgba(var(--trim-rgb, var(--text-color-rgb)), 0.3);
+}
+/* The reset only happens if the losers-side player takes GF 1: a dashed,
+   flat card. Not faded — a translucent card lets the stage art through and
+   takes its "TBD" below legible. */
+.card.maybe { border-style: dashed; border-color: rgba(var(--text-color-rgb), 0.32); box-shadow: none; }
 
 .row {
   position: relative;
@@ -353,7 +363,9 @@ body.no-animate .page-dots b.fill { animation: none; }
 .row.empty .name {
   font-size: 0.62em;
   letter-spacing: 0.08em;
-  color: rgba(var(--text-color-rgb), 0.38);
+  /* Dimmer than a name, still readable: 0.62 is about 4.5:1 on both packs'
+     cards (Hundred Acres 5.6:1, Salty Suite 4.5:1). */
+  color: rgba(var(--text-color-rgb), 0.62);
   text-shadow: none;
 }
 

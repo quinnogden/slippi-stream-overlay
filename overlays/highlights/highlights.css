@@ -461,13 +461,18 @@ body {
    lamp travelling over a marquee. Gated behind @supports because the
    fallback for a failed background-clip is `color: transparent` over a
    painted rect — the word would vanish behind a bar. The solid
-   gold text above is what actually reads; this only ever adds. */
+   gold text above is what actually reads; this only ever adds.
+   No text-shadow: it would inherit the word's, and with transparent
+   glyphs that shadow is drawn over the word, dulling it to a smudged
+   tan for the whole break. ?animate=false hides this copy, so a
+   frozen screenshot never shows that. */
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .title-word::after {
     content:  attr(data-word);
     position: absolute;
     inset:    0;
     color:    transparent;
+    text-shadow: none;
     -webkit-background-clip: text;
             background-clip: text;
     background-image: linear-gradient(

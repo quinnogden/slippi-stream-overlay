@@ -161,7 +161,9 @@ body { width: 1920px; height: 1080px; overflow: hidden; margin: 0; font-family: 
 /* The field notes' labels share their gap with the handwritten notes. */
 .lr.in .k .lab { font-size: 17px; }
 .lr .s .u { font-size: 0.62em; }
-.lr .k .hint { font-family: var(--ss-label-font); font-weight: 600; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(var(--text-color-rgb), 0.35); margin-top: 2px; }
+/* The only line telling a viewer a lower number wins ("Fewer is better"), so
+   it reads at broadcast size: 15px, about 5:1. */
+.lr .k .hint { font-family: var(--ss-label-font); font-weight: 600; font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(var(--text-color-rgb), 0.6); margin-top: 2px; }
 .cap { padding-bottom: 4px; }
 /* One line each, tracked tight enough for a 70px column; the small column's
    header dimmed like its numbers, so two headers side by side read as two. */
