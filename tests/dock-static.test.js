@@ -98,12 +98,14 @@ test("the page loads nothing from off the app, and every file it loads is there"
   assert.ok(!/@import/.test(css), "no @import — the dock's stylesheet pulls nothing in");
 });
 
-test("the clipper form covers every setting but the master switch", () => {
+test("the clipper form covers every setting but the switches drawn by hand", () => {
   const block = /const CLIP_FIELDS = \[([\s\S]*?)\n  \];/.exec(js)[1];
   const keys = [...block.matchAll(/\{ key: "([^"]+)"/g)].map((m) => m[1]).sort();
-  const settings = Object.keys(CLIPPER_FIELDS).filter((k) => k !== "enabled").sort();
+  // Applied at once, so not in the form: the clipper's switch and the OBS card's own.
+  const byHand = { enabled: "clip-enabled", obsMonitor: "obs-monitor", obsExpectRecording: "obs-expect-rec", obsGameAudio: "obs-game-audio" };
+  const settings = Object.keys(CLIPPER_FIELDS).filter((k) => !(k in byHand)).sort();
   assert.deepStrictEqual(keys, settings);
-  assert.ok(declared.has("clip-enabled") && declared.has("clip-fields"));
+  for (const id of [...Object.values(byHand), "clip-fields", "obs-fields"]) assert.ok(declared.has(id), `#${id} is missing`);
   const dup = keys.filter((k) => declared.has(`clip-${k}`));
   assert.deepStrictEqual(dup, [], `generated AND hand-written: ${dup.join(", ")}`);
 });

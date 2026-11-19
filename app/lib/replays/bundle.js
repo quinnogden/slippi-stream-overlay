@@ -15,7 +15,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { buildContext, contextProblem } = require("./context");
-const { isFinished, readReplay } = require("./slp-file");
+const { isFinished, readReplay, trustedStart } = require("./slp-file");
 
 const CONTEXT_MAX_BYTES = 1024 * 1024;
 
@@ -61,7 +61,8 @@ function buildBundle(record, opts = {}) {
   if (opts.requireMeta && !record.meta) return { ok: false, error: "start.gg's details for this set haven't loaded", waiting: true };
 
   // Refine each game's timing from its finished file (the live read stopped
-  // at GAME!, and the metadata's startAt is Slippi's own clock).
+  // at GAME!). Its startAt is the replay's own clock, kept only while it
+  // agrees with when the app saw the game start (slp-file.js trustedStart).
   const games = [];
   const slp = [];
   for (const [i, g] of record.games.entries()) {
@@ -72,7 +73,8 @@ function buildBundle(record, opts = {}) {
     const replay = { ...g.replay };
     if (info.ok) {
       if (Number.isFinite(info.lastFrame)) replay.lastFrame = info.lastFrame;
-      if (Number.isFinite(info.startMs)) replay.startMs = info.startMs;
+      const start = trustedStart(info.startMs, g.replay.startMs);
+      if (start != null) replay.startMs = start;
     }
     games.push({ ...g, replay });
     slp.push(file);

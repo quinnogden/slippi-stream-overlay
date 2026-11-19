@@ -1,6 +1,6 @@
 /**
  * The dock's status snapshot (health, the report/start buttons, the port map,
- * the clipper), rebuilt on a 2s tick and on demand.
+ * the clipper, OBS's health), rebuilt on a 2s tick and on demand.
  *
  * Everything is local: the Current Set card and the tournament come from the
  * scoreboard store, start.gg's health dot from the event service's last read.
@@ -15,6 +15,7 @@ const HEARTBEAT_MS = 5000;
 
 const { evaluateReportability } = require("./report-set");
 const { evaluateStartability }  = require("./start-set");
+const { evaluate: judgeObs }    = require("../obs-health");
 
 /** The Current Set card before anything is known about the loaded set. */
 const emptyCurrentSet = (reason) => ({ setId: null, canReport: false, reason, canStart: false });
@@ -37,11 +38,58 @@ function createControlStatus(ctx, portInfo) {
     };
   }
 
+  // When the game on now started, as this tick first saw it (state.js keeps no
+  // start time): the game-audio check waits out its first seconds.
+  let gameSince = null;
+
+  /**
+   * OBS's lights and problems (lib/obs-health.js), with what the Clips tab's
+   * OBS card draws: the stream, the recording and each audio input's level.
+   */
+  function obsHealthBlock(now) {
+    const gameLive = Boolean(state.currentGameState);
+    if (!gameLive) gameSince = null;
+    else if (gameSince == null) gameSince = now;
+    const sb = store.scoreboard();
+    const setLoaded = Boolean(sb.setId) || sb.sides.some((s) => (s.players || []).some((p) => (p.tag || "").trim()));
+    const f = obs.health ? obs.health(now) : null;
+    const pages = io.pages ? io.pages() : [];
+    const j = judgeObs(f, { setLoaded, gameLive, gameSince, pages }, now);
+    const inputs = (f?.inputs || [])
+      .map((i) => ({
+        name: i.name,
+        // 3 dB steps: a level bar, not a meter, and fewer pushes.
+        db: Math.round(i.levelDb / 3) * 3,
+        muted: i.muted === true,
+        silenced: i.volumeMul === 0,
+        inMix: i.inMix,
+        game: i.name === j.gameAudio,
+      }))
+      .sort((a, b) => (b.inMix - a.inMix) || a.name.localeCompare(b.name));
+    return {
+      monitor: Boolean(f?.monitor),
+      connected: Boolean(f?.connected),
+      error: f?.lastError ?? null,
+      lights: j.lights,
+      issues: j.issues,
+      stream: { active: Boolean(f?.stream?.active), kbps: f?.stream?.kbps ?? 0, dropPct: f?.stream?.dropPct ?? 0 },
+      record: { active: Boolean(f?.record?.active), paused: Boolean(f?.record?.paused) },
+      fps: { now: f?.stats?.fps ?? null, target: f?.stats?.targetFps ?? null },
+      expectRecording: Boolean(f?.expectRecording),
+      gameAudio: j.gameAudio,
+      gameAudioAuto: j.gameAudioAuto,
+      gameAudioGuess: j.gameAudioGuess,
+      inputs,
+      sources: (f?.sources || []).length,
+    };
+  }
+
   /**
    * The whole control_status object. The one place its shape is written, so the
    * startup seed and the 2s rebuild can't disagree about which fields exist.
    */
   function compose({ currentSet }) {
+    const now = Date.now();
     const src = state.source?.getStatus?.() ?? { connected: false };
     const ev = event?.status() ?? { state: "none", error: null };
     const t = store.tournament();
@@ -55,7 +103,8 @@ function createControlStatus(ctx, portInfo) {
       tournament: { name: t.name, eventName: t.eventName },
       startggEnabled: startgg.enabled,
       clipper: clipperSnapshot(),
-      ts: Date.now(),
+      obsHealth: obsHealthBlock(now),
+      ts: now,
     };
   }
 

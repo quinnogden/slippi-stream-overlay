@@ -1,5 +1,6 @@
 /**
- * The combo clipper's settings, master switch and test button.
+ * The combo clipper's settings, master switch and test button, and OBS's
+ * (the connection and health settings live with the clipper's: one socket).
  */
 
 /**
@@ -27,6 +28,17 @@ function register(app, { clipperSettings, obs, refreshControlStatus, clipperSnap
     }
     const result = clipperSettings.save({ enabled });
     obs.applySettings();
+    refreshControlStatus();
+    res.json(result);
+  });
+
+  // An overlay in OBS that failed to load never retries: press its Refresh.
+  app.post("/api/obs/refresh-source", async (req, res) => {
+    const inputName = req.body?.inputName;
+    if (typeof inputName !== "string" || !inputName) {
+      return res.status(400).json({ ok: false, error: "inputName required" });
+    }
+    const result = await obs.refreshBrowserSource(inputName);
     refreshControlStatus();
     res.json(result);
   });

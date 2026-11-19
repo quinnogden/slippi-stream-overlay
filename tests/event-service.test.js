@@ -26,9 +26,10 @@ const os     = require("os");
 const path   = require("path");
 
 const { EventService } = require("../app/lib/event/event-service");
+const { createBracketOps } = require("../app/lib/event/bracket-ops");
 const { ScoreboardStore } = require("../app/lib/scoreboard/store");
 const { PlayerDb, serialize } = require("../app/lib/players/player-db");
-const { fakeStartgg } = require("./helpers/fake-startgg");
+const { fakeStartgg, loadCapture, rewind, startBracket } = require("./helpers/fake-startgg");
 
 let failed = 0;
 async function test(name, fn) {
@@ -306,6 +307,149 @@ async function until(cond, what, ms = 1000) {
     assert.deepStrictEqual(svc.openSets(), [], "nothing left to play");
     await svc.refresh();
     assert.strictEqual(called(startgg, "getPhaseGroupSets").length, before + 1, "…and now it's read once");
+  });
+
+  // When a bracket starts, start.gg reads as empty for a minute and then
+  // renumbers every set. The bracket on stream must not go blank, and the set
+  // on air must reach its new id with its games — reloading it would drop the
+  // game already played, and its replay with it.
+  await test("a bracket starting: the blank read keeps the last list, and the set on air follows its new id with its games", async () => {
+    const capture = loadCapture("hundred-acres-51");
+    const startgg = fakeStartgg(capture);
+    const { svc, store } = setup(null, { startgg });
+    await svc.switchEvent("singles");
+    const row = svc.openSets()[0];
+    await svc.loadSet(row.setId);
+    store.recordGame({ winnerSide: 0 });
+    const open = svc.openSets().length;
+
+    const sets = capture.phaseGroupSets[row.phaseGroupId];
+    capture.phaseGroupSets[row.phaseGroupId] = [];
+    await svc.refresh();
+    svc.stop();
+    assert.strictEqual(svc.openSets().length, open, "the last list stays up");
+    assert.ok(svc.status().rebuilding);
+    assert.strictEqual(store.scoreboard().setId, row.setId, "nothing moves while it's blank");
+
+    capture.phaseGroupSets[row.phaseGroupId] = sets;
+    startBracket(capture);
+    let relinked = null;
+    svc.on("set-relinked", (e) => { relinked = e; });
+    await svc.refresh();
+    svc.stop();
+    const sb = store.scoreboard();
+    assert.ok(!svc.status().rebuilding);
+    assert.ok(!sb.isPreview && !String(sb.setId).startsWith("preview"), "on the real id");
+    assert.deepStrictEqual(relinked, { from: row.setId, to: sb.setId });
+    assert.strictEqual(sb.games.length, 1, "the game played on the preview set is kept");
+    assert.ok(store.reportable().ok, "and it can be reported now");
+  });
+
+  // start.gg's lists show a report seconds later. The bracket on stream and
+  // Up next mustn't show a reported set as still open in the meantime — nor
+  // keep showing it done once start.gg says otherwise.
+  await test("a press shows at once, over start.gg's lagging lists, until they agree", async () => {
+    const capture = rewind(loadCapture("hundred-acres-49"), 0.5);
+    // Mid-event the groups are running, so every refresh reads them.
+    for (const ev of capture.tournament.events) for (const ph of ev.phases) for (const pg of ph.phaseGroups.nodes) pg.state = 2;
+    const { svc } = setup(null, { startgg: fakeStartgg(capture) });
+    await svc.switchEvent("singles");
+    const row = svc.openSets().find((s) => s.status === "playable");
+    const [a, b] = svc.findSet(row.setId).set.slots.map((s) => s.entrantId);
+    svc.afterAction(row.setId, { state: 3, winnerId: a, scores: { [a]: 2, [b]: 0 } });
+    svc.stop();
+    const state = () => svc.findSet(row.setId).set.state;
+    assert.strictEqual(state(), "done", "shown done at once");
+    await svc.refresh();
+    assert.strictEqual(state(), "done", "a lagging read doesn't bring it back");
+    const shown = svc.findSet(row.setId).set;
+    assert.deepStrictEqual(shown.slots.map((s) => s.score), shown.slots.map((s) => (s.entrantId === a ? 2 : 0)));
+
+    const raw = capture.phaseGroupSets[row.phaseGroupId].find((s) => String(s.id) === row.setId);
+    raw.state = 3;
+    await svc.refresh(); // start.gg agrees: the press is forgotten…
+    raw.state = 1;
+    await svc.refresh(); // …so a TO's reset on start.gg shows
+    svc.stop();
+    assert.strictEqual(state(), "pending");
+  });
+
+  // ── The Bracket tab's "Run the bracket" card (lib/event/bracket-ops.js) ──
+
+  const opsFor = (svc, store, startgg) => {
+    const ops = createBracketOps({ event: svc, store, startgg, io: { emit() {} } }, { log: () => {} });
+    ops.start();
+    return ops;
+  };
+  const midEvent = () => {
+    const capture = rewind(loadCapture("hundred-acres-49"), 0.4);
+    for (const ev of capture.tournament.events) for (const ph of ev.phases) for (const pg of ph.phaseGroups.nodes) pg.state = 2;
+    return capture;
+  };
+
+  // The set on the scoreboard is the strip's to report: it sends each game in
+  // order and queues the replays. A report from the card sends the games too
+  // (start.gg keeps no score without them), ending on the winner's.
+  await test("the bracket card: ready sets in call order, the on-air set refused, a report's games ending on the winner's", async () => {
+    const startgg = fakeStartgg(midEvent());
+    const { svc, store } = setup(null, { startgg });
+    await svc.switchEvent("singles");
+    const ops = opsFor(svc, store, startgg);
+    const ready = ops.snapshot().sets.filter((r) => r.status === "ready");
+    assert.ok(ready.length >= 3, "the rewound bracket has sets to call");
+    assert.deepStrictEqual(ready.map((r) => r.callOrder), ready.map((_, i) => i + 1));
+    for (let i = 1; i < ready.length; i++) {
+      const [p, q] = [ready[i - 1], ready[i]];
+      const gap = (r) => Math.abs(r.slots[0].seed - r.slots[1].seed);
+      assert.ok(p.lPlacement > q.lPlacement || (p.lPlacement === q.lPlacement && gap(p) <= gap(q)),
+        `#${p.callOrder} before #${q.callOrder}: earliest in the bracket, then the closest seeds`);
+    }
+
+    await svc.loadSet(ready[0].setId);
+    const onAir = await ops.act({ action: "report", setId: ready[0].setId, scores: {} });
+    assert.ok(!onAir.ok && /strip/.test(onAir.error));
+
+    const r = ready[1];
+    const [a, b] = r.slots.map((s) => s.entrantId);
+    assert.ok(!(await ops.act({ action: "report", setId: r.setId, scores: { [a]: 1, [b]: 1 } })).ok, "a tie is refused");
+    const done = await ops.act({ action: "report", setId: r.setId, scores: { [a]: 1, [b]: 2 } });
+    assert.ok(done.ok, done.error);
+    svc.stop();
+    const [, winner, games] = called(startgg, "reportSet")[0].args;
+    assert.strictEqual(winner, b);
+    assert.deepStrictEqual(games.map((g) => g.winnerId), [a, b, b]);
+    assert.ok(ops.snapshot().recent.some((x) => x.setId === r.setId), "shown reported at once");
+
+    const dq = await ops.act({ action: "report", setId: ready[2].setId, dq: ready[2].slots[0].entrantId });
+    svc.stop();
+    assert.ok(dq.ok, dq.error);
+    assert.deepStrictEqual(called(startgg, "reportSet")[1].args[3], { isDQ: true });
+  });
+
+  // A set loaded before the TO starts the bracket is a preview set: start.gg
+  // can't put it on a stream yet. The mark waits, and goes to the set's real
+  // id once the bracket starts.
+  await test("a preview set loaded goes on our start.gg stream once the bracket starts", async () => {
+    const capture = loadCapture("hundred-acres-51");
+    capture.tournament.streams = [{ id: 77, streamName: "rvamelee", streamSource: "TWITCH", enabled: true }];
+    const startgg = fakeStartgg(capture);
+    const { svc, store } = setup(null, { startgg });
+    await svc.switchEvent("singles");
+    const ops = opsFor(svc, store, startgg);
+    const row = svc.openSets()[0];
+    await svc.loadSet(row.setId);
+    const r = await ops.markLoaded(row.setId);
+    assert.ok(r.ok && r.queued);
+    assert.strictEqual(called(startgg, "assignStream").length, 0, "nothing sent for a preview id");
+
+    startBracket(capture);
+    await svc.refresh();
+    svc.stop();
+    await until(() => called(startgg, "assignStream").length === 1, "the queued stream mark");
+    const sb = store.scoreboard();
+    assert.deepStrictEqual(called(startgg, "assignStream")[0].args, [sb.setId, "77"]);
+    await until(() => ops.snapshot().sets.some((x) => x.onAir && x.onStream), "shown on stream");
+    svc.stop();
   });
 
   await test("stats pre-fetch the players in the next playable sets", async () => {

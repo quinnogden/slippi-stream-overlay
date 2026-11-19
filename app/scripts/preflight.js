@@ -436,8 +436,12 @@ function checkClipper(config) {
     info("clipper-settings.json", "absent (normal first run) — using the defaults; the Clips tab writes it on first save (every key: clipper-settings.example.json)");
   }
 
+  info("OBS health", settings.obsMonitor
+    ? `watched — game audio: ${settings.obsGameAudio || "guessed by name"}${settings.obsExpectRecording ? "; a stream without a recording is flagged" : ""}`
+    : "not watched (Clips → OBS → Watch): no lights for the stream, the audio or the overlays");
+
   if (!settings.enabled) {
-    info("Clipper", "disabled — no combo detection, no OBS socket");
+    info("Clipper", "disabled — no combo detection");
   } else {
     pass("Clipper", "enabled");
     info("Thresholds", `${settings.minMoves}+ moves, ${settings.minDamage}%+, requireKill=${settings.requireKill}, cooldown ${settings.cooldownSec}s, delay ${settings.saveDelayMs}ms`);
@@ -621,10 +625,11 @@ async function probeObs(settings) {
     return;
   }
 
-  // With the clipper off, nothing in the app touches OBS — an unreachable OBS
-  // is then just information, not a warning about a broken setup. Still probed,
-  // so the chain can be proven before the clipper is switched on.
-  const unreachable = settings.enabled ? warn : info;
+  // With Watch OBS and the clipper both off, nothing in the app touches OBS —
+  // an unreachable OBS is then just information, not a warning about a broken
+  // setup. Still probed, so the chain can be proven before either is switched on.
+  const used = settings.enabled || settings.obsMonitor;
+  const unreachable = used ? warn : info;
 
   const obs = new OBSWebSocket();
   try {
@@ -634,7 +639,7 @@ async function probeObs(settings) {
     const msg = errText(e);
     unreachable("OBS WebSocket", /authentication/i.test(msg)
       ? "password rejected (OBS → Tools → WebSocket Server Settings → Show Connect Info)"
-      : `cannot reach ${settings.obsUrl} — ${msg}${settings.enabled ? "" : " (clipper is off, so nothing depends on this)"}`);
+      : `cannot reach ${settings.obsUrl} — ${msg}${used ? "" : " (Watch OBS and the clipper are off, so nothing depends on this)"}`);
     return;
   }
 

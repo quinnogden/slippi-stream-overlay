@@ -149,7 +149,9 @@
       console.error(`[${tag}] socket.io client missing — is the app running?`);
     } else {
       const namespace = opts.namespace || "/overlay";
-      socket = root.io(namespace);
+      // The page says which it is, so the app can tell an OBS browser source
+      // that never loaded from one that did (lib/obs-health.js).
+      socket = root.io(namespace, { auth: { page: pagePath() } });
       socket.on("state:full", (msg) => {
         mirror.full(msg);
         if (!drawn) {
@@ -415,10 +417,15 @@
       .onfinish = () => root.location.reload();
   }
 
+  function pagePath() {
+    const loc = root.location || {};
+    return (loc.pathname || "") + (loc.search || "");
+  }
+
   /** For a page that never connects (highlights): listen for the theme alone. */
   function followTheme() {
     if (typeof root.io !== "function") return;
-    root.io("/overlay").on("theme", reloadForTheme);
+    root.io("/overlay", { auth: { page: pagePath() } }).on("theme", reloadForTheme);
   }
 
   // ── DOM helpers ─────────────────────────────────────────────────────────────

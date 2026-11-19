@@ -12,5 +12,8 @@
   "saveDelayMs": 2500,
   "maxClipsPerGame": 0,
   "clipFolder": "",
-  "notifySidePanel": true
+  "notifySidePanel": true,
+  "obsMonitor": true,
+  "obsExpectRecording": false,
+  "obsGameAudio": ""
 }

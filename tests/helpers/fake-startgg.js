@@ -50,7 +50,7 @@ function fakeStartgg(captureName, { enabled = true } = {}) {
     getEvent: (slug) => {
       const ev = events.find((e) => e.slug === slug);
       return rec("getEvent", [slug], ev
-        ? { ok: true, event: { ...JSON.parse(JSON.stringify(ev)), tournament: { id: t.id, name: t.name, slug: t.slug } } }
+        ? { ok: true, event: { ...JSON.parse(JSON.stringify(ev)), tournament: { id: t.id, name: t.name, slug: t.slug, streams: t.streams ?? [] } } }
         : { ok: false, error: `start.gg doesn't recognise the event "${slug}"` });
     },
     getPhaseGroupSets: (id) => {
@@ -67,6 +67,9 @@ function fakeStartgg(captureName, { enabled = true } = {}) {
     },
     reportSet: (...a) => rec("reportSet", a, { ok: true, state: 3 }),
     startSet: (...a) => rec("startSet", a, { ok: true, state: 2 }),
+    callSet: (...a) => rec("callSet", a, { ok: true, state: 6 }),
+    assignStream: (...a) => rec("assignStream", a, { ok: true }),
+    resetSet: (...a) => rec("resetSet", a, { ok: true, state: 1 }),
     getSetState: (...a) => rec("getSetState", a, { ok: true, state: 1 }),
     backgroundQuery: (...a) => rec("backgroundQuery", a, { ok: false, error: "fake-startgg: backgroundQuery not captured" }),
   };
@@ -98,4 +101,27 @@ function rewind(capture, frac, { live = 0 } = {}) {
   return capture;
 }
 
-module.exports = { loadCapture, eventFrom, fakeStartgg, rewind };
+/**
+ * An unstarted capture, started: what start.gg does to a bracket when its
+ * first set starts — every `preview_…` set id (and every prereqId naming one)
+ * becomes a number, the entrants and set letters stay. Mutates and returns
+ * `capture`.
+ */
+function startBracket(capture) {
+  let next = 900000;
+  const ids = new Map();
+  for (const sets of Object.values(capture.phaseGroupSets)) {
+    for (const s of sets) if (String(s.id).startsWith("preview")) ids.set(String(s.id), next++);
+  }
+  for (const sets of Object.values(capture.phaseGroupSets)) {
+    for (const s of sets) {
+      if (ids.has(String(s.id))) s.id = ids.get(String(s.id));
+      for (const slot of s.slots ?? []) {
+        if (slot.prereqType === "set" && ids.has(String(slot.prereqId))) slot.prereqId = String(ids.get(String(slot.prereqId)));
+      }
+    }
+  }
+  return capture;
+}
+
+module.exports = { loadCapture, eventFrom, fakeStartgg, rewind, startBracket };

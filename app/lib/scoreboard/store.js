@@ -306,6 +306,35 @@ class ScoreboardStore extends SafeEmitter {
     return true;
   }
 
+  /**
+   * start.gg gave the set on the scoreboard a new id — the bracket started
+   * (`preview_…` → a number) or a TO reset it — and it is the same match: the
+   * same two entrants (event-service.js finds it). Only the link moves; the
+   * names, games, overrides and ports stay, and it's not a new set (no
+   * `set-loaded`). The sides' entrant ids are the match, so they don't change.
+   * @param {{ setId: string, phaseGroupId?: string|null, identifier?: string, roundName?: string,
+   *           lPlacement?: number|null, isGrandFinal?: boolean, isReset?: boolean }} link
+   * @returns {boolean} whether anything changed
+   */
+  relinkSet(link) {
+    const s = this._set;
+    if (s.crew || s.setId == null || link?.setId == null) return false;
+    const next = {
+      setId: String(link.setId),
+      phaseGroupId: link.phaseGroupId ?? s.phaseGroupId,
+      identifier: link.identifier ?? s.identifier,
+      roundName: link.roundName || s.roundName,
+      lPlacement: link.lPlacement ?? s.lPlacement,
+      isGrandFinal: link.isGrandFinal ?? s.isGrandFinal,
+      isReset: link.isReset ?? s.isReset,
+      isPreview: String(link.setId).startsWith("preview"),
+    };
+    if (Object.keys(next).every((k) => s[k] === next[k])) return false;
+    Object.assign(s, next);
+    this._changed(["scoreboard"]);
+    return true;
+  }
+
   // ── Crew battles ────────────────────────────────────────────────────────────
   // Each returns { ok, error } (or crewApplyGame's outcome) rather than
   // throwing: the dock shows the refusal. Validated input only — the routes

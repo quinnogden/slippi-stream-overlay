@@ -26,7 +26,7 @@ const { StreamSets } = require("../app/lib/replays/stream-sets");
 const { buildBundle } = require("../app/lib/replays/bundle");
 const { archiveBundle } = require("../app/lib/replays/archive");
 const { LuckyStatsUploads } = require("../app/lib/replays/uploader");
-const { isFinished } = require("../app/lib/replays/slp-file");
+const { isFinished, trustedStart } = require("../app/lib/replays/slp-file");
 
 let failed = 0;
 const say = (s) => process.stdout.write(s + "\n");
@@ -269,6 +269,17 @@ function playSet(store, { winners, files }) {
   });
 
   // ── Bundle and archive ─────────────────────────────────────────────────────
+
+  // A console's clock an hour or a year off would put the set on the wrong
+  // day on LuckyStats; the PC saw the game start, and its clock wins then.
+  await test("a replay's own start time stands only while it agrees with the PC's", () => {
+    const pc = Date.parse("2026-11-12T20:00:00Z");
+    assert.strictEqual(trustedStart(pc + 30000, pc), pc + 30000, "a few seconds apart: the replay's own");
+    assert.strictEqual(trustedStart(pc + 3600000, pc), pc, "an hour off (daylight saving): the PC's");
+    assert.strictEqual(trustedStart(pc - 365 * 86400000, pc), pc, "a year off: the PC's");
+    assert.strictEqual(trustedStart(NaN, pc), pc);
+    assert.strictEqual(trustedStart(pc, null), pc);
+  });
 
   await test("a file Slippi is still writing holds the bundle back (waiting, not broken)", () => {
     const store = loadedStore();

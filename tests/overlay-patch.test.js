@@ -219,7 +219,7 @@ const assertInSync = (client, store, msg) =>
     assert.deepStrictEqual(names(after), ["stats"], "once the game is over it isn't replayed");
   });
 
-  await test("a theme switch fades out and reloads every source — the highlights frame too, which reads no state", async () => {
+  await test("a theme switch fades out and reloads every source — the highlights frame too, which reads no state — and each says which page it is", async () => {
     const store = new ScoreboardStore();
     const { io, nsps } = sandbox.fakeIo();
     const channel = createOverlayChannel({ io, store });
@@ -230,6 +230,9 @@ const assertInSync = (client, store, msg) =>
     channel.emit("theme_changed", { pack: "hundred-acres" }); // mid-fade: still one reload
     await sandbox.sleep(30);
     for (const [page, p] of pages) assert.strictEqual(p.window.location.reloads, 1, `${page} reloaded ${p.window.location.reloads} times`);
+    // Each says which page it is, so OBS's health check can tell a browser
+    // source that loaded from one that didn't (lib/obs-health.js).
+    assert.deepStrictEqual(channel.pages().sort(), ["/o/bracket", "/o/casters", "/o/highlights", "/o/side-panel"]);
   });
 
   console.log(failed === 0 ? "overlay-patch: all passed" : `overlay-patch: ${failed} failed`);

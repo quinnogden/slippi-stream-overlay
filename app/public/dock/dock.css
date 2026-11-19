@@ -848,6 +848,44 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 .set-players .p2 { text-align: right; }
 .set-players .seed { font: 500 10px/1 var(--d-mono); color: var(--d-ink-faint); }
 .set-players .sc { flex: 0 0 auto; font: 500 12px/1 var(--d-mono); color: var(--d-ink-dim); }
+.set-players .p.won { color: var(--d-accent); }
+.chip.stream { color: #d7c4ff; background: rgba(145, 70, 255, .22); }
+
+/* ── Bracket tab: run the bracket ── */
+
+.badge.gone, .ops-list.gone { display: none; }
+.ops-settings { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 12px; margin-bottom: 8px; }
+.ops-settings .field.check { flex: 1 1 260px; }
+.ops-stream-field { flex: 0 1 220px; margin-top: 0; }
+.ops-list { max-height: 52vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+#ops-recent { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--d-line); }
+.ops-row.called::before { background: #5ab0ff; }
+.ops-row.waiting { opacity: .55; }
+.ops-row.done::before { background: var(--d-ink-faint); }
+.ops-row.open { border-color: rgba(var(--d-accent-rgb), .7); border-bottom-left-radius: 0; border-bottom-right-radius: 0; margin-bottom: 0; }
+.chip.order { color: var(--d-bg); background: var(--d-green); }
+.chip.live { color: var(--d-amber); background: rgba(255, 176, 32, .14); }
+.chip.called { color: #5ab0ff; background: rgba(90, 176, 255, .14); }
+.ops-actions {
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  background: var(--d-well);
+  border: 1px solid rgba(var(--d-accent-rgb), .7);
+  border-top: 0;
+  border-radius: 0 0 7px 7px;
+}
+.ops-actions .key-row { margin-top: 0; }
+.ops-actions .key-row > .key { flex: 1 1 84px; }
+.ops-actions .confirm { margin-top: 8px; }
+.ops-report { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.ops-score { display: flex; align-items: center; gap: 6px; }
+.ops-score .who { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ops-score .n { flex: 0 0 28px; text-align: center; font: 700 18px/1 var(--d-mono); color: var(--d-accent); }
+
+/* The strip's stream chip: a badge that's also a key (a tap puts the set on stream). */
+.stream-mark { flex: 0 0 auto; border: 0; cursor: pointer; }
+.stream-mark.ok { cursor: default; }
+.strip.folded .stream-mark { display: none; }
 
 /* ── Ports ── */
 
@@ -1332,3 +1370,44 @@ kbd {
 .stats-table-note > .hint { flex: 1 1 auto; margin: 0; min-width: 0; }
 .stats-table-note > .key { flex: 0 0 auto; }
 .stats-table-note > .gone { display: none; }
+
+/* ── OBS's health ───────────────────────────────────────────────────────────── */
+
+/* The problems bar, under the header on every tab. */
+.alerts { display: flex; flex-direction: column; gap: 4px; padding: 0 10px; }
+.alerts:empty { display: none; }
+.alert, .obs-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 10px;
+  border: 1px solid var(--d-line);
+  border-left: 3px solid var(--d-ink-faint);
+  border-radius: 6px;
+  background: var(--d-panel);
+  font-size: 13px;
+  line-height: 1.25;
+}
+.alert { margin-top: 6px; }
+.alert + .alert { margin-top: 0; }
+.alert.error, .obs-check.error { border-left-color: var(--d-red); background: linear-gradient(90deg, rgba(255, 59, 48, .16), var(--d-panel) 60%); }
+.alert.warn, .obs-check.warn { border-left-color: var(--d-amber); background: linear-gradient(90deg, rgba(255, 176, 32, .12), var(--d-panel) 60%); }
+.obs-check.ok { border-left-color: var(--d-green); color: var(--d-ink-dim); }
+.obs-check.note { color: var(--d-ink-dim); }
+.issue-text { flex: 1 1 auto; min-width: 0; }
+.alert > .key, .obs-check > .key { flex: 0 0 auto; }
+
+/* The OBS card on the Clips tab. */
+.obs-checks { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.obs-audio { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; }
+.obs-input { display: grid; grid-template-columns: minmax(0, 1fr) minmax(80px, 1.2fr) 72px; align-items: center; gap: 8px; min-height: 24px; font-size: 13px; }
+.obs-input.away { opacity: .5; }
+.obs-input-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.obs-input.game .obs-input-name { color: var(--d-accent); }
+.obs-input-tag { font: 600 11px/1 var(--d-sign); letter-spacing: .1em; text-transform: uppercase; color: var(--d-ink-dim); text-align: right; }
+.obs-meter { position: relative; height: 8px; border-radius: 4px; background: var(--d-well); border: 1px solid var(--d-line); overflow: hidden; }
+.obs-meter > i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--d-green); transition: width .25s ease-out; }
+.obs-meter > i.hot { background: var(--d-red); }
+.obs-settings { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 12px; margin-top: 4px; }
+.obs-game-field { flex: 1 1 220px; }
+.obs-settings .field.check { flex: 0 1 auto; }

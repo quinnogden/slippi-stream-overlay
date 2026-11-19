@@ -28,6 +28,7 @@ serves every OBS overlay, and gives the stream operator one panel to drive it al
 - 📈 **Set stats after every game.** A popup puts the game just played beside the set so far, read from the replays, and wraps up the set once it's won.
 - 📊 **Player stats on stream.** The side panel shows each player's recent results, their run through today's bracket and their head-to-head. Add a [luckystats.gg](https://luckystats.gg) key for rankings and a win projection.
 - ⚔️ **Crew battles built in.** Stocks carry from game to game and are scored from Slippi, just like a normal set.
+- 🚦 **OBS problems show before chat sees them.** Lights and a problems bar in the dock flag a set loaded while you're not live, game audio that's muted or silent mid-game, dropped frames, a missed recording and an overlay that didn't load (with a button to refresh it).
 - 🎬 **Combos clip themselves.** When a big combo lands, OBS saves its replay buffer, and the clips play back on your break scene.
 - 🧠 **It learns your players.** Pronouns and mains are kept in a player database, and mains are learned from what people actually play.
 
@@ -54,7 +55,7 @@ It replaced [Tournament Stream Helper (TSH)](https://github.com/joaorb64/Tournam
 |---|---|
 | [**Node.js 18+**](https://nodejs.org) | Runs the app. |
 | **Slippi Desktop App** | Set to spectate/mirror mode, so it writes live `.slp` files to a folder. |
-| **OBS 28+** | Version 28 has obs-websocket v5 built in, which the [combo clipper](#combo-clipper) uses. |
+| **OBS 28+** | Version 28 has obs-websocket v5 built in, which the OBS health lights and the [combo clipper](#combo-clipper) use. |
 | *Optional:* **64-bit VLC** and a Python that OBS will load | Only for the break-scene clip playlist ([details](#playing-clips-back)). |
 
 ---
@@ -147,7 +148,7 @@ Add each overlay as a **Browser Source**. You don't need to type these: the dock
 > [!IMPORTANT]
 > On **every** browser source, uncheck **"Shutdown source when not visible"** and **"Refresh browser when scene becomes active"**.
 >
-> Start the app **before** OBS. If OBS was already open, refresh the sources once the app is up.
+> Start the app **before** OBS. If OBS was already open, refresh the sources once the app is up: the dock names any source that didn't load, with a **Refresh** button.
 
 The side panel has a transparent 587 × 330 cutout for your webcam, so put the webcam source **behind** it.
 
@@ -192,11 +193,11 @@ The strip folds to one line (names, score, ⇆ ⇄, Report and Stats), and so do
 | Tab | What's in it |
 |---|---|
 | **Set** | The event's sets, with **playable sets first**. Tap one to put it on the scoreboard. For friendlies, **Clear set** on the strip. |
-| **Bracket** | What the [bracket overlay](#bracket) shows: the view, **Auto** or a held page, and the Board's arrows, zoom and minimap. Below that, **Singles** / **Doubles** for this week's event. |
+| **Bracket** | What the [bracket overlay](#bracket) shows: the view, **Auto** or a held page, and the Board's arrows, zoom and minimap. Below that, **Singles** / **Doubles** for this week's event, and **Run the bracket**: call, start, report, reset and put sets on your start.gg stream, with the ready sets in a suggested call order. |
 | **Stats** | The [stats popup](#set-stats): its layout (or **Auto**), the game's or the set's numbers, the look, how long it waits and holds, and **Auto** to put it up after each game. The **Layouts** table picks which layouts Auto uses. |
 | **Casters** | Up to four casters. Edits are a draft until you press **Put on stream**. |
 | **Players** | This event's entrants by seed, each with the main their sets open on (tap to set it), then the whole player database: fix a prefix or pronoun, or set a main. |
-| **Clips** | The combo clipper: on/off, the OBS connection, thresholds, recent clips, and **Test clip**. |
+| **Clips** | **OBS**: the connection, what OBS is doing, every problem it has, a level bar per audio input, and which input is the game's sound. Then the combo clipper: on/off, thresholds, recent clips, and **Test clip**. |
 | **Replays** | Each stream set's replay files, archived and uploaded to LuckyStats.gg after Report. Fix a game's winner or character, attach a missing file, re-upload. |
 | **Crew** | Build two crews and run a [crew battle](#crew-battles). |
 | **Setup** | Every OBS URL, the phone URLs, the hotkeys, the [theme](#theme-packs), the stats popup's **art packs** (one-click download), the **tab bar** (which tabs show and in what order; the rest go under **More**), and where the files are. |

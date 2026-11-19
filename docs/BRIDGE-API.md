@@ -21,10 +21,12 @@ Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/si
 | `status` / `clip:error` | app → dock | The `control_status` / `slippi_clip_error` payloads |
 | `crew:notice` | app → dock | The `crew_notice` payload: a crew game that changed no stocks, or started with a side nobody was sent in for. Never on the broadcast |
 | `replays` | app → dock | The `replays_state` payload: the Replays tab's whole picture. Sticky |
+| `bracket-ops` | app → dock | The `bracket_ops` payload: the Bracket tab's "Run the bracket" card and the strip's stream chip. Sticky |
 | `theme` | app → both | `{ pack }` (from `theme_changed`), after `POST /api/theme` changed the pack. **An overlay fades out and reloads** — `connect()` and `followTheme()` both listen; the dock only updates its select. Not sticky: a page that loads later reads the new `theme.css` anyway |
 
 - **`from` is what keeps a source honest.** A page applies a patch only when `from` ≤ its own rev. A larger `from` means it missed one, and it must send `state:resync` rather than apply it: every later patch carries only the sections that changed, so a source that missed one would otherwise show the old score indefinitely while looking healthy. A patch whose `rev` it already has (it connected mid-burst, and its `state:full` was newer) is ignored. `state:full` is always taken, even at a lower rev — the app may have restarted. `tests/overlay-patch.test.js` pins all three.
 - **Selectors run on change only.** `ov.select(path, fn)` compares the JSON at `path`, so a casters edit doesn't re-run, and re-animate, the scoreboard.
+- **A page says which it is.** `Overlay.connect()` and `followTheme()` connect with `auth: { page: location.pathname + location.search }`; the channel counts the `/overlay` sockets per page (`pages()`, the Referer when a page sends none), and OBS's health check flags a browser source whose page has none.
 - **Sticky events.** A page that connects mid-game gets `game:start` (dropped at `game:end`, a handwarmer's included) and the last `stats`; the dock also gets the last `status`.
 - **The feature modules don't know about the channel.** They emit the event names below through `ctx.io`, which is the channel's `emit()`; its `RELAY` table maps each to the names above, per namespace, and an event with no entry goes nowhere. Nothing is sent on the default namespace.
 - **Overlay urls are absolute** (`/o/shared/overlay.css`), so a source works with or without a trailing slash. Every stylesheet sits one level under `/o/`, because a theme pack's `--logo-url` resolves against the stylesheet that uses it. The theme switch is `overlays/theme.css` (`/o/theme.css`) and the packs are `overlays/themes/<pack>/`. `tests/overlays-static.test.js` resolves every page's urls through the server's own tables.
@@ -261,6 +263,33 @@ Dock only (`replays`), sticky, debounced; sent on every change to the stream-set
 - **A set reported on start.gg instead** (`startgg`, sets not reported here only): `waiting` until start.gg shows it completed; `match` queues the upload by itself; `mismatch` (a different score) and `dq` never do.
 - **`blocked`** is a set that can't be bundled until it's fixed (`problem`); **`retry`** waits for `nextTryAt` (a file still being written, start.gg's details still loading, a 429 or a 5xx).
 
+### `bracket_ops`
+
+Dock only (`bracket-ops`), sticky; sent on every event change, press and set load (`lib/event/bracket-ops.js` `snapshot()`, also `GET /api/bracket-ops`):
+
+```js
+{
+  enabled: true,                                   // a start.gg token: false = the card is read-only
+  event: { name, tournamentName } | null,
+  rebuilding: false,                               // start.gg reads the bracket as empty (it's starting) — the last list is shown
+  streams: [{ id: "1443274", name: "rvamelee", source: "TWITCH" }],   // the tournament's, enabled ones
+  stream: { id, name, source } | null,             // ours: settings.streamName, else the only one
+  settings: { markOnStream: true, streamName: "" },// data/bracket-ops.json
+  lastMark: null | { setId, ok, queued, error, stream, at },   // the last stream mark of a loaded set
+  queue: [{ kind: "stream" | "call", label, at }], // presses on preview sets, sent once the bracket has real ids
+  sets: [{ setId, phaseGroupId, group, round, identifier,
+           status: "live" | "called" | "ready" | "waiting",  // live first, then called, ready (in call order), waiting
+           preview, lPlacement, startedAt, completedAt,       // start.gg seconds
+           station, streamId, onStream, onAir,
+           winner: 0 | 1 | null, callOrder: 1 | null,        // ready sets only: earliest in the bracket, closest seeds, better seed
+           slots: [{ entrantId, name, seed, score, dq }, …] }],
+  recent: [ … ],                                   // the last 12 finished, newest first (same shape, status "done")
+}
+```
+
+- **Every press shows at once.** A press is laid over start.gg's lists until they agree (or 2 min), so a reported set leaves `sets` the moment start.gg accepts it, not at the next read.
+- **`onAir`'s set is never reported from here** — the strip's Report sends its games in order and queues its replays.
+
 ### `slippi_clip_saved` / `slippi_clip_error`
 
 Same payload, split by outcome. **Only `slippi_clip_saved` reaches the broadcast overlay** — clip failures go to the operator's dock, never on stream. `slippi_clip_saved` is additionally suppressed when `notifySidePanel` is off.
@@ -376,9 +405,31 @@ The dock's status snapshot. Identical shape to `GET /api/status`. Rebuilt every 
     recentClips: [ /* newest first, max 10, same shape as slippi_clip_saved */ ],
     clipsThisGame: 0,
   },
+  obsHealth: {                     // lib/obs-health.js over obs.health(), every tick
+    monitor: true,                 // Watch OBS (clipper settings' obsMonitor)
+    connected: true,
+    error: null,                   // why OBS can't be reached
+    lights: { obs: "up", live: "up", rec: "off", audio: "warn" },  // up | warn | down | idle (grey) | off (hidden)
+    issues: [                      // errors first
+      { id: "source:Side panel", light: "obs", level: "warn",     // error | warn | note (the OBS card only)
+        text: "The overlay \"Side panel\" didn't load",
+        fix: { label: "Refresh", action: "refresh-source", input: "Side panel" } },  // fix: optional
+    ],
+    stream: { active: true, kbps: 6000, dropPct: 0.3 },
+    record: { active: false, paused: false },
+    fps: { now: 60, target: 60 },
+    expectRecording: false,
+    gameAudio: "Elgato Game Capture",  // the input judged as the game's sound, or null
+    gameAudioAuto: true,           // guessed by name (no pick)
+    gameAudioGuess: "Elgato Game Capture",  // the guess, picked or not
+    inputs: [ { name, db, muted, silenced, inMix, game } ],  // db in 3 dB steps; silenced = volume 0
+    sources: 2,                    // OBS browser sources showing this app's overlays
+  },
   ts: 1753800000000,
 }
 ```
+
+**`issues[].id` is stable while the problem lasts** (the dock's ✕ hides one until it clears). The texts are fixed apart from a drop or lag figure, so the status isn't re-sent for nothing; the level bars do change it most ticks.
 
 **`clipper.settings.obsPassword` is included in this payload.** It goes to same-origin dock clients, which is the design, but it does mean the OBS WebSocket password is readable by anything that can reach `/api/status` — including a phone on the venue LAN. Don't widen that exposure further — no proxying it outward.
 
@@ -396,8 +447,11 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `GET` | `/api/state` | The overlays' state — the same object `state:full` sends |
 | `GET` | `/api/player-stats` | The `player_stats` snapshot above — for checking what the side panel is being fed |
 | `GET` | `/api/event` | The loaded event, its phase groups and the last read's status |
-| `GET` | `/api/sets[?finished=1][&refresh=1]` | The set picker, playable sets first: `{ ok, data: [{ setId, status, roundName, identifier, names, seeds, scores, preview, … }], status }`. Answered from the last read; `refresh=1` re-reads start.gg first (the dock's ↻) |
-| `POST` | `/api/load-set` | `{ setId }` → re-read that set from start.gg, fill pronouns and mains from the player DB, put it on the scoreboard. The outgoing set's mains are learned first |
+| `GET` | `/api/sets[?finished=1][&refresh=1]` | The set picker, playable sets first: `{ ok, data: [{ setId, status, roundName, identifier, names, seeds, scores, preview, streamId, … }], status }` (`streamId`: the start.gg stream it's on — the dock leads with ours). Answered from the last read; `refresh=1` re-reads start.gg first (the dock's ↻) |
+| `POST` | `/api/load-set` | `{ setId }` → re-read that set from start.gg, fill pronouns and mains from the player DB, put it on the scoreboard. The outgoing set's mains are learned first. Then (not awaited) the set goes on our start.gg stream while `markOnStream` is on — a preview set once the bracket starts (`bracket_ops.lastMark`) |
+| `GET` | `/api/bracket-ops` | The `bracket_ops` snapshot above |
+| `POST` | `/api/bracket-ops/action` | `{ action, setId }` on any set of the loaded event: `call` (markSetCalled), `start` (markSetInProgress — **on a preview set it starts the whole bracket**), `stream` (assignStream to ours), `report` (`scores: { [entrantId]: 0–9 }`, the winner higher; the games go loser's first, ending on the winner's — or `dq: entrantId`), `reset` (resetSet, refused by start.gg if a later set depends on it). Refused: no token, a set not in the event, `report` on the set on the scoreboard, a tie. `call`/`stream` on a preview set while start.gg rebuilds the bracket are queued (`queued: true`) |
+| `POST` | `/api/bracket-ops/settings` | `{ markOnStream?, streamName? }` → `data/bracket-ops.json`. `streamName` "" = the tournament's only stream |
 | `POST` | `/api/bracket` | `{ kind: "singles" \| "doubles" }` → load this week's event of that kind |
 | `POST` | `/api/bracket-url` | `{ url }` → load the event a pasted start.gg URL names. Same reply as `/api/bracket` |
 | `POST` | `/api/bracket-view` | `{ view?, phaseGroupId? }` — what every bracket source not pinned with `?view=` shows: `winners`, `losers`, `top8`, `top16`, `full` or `upnext`. `phaseGroupId: null` goes back to following the set on air. 400 for an unknown view or a group not in the loaded event |
@@ -451,9 +505,10 @@ All under `http://localhost:5001`. Responses are `{ ok, error?, … }` — the s
 | `POST` | `/api/art-packs/download` | Downloads every pack that's missing or behind the release, in the background; answers at once with the same shape (plus `upToDate: true` when there was nothing to do). A press while one runs returns that job. 502 when GitHub's pack list can't be read |
 | `POST` | `/api/theme` | `{ pack }` — rewrites the `@import` line in `overlays/theme.css` (atomic; the header comment is kept) and sends `theme`. 400 for a pack not in `themes` or a `theme.css` with no `@import` line to repoint. `{ ok, pack, changed }`. The file is git-tracked, so a non-default pack shows as a local change |
 | `GET` | `/api/clipper` | `{ settings, obs, recentClips, clipsThisGame }` |
-| `POST` | `/api/clipper/settings` | Validate, clamp, persist to `clipper-settings.json`, apply live |
+| `POST` | `/api/clipper/settings` | Validate, clamp, persist to `clipper-settings.json`, apply live. Partial: only the keys sent change. Also OBS's: `obsUrl`, `obsPassword`, `obsMonitor`, `obsExpectRecording`, `obsGameAudio` |
 | `POST` | `/api/clipper/toggle` | `{ enabled }` — master switch, applied immediately |
 | `POST` | `/api/clipper/test` | Save the replay buffer now; proves the OBS chain |
+| `POST` | `/api/obs/refresh-source` | `{ inputName }` — press that browser source's "Refresh cache of current page" in OBS (an overlay that failed to load never retries) |
 | `GET` | `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters[?i=N]` | OBS browser sources. `?animate=false` skips the entrances. `/o/scoreboard/players` draws the stats popup too; `?stats=0` leaves it out |
 | `GET` | `/o/side-panel[?panel=<id>]` | The 611×1080 panel beside the cam. `?panel=` holds one panel (for styling); `&look=story\|reel\|box` with `?panel=last-game` holds one Last Game look |
 | `GET` | `/o/bracket[?view=…]` | The bracket (and Up Next). Follows the dock's view and shot unless `?view=` pins a view, which then tours its own pages |
@@ -505,12 +560,12 @@ For a set loaded after its game 1 had started, or ports the operator suspects. L
 `canStart` is true only while start.gg reports the loaded set as state **1** (created) or **6** (called). It is **not** part of the 2s tick's round-trips: `lib/server/start-set.js` caches the state per set id and fetches it once, in the background, the first time a set id appears. Polling it would spend 30 of start.gg's 80-requests-per-60s on a value that changes twice a set, and the first casualty would be reporting.
 
 - **`canStart: false` is the normal first tick** after a set loads ("Checking start.gg…"). The real answer lands a tick or two later.
-- A **preview set id** (`preview_3400584_1_5`) is never startable or reportable — start.gg hasn't created the set because the bracket hasn't been started. Load it again once the TO has started the bracket.
+- A **preview set id** (`preview_3400584_1_5`) is never startable or reportable from the strip — start.gg hasn't created the set because the bracket hasn't been started. When the bracket starts, the set on the scoreboard follows its match (same letter, same two entrants) to its real id by itself, games kept (`event-service.js` `_followOnAir`, `set-relinked`); no reload.
 - The route re-checks server-side, so a stale dock can't start a finished set.
 
 ### `/api/sets` is cheap; `?refresh=1` is not
 
-The picker is answered from the event service's last read, which refreshes every 90s through the background budget and after every report. `refresh=1` re-reads every phase group of the event from start.gg on the operator's (unbudgeted) path — fine for a press, never for a loop. An empty list is **normal** for a finished bracket; `finished=1` adds the done sets.
+The picker is answered from the event service's last read, which refreshes every 90s through the background budget (15s while start.gg is rebuilding a bracket), and 4s and 12s after every press from the dock. `refresh=1` re-reads every phase group of the event from start.gg on the operator's (unbudgeted) path — fine for a press, never for a loop. An empty list is **normal** for a finished bracket; `finished=1` adds the done sets.
 
 ---
 
@@ -520,4 +575,4 @@ The picker is answered from the event service's last read, which refreshes every
 - **New state** — a store command in `lib/scoreboard/store.js`, never a direct write; the channel and persistence follow from its `change` event.
 - **A new route** — keep handlers thin; it goes in the matching `lib/server/api/<group>.js`. `tests/dock-static.test.js` fails if the dock calls a route (or a method) that doesn't exist.
 - **A new `control_status` field** — add it to `compose()` in `lib/server/control-status.js`. That one function builds both the startup seed and every rebuild, so the two can't drift; `tests/control-status-shape.test.js` pins that their key sets match.
-- **Anything reached from `obs.getStatus()`** must stay synchronous — it runs every 2 seconds.
+- **Anything reached from `obs.getStatus()` or `obs.health()`** must stay synchronous — it runs every 2 seconds.

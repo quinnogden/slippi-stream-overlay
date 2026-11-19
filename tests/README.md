@@ -32,7 +32,7 @@ One line per file. **The file's own header comment says exactly what it pins and
 |---|---|
 | `side-panel.test.js` | The side panel's rotation doesn't flash, its stats and win projection follow the players through Switch Sides, a crew battle shows its rosters, and the Last Game card takes its next look each time it comes on (never under the popup); a card that can't be populated (nothing to draw, a draw that throws, odd data) never comes on, and the rest rotate on. |
 | `bracket-overlay.test.js` | The bracket overlay's layout, pages, Board camera, tour, Up Next and live feed, on every capture. |
-| `overlay-patch.test.js` | Every browser source's copy of the state stays equal to the app's. |
+| `overlay-patch.test.js` | Every browser source's copy of the state stays equal to the app's, and each tells the app which page it is. |
 | `overlay-motion.test.js` | Show/hide and swap animations end on the right content; the score reel turns the right way. |
 | `overlays-static.test.js` | Every URL an overlay page loads resolves, and every character and costume has an icon. |
 | `set-stats.test.js` | The stats popup's numbers follow the players through Switch Sides; it comes up after a game, never into the next one; every layout draws in every style without letting a name inject markup; a hide ends in a source that isn't painting; the players bar's logo makes way for it; a layout with its own window box goes up in it; the pack picked draws the portraits; a broken read costs its game, and a view that can't be built shows nothing and takes the popup down; doubles is never read or shown, a four-player game on a singles set included; the art packs download in one click and a failed update keeps the old pack. |
@@ -61,7 +61,7 @@ One line per file. **The file's own header comment says exactly what it pins and
 
 | File | Guards |
 |---|---|
-| `event-service.test.js` | Loading events and sets from start.gg, on real captured tournaments. |
+| `event-service.test.js` | Loading events and sets from start.gg, on real captured tournaments; a bracket starting (the blank read, the set on air following its new id); presses shown before start.gg catches up; the bracket card's call order, reports and stream marks. |
 | `bracket-model.test.js` | The bracket graph: grand final and reset, byes, DQs, the five views. |
 | `bracket-target.test.js` | Singles / Doubles pick the right event, and refuse to guess. |
 | `start-set.test.js` | The Start button doesn't spend start.gg's rate limit. |
@@ -73,7 +73,7 @@ One line per file. **The file's own header comment says exactly what it pins and
 | File | Guards |
 |---|---|
 | `combo-detector.test.js` | The clipper's thresholds and combo window. |
-| `control-status-shape.test.js` | The dock's status has the same shape from the first tick, and never rejects. |
+| `control-status-shape.test.js` | The dock's status has the same shape from the first tick, and never rejects; OBS's health: the stream's bitrate and drops, not streaming with a set loaded or a game on, the game's sound silent or muted, an overlay that didn't load. |
 | `preflight.test.js` | The pre-event check runs to the end offline, and the repo's own files (theme pack, icons, overlay pages) pass it. |
 | `replays.test.js` | A stream set's context.json is Replay Reporter's, its history survives captures, and its upload resumes rather than doubles. |
 

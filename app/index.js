@@ -44,7 +44,8 @@ const { OVERLAYS, activeThemePack, themePacks } = require("./lib/server/api/setu
 const { createServer }        = require("./lib/server/app");
 const { createControlStatus } = require("./lib/server/control-status");
 const { createReportSet }     = require("./lib/server/report-set");
-const { createStartSet }      = require("./lib/server/start-set");
+const { createStartSet, forgetStartState } = require("./lib/server/start-set");
+const { createBracketOps }    = require("./lib/event/bracket-ops");
 const { registerRoutes }      = require("./lib/server/routes");
 const { registerOverlays }    = require("./lib/server/overlays");
 const { createPlayerStats }   = require("./lib/stats");
@@ -89,7 +90,8 @@ const ctx = {
   startgg:         new StartggClient(config),
   clipperSettings,
   comboDetector:   new ComboDetector(() => clipperSettings.get()),
-  obs:             new ObsClient(() => clipperSettings.get()),
+  // The port: OBS's browser sources showing this app's overlays are checked.
+  obs:             new ObsClient(() => clipperSettings.get(), { port: config.BRIDGE_PORT }),
 };
 // The loaded start.gg event: picker, set loads, brackets. Needs the store and
 // the player DB, and the stats pre-fetch from its playable sets.
@@ -114,21 +116,35 @@ const replays       = createReplays(ctx);
 // The stats popup: each game's replay read into the set's stats, and when it's up.
 const setStats      = createSetStats(ctx);
 const reportSet     = createReportSet(ctx, controlStatus.refresh);
-const { startCurrentSet }  = createStartSet(ctx, controlStatus.refresh);
+const startSet      = createStartSet(ctx, controlStatus.refresh);
+// The bracket card's presses (call, start, stream, report, reset) on any set,
+// and the stream mark on each set loaded.
+const bracketOps    = createBracketOps(ctx, {
+  file: path.join(__dirname, "data", "bracket-ops.json"),
+  refreshControlStatus: controlStatus.refresh,
+  forgetStartState,
+});
 
 // A reported set changes the bracket (the picker, the next sets' entrants) and
 // the side panel's stats (both players' runs, their head-to-head, the event's
-// finished sets), so both reload after it — once start.gg has caught up. And
-// the set is over, so what its players played is learned, and its replays
-// are bundled and queued for LuckyStats.
+// finished sets), so both reload after it. The bracket shows it at once and
+// re-reads as start.gg catches up (event-service afterAction). And the set is
+// over, so what its players played is learned, and its replays are bundled
+// and queued for LuckyStats.
 async function reportCurrentSet() {
   const result = await reportSet.reportCurrentSet();
   if (result.ok) {
     mainsLearning.commit(undefined, "reported");
     replays.onSetReported();
     playerStats.onSetReported();
-    setTimeout(() => ctx.event.refresh({ background: true }), 3000).unref?.();
+    ctx.event.afterAction(result.setId, { state: 3, winnerId: result.winnerId, scores: result.scores });
   }
+  return result;
+}
+
+async function startCurrentSet() {
+  const result = await startSet.startCurrentSet();
+  if (result.ok) ctx.event.afterAction(result.setId, { state: 2, startedAt: Math.floor(Date.now() / 1000) });
   return result;
 }
 // Ctrl+Shift+S and the dock's ⇄: the ports are the wrong way round.
@@ -202,6 +218,7 @@ registerRoutes(app, {
   clipperSnapshot: controlStatus.clipperSnapshot,
   reportCurrentSet,
   startCurrentSet,
+  bracketOps,
   replays,
   setStats,
   swapPorts,
@@ -261,9 +278,9 @@ console.log(`[bridge] Replays:        ${[
   config.LUCKYSTATS_UPLOAD_KEY ? "reported sets upload to LuckyStats" : "no LuckyStats uploads (no LUCKYSTATS_UPLOAD_KEY)",
   config.REPLAY_ARCHIVE_FOLDER ? `archived to ${config.REPLAY_ARCHIVE_FOLDER}` : "no archive (REPLAY_ARCHIVE_FOLDER)",
 ].join("; ")}`);
-console.log(`[bridge] Combo clipper:  ${clipper.enabled
-  ? `enabled → OBS at ${clipper.obsUrl}`
-  : "disabled (turn it on in the dock's Clips tab)"}`);
+console.log(`[bridge] OBS:            ${clipper.obsMonitor || clipper.enabled
+  ? `${clipper.obsUrl} — ${[clipper.obsMonitor && "watching its health", clipper.enabled && "combo clipper on"].filter(Boolean).join(", ")}`
+  : "not connected (Watch OBS and the combo clipper are off: dock → Clips)"}`);
 const keyList = hotkeys.bindings.map((b) => `${b.chord} ${b.label.toLowerCase()}`).join(" · ");
 console.log(`[bridge] Keyboard:       ${hotkeys.mode === "global"
   ? keyList || "no hotkeys bound (config.HOTKEYS)"
@@ -279,12 +296,13 @@ ctx.state.source.on("game-start", setStats.onGameStart);
 ctx.state.source.on("game-end",   modes.onGameEnd);
 ctx.state.source.on("highlight",  clipRecorder.onHighlight);
 
-// Connect to OBS up front when the clipper is already on, so the dock shows a
-// real OBS status before the first combo rather than after it.
+// Connect to OBS up front (Watch OBS or the clipper on), so the dock's lights
+// are real before the first set rather than after it.
 ctx.obs.applySettings();
 
 ctx.event.start();
 bracketFeed.start();
+bracketOps.start();
 bracketDirector.start();
 playerStats.start();
 replays.start();

@@ -1066,10 +1066,71 @@
     const sl = $("led-slippi");
     sl.className = "led " + (s.slippi ? "up" : "down");
     sl.title = (s.slippiDetail && s.slippiDetail.detail) || "";
-    const clip = s.clipper || {};
-    const obs = $("led-obs");
-    obs.className = "led " + (!(clip.settings && clip.settings.enabled) ? "off" : clip.obs && clip.obs.connected ? "up" : "down");
-    obs.title = (clip.obs && clip.obs.lastError) || "";
+    // OBS's four lights (lib/obs-health.js): a light's title lists its problems.
+    const oh = s.obsHealth;
+    const leds = { obs: $("led-obs"), live: $("led-live"), rec: $("led-rec"), audio: $("led-audio") };
+    const quiet = {
+      obs: oh && oh.connected ? "Connected to OBS" : (oh && oh.error) || "Not connected to OBS",
+      live: oh && oh.stream.active ? `Streaming · ${oh.stream.kbps} kbps` : "Not streaming",
+      rec: oh && oh.record.active ? "Recording" : "Not recording",
+      audio: "OBS's audio: no problems",
+    };
+    for (const [key, el] of Object.entries(leds)) {
+      const light = oh ? oh.lights[key] : "off";
+      el.className = "led" + (light === "idle" ? "" : " " + light);
+      const said = oh ? oh.issues.filter((i) => i.light === key && i.level !== "note").map((i) => i.text) : [];
+      el.title = said.join("\n") || quiet[key];
+    }
+  });
+
+  // ── OBS's problems ──────────────────────────────────────────────────────────
+  // Under the header on every tab: each error and warning with its fix. ✕ hides
+  // one until it clears; if it comes back, so does its line.
+
+  const hiddenAlerts = new Set();
+  let alertsKey = "";
+
+  async function obsFix(fix) {
+    if (fix && fix.action === "refresh-source") {
+      await act("/api/obs/refresh-source", { inputName: fix.input }, `Refreshed "${fix.input}" in OBS`, "Couldn't refresh it");
+    }
+  }
+
+  /** One problem's line: its text, its fix, and (in the bar) ✕. */
+  function issueRow(i, cls, hide) {
+    const row = h("div", `${cls} ${i.level}`);
+    row.append(h("span", "issue-text", i.text));
+    if (i.fix) {
+      const b = h("button", "key mini", i.fix.label);
+      b.type = "button";
+      b.addEventListener("click", () => obsFix(i.fix));
+      row.append(b);
+    }
+    if (hide) {
+      const x = h("button", "key mini ghost", "✕");
+      x.type = "button";
+      x.title = "Hide this until it clears";
+      x.addEventListener("click", hide);
+      row.append(x);
+    }
+    return row;
+  }
+
+  const renderAlerts = guard("alerts", () => {
+    const all = (status && status.obsHealth && status.obsHealth.issues) || [];
+    const now = new Set(all.map((i) => i.id));
+    for (const id of hiddenAlerts) if (!now.has(id)) hiddenAlerts.delete(id);
+    const shown = all.filter((i) => i.level !== "note" && !hiddenAlerts.has(i.id));
+    // Rebuilt only when what it says changed, so a fix key isn't swapped out
+    // from under a press by the 2s status.
+    const key = JSON.stringify(shown);
+    if (key === alertsKey) return;
+    alertsKey = key;
+    $("alerts").replaceChildren(...shown.map((i) => issueRow(i, "alert", () => {
+      hiddenAlerts.add(i.id);
+      alertsKey = "";
+      renderAlerts();
+    })));
   });
 
   let eventTitle = ""; // "<tournament> — <event>", from state.tournament
@@ -1211,8 +1272,13 @@
 
     // The on-air set stays even if start.gg has it waiting — it's the one being played.
     const isOnAir = (s) => drawnLiveId != null && String(s.setId) === String(drawnLiveId);
-    const waiting = sets.filter((s) => s.status === "waiting" && !isOnAir(s)).length;
-    const shown = hideWaiting ? sets.filter((s) => s.status !== "waiting" || isOnAir(s)) : sets;
+    // A set a TO put on our stream on start.gg leads the ready sets.
+    const ourStream = ops && ops.stream ? ops.stream.id : null;
+    const queued = (s) => ourStream != null && s.streamId === ourStream;
+    const ordered = ourStream == null ? sets
+      : [...sets].sort((a, b) => (a.status === "playable" && b.status === "playable" ? Number(queued(b)) - Number(queued(a)) : 0));
+    const waiting = ordered.filter((s) => s.status === "waiting" && !isOnAir(s)).length;
+    const shown = hideWaiting ? ordered.filter((s) => s.status !== "waiting" || isOnAir(s)) : ordered;
     $("btn-toggle-waiting").textContent = hideWaiting
       ? (waiting ? `Show waiting (${waiting})` : "Show waiting")
       : "Hide waiting";
@@ -1253,6 +1319,7 @@
       else if (set.status === "live") meta.append(h("span", "chip", "In progress"));
       else if (set.status === "waiting") meta.append(h("span", "chip", "Waiting"));
       else if (set.status === "done") meta.append(h("span", "chip", "Done"));
+      if (queued(set)) meta.append(h("span", "chip stream", "Stream"));
 
       const players = h("div", "set-players");
       const side = (n) => {
@@ -1528,6 +1595,274 @@
 
   $("bracket-group").addEventListener("change", () =>
     act("/api/bracket-view", { phaseGroupId: $("bracket-group").value || null }, null, "Group switch failed"));
+
+  // ── Bracket tab: run the bracket ──
+  // Every press is a POST to /api/bracket-ops/action; the card redraws from the
+  // `bracket-ops` event that follows (lib/event/bracket-ops.js), which already
+  // shows the press over start.gg's lagging lists.
+
+  let ops = null;           // the bracket_ops snapshot
+  let opsOpen = null;       // the set whose keys are open
+  let opsDraft = null;      // { setId, scores: { [entrantId]: n } } — the report form
+  let opsBusy = null;       // the set a press is out for
+  let opsWaiting = false;
+  let opsRecent = false;
+  const OPS_STATUS = { live: "In progress", called: "Called", ready: "Ready", waiting: "Waiting", done: "Done" };
+  const OPS_VERB = { call: "Call", start: "Start", stream: "Stream", report: "Report", reset: "Reset" };
+
+  /** How long ago a start.gg timestamp (seconds) was, short; "" past 6 hours (a clock that's off). */
+  function ago(sec) {
+    if (!sec) return "";
+    const m = Math.max(0, Math.floor((Date.now() / 1000 - sec) / 60));
+    if (m > 360) return "";
+    return m < 1 ? "just now" : m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}`;
+  }
+
+  const opsName = (slot) => slot.name || "TBD";
+
+  async function opsPress(action, r, extra, okMsg) {
+    opsBusy = r.setId;
+    renderOps();
+    const res = await act("/api/bracket-ops/action", { action, setId: r.setId, ...(extra || {}) },
+      (x) => (x.queued ? `${OPS_VERB[action]}: waits for the bracket to start on start.gg` : okMsg), `${OPS_VERB[action]} failed`);
+    opsBusy = null;
+    if (res.ok) {
+      opsDraft = null;
+      if (action === "report" || action === "reset") opsOpen = null;
+      fetchSets();
+    }
+    renderOps();
+  }
+
+  /** One set's row: its status, the round, the players; tapped, its keys. */
+  function opsRow(r, slot) {
+    const open = opsOpen === r.setId;
+    const row = button(`set-row ops-row ${r.status === "ready" ? "playable" : r.status}` + (r.onAir ? " air" : "") + (open ? " open" : ""));
+    const meta = h("div", "set-meta");
+    if (r.callOrder) meta.append(h("span", "chip order", `#${r.callOrder}`));
+    meta.append(h("span", "round-name", r.round || `Set ${r.identifier}`));
+    if (r.identifier) meta.append(h("span", "phase", r.identifier));
+    if (r.group) meta.append(h("span", "phase", r.group));
+    if (r.onAir) meta.append(h("span", "chip air", "On air"));
+    meta.append(h("span", "chip" + (r.status === "ready" ? " ready" : r.status === "live" ? " live" : r.status === "called" ? " called" : ""),
+      r.status === "live" && ago(r.startedAt) ? `${OPS_STATUS.live} · ${ago(r.startedAt)}` : OPS_STATUS[r.status]));
+    if (r.station != null) meta.append(h("span", "chip", `Station ${r.station}`));
+    if (r.onStream) meta.append(h("span", "chip stream", "Stream"));
+    if (r.preview) meta.append(h("span", "chip", "Preview"));
+
+    const players = h("div", "set-players");
+    const side = (n) => {
+      const s = r.slots[n];
+      const p = h("span", `p p${n + 1}` + (r.winner === n ? " won" : ""), opsName(s));
+      if (s.seed != null) p.append(" ", h("span", "seed", `(${s.seed})`));
+      return p;
+    };
+    const [a, b] = r.slots.map((s) => s.score);
+    const dq = r.slots.some((s) => s.dq);
+    const score = dq ? "DQ" : (a != null || b != null) && (a || b || r.status === "done") ? `${Math.max(0, a || 0)}–${Math.max(0, b || 0)}` : "vs";
+    players.append(side(0), h("span", "sc", score), side(1));
+    row.append(meta, players);
+    row.addEventListener("click", () => {
+      opsOpen = open ? null : r.setId;
+      if (!opsOpen || (opsDraft && opsDraft.setId !== opsOpen)) opsDraft = null;
+      renderOps();
+    });
+    slot.push(row);
+    if (open) slot.push(opsKeys(r));
+  }
+
+  /** The open set's keys: what start.gg allows for it now. */
+  function opsKeys(r) {
+    const box = h("div", "ops-actions");
+    if (!ops.enabled) {
+      box.append(h("div", "hint", "No start.gg token — the bracket is read-only here (config.local.js)."));
+      return box;
+    }
+    const busy = opsBusy === r.setId;
+    const confirm = h("div");
+    const row = h("div", "key-row");
+    const add = (label, cls, fn, title) => {
+      const k = key(label, cls);
+      k.disabled = busy;
+      if (title) k.title = title;
+      k.addEventListener("click", fn);
+      row.append(k);
+      return k;
+    };
+    const vs = r.slots.map(opsName).join(" vs ");
+
+    if (r.status === "done") {
+      add("Reset…", "arm", () => confirmIn(confirm, {
+        html: rich("Take back ", { b: vs }, " on start.gg? The set goes back to not started. start.gg refuses if a later set has been played."),
+        yes: "Reset it",
+        onYes: () => opsPress("reset", r, null, `Reset ${vs}`),
+      }), "Undo the reported result on start.gg");
+    } else {
+      if (r.status === "ready") add("Call", "", () => opsPress("call", r, null, `Called ${vs}`), "Call the set to its station");
+      if (r.status === "ready" || r.status === "called") {
+        add("Start", "go", () => {
+          if (!r.preview) return opsPress("start", r, null, `Started ${vs}`);
+          confirmIn(confirm, {
+            html: rich("The bracket hasn't started. Starting ", { b: vs }, " starts the ", { b: "whole bracket" }, " on start.gg — it reads as empty for a minute while it rebuilds."),
+            yes: "Start the bracket",
+            onYes: () => opsPress("start", r, null, `Started ${vs} — start.gg is starting the bracket`),
+          });
+        }, "Mark it in progress on start.gg");
+      }
+      if (!r.onStream && r.status !== "waiting") {
+        add("On stream", "", () => opsPress("stream", r, null, `${vs} is on stream on start.gg`),
+          ops.stream ? `Put it on ${ops.stream.name} on start.gg` : "Pick our stream above first");
+      }
+      if (r.status !== "waiting" && !r.onAir) {
+        add("Report…", "", () => {
+          opsDraft = opsDraft && opsDraft.setId === r.setId ? null
+            : { setId: r.setId, scores: Object.fromEntries(r.slots.map((s) => [s.entrantId, 0])) };
+          renderOps();
+        }, "Report a result played off stream, or a DQ");
+      }
+      if (!r.onAir && r.status !== "waiting") {
+        add("Load", "", () => {
+          const scored = sb && (sb.crew || sb.sides.some((s) => s.score > 0));
+          const go = () => loadSet({ setId: r.setId, roundName: r.round });
+          if (!scored) return go();
+          confirmIn(confirm, {
+            html: rich("The set on the scoreboard is at ", { b: sb.sides.map((s) => s.score).join("–") }, ". Loading this replaces it."),
+            yes: "Load anyway",
+            onYes: go,
+          });
+        }, "Put it on the scoreboard");
+      }
+    }
+    if (!row.children.length) box.append(h("div", "hint", r.onAir ? "On the scoreboard: Start and Report are on the strip." : "Waiting on an earlier set."));
+    else box.append(row);
+    if (opsDraft && opsDraft.setId === r.setId) box.append(opsReportForm(r, busy));
+    box.append(confirm);
+    return box;
+  }
+
+  /** Report from the card: a score per player (± or typed), or a DQ. */
+  function opsReportForm(r, busy) {
+    const form = h("div", "ops-report");
+    const scores = opsDraft.scores;
+    r.slots.forEach((s) => {
+      const line = h("div", "ops-score");
+      const minus = key("−", "mini");
+      const plus = key("+", "mini");
+      const n = h("span", "n", String(scores[s.entrantId] || 0));
+      const dq = key("DQ", "mini ghost");
+      minus.disabled = busy || !(scores[s.entrantId] > 0);
+      plus.disabled = busy || scores[s.entrantId] >= 9;
+      dq.disabled = busy;
+      dq.title = `${opsName(s)} was disqualified`;
+      minus.addEventListener("click", () => { scores[s.entrantId]--; renderOps(); });
+      plus.addEventListener("click", () => { scores[s.entrantId]++; renderOps(); });
+      dq.addEventListener("click", () => confirmIn(form.querySelector(".ops-dq-confirm"), {
+        html: rich("Report a DQ: ", { b: opsName(s) }, " is out, ", { b: opsName(r.slots.find((x) => x !== s)) }, " goes on."),
+        yes: "Report DQ",
+        onYes: () => opsPress("report", r, { dq: s.entrantId }, `Reported: ${opsName(s)} DQ`),
+      }));
+      line.append(h("span", "who", opsName(s)), minus, n, plus, dq);
+      form.append(line);
+    });
+    const [a, b] = r.slots.map((s) => scores[s.entrantId] || 0);
+    const w = a > b ? r.slots[0] : r.slots[1];
+    const send = key(a === b ? "Pick a winner" : `Report ${opsName(w)} ${Math.max(a, b)}–${Math.min(a, b)}`, "arm wide");
+    send.disabled = busy || a === b;
+    send.addEventListener("click", () => opsPress("report", r, { scores: { ...scores } },
+      `Reported: ${opsName(w)} ${Math.max(a, b)}–${Math.min(a, b)}`));
+    form.append(send, h("div", "ops-dq-confirm"));
+    return form;
+  }
+
+  const renderOps = guard("bracket-ops", () => {
+    const o = ops;
+    $("ops-rebuilding").classList.toggle("gone", !(o && o.rebuilding));
+    if (!o) return $("ops-list").replaceChildren(h("div", "empty-note", "Loading…"));
+
+    // Settings: the switch, and which stream is ours.
+    const mark = $("ops-mark");
+    if (document.activeElement !== mark) mark.checked = !!o.settings.markOnStream;
+    const sel = $("ops-stream");
+    const want = ["", ...o.streams.map((s) => s.name)].join("|");
+    if (sel.dataset.names !== want) {
+      const auto = h("option", "", o.streams.length === 1 ? `${o.streams[0].name} (the only one)` : o.streams.length ? "Pick one…" : "None on start.gg");
+      auto.value = "";
+      sel.replaceChildren(auto, ...o.streams.map((s) => { const op = h("option", "", `${s.name}${s.source ? ` · ${s.source.toLowerCase()}` : ""}`); op.value = s.name; return op; }));
+      sel.dataset.names = want;
+    }
+    if (document.activeElement !== sel) {
+      const named = o.streams.some((s) => s.name.toLowerCase() === String(o.settings.streamName || "").toLowerCase());
+      sel.value = named ? o.streams.find((s) => s.name.toLowerCase() === o.settings.streamName.toLowerCase()).name : "";
+    }
+    sel.disabled = o.streams.length < 2;
+
+    const count = (st) => o.sets.filter((r) => r.status === st).length;
+    setSum("sum-ops", !o.event ? "No event loaded"
+      : [`${count("live")} playing`, `${count("ready")} ready`, count("called") ? `${count("called")} called` : "",
+        o.queue.length ? `${o.queue.length} waiting on start.gg` : "", o.enabled ? "" : "read-only"].filter(Boolean).join(" · "));
+
+    const f = $("ops-filter").value.trim().toLowerCase();
+    const match = (r) => !f || [r.slots[0].name, r.slots[1].name, r.round, r.identifier, r.group]
+      .some((v) => String(v || "").toLowerCase().includes(f));
+    const waiting = count("waiting");
+    $("btn-ops-waiting").textContent = opsWaiting ? "Hide waiting" : waiting ? `Show waiting (${waiting})` : "Show waiting";
+    $("btn-ops-recent").textContent = opsRecent ? "Hide recent results" : `Recent results${o.recent.length ? ` (${o.recent.length})` : ""}`;
+    $("ops-filter").classList.toggle("gone", o.sets.length <= 8 && !f);
+
+    const shown = o.sets.filter((r) => (opsWaiting || r.status !== "waiting") && match(r));
+    const out = [];
+    if (!o.event) out.push(h("div", "empty-note", "No event loaded — press Singles or Doubles above."));
+    else if (!shown.length) out.push(h("div", "empty-note", f ? "Nothing matches that filter." : "Nothing to call or play right now."));
+    else for (const r of shown) opsRow(r, out);
+    $("ops-list").replaceChildren(...out);
+
+    $("ops-recent").classList.toggle("gone", !opsRecent);
+    if (opsRecent) {
+      const done = [];
+      const rec = o.recent.filter(match);
+      if (!rec.length) done.push(h("div", "empty-note", "No results yet."));
+      for (const r of rec) opsRow(r, done);
+      $("ops-recent").replaceChildren(...done);
+    }
+    renderStreamMark();
+  });
+
+  /** The strip's chip: whether start.gg has the set on air on our stream. A tap puts it there. */
+  const renderStreamMark = guard("stream-mark", () => {
+    const el = $("stream-mark");
+    const id = sb && sb.setId != null ? String(sb.setId) : null;
+    const o = ops;
+    const row = id && o ? o.sets.concat(o.recent).find((r) => r.setId === id) : null;
+    const mark = o && o.lastMark && o.lastMark.setId === id ? o.lastMark : null;
+    let cls = "";
+    let text = "";
+    let title = "";
+    if (id && o && o.enabled && !(sb && sb.crew)) {
+      const name = (o.stream && o.stream.name) || "our stream";
+      if (row && row.onStream) { cls = "ok"; text = "On stream"; title = `start.gg has this set on ${name}`; }
+      else if (mark && mark.queued) { cls = "warn"; text = "Stream: waits"; title = `Goes on ${name} once the bracket starts on start.gg`; }
+      else if (mark && !mark.ok) { cls = "err"; text = "Not on stream"; title = `${mark.error || "start.gg refused"} — tap to try again`; }
+      else if (row && row.status !== "done" && !sb.isPreview && o.settings.markOnStream) { cls = "warn"; text = "Not on stream"; title = `Tap to put it on ${name} on start.gg`; }
+    }
+    el.className = "badge stream-mark" + (cls ? ` ${cls}` : "") + (text ? "" : " gone");
+    if (el.textContent !== text) el.textContent = text;
+    if (el === tip.el) el.dataset.tip = title;
+    else el.title = title;
+  });
+
+  $("stream-mark").addEventListener("click", () => {
+    if (!sb || sb.setId == null || $("stream-mark").classList.contains("ok")) return;
+    act("/api/bracket-ops/action", { action: "stream", setId: sb.setId }, "On stream on start.gg", "Couldn't put it on stream");
+  });
+  $("ops-mark").addEventListener("change", () => act("/api/bracket-ops/settings", { markOnStream: $("ops-mark").checked },
+    $("ops-mark").checked ? "Loaded sets go on our start.gg stream" : "Loaded sets are left off start.gg's stream", "Couldn't save that"));
+  $("ops-stream").addEventListener("change", () => act("/api/bracket-ops/settings", { streamName: $("ops-stream").value },
+    null, "Couldn't save that"));
+  $("ops-filter").addEventListener("input", () => renderOps());
+  $("btn-ops-waiting").addEventListener("click", () => { opsWaiting = !opsWaiting; renderOps(); });
+  $("btn-ops-recent").addEventListener("click", () => { opsRecent = !opsRecent; renderOps(); });
+  // "In progress · 12m" ages while nothing else changes.
+  setInterval(() => { if (ops && $("panel-bracket").classList.contains("on")) renderOps(); }, 30000);
 
   // ── Casters tab ─────────────────────────────────────────────────────────────
 
@@ -2371,7 +2706,10 @@
 
   // The form is built from this list, so its ids can't drift from the code
   // that reads them. Keys match clipper-settings.js, which validates and
-  // clamps every value; min/max here only shape the spinners.
+  // clamps every value; min/max here only shape the spinners. `card: "obs"`
+  // puts a field on the OBS card (the connection the clipper shares), which
+  // saves its own fields. Watch, Expect a recording and Game audio are the OBS
+  // card's own controls, and apply at once.
   const CLIP_FIELDS = [
     { key: "minMoves",            label: "Min moves",                 type: "number", min: 1, max: 50 },
     { key: "minDamage",           label: "Min damage %",              type: "number", min: 0, max: 999 },
@@ -2383,15 +2721,17 @@
     { key: "requireKill",         label: "Only combos that kill",     type: "check" },
     { key: "autoStartBuffer",     label: "Start OBS's buffer",        type: "check" },
     { key: "notifySidePanel",     label: "Toast on the side panel",   type: "check", full: true },
-    { key: "obsUrl",              label: "OBS WebSocket URL",         type: "text", full: true, placeholder: "ws://127.0.0.1:4455" },
-    { key: "obsPassword",         label: "OBS WebSocket password",    type: "password", full: true, placeholder: "(blank if auth is off)" },
+    { key: "obsUrl",              label: "OBS WebSocket URL",         type: "text", full: true, placeholder: "ws://127.0.0.1:4455", card: "obs" },
+    { key: "obsPassword",         label: "OBS WebSocket password",    type: "password", full: true, placeholder: "(blank if auth is off)", card: "obs" },
     { key: "clipFolder",          label: "Replay folder (for the OBS playlist script)", type: "text", full: true, placeholder: "C:\\Users\\…\\Videos" },
   ];
   const clipInput = {};
-  let clipDirty = false;
+  // Per card: typed into and not saved yet, so a push doesn't overwrite it.
+  const dirty = { clipper: false, obs: false };
+  const cardOf = (f) => f.card || "clipper";
 
   (function buildClipFields() {
-    $("clip-fields").replaceChildren(...CLIP_FIELDS.map((f) => {
+    const build = (card) => CLIP_FIELDS.filter((f) => cardOf(f) === card).map((f) => {
       const label = h("label", "field" + (f.type === "check" ? " check" : "") + (f.full ? " full" : ""));
       const input = h("input");
       input.type = f.type === "check" ? "checkbox" : f.type;
@@ -2402,12 +2742,14 @@
         input.step = String(f.step || 1);
       }
       if (f.placeholder) input.placeholder = f.placeholder;
-      input.addEventListener(f.type === "check" ? "change" : "input", () => { clipDirty = true; });
+      input.addEventListener(f.type === "check" ? "change" : "input", () => { dirty[cardOf(f)] = true; });
       clipInput[f.key] = input;
       if (f.type === "check") label.append(input, h("span", "", f.label));
       else label.append(h("span", "", f.label), input);
       return label;
-    }));
+    });
+    $("clip-fields").replaceChildren(...build("clipper"));
+    $("obs-fields").replaceChildren(...build("obs"));
   })();
 
   function clipperStatusText(c) {
@@ -2422,13 +2764,12 @@
   const renderClipper = guard("clipper", (c) => {
     if (!c) return;
     const s = c.settings || {};
-    if (!clipDirty) {
-      $("clip-enabled").checked = !!s.enabled;
-      for (const f of CLIP_FIELDS) {
-        const input = clipInput[f.key];
-        if (f.type === "check") input.checked = !!s[f.key];
-        else input.value = s[f.key] == null ? "" : String(s[f.key]);
-      }
+    $("clip-enabled").checked = !!s.enabled;
+    for (const f of CLIP_FIELDS) {
+      if (dirty[cardOf(f)]) continue;
+      const input = clipInput[f.key];
+      if (f.type === "check") input.checked = !!s[f.key];
+      else input.value = s[f.key] == null ? "" : String(s[f.key]);
     }
     $("clip-status").textContent = clipperStatusText(c);
     setSum("sum-clipper", !s.enabled ? "Off"
@@ -2455,9 +2796,11 @@
     }));
   });
 
-  function collectClipper() {
-    const out = { enabled: $("clip-enabled").checked };
+  /** One card's fields, as the settings route takes them (a partial save). */
+  function collectClipper(card) {
+    const out = {};
     for (const f of CLIP_FIELDS) {
+      if (cardOf(f) !== card) continue;
       const input = clipInput[f.key];
       out[f.key] = f.type === "check" ? input.checked : f.type === "number" ? Number(input.value) : input.value;
     }
@@ -2472,8 +2815,8 @@
   });
 
   $("btn-clip-save").addEventListener("click", async () => {
-    const r = await api("/api/clipper/settings", collectClipper());
-    clipDirty = false;
+    const r = await api("/api/clipper/settings", collectClipper("clipper"));
+    dirty.clipper = false;
     // ok:false can mean only the disk write failed — the settings are live
     // either way, so the message has to say which.
     toast(r.ok ? "Clipper settings saved" : (r.error || "Save failed"), r.ok);
@@ -2487,6 +2830,94 @@
       ? "Saved" + (r.clip && r.clip.file ? `: ${r.clip.file}` : " (OBS reported no path)")
       : (r.error || "Test failed");
     toast(r.ok ? "Test clip saved" : `Test clip failed: ${r.error}`, r.ok);
+  });
+
+  // ── Clips tab: OBS ──────────────────────────────────────────────────────────
+  // The connection (shared with the clipper) and its health: what OBS is doing,
+  // every check that's failing, and a level bar per audio input.
+
+  /** -60 dB (and below) → an empty bar, 0 dB → a full one. */
+  const meterPct = (db) => Math.max(0, Math.min(100, Math.round(((db + 60) / 60) * 100)));
+
+  function obsStatusText(oh, s) {
+    if (!oh.monitor && !s.enabled) return "Off. Turn on Watch to check the stream, the recording, the audio and the overlays.";
+    if (!oh.connected) return oh.error || "Connecting to OBS…";
+    const parts = [oh.stream.active
+      ? `Streaming · ${oh.stream.kbps} kbps` + (oh.stream.dropPct ? ` · ${oh.stream.dropPct}% dropped` : "")
+      : "Not streaming"];
+    parts.push(oh.record.active ? (oh.record.paused ? "Recording paused" : "Recording") : "Not recording");
+    if (oh.fps.now != null) parts.push(`${oh.fps.now} fps`);
+    if (oh.sources) parts.push(`${oh.sources} overlay${oh.sources === 1 ? "" : "s"} in OBS`);
+    if (!oh.monitor) parts.push("Watch is off, so nothing is checked");
+    return parts.join(" · ");
+  }
+
+  let gameAudioKey = "";
+
+  const renderObs = guard("obs", (oh) => {
+    if (!oh) return;
+    const s = (status && status.clipper && status.clipper.settings) || {};
+    $("obs-monitor").checked = !!s.obsMonitor;
+    $("obs-expect-rec").checked = !!s.obsExpectRecording;
+    $("obs-status").textContent = obsStatusText(oh, s);
+
+    const checking = oh.monitor && oh.connected;
+    const worst = oh.issues.find((i) => i.level !== "note");
+    setSum("sum-obs", !oh.monitor && !s.enabled ? "Off"
+      : !oh.connected ? "Not connected"
+      : worst ? worst.text
+      : oh.stream.active ? `Streaming · ${oh.stream.kbps} kbps` : "Connected · not streaming");
+
+    $("obs-checks").replaceChildren(...(!checking ? []
+      : oh.issues.length ? oh.issues.map((i) => issueRow(i, "obs-check"))
+      : [h("div", "obs-check ok", "No problems found.")]));
+
+    $("obs-audio").replaceChildren(...(!checking ? [] : oh.inputs.length ? oh.inputs.map((i) => {
+      const row = h("div", "obs-input" + (i.inMix ? "" : " away") + (i.game ? " game" : ""));
+      const bar = h("span", "obs-meter");
+      const fill = h("i", i.db >= -3 ? "hot" : "");
+      fill.style.width = `${i.inMix && !i.muted ? meterPct(i.db) : 0}%`;
+      bar.append(fill);
+      const tag = i.muted ? "Muted" : i.silenced ? "Volume 0" : !i.inMix ? "Not on air" : i.game ? "Game" : "";
+      row.append(h("span", "obs-input-name", i.name), bar, h("span", "obs-input-tag", tag));
+      return row;
+    }) : [h("div", "empty-note", "No audio inputs in OBS's mixer.")]));
+
+    // The game-audio pick: Auto (the guess by name) or any input OBS has shown.
+    // Left alone while it's open, or the list would close under the pointer.
+    const sel = $("obs-game-audio");
+    const cur = s.obsGameAudio || "";
+    const names = oh.inputs.map((i) => i.name);
+    if (cur && !names.includes(cur)) names.push(cur);
+    names.sort((a, b) => a.localeCompare(b));
+    const guess = oh.gameAudioGuess;
+    const key = JSON.stringify([names, cur, guess]);
+    if (key !== gameAudioKey && document.activeElement !== sel) {
+      gameAudioKey = key;
+      const auto = h("option", "", guess ? `Auto: ${guess}` : "Auto: none found by name");
+      auto.value = "";
+      sel.replaceChildren(auto, ...names.map((n) => { const o = h("option", "", n); o.value = n; return o; }));
+      sel.value = cur;
+    }
+  });
+
+  $("obs-monitor").addEventListener("change", () => {
+    const on = $("obs-monitor").checked;
+    act("/api/clipper/settings", { obsMonitor: on }, on ? "Watching OBS" : "Not watching OBS", "Couldn't change it");
+  });
+  $("obs-expect-rec").addEventListener("change", () => {
+    const on = $("obs-expect-rec").checked;
+    act("/api/clipper/settings", { obsExpectRecording: on }, on ? "A stream without a recording is flagged" : "The recording isn't checked", "Couldn't change it");
+  });
+  $("obs-game-audio").addEventListener("change", () => {
+    const v = $("obs-game-audio").value;
+    gameAudioKey = "";
+    act("/api/clipper/settings", { obsGameAudio: v }, v ? `Game audio: ${v}` : "Game audio: guessed by name", "Couldn't change it");
+  });
+  $("btn-obs-save").addEventListener("click", async () => {
+    const r = await api("/api/clipper/settings", collectClipper("obs"));
+    dirty.obs = false;
+    toast(r.ok ? "OBS connection saved" : (r.error || "Save failed"), r.ok);
   });
 
   // ── Replays tab ─────────────────────────────────────────────────────────────
@@ -3512,6 +3943,7 @@
   ov.select("scoreboard", (now) => {
     sb = now;
     renderStrip();
+    renderStreamMark();
     renderRules();
     renderPicker();
     renderCrewTab();
@@ -3554,6 +3986,8 @@
     renderPorts();
     renderActions();
     renderClipper(s && s.clipper);
+    renderObs(s && s.obsHealth);
+    renderAlerts();
   });
 
   ov.on("game:start", () => { gameLive = true; renderLamp(); });
@@ -3569,6 +4003,7 @@
   // A crew game that changed no stocks, or started with a side nobody sent in for.
   ov.on("crew:notice", (n) => toast((n && n.text) || "Crew battle: check the stocks", !!(n && n.ok)));
   ov.on("replays", (r) => { replays = r; renderReplays(); });
+  ov.on("bracket-ops", (o) => { ops = o; renderOps(); renderSets(); });
 
   if (ov.socket) {
     ov.socket.on("connect", () => document.body.classList.remove("offline"));

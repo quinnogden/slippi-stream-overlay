@@ -58,7 +58,7 @@ modes/ ─ port-map ─→ ScoreboardStore ←── dock commands (/api/*), hot
           ↓
    overlays/ (OBS)  +  the dock
 start.gg ←→ startgg-client.js  (event service reads, stats, Start, Report)
-OBS      ←→ obs-client.js      (replay buffer saves)
+OBS      ←→ obs-client.js      (replay buffer saves, health: obs-health.js)
 LuckyStats ← replays/uploader.js (each stream set's .slp + context.json, after Report)
 ```
 
@@ -80,7 +80,7 @@ lib/
   players/                 player-db.js  mains-learning.js
   crew/                    crew-model.js  saved-crews.js
   event/                   event-service.js  event-target.js  bracket-model.js  bracket-feed.js
-                           bracket-director.js  set-model.js  queries.js
+                           bracket-director.js  bracket-ops.js  set-model.js  queries.js
   overlay/                 channel.js
   modes/                   index.js  singles.js  doubles.js  game-end.js
   server/                  app.js  routes.js  overlays.js  control-status.js  report-set.js
@@ -90,7 +90,7 @@ lib/
   set-stats/               index.js  game-stats.js  worker.js  set-view.js  director.js  portraits.js
                            art-packs.js  catalog.js  stages.js  fun-stats.js  accolades.js  stories.js
   replays/                 index.js  stream-sets.js  context.js  bundle.js  archive.js  uploader.js  slp-file.js
-  game-source.js  combo-detector.js  clip-recorder.js  obs-client.js  clipper-settings.js  safe-emitter.js
+  game-source.js  combo-detector.js  clip-recorder.js  obs-client.js  obs-health.js  clipper-settings.js  safe-emitter.js
   startgg-client.js  hotkey.js  lan-urls.js  port-guard.js  handwarmer.js  char_map.js
   players.js  state.js
 ```
@@ -160,13 +160,17 @@ one set, re-read fresh → enriched from the player DB → the store  loadSet(se
 - **Every read falls back to start.gg's keyless web endpoint**, so the dock works without a token.
 - **The loaded event is part of the store** (`tournament`), so it survives a restart and reloads on boot.
 - **`loadSet`** re-reads the set (and still loads, with a warning, when it can't), fills pronoun and main from the DB (learned → stored mains), and upserts new start.gg players. While it's out, `loadingSet` is true; `set-load-settled` says it's over (see game-end above).
-- **No stream queue.** The series picks whatever set is playable, so the picker sorts playable (both entrants known, not started) first, then live, then waiting; and the stats pre-fetch the next playable sets' players.
+- **No stream queue of our own.** The series picks whatever set is playable, so the picker sorts playable (both entrants known, not started) first, then live, then waiting; and the stats pre-fetch the next playable sets' players. A set a TO put on our start.gg stream leads the ready ones in the dock.
+- **start.gg goes blank when a bracket starts** (40–80s with 7 players, measured): a group that had sets and reads as none keeps its last list (`rebuilding`, up to 5 min) and is read again in 15s. Then every set comes back renumbered (`preview_…` → numbers; a TO's reset renumbers again), and **the set on the scoreboard follows its match** — same letter, same two entrants (`set-model.findSameMatch`; a preview set falls back to the pair alone) — to the new id with its games kept (`store.relinkSet`, `set-relinked`). Only after a whole, clean read.
+- **A press shows before start.gg's lists do** (`afterAction`): Report, Start and the bracket card's presses are laid over the reads until start.gg agrees or 2 min pass, and the event is re-read 4s and 12s later. `tests/event-service.test.js` pins all three.
+
+**`bracket-ops.js`** — the Bracket tab's **Run the bracket** card: call, start (on a preview set: starts the whole bracket), put on our stream, report (scores or a DQ; the games go loser's first) and reset any set; the ready sets in a call order (earliest in the bracket, then the closest seeds). **The set on the scoreboard is reported from the strip only.** Each set loaded goes on our start.gg stream (`markOnStream`; ours = the stream named in `data/bracket-ops.json`, else the tournament's only one); a preview set's mark waits in a queue for its real id. Dock-only `bracket_ops` event.
 
 **`event-target.js`** — pure: `normalizeBrackets`, `pickEvent` (exactly one event must contain all of a kind's keywords — **ambiguity is refused, never guessed**), `sameEvent`, `normalizeEventUrl`. The short link is resolved by `startgg.resolveShortLink()` through start.gg's **web redirect**, by hand (`maxRedirects: 0`), because the API returns `null` for a short slug. The event is looked up, not appended: a renamed event under a stale slug loads as an empty bracket with no error anywhere, so `fallbackSlug` is used only when the lookup can't run, and that sets a `warning`.
 
 **`bracket-model.js`** — pure: a phase group's sets → a graph built from start.gg's own edges (`slots.prereqType/prereqId/prereqPlacement`), never from seed math. Losers rounds are negative and need not start at -1; **a bye is an edge to a set that isn't in the list**; the reset is the set whose two slots both come from the GF (start.gg deletes it once GF 1 is won from winners); preview (unstarted) sets carry edges and `lPlacement` too. `selectView(graph, view)` for `winners | losers | top8 | top16 | full` — Top N is the sets whose `lPlacement ≤ N−1`, plus GF.
 
-**`bracket-feed.js`** publishes one phase group into the store's `bracket` section (the dock's pick, else the on-air set's group, else the furthest running): all five views, the **pages** (cut with the overlay's own `layout.js` `paginate`, required from Node and cached by structure, so the dock and every source agree and a score bump doesn't recut) and **Up Next** across every group. **`bracket-director.js`** owns `bracketShot` (not saved): the tour's clock, a held page or the Board camera; a view or group switch opens on the action page, **held unless it was touring** (the camera never starts touring behind the operator). Both sections' shapes and rules are in [docs/BRIDGE-API.md](docs/BRIDGE-API.md). **`set-model.js`** — pure: `loadPayload` (what loading a set puts on the scoreboard; the [L] fact comes from the graph) and `pickerList`. **`queries.js`** — the GraphQL, shared with `scripts/capture-startgg.js` so fixtures carry exactly the fields the app reads; sized against the 1000-object ceiling with `PAGE_SIZES = [40, 20, 10]`.
+**`bracket-feed.js`** publishes one phase group into the store's `bracket` section (the dock's pick, else the on-air set's group, else the furthest running): all five views, the **pages** (cut with the overlay's own `layout.js` `paginate`, required from Node and cached by structure, so the dock and every source agree and a score bump doesn't recut) and **Up Next** across every group. **`bracket-director.js`** owns `bracketShot` (not saved): the tour's clock, a held page or the Board camera; a view or group switch opens on the action page, **held unless it was touring** (the camera never starts touring behind the operator). Both sections' shapes and rules are in [docs/BRIDGE-API.md](docs/BRIDGE-API.md). **`set-model.js`** — pure: `loadPayload` (what loading a set puts on the scoreboard; the [L] fact comes from the graph) and `pickerList`. **`queries.js`** — the GraphQL, shared with `scripts/capture-startgg.js` so fixtures carry exactly the fields the app reads; sized against the 1000-object ceiling (measured: a finished singles set is 29 objects, doubles 33 — 40 a page was refused on every full bracket), `PAGE_SIZES = [28, 14, 7]`.
 
 ### start.gg — `lib/startgg-client.js`
 
@@ -174,15 +178,15 @@ one set, re-read fresh → enriched from the player DB → the store  loadSet(se
 
 - **Reads marked `fallback: true` re-post to `www.start.gg/api/-/gql`** (keyless, TSH's headers) on no token, 429, 5xx or a network error. **Mutations never fall back** — they must carry the operator's token.
 - **`backgroundQuery()`** — the budget: waits while the last 60s hold `BACKGROUND_BUDGET` (50) requests, and stands down 30s after a 429. The operator's calls (report, start, switch, load) are never delayed, so stats and refreshes can slow each other down but can't make a report fail.
-- start.gg's 1000-object refusal is flagged `complexity: true` so a caller splits instead of reading it as empty.
+- start.gg's 1000-object refusal is flagged `complexity: true` so a caller splits instead of reading it as empty. `getPhaseGroupSets` sizes the next page from the refusal's own count ("actual: N") and **keeps the size that fit per group**, so a big bracket isn't refused once per refresh.
 - `resolveShortLink()` is deliberately neither GraphQL nor gated on the token.
 
 ### Reporting and starting — `lib/server/`
 
-- **`report-set.js`** — `store.reportable()` → the winner's `entrantId` plus every game's winner as `gameData` (winners only — no stages or characters; start.gg has no score field without game data). Refuses with no token, no set, a preview set, or a tie. Manual only; the dock confirms first. A success (in `index.js`) learns mains, reloads stats, and refreshes the event 3s later.
+- **`report-set.js`** — `store.reportable()` → the winner's `entrantId` plus every game's winner as `gameData` (winners only — no stages or characters; start.gg has no score field without game data). Refuses with no token, no set, a preview set, or a tie. Manual only; the dock confirms first. A success (in `index.js`) learns mains, reloads stats, and shows the set reported in the bracket at once (`event.afterAction`).
 - **`start-set.js`** — start.gg's `markSetInProgress`. `canStart` only for states **1** (created) / **6** (called). **`evaluateStartability()` is synchronous by contract**: it answers from a per-set-id cache and schedules the one lookup in the background — a query per 2s tick would spend 30 of start.gg's 80-per-60s on a value that changes twice a set, and reporting would be the first thing to break. The first tick after a load reads "Checking start.gg…". A failed lookup is asked again after 15s — a reload of the same set is the same id, so it would never miss the cache. Not auto-fired from game 1: a handwarmer or a mis-loaded set would mark the wrong set. `tests/start-set.test.js` pins the caching.
 - **`set-gate.js`** — the refusals both share (no token / no set / preview set), so the two buttons can't disagree about what a real set is.
-- **Preview sets** (`preview_<phase>_<round>_<n>`) are what an unstarted event's sets are; they can be loaded and shown but never started or reported. Load the set again after the TO starts the bracket.
+- **Preview sets** (`preview_<phase>_<round>_<n>`) are what an unstarted event's sets are; they can be loaded and shown but never started or reported from the strip. When the TO starts the bracket, the set on the scoreboard moves to its real id by itself (see The event).
 
 ### The overlay channel and runtime
 
@@ -218,7 +222,17 @@ Global via `uiohook-napi` (native, required lazily). Defaults: `Ctrl+Shift+S` sw
 
 ### Control status — `lib/server/control-status.js`
 
-The dock's status: health (`startgg` from the event service's last read, `slippi`), the port map and how it was chosen, the Current Set card (report/start gating), the clipper, and the tournament and token state preflight reads. A field nothing reads doesn't belong — the scoreboard reaches the dock as state. Everything is local — **no network call in a rebuild**. Rebuilt every 2s and on demand; concurrent `refresh()` callers share one in-flight rebuild, and `refresh()` never rejects. The object's shape is written once, in `compose()`, used for both the startup seed and every rebuild — a new field goes there and nowhere else (`tests/control-status-shape.test.js`).
+The dock's status: health (`startgg` from the event service's last read, `slippi`), the port map and how it was chosen, the Current Set card (report/start gating), the clipper, OBS's health (`obsHealth`, below), and the tournament and token state preflight reads. A field nothing reads doesn't belong — the scoreboard reaches the dock as state. Everything is local — **no network call in a rebuild**. Rebuilt every 2s and on demand; concurrent `refresh()` callers share one in-flight rebuild, and `refresh()` never rejects. The object's shape is written once, in `compose()`, used for both the startup seed and every rebuild — a new field goes there and nowhere else (`tests/control-status-shape.test.js`).
+
+### OBS health — `lib/obs-health.js`
+
+The dock's **OBS · Live · Rec · Audio** lights and the problems bar under its header, on every tab. `obs-client.js` gathers (one socket, open while **Watch OBS** (`obsMonitor`, default on) or the clipper is on): a 3s poll of `GetStreamStatus` / `GetRecordStatus` / `GetStats`, the `InputVolumeMeters` event (high-volume, OR'd into the subscription), each input's mute and volume, and the browser sources whose url is this app's port and `/o/`. `obs-health.js` (pure) judges: `evaluate(obs.health(), { setLoaded, gameLive, gameSince, pages }, now)` → `{ lights, issues }`, run by `control-status.js` on its 2s tick. `tests/control-status-shape.test.js` pins the rules.
+
+- **What's flagged:** OBS unreachable; not streaming with a set loaded (warn) or a game on (error); reconnecting, sending nothing, dropping frames (>1% warn, >5% error over 60s), congestion; not recording when **Expect a recording** is on, paused, low disk; render or encoder lag, low fps; **the game's sound** muted, at volume 0, silent through a game, or not in the scene on air; the stream silent; an input clipping; **an overlay that didn't load**.
+- **Every timed rule waits out a grace** (`GRACE`): each condition is normal for a moment.
+- **The game's sound is an OBS input** picked on the Clips tab's OBS card (`obsGameAudio`), else guessed by name (`GAME_AUDIO`: Elgato, capture, game…).
+- **An overlay that didn't load:** every page tells the channel which it is (`overlay-client.js` sends `auth.page`; `channel.pages()`), and an OBS browser source with no page connected after 15s is flagged, with **Refresh** (`POST /api/obs/refresh-source` → OBS's own "Refresh cache of current page"). A source set to shut down while hidden counts only while it shows.
+- **Meters are levels before the mute**, so mute and volume are checked on their own.
 
 ### Port reclaim — `lib/port-guard.js`
 
@@ -251,7 +265,7 @@ Gotchas (do not regress): use `totalDamage`, not `totalDamageDealt`; read stocks
 
 Detects notable combos **live, mid-game** and asks OBS to save its replay buffer, so the clip exists by the time the point is over (the buffer only holds the last N seconds, so a scan at game end is too late). `obs-scripts/auto_replays.py` collects the clips into a break-scene playlist.
 
-**Pipeline:** `game-source.js` (tick) → `combo-detector.js` (qualify; pure, no clock) → `clip-recorder.js` (cooldown, per-game cap, save delay, the recent-clips ring) → `obs-client.js` (`SaveReplayBuffer`; the only module that talks to OBS; lazy connect with backoff, never throws upward, `getStatus()` synchronous) → `slippi_clip_saved` → the dock and the side panel's toast. Clip errors go to the dock only, never the broadcast.
+**Pipeline:** `game-source.js` (tick) → `combo-detector.js` (qualify; pure, no clock) → `clip-recorder.js` (cooldown, per-game cap, save delay, the recent-clips ring) → `obs-client.js` (`SaveReplayBuffer`; the only module that talks to OBS, which it also watches for OBS health below; lazy connect with backoff, never throws upward, `getStatus()` and `health()` synchronous) → `slippi_clip_saved` → the dock and the side panel's toast. Clip errors go to the dock only, never the broadcast.
 
 - **`slippi_clip_saved` carries the attacker.** slippi-js's `conversion.playerIndex` is the player who got **hit**; the attacker is `lastHitBy`.
 - **Buffer ≥ 20s.** Conversions run 6–9s and `saveDelayMs` adds ~2.5s.
@@ -336,7 +350,7 @@ Slippi character ids (0–25) → `{ codename, display }`; `CSS_ORDER` is Melee'
 - **Never run TSH against the app's player file.** TSH rewrites the whole file on save and never re-reads it. Copy the file, don't share it.
 - The parser is **persistent per file**: anything added to the poll loop must tolerate a live file and must not assume a fresh parse each tick.
 - **start.gg:** a response over 1000 objects is refused *whole* — split and retry, never "no results". `Player.sets(filters: …)` returns zero sets with any filter at all; fetch unfiltered and filter locally. `event.sets(filters: { playerIds: [a, b] })` is **OR**. `user.events` is not a player's history. The API returns `null` for a short slug — only the web redirect resolves it, and the link is **hyphenated** (`start.gg/100acres` is a hard 404).
-- **A browser source whose page failed to load doesn't retry.** Start the app before OBS, or refresh the sources. A loaded page survives app restarts (socket.io reconnects and gets `state:full`).
+- **A browser source whose page failed to load doesn't retry.** Start the app before OBS, or refresh the sources (the dock flags one that didn't load, with a Refresh key). A loaded page survives app restarts (socket.io reconnects and gets `state:full`).
 - **OBS's CEF is Chromium 103.** Check any new CSS feature against it; headless Chrome being newer hides the failure.
 - **Don't synthesise global keypresses to test the hotkeys** — they also type into whatever window has focus. Press them by hand.
 - **`scripts/` is one level deeper than the app.** `preflight.js` resolves the app at `..` and the repo at `../..`, and requires most of what it checks **lazily** (it has to run before `npm install`). `tests/preflight.test.js` runs it offline so a moved module fails a test rather than a pre-event check.

@@ -7,9 +7,9 @@ const { BRACKET_VIEWS: VIEWS } = require("../../event/bracket-feed");
 
 /**
  * @param {import("express").Express} app
- * @param {object} deps — { store, event, bracketDirector, refreshControlStatus }
+ * @param {object} deps — { store, event, bracketDirector, bracketOps, refreshControlStatus }
  */
-function register(app, { store, event, bracketDirector, refreshControlStatus }) {
+function register(app, { store, event, bracketDirector, bracketOps, refreshControlStatus }) {
   // The set picker: playable sets first. Answered from the event service's
   // last read (refreshed every 90s); ?refresh=1 is the dock's ↻ and re-reads
   // start.gg first.
@@ -36,7 +36,29 @@ function register(app, { store, event, bracketDirector, refreshControlStatus }) 
     const result = await event.loadSet(setId);
     // Push the report/start state out now rather than on the next tick.
     if (result.ok) refreshControlStatus();
+    // On our start.gg stream too — after the answer: the scoreboard is
+    // already up, and the strip's chip says how the mark went.
+    if (result.ok && bracketOps) bracketOps.markLoaded(result.setId).catch(() => {});
     res.json(result);
+  });
+
+  // The Bracket tab's "Run the bracket" card (lib/event/bracket-ops.js). The
+  // card draws from the `bracket-ops` dock event; this is the same snapshot.
+  app.get("/api/bracket-ops", (req, res) => {
+    if (!bracketOps) return res.status(503).json({ ok: false, error: "Bracket operations aren't running" });
+    res.json({ ok: true, ...bracketOps.snapshot() });
+  });
+
+  // { action: "call" | "start" | "stream" | "report" | "reset", setId, scores?, dq? }
+  app.post("/api/bracket-ops/action", async (req, res) => {
+    if (!bracketOps) return res.status(503).json({ ok: false, error: "Bracket operations aren't running" });
+    res.json(await bracketOps.act(req.body ?? {}));
+  });
+
+  // { markOnStream?: boolean, streamName?: string }
+  app.post("/api/bracket-ops/settings", (req, res) => {
+    if (!bracketOps) return res.status(503).json({ ok: false, error: "Bracket operations aren't running" });
+    res.json(bracketOps.setSettings(req.body ?? {}));
   });
 
   // This week's singles or doubles event, via the series' short link.

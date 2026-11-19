@@ -119,7 +119,12 @@ function buildBracket(rawSets, meta = {}) {
       side: Number(s.round) < 0 ? "L" : "W", // GF / GFR resolved in pass 2
       lPlacement: s.lPlacement ?? null,
       state: stateOf(s),
+      // Called to its station (start.gg state 6) — still "pending" to the overlay.
+      called: Number(s.state) === 6,
+      startedAt: s.startedAt ?? null,
       completedAt: s.completedAt ?? null,
+      streamId: sid(s.stream?.id),
+      station: s.station?.number ?? null,
       preview: id.startsWith("preview"),
       dq: slots.some((x) => x.dq) || s.displayScore === "DQ",
       winner,

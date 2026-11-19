@@ -174,7 +174,9 @@ The dock's **Setup** tab lists every url with a copy button. All are on the app'
 ### obs-websocket
 - [ ] Tools → WebSocket Server Settings → **Enable WebSocket server**, port **4455**
 - [ ] Show Connect Info → copy the password
-- [ ] In the dock's **Clips** tab: the URL (`ws://127.0.0.1:4455`), the password, and the replay folder → **Save**
+- [ ] In the dock's **Clips** tab, OBS card: the URL (`ws://127.0.0.1:4455`) and the password → **Save connection**. The app watches OBS's health from then on (the header's Live · Rec · Audio lights), clipper on or not
+- [ ] On the OBS card, check **Game audio** names the capture card's input (it guesses by name), and turn on **Expect a recording** if this setup records locally
+- [ ] On the clipper card: the replay folder → **Save settings**
 - [ ] Turn the clipper **on**, then press **Test clip** — a clip should hit the folder and appear in the recent list. Do this *before* a bracket starts; it proves the whole chain.
 
 > Clips are **singles only**. slippi-js computes conversions only for 2-player games, so doubles produces no clips at all — that's upstream and unfixable here.
@@ -242,7 +244,7 @@ Secrets and per-machine files: see [CLAUDE.md → Known Gotchas](../CLAUDE.md#kn
 |---|---|
 | App exits at startup | `SLP_FOLDER` doesn't exist on this machine (Phase 2) |
 | Every player opens on no character, no pronouns | No player file — the startup log warns; Phase 2 |
-| An OBS source is blank | It was added before the app started — refresh it |
+| An OBS source is blank | It was added before the app started — the dock's problems bar names it; press its Refresh |
 | Unstyled overlay / missing logo | The theme pack (`overlays/theme.css`) — preflight checks it |
 | Brackets load but Start/Report are off | No start.gg token, or it expired — preflight's live check says which |
 | Hotkeys do nothing | uiohook-napi didn't load (the Setup tab says "Console only"), or another app took the chord |

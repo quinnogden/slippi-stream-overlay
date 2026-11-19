@@ -100,7 +100,47 @@ function pickerList(graph, opts = {}) {
       seeds: set.slots.map((s) => s.seed),
       scores: set.slots.map((s) => s.score),
       preview: set.preview,
+      // The start.gg stream it's on, if any (the dock leads with ours).
+      streamId: set.streamId ?? null,
     }));
 }
 
-module.exports = { loadPayload, pickStatus, pickerList, PICK_ORDER };
+/**
+ * The set in `groups` that is the same match as one start.gg has since given a
+ * new id: same identifier (the set's letter), same two entrants. That happens
+ * twice — when the bracket starts, every `preview_…` id becomes a number; and
+ * when a TO resets the bracket on start.gg, every number changes again.
+ *
+ * Prefers the same phase group; anywhere else counts only if it's the one
+ * match (a pool and top 8 can reuse a letter). Null when nothing, or more
+ * than one thing, matches.
+ *
+ * `loose` drops the letter and keeps only unfinished sets: a preview bracket
+ * reseeded before it started moves players to other letters, and two players
+ * meet in one unfinished set at a time.
+ *
+ * @param {Array<{ id: string, graph: object|null }>} groups — event-service groups()
+ * @param {{ identifier: string, entrantIds: Array<string|null>, phaseGroupId?: string|null,
+ *           excludeId?: string|null, loose?: boolean }} want
+ * @returns {{ groupId: string, set: object } | null}
+ */
+function findSameMatch(groups, want) {
+  const pair = (want.entrantIds ?? []).map((x) => (x == null ? null : String(x)));
+  if ((!want.identifier && !want.loose) || pair.length !== 2 || pair.some((x) => x == null)) return null;
+  const key = [...pair].sort().join("|");
+  const hits = [];
+  for (const g of groups) {
+    for (const set of Object.values(g.graph?.sets ?? {})) {
+      if (set.preview || set.id === String(want.excludeId ?? "")) continue;
+      if (want.loose ? set.state === "done" : set.identifier !== want.identifier) continue;
+      const ents = set.slots.map((s) => s.entrantId);
+      if (ents.some((x) => x == null) || [...ents].sort().join("|") !== key) continue;
+      hits.push({ groupId: g.id, set });
+    }
+  }
+  const same = hits.filter((h) => want.phaseGroupId != null && h.groupId === String(want.phaseGroupId));
+  if (same.length === 1) return same[0];
+  return hits.length === 1 ? hits[0] : null;
+}
+
+module.exports = { loadPayload, pickStatus, pickerList, findSameMatch, PICK_ORDER };

@@ -385,7 +385,7 @@ async function loadOverlay({
 
   // The page's side of Socket.io.
   const client = { socket: null, sent: [] };
-  function io(ns) {
+  function io(ns, opts) {
     const handlers = {};
     const any = [];
     const serverHandlers = {};
@@ -405,6 +405,7 @@ async function loadOverlay({
     };
     // What the channel sees on its side.
     const server = {
+      handshake: { auth: (opts && opts.auth) || {}, headers: {} },
       on(ev, fn) { (serverHandlers[ev] = serverHandlers[ev] || []).push(fn); },
       emit(ev, payload) { socket.receive(ev, payload); },
       deliver(ev, payload) { socket.receive(ev, payload); },
@@ -433,7 +434,7 @@ async function loadOverlay({
     // The client's "[tag] connected" chatter off; warnings and errors kept.
     console: { ...console, log() {}, info() {} },
     // reload() counts: a theme switch reloads a source rather than restyling it.
-    location: { search, reloads: 0, reload() { this.reloads++; } },
+    location: { pathname: page ? `/o/${page}` : "/dock", search, reloads: 0, reload() { this.reloads++; } },
     URLSearchParams,
     setTimeout, clearTimeout, setInterval, clearInterval, queueMicrotask,
     requestAnimationFrame: (fn) => setTimeout(() => fn(Date.now()), 0),

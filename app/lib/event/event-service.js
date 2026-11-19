@@ -22,15 +22,42 @@
  * Emits `change` whenever the event, its graphs or its status change, and
  * `set-load-settled` when no set load is in flight any more (`loadingSet`): a
  * game that ends while one is re-read waits for it (lib/modes/index.js).
+ *
+ * Three things start.gg does that would otherwise reach the stream:
+ *
+ *   - **It goes blank when a bracket starts.** For 40–80s (measured with 7
+ *     players; longer with more) a started or restarted phase group reads as
+ *     no sets at all, then every set comes back under a new id. A group that
+ *     had sets and reads as none keeps its last list (`rebuilding`), and the
+ *     next read comes in 15s, not 90.
+ *   - **It renumbers sets.** `preview_…` ids become numbers when the bracket
+ *     starts, and a TO's reset renumbers them again. The set on the scoreboard
+ *     follows its match (same letter, same two entrants) to the new id
+ *     (`set-relinked`), keeping its games — Start, Report and the replay
+ *     upload then just work, where a reload would have dropped the games.
+ *   - **Its lists lag a press.** A report or a start shows in start.gg's set
+ *     lists seconds later. What the dock pressed is laid over the read
+ *     (afterAction) until start.gg agrees or 2 minutes pass, and the event is
+ *     re-read 4s and 12s on.
  */
 
 const { EventEmitter } = require("events");
 const { buildBracket } = require("./bracket-model");
-const { loadPayload, pickerList, PICK_ORDER } = require("./set-model");
+const { loadPayload, pickerList, findSameMatch, PICK_ORDER } = require("./set-model");
 const { normalizeBrackets, normalizeEventUrl, sameEvent, pickEvent } = require("./event-target");
 const { characterByName } = require("../char_map");
 
 const POLL_MS = 90000;
+// While start.gg is rebuilding a bracket (or about to: the dock just started
+// one), read again this soon.
+const FAST_POLL_MS = 15000;
+// A group that read as empty after having sets keeps them this long — past
+// that, it really is empty.
+const HOLD_EMPTY_MS = 5 * 60000;
+// A press laid over start.gg's lists, until they agree or this passes.
+const PENDING_MS = 2 * 60000;
+// After a press, start.gg's lists catch up over several seconds.
+const AFTER_ACTION_MS = [4000, 12000];
 
 // start.gg's ActivityState: a completed phase group's sets don't change, so it
 // is read once rather than on every refresh — once its sets were read *while*
@@ -61,6 +88,11 @@ class EventService extends EventEmitter {
     this._switching = false;
     this._timer = null;
     this._loadingSets = 0;
+    // setId → { patch, at }: what the dock just did to a set, until start.gg's lists show it.
+    this._pending = new Map();
+    this._soonTimers = [];
+    // Until when a blank read is expected (the dock just started a preview set).
+    this._expectRebuildUntil = 0;
   }
 
   get shortLink() { return this._brackets.shortLink; }
@@ -68,8 +100,8 @@ class EventService extends EventEmitter {
   /** A set load is between the operator's press and the scoreboard (re-reading the set from start.gg). */
   get loadingSet() { return this._loadingSets > 0; }
 
-  /** { state: "none" | "ok" | "error", error, updatedAt } of the last read. */
-  status() { return { ...this._status }; }
+  /** { state: "none" | "ok" | "error", error, updatedAt, rebuilding } of the last read. */
+  status() { return { ...this._status, rebuilding: this.rebuilding }; }
 
   // ── Lifecycle ───────────────────────────────────────────────────────────────
 
@@ -88,16 +120,69 @@ class EventService extends EventEmitter {
   stop() {
     clearTimeout(this._timer);
     this._timer = null;
+    for (const t of this._soonTimers) clearTimeout(t);
+    this._soonTimers = [];
   }
 
   _schedule() {
     clearTimeout(this._timer);
+    const fast = this.rebuilding || Date.now() < this._expectRebuildUntil;
     this._timer = setTimeout(async () => {
       // A saved event not read yet goes through refresh() too, as a reload.
       if (this._event || this._store.tournament().eventSlug) await this.refresh({ background: true });
       this._schedule();
-    }, this._pollMs);
+    }, fast ? Math.min(FAST_POLL_MS, this._pollMs) : this._pollMs);
     this._timer.unref?.();
+  }
+
+  /** start.gg is rebuilding a bracket: a group that had sets reads as none, and its last list is shown. */
+  get rebuilding() { return this._groups.some((g) => g.emptySince != null); }
+
+  /**
+   * The dock just did something to a set on start.gg (lib/event/bracket-ops.js,
+   * the strip's Start and Report). Show it now, over start.gg's lists until
+   * they say the same, and re-read the event as they catch up.
+   * @param {string|number} setId
+   * @param {{ state?: 1|2|3|6, winnerId?: string|null, scores?: Object<string, number|null>,
+   *           startedAt?: number, streamId?: string, startsBracket?: boolean }} [patch]
+   */
+  afterAction(setId, patch = null) {
+    if (patch?.startsBracket) this._expectRebuildUntil = Date.now() + 3 * 60000;
+    if (patch) {
+      const { startsBracket, ...rest } = patch;
+      if (Object.keys(rest).length) this._pending.set(String(setId), { patch: rest, at: Date.now() });
+    }
+    if (patch) {
+      for (const g of this._groups) if (g.graph) g.graph = this._build(g);
+      this.emit("change");
+    }
+    for (const t of this._soonTimers) clearTimeout(t);
+    this._soonTimers = AFTER_ACTION_MS.map((ms) => {
+      const t = setTimeout(() => this.refresh({ background: true }), ms);
+      t.unref?.();
+      return t;
+    });
+    this._schedule();
+  }
+
+  /** A group's graph: start.gg's sets, with the dock's presses it hasn't caught up with laid over them. */
+  _build(g) {
+    return buildBracket(this._withPending(g.raw), { phaseGroupId: g.id, bracketType: g.bracketType });
+  }
+
+  _withPending(raw) {
+    if (!this._pending.size) return raw;
+    const now = Date.now();
+    return raw.map((s) => {
+      const id = String(s.id);
+      const p = this._pending.get(id);
+      if (!p) return s;
+      if (now - p.at > PENDING_MS || agrees(s, p.patch)) {
+        this._pending.delete(id);
+        return s;
+      }
+      return applyPatch(s, p.patch);
+    });
   }
 
   // ── Which event ─────────────────────────────────────────────────────────────
@@ -218,6 +303,7 @@ class EventService extends EventEmitter {
     const gen = ++this._gen;
     this._event = res.event;
     this._groups = groupsOf(res.event, []);
+    this._pending.clear();
     const ev = res.event;
     this._store.setTournament({
       name: ev.tournament?.name ?? "",
@@ -278,14 +364,67 @@ class EventService extends EventEmitter {
         continue;
       }
       g.error = null;
+      // start.gg is rebuilding the bracket (see the header): keep the last list.
+      if (!res.sets.length && g.raw.length) {
+        if (g.emptySince == null) {
+          g.emptySince = Date.now();
+          this._log(`${g.label || "The bracket"} read as empty — start.gg is rebuilding it; showing the last list`);
+        }
+        if (Date.now() - g.emptySince < HOLD_EMPTY_MS) continue;
+      }
+      if (g.emptySince != null) this._log(`${g.label || "The bracket"} is back from start.gg (${res.sets.length} sets)`);
+      g.emptySince = null;
       g.raw = res.sets;
       g.readState = state;
-      g.graph = buildBracket(res.sets, { phaseGroupId: g.id, bracketType: g.bracketType });
+      g.graph = this._build(g);
     }
     if (firstError) return this._fail(firstError);
+    this._followOnAir();
     this._status = { state: "ok", error: null, updatedAt: Date.now() };
     this.emit("change");
     return { ok: true };
+  }
+
+  /**
+   * The set on the scoreboard has a new id on start.gg (see the header): move
+   * the link, keep everything else. Only after a whole, clean read — a group
+   * still held or failed has the old ids, and the set is found as it was.
+   */
+  _followOnAir() {
+    const sb = this._store.scoreboard();
+    if (sb.setId == null || sb.crew) return;
+    const id = String(sb.setId);
+    const entrantIds = sb.sides.map((s) => s.entrantId);
+    const now = this._groups.find((g) => g.graph?.sets[id])?.graph.sets[id];
+    const pairOf = (ids) => ids.map((x) => String(x ?? "")).sort().join("|");
+    if (now && pairOf(now.slots.map((s) => s.entrantId)) === pairOf(entrantIds)) return;
+    const want = { identifier: sb.identifier, entrantIds, phaseGroupId: sb.phaseGroupId, excludeId: id };
+    const hit = findSameMatch(this._groups, want)
+      ?? (id.startsWith("preview") ? findSameMatch(this._groups, { ...want, loose: true }) : null);
+    if (!hit) return;
+    const p = loadPayload(this.graph(hit.groupId), hit.set.id);
+    const moved = this._store.relinkSet({
+      setId: p.setId, phaseGroupId: p.phaseGroupId, identifier: p.identifier, roundName: p.roundName,
+      lPlacement: p.lPlacement, isGrandFinal: p.isGrandFinal, isReset: p.isReset,
+    });
+    if (!moved) return;
+    const names = sb.sides.map((s) => s.teamName || s.players.map((x) => x.tag).join(" / ")).join(" vs ");
+    this._log(`${names}: start.gg moved the set to a new id (${id} → ${p.setId})${id.startsWith("preview") ? " — the bracket has started" : ""}; games kept`);
+    this.emit("set-relinked", { from: id, to: p.setId });
+  }
+
+  /** The tournament's streams on start.gg: [{ id, name, source }] (enabled ones). */
+  streams() {
+    return (this._event?.tournament?.streams ?? [])
+      .filter((s) => s && s.id != null && s.enabled !== false)
+      .map((s) => ({ id: String(s.id), name: s.streamName ?? "", source: s.streamSource ?? "" }));
+  }
+
+  /** A set of the loaded event, wherever it is: { groupId, label, set } (the graph's node), or null. */
+  findSet(setId) {
+    const id = String(setId);
+    const g = this._groups.find((x) => x.graph?.sets[id]);
+    return g ? { groupId: g.id, label: g.label, set: g.graph.sets[id] } : null;
   }
 
   _fail(error) {
@@ -441,7 +580,7 @@ class EventService extends EventEmitter {
       const fresh = await this._startgg.getSet(id);
       if (fresh.ok) {
         group.raw = group.raw.map((s) => (String(s.id) === id ? fresh.set : s));
-        group.graph = buildBracket(group.raw, { phaseGroupId: group.id, bracketType: group.bracketType });
+        group.graph = this._build(group);
       } else {
         warning = `Couldn't re-read the set (${fresh.error}) — loaded it as the list last saw it.`;
         this._log(warning);
@@ -500,9 +639,44 @@ function groupsOf(event, previous) {
         graph: old?.graph ?? null,
         readState: old?.readState ?? null,
         error: old?.error ?? null,
+        emptySince: old?.emptySince ?? null,
       };
     });
   });
 }
 
-module.exports = { EventService };
+/** Whether start.gg's copy of a set already shows what the dock pressed. */
+function agrees(raw, patch) {
+  const state = Number(raw.state);
+  if (patch.state != null) {
+    // A reset is "not finished" — start.gg may put it back as created or called.
+    if (patch.state === 1 ? state === 3 : state !== patch.state) return false;
+  }
+  if (patch.streamId != null && String(raw.stream?.id ?? "") !== String(patch.streamId)) return false;
+  return true;
+}
+
+/** A start.gg set node with the dock's press laid over it (agrees() says when to stop). */
+function applyPatch(raw, patch) {
+  const out = { ...raw };
+  if (patch.state != null) out.state = patch.state;
+  if (patch.startedAt != null && !out.startedAt) out.startedAt = patch.startedAt;
+  if (patch.streamId != null) out.stream = { id: patch.streamId };
+  if (patch.state === 3) {
+    out.winnerId = patch.winnerId ?? out.winnerId;
+    out.completedAt = out.completedAt ?? Math.floor(Date.now() / 1000);
+    out.displayScore = patch.dq ? "DQ" : out.displayScore;
+  }
+  if (patch.state === 1) Object.assign(out, { winnerId: null, completedAt: null, displayScore: null });
+  if (patch.scores || patch.state === 1) {
+    out.slots = (raw.slots ?? []).map((slot) => {
+      const id = slot?.entrant?.id == null ? null : String(slot.entrant.id);
+      const value = patch.state === 1 ? null : patch.scores?.[id];
+      if (value === undefined) return slot;
+      return { ...slot, standing: { ...(slot.standing ?? {}), stats: { score: { value } } } };
+    });
+  }
+  return out;
+}
+
+module.exports = { EventService, agrees, applyPatch };

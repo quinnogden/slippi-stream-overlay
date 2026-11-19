@@ -23,8 +23,16 @@
       <span class="led" id="led-startgg">start.gg</span>
       <span class="led" id="led-slippi">Slippi</span>
       <span class="led" id="led-obs">OBS</span>
+      <!-- OBS's health (lib/obs-health.js): the stream, the recording, the audio. -->
+      <span class="led off" id="led-live">Live</span>
+      <span class="led off" id="led-rec">Rec</span>
+      <span class="led off" id="led-audio">Audio</span>
     </div>
   </header>
+
+  <!-- OBS's problems, from any tab: one line each, with its fix. ✕ hides one
+       until it clears and comes back. -->
+  <div class="alerts" id="alerts" aria-live="polite"></div>
 
   <div class="layout">
     <!-- The live strip: what is on the scoreboard right now. Pinned, so a
@@ -37,6 +45,8 @@
         </button>
         <span class="strip-summary" id="strip-summary"></span>
         <span class="set-ref" id="set-ref">Manual set</span>
+        <!-- Whether start.gg has the set on our stream (Bracket → Run the bracket). A tap retries. -->
+        <button class="badge stream-mark gone" id="stream-mark" type="button"></button>
         <button class="key mini mode-key" id="btn-doubles" type="button" aria-pressed="false" title="Doubles: two players a side, and a team colour instead of characters">Doubles</button>
         <!-- Only during a crew battle, in Doubles' place. -->
         <button class="key mini mode-key lit" id="btn-crew" type="button" title="A crew battle is on the scoreboard — its rosters are in the Crew tab">Crew</button>
@@ -234,6 +244,33 @@
           </div>
           <div class="hint" id="bracket-hint">No event loaded — press Singles or Doubles.</div>
         </div>
+
+        <!-- Working start.gg's bracket beside the TOs: call, start, stream,
+             report, reset, any set (lib/event/bracket-ops.js). -->
+        <div class="card" data-fold="bracket.ops">
+          <div class="card-head">
+            <span class="label">Run the bracket</span>
+            <span class="fold-sum" id="sum-ops"></span>
+            <span class="badge warn gone" id="ops-rebuilding" title="start.gg is setting the bracket up (it reads as empty for a minute when a bracket starts). The last list stays up; presses on preview sets wait for it">Rebuilding</span>
+          </div>
+          <div class="ops-settings">
+            <label class="field check" title="Each set loaded onto the scoreboard is put on our stream on start.gg, so start.gg's bracket and the TO's stream queue show it">
+              <input type="checkbox" id="ops-mark" /> <span>Put sets loaded onto the scoreboard on our start.gg stream</span>
+            </label>
+            <label class="field ops-stream-field">
+              <span>Our stream</span>
+              <select id="ops-stream" title="Which of the tournament's streams is ours — kept by name, week to week"></select>
+            </label>
+          </div>
+          <input class="filter" id="ops-filter" type="search" placeholder="Filter by player or round…" />
+          <div class="ops-list" id="ops-list"></div>
+          <div class="card-foot">
+            <button class="linkish" id="btn-ops-waiting" type="button">Show waiting</button>
+            <button class="linkish" id="btn-ops-recent" type="button">Recent results</button>
+          </div>
+          <div class="ops-list gone" id="ops-recent"></div>
+          <div class="hint" id="ops-hint">Tap a set for its keys. <b>Ready</b> sets are numbered in a suggested call order: earliest in the bracket, then the closest seeds. The set on the scoreboard is reported from the strip.</div>
+        </div>
       </div>
 
       <!-- ── Stats ── -->
@@ -359,6 +396,28 @@
 
       <!-- ── Clips ── -->
       <div class="panel" id="panel-clips">
+        <!-- OBS: the connection the clipper shares, and its health checks. -->
+        <div class="card" data-fold="clips.obs">
+          <div class="card-head">
+            <span class="label">OBS</span>
+            <span class="fold-sum" id="sum-obs"></span>
+            <label class="switch" title="Watch OBS for problems: the stream, the recording, the audio and the overlays">
+              <input type="checkbox" id="obs-monitor" /> <span>Watch</span>
+            </label>
+          </div>
+          <div class="hint" id="obs-status">—</div>
+          <div class="obs-checks" id="obs-checks"></div>
+          <div class="obs-audio" id="obs-audio"></div>
+          <div class="obs-settings">
+            <label class="field obs-game-field"><span>Game audio</span><select id="obs-game-audio"></select></label>
+            <label class="field check"><input type="checkbox" id="obs-expect-rec" /><span>Expect a recording</span></label>
+          </div>
+          <!-- Built from CLIP_FIELDS (card: "obs") in dock.js. -->
+          <div class="clip-fields" id="obs-fields"></div>
+          <div class="key-row">
+            <button class="key go" id="btn-obs-save" type="button">Save connection</button>
+          </div>
+        </div>
         <div class="card" data-fold="clips.clipper">
           <div class="card-head">
             <span class="label">Combo clipper</span>

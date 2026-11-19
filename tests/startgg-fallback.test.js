@@ -140,19 +140,26 @@ const eventData = { data: { data: { event: { id: 1, name: "Melee Singles", phase
     });
   }
 
-  await test("phase group paging: a complexity refusal restarts at a smaller page size", async () => {
+  // start.gg says how far over the ceiling a page was; the next size is scaled
+  // from that, and the size that fit is where the group's next read starts —
+  // a big bracket isn't refused once on every refresh.
+  await test("phase group paging: a complexity refusal restarts at the size start.gg's count allows, and it's kept", async () => {
     const sizes = [];
     stub({
       [OFFICIAL]: async (body) => {
         sizes.push(body.variables.perPage);
-        if (body.variables.perPage === 40) return { data: { errors: [{ message: "Your query complexity is too high. A maximum of 1000 objects may be returned" }] } };
+        if (body.variables.perPage > 20) {
+          return { data: { errors: [{ message: "Your query complexity is too high. A maximum of 1000 objects may be returned by each request. (actual: 1260)" }] } };
+        }
         return { data: { data: { phaseGroup: { sets: { pageInfo: { totalPages: 1 }, nodes: [{ id: 1 }] } } } } };
       },
     });
     const gg = new StartggClient({ STARTGG_TOKEN: "tok" });
     const r = await gg.getPhaseGroupSets(42);
     assert.ok(r.ok && r.sets.length === 1);
-    assert.deepStrictEqual(sizes, [40, 20]);
+    assert.deepStrictEqual(sizes, [28, 20]);
+    await gg.getPhaseGroupSets(42);
+    assert.deepStrictEqual(sizes, [28, 20, 20]);
   });
 
   await test("background requests wait for rate budget", async () => {

@@ -19,6 +19,26 @@ const path = require("path");
 // as a big-endian int32 (the .slp spec, UBJSON).
 const RAW_LENGTH_OFFSET = 11;
 
+// How far a replay's own start time may sit from the PC's before the PC wins.
+// A console's clock is routinely wrong — an hour off after a daylight-saving
+// change, a year off after a battery dies (seen at PROTOCOL's weeklies) — and
+// a wrong start puts the set on the wrong day on LuckyStats.
+const CLOCK_SLACK_MS = 2 * 60000;
+
+/**
+ * A game's start time: the replay's own (`metaMs`, the metadata's startAt)
+ * while it agrees with the PC's (`pcMs`: when the app saw the file appear, or
+ * the file's creation time), else the PC's. Either may be missing.
+ * @returns {number|null}
+ */
+function trustedStart(metaMs, pcMs) {
+  const meta = Number.isFinite(metaMs) ? metaMs : null;
+  const pc = Number.isFinite(pcMs) && pcMs > 0 ? pcMs : null;
+  if (meta == null) return pc;
+  if (pc == null || Math.abs(meta - pc) <= CLOCK_SLACK_MS) return meta;
+  return pc;
+}
+
 /**
  * Whether Slippi has finished writing the file.
  * @param {string} file
@@ -60,9 +80,12 @@ function readReplay(file) {
     const end = game.getGameEnd();
     const winner = end?.placements?.find((x) => x.position === 0)?.playerIndex ?? null;
     const started = meta.startAt ? Date.parse(meta.startAt) : NaN;
+    // The file was created on this PC when the game started (Slippi writes it live).
+    let createdMs = null;
+    try { createdMs = fs.statSync(file).birthtimeMs || null; } catch (_) { /* no stat: the replay's own time stands */ }
     return {
       ok: true,
-      startMs: Number.isFinite(started) ? started : null,
+      startMs: trustedStart(started, createdMs),
       lastFrame: Number.isFinite(meta.lastFrame) ? meta.lastFrame : (game.getLatestFrame()?.frame ?? null),
       stageId: settings.stageId ?? null,
       players,
@@ -97,4 +120,4 @@ function recentFiles(dir, limit = 40) {
   return out.sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, limit);
 }
 
-module.exports = { isFinished, readReplay, recentFiles };
+module.exports = { isFinished, readReplay, recentFiles, trustedStart, CLOCK_SLACK_MS };

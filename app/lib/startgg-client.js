@@ -6,10 +6,12 @@
  *   - getEvent(), getPhaseGroupSets(), getSet(), listEvents() — the event, its
  *     bracket and the set being loaded (lib/event/event-service.js). All four
  *     may fall back to start.gg's keyless web endpoint (see _gql).
- *   - reportSet()        — reportBracketSet.
+ *   - reportSet()        — reportBracketSet (a DQ too).
  *   - getSetState()      — whether the Start Set button applies; cached per set
  *                          by start-set.js.
  *   - startSet()         — markSetInProgress.
+ *   - callSet(), assignStream(), resetSet() — the dock's bracket card
+ *                          (lib/event/bracket-ops.js).
  *   - resolveShortLink() — deliberately NOT GraphQL and deliberately NOT gated
  *                          on `enabled`. The API cannot resolve a short link
  *                          (tournament(slug: "100-acres") returns null); only
@@ -67,12 +69,32 @@ const BACKGROUND_BUDGET = 50;
 // token — so background work stands down for a while rather than retrying into it.
 const RATE_LIMIT_COOLDOWN_MS = 30000;
 
+// isDQ: the loser was disqualified (no games; start.gg shows "DQ").
 const REPORT_MUTATION = `
-mutation reportSet($setId: ID!, $winnerId: ID!, $gameData: [BracketSetGameDataInput]) {
-  reportBracketSet(setId: $setId, winnerId: $winnerId, gameData: $gameData) {
+mutation reportSet($setId: ID!, $winnerId: ID!, $gameData: [BracketSetGameDataInput], $isDQ: Boolean) {
+  reportBracketSet(setId: $setId, winnerId: $winnerId, gameData: $gameData, isDQ: $isDQ) {
     id
     state
   }
+}`.trim();
+
+// The bracket card's other presses (lib/event/bracket-ops.js): call a set to
+// its station, put it on a stream, and take a reported result back.
+// resetDependentSets: false — a reset that would undo later sets is refused
+// by start.gg instead of cascading.
+const CALL_SET_MUTATION = `
+mutation callSet($setId: ID!) {
+  markSetCalled(setId: $setId) { id state }
+}`.trim();
+
+const ASSIGN_STREAM_MUTATION = `
+mutation assignStream($setId: ID!, $streamId: ID!) {
+  assignStream(setId: $setId, streamId: $streamId) { id stream { id } }
+}`.trim();
+
+const RESET_SET_MUTATION = `
+mutation resetSet($setId: ID!) {
+  resetSet(setId: $setId, resetDependentSets: false) { id state }
 }`.trim();
 
 // start.gg's set states: 1 = not started, 2 = in progress, 3 = completed,
@@ -106,6 +128,19 @@ function tournamentSlugFromUrl(url) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, Math.max(0, ms)));
 
+/**
+ * The page size to try after start.gg refused `perPage` for complexity. Its
+ * message says how far over it was ("… (actual: 1081)"): scale to 90% of the
+ * ceiling from that. Without the number, halve. Never below 5.
+ */
+function smallerPage(perPage, message) {
+  const actual = Number(String(message ?? "").match(/actual:\s*(\d+)/i)?.[1]);
+  const next = Number.isFinite(actual) && actual > 0
+    ? Math.floor((perPage * 900) / actual)
+    : Math.floor(perPage / 2);
+  return Math.max(5, Math.min(next, perPage - 1));
+}
+
 class StartggClient {
   /**
    * @param {{ STARTGG_TOKEN?: string }} config
@@ -118,6 +153,9 @@ class StartggClient {
     this._coolUntil = 0;
     // Serialises background requests so two waiters can't both see one free slot.
     this._bgQueue = Promise.resolve();
+    // Phase group id → the page size its last read fit in, so a group that
+    // needed smaller pages isn't refused again on every refresh.
+    this._pageSizes = new Map();
   }
 
   /** True when a token is configured; the report feature keys off this. */
@@ -130,15 +168,17 @@ class StartggClient {
    * @param {string|number} setId          — start.gg set id
    * @param {string|number} winnerEntrantId — start.gg entrant id of the winning team
    * @param {Array<object>} [gameData]      — optional per-game detail (BracketSetGameDataInput)
+   * @param {{ isDQ?: boolean }} [opts]     — isDQ: the other entrant was disqualified (no games)
    * @returns {Promise<{ ok: boolean, state?: number, error?: string }>}
    */
-  async reportSet(setId, winnerEntrantId, gameData) {
+  async reportSet(setId, winnerEntrantId, gameData, { isDQ = false } = {}) {
     if (setId == null || winnerEntrantId == null) {
       return { ok: false, error: "reportSet requires both a set id and a winner entrant id" };
     }
 
     const variables = { setId: String(setId), winnerId: String(winnerEntrantId) };
-    if (Array.isArray(gameData) && gameData.length > 0) {
+    if (isDQ) variables.isDQ = true;
+    else if (Array.isArray(gameData) && gameData.length > 0) {
       variables.gameData = gameData;
     }
 
@@ -351,6 +391,34 @@ class StartggClient {
     return { ok: true, state: Number(result.state) };
   }
 
+  /** Call a set to its station (start.gg state 6). */
+  callSet(setId) {
+    return this._mutateSet(CALL_SET_MUTATION, { setId: String(setId) }, "markSetCalled", "start.gg wouldn't call the set");
+  }
+
+  /** Put a set on one of the tournament's streams. */
+  assignStream(setId, streamId) {
+    if (streamId == null) return Promise.resolve({ ok: false, error: "No stream to put it on" });
+    return this._mutateSet(ASSIGN_STREAM_MUTATION, { setId: String(setId), streamId: String(streamId) },
+                           "assignStream", "start.gg wouldn't put the set on stream");
+  }
+
+  /** Take a set's result back (it goes back to not started). Refused if later sets depend on it. */
+  resetSet(setId) {
+    return this._mutateSet(RESET_SET_MUTATION, { setId: String(setId) }, "resetSet", "start.gg wouldn't reset the set");
+  }
+
+  /** One set mutation: { ok, state? } or start.gg's refusal. Never falls back (it needs the token). */
+  async _mutateSet(mutation, variables, field, errorPrefix) {
+    if (variables.setId == null || variables.setId === "undefined") return { ok: false, error: "No set id" };
+    const res = await this._gql(mutation, variables, errorPrefix);
+    if (!res.ok) return res;
+    const result = res.data?.[field];
+    if (!result) return { ok: false, error: "start.gg returned no set (unexpected response shape)" };
+    console.log(`[bridge] start.gg ${field} on set ${variables.setId}${result.state != null ? ` (state ${result.state})` : ""}`);
+    return { ok: true, state: result.state == null ? undefined : Number(result.state) };
+  }
+
   // ── Bracket switcher ────────────────────────────────────────────────────────
 
   /**
@@ -471,25 +539,33 @@ class StartggClient {
    * @returns {Promise<{ ok: boolean, sets?: Array<object>, error?: string }>}
    */
   async getPhaseGroupSets(phaseGroupId, { background = false } = {}) {
-    for (const perPage of PAGE_SIZES) {
+    const key = String(phaseGroupId);
+    let perPage = this._pageSizes.get(key) ?? PAGE_SIZES[0];
+    for (let attempt = 0; attempt < 4; attempt++) {
       const sets = [];
-      let refused = false;
+      let refused = null;
       for (let page = 1; ; page++) {
-        const vars = { id: String(phaseGroupId), page, perPage };
+        const vars = { id: key, page, perPage };
         const res = background
           ? await this.backgroundQuery(PHASE_GROUP_SETS_QUERY, vars, { fallback: true })
           : await this._gql(PHASE_GROUP_SETS_QUERY, vars, undefined, { fallback: true });
         if (!res.ok) {
-          if (res.complexity) { refused = true; break; }
+          if (res.complexity) { refused = res; break; }
           return res;
         }
         const conn = res.data?.phaseGroup?.sets;
         sets.push(...(conn?.nodes ?? []));
         if (page >= (conn?.pageInfo?.totalPages ?? 0)) break;
       }
-      if (!refused) return { ok: true, sets };
+      if (!refused) {
+        this._pageSizes.set(key, perPage);
+        return { ok: true, sets };
+      }
+      const next = smallerPage(perPage, refused.error);
+      if (next >= perPage) break;
+      perPage = next;
     }
-    return { ok: false, error: `start.gg refused phase group ${phaseGroupId} even at ${PAGE_SIZES.at(-1)} sets a page` };
+    return { ok: false, error: `start.gg refused phase group ${phaseGroupId} even at ${perPage} sets a page` };
   }
 
   /**

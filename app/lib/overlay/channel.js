@@ -43,13 +43,15 @@ const RELAY = {
   // Stream-set replays and their LuckyStats uploads (lib/replays/): the
   // Replays tab's whole picture, replayed to a dock that connects later.
   replays_state:     {                        dock: "replays",    sticky: true },
+  // The Bracket tab's "Run the bracket" card (lib/event/bracket-ops.js).
+  bracket_ops:       {                        dock: "bracket-ops", sticky: true },
 };
 
 const NAMESPACES = ["overlay", "dock"];
 
 /**
  * @param {{ io: import("socket.io").Server, store: import("../scoreboard/store").ScoreboardStore }} deps
- * @returns {{ emit: (event: string, payload: any) => void }}
+ * @returns {{ emit: (event: string, payload: any) => void, pages: () => string[] }}
  */
 function createOverlayChannel({ io, store }) {
   const nsps = Object.fromEntries(NAMESPACES.map((n) => [n, io.of(`/${n}`)]));
@@ -76,8 +78,34 @@ function createOverlayChannel({ io, store }) {
     for (const k of keys) pending.add(k);
   });
 
+  // Which overlay pages are connected, as each page reports its own url
+  // (overlay-client.js sends `auth.page`). OBS's health check matches its
+  // browser sources against it: a source with no page here didn't load.
+  const pageCount = new Map();
+
+  /** The page an /overlay socket belongs to: its own word, else its Referer. */
+  function pageOf(socket) {
+    const said = socket.handshake?.auth?.page;
+    if (typeof said === "string" && said) return said.slice(0, 300);
+    try {
+      const u = new URL(socket.handshake?.headers?.referer || "");
+      return u.pathname + u.search;
+    } catch { return null; }
+  }
+
   for (const [name, nsp] of Object.entries(nsps)) {
     nsp.on("connection", (socket) => {
+      if (name === "overlay") {
+        const page = pageOf(socket);
+        if (page) {
+          pageCount.set(page, (pageCount.get(page) || 0) + 1);
+          socket.on("disconnect", () => {
+            const n = (pageCount.get(page) || 1) - 1;
+            if (n > 0) pageCount.set(page, n);
+            else pageCount.delete(page);
+          });
+        }
+      }
       socket.emit("state:full", store.snapshot());
       for (const [event, payload] of sticky) {
         const target = RELAY[event][name];
@@ -98,7 +126,12 @@ function createOverlayChannel({ io, store }) {
     }
   }
 
-  return { emit };
+  /** The overlay pages connected now ("/o/side-panel?panel=player-1"). */
+  function pages() {
+    return [...pageCount.keys()];
+  }
+
+  return { emit, pages };
 }
 
 module.exports = { createOverlayChannel };

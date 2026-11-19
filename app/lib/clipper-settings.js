@@ -1,5 +1,6 @@
 /**
- * clipper-settings.js — tunables for the combo clipper.
+ * clipper-settings.js — tunables for the combo clipper, and the OBS
+ * connection and health checks it shares a socket with.
  *
  * Three layers, lowest priority first, each merged per key:
  *   1. DEFAULTS below          — always complete, so nothing downstream needs `??`
@@ -36,6 +37,10 @@ const DEFAULTS = {
   maxClipsPerGame: 0,            // 0 = unlimited
   clipFolder: "",                // OBS replay output folder (display + OBS script)
   notifySidePanel: true,         // show the "clip saved" toast on the overlay
+  // OBS health (lib/obs-health.js) — the same socket, open while either is on.
+  obsMonitor: true,              // watch the stream, recording, audio and overlays
+  obsExpectRecording: false,     // a stream that isn't also recording is a problem
+  obsGameAudio: "",              // the OBS input carrying the game's sound; "" = guess by name
 };
 
 /**
@@ -58,6 +63,9 @@ const FIELDS = {
   maxClipsPerGame:     { type: "int",    min: 0,  max: 100 },
   clipFolder:          { type: "string", max: 400 },
   notifySidePanel:     { type: "bool" },
+  obsMonitor:          { type: "bool" },
+  obsExpectRecording:  { type: "bool" },
+  obsGameAudio:        { type: "string", max: 200 },
 };
 
 /**

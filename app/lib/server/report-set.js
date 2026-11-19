@@ -56,7 +56,10 @@ function createReportSet(ctx, refreshControlStatus) {
     refreshControlStatus();
     const w = r.sides[r.winnerSide];
     const winnerName = w.teamName || w.players.map((p) => p.tag).filter(Boolean).join(" / ");
-    return { ok: true, winnerName, score: `${r.sides[0].score}-${r.sides[1].score}` };
+    // setId / winnerId / scores: what the bracket shows until start.gg's lists catch up (event-service afterAction).
+    const scores = Object.fromEntries(r.sides.map((s) => [String(s.entrantId), s.score]));
+    return { ok: true, winnerName, score: `${r.sides[0].score}-${r.sides[1].score}`,
+             setId: String(r.setId), winnerId: String(r.winnerEntrantId), scores };
   }
 
   return { reportCurrentSet };

@@ -94,6 +94,14 @@ function evaluateStartability({ startgg }, setId) {
   };
 }
 
+/**
+ * Something else changed this set on start.gg (the dock's bracket card):
+ * what's cached about it is stale, so the next tick reads it again.
+ */
+function forgetStartState(setId) {
+  if (cache.setId === String(setId)) cache = { setId: null, state: null, error: null, pending: false, at: 0 };
+}
+
 function createStartSet(ctx, refreshControlStatus) {
   const { store, startgg } = ctx;
 
@@ -117,10 +125,10 @@ function createStartSet(ctx, refreshControlStatus) {
 
     cache = { setId: String(setId), state: result.state ?? 2, error: null, pending: false, at: Date.now() };
     refreshControlStatus();
-    return result;
+    return { ...result, setId: String(setId) };
   }
 
   return { startCurrentSet };
 }
 
-module.exports = { createStartSet, evaluateStartability };
+module.exports = { createStartSet, evaluateStartability, forgetStartState };

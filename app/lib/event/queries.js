@@ -5,16 +5,25 @@
  * captured with exactly the fields the app reads, so a field added here shows
  * up in the next capture instead of being silently absent from every test.
  *
- * Sized against start.gg's 1000-objects-per-response ceiling. Per set:
- * set + 2 slots + 2 seeds + 2 standings + 2 entrants + 2–4 participants and
- * their players ≈ 15–20 objects, so 40 sets a page fits and a refusal halves it
- * (see PAGE_SIZES). Every query here also works unchanged against start.gg's
- * keyless web endpoint, which is what the read fallback relies on.
+ * Sized against start.gg's 1000-objects-per-response ceiling, which counts
+ * what comes back. Measured on Hundred Acres #57 (2026-11-18): a finished
+ * singles set costs 29 objects with these fields, a doubles set 33 (two
+ * participants and players a side); an unstarted one about half. So 28 sets a
+ * page fits either with room to spare — 40 did not (1081 on a full bracket:
+ * every refresh used to be refused once). A refusal still shrinks the page
+ * (startgg-client.js getPhaseGroupSets), and the size that worked is kept per
+ * group. Every query here also works unchanged against start.gg's keyless web
+ * endpoint, which is what the read fallback relies on.
  */
 
+// startedAt: how long a set has been running (the dock's bracket card).
+// stream / station: which stream and station start.gg has it on — one object
+// each, so 2 of the 29.
 const SET_FIELDS = `
   id identifier round fullRoundText state winnerId displayScore
-  lPlacement completedAt
+  lPlacement completedAt startedAt
+  stream { id }
+  station { id number }
   phaseGroup { id }
   slots {
     slotIndex prereqType prereqId prereqPlacement
@@ -26,16 +35,19 @@ const SET_FIELDS = `
     }
   }`;
 
-// Halved on a complexity refusal. Offsets change with page size, so a caller
+// The first size to try, then what a refusal falls back to when start.gg
+// doesn't say how far over it was. Offsets change with page size, so a caller
 // that has to shrink restarts the phase group from page 1.
-const PAGE_SIZES = [40, 20, 10];
+const PAGE_SIZES = [28, 14, 7];
 
+// The tournament's streams ride along: "on stream" on start.gg is one of them
+// (lib/event/bracket-ops.js). A handful of objects.
 const EVENT_QUERY = `
 query event($slug: String!) {
   event(slug: $slug) {
     id name slug state type numEntrants
     videogame { id }
-    tournament { id name slug }
+    tournament { id name slug streams { id streamName streamSource enabled } }
     phases {
       id name phaseOrder bracketType numSeeds groupCount state
       phaseGroups(query: { page: 1, perPage: 64 }) {
