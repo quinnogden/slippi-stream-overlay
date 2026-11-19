@@ -844,14 +844,23 @@
     renderSetsMarks();
   });
 
-  /** The folded strip's one line: both names and the score. */
+  /**
+   * The folded strip's one line: both tags and the score. Tags alone — the
+   * line is narrow, and a sponsor in front would leave a letter of each — with
+   * the full names in its tooltip.
+   */
   function renderSummary() {
     const [a, b] = sb.sides;
-    $("strip-summary").replaceChildren(
-      h("span", "sum-name", sideName(a) || "Left"),
+    const tags = (side) => side.teamName || side.players.map((p) => p.tag).filter(Boolean).join(" / ");
+    const sum = $("strip-summary");
+    sum.replaceChildren(
+      h("span", "sum-name", tags(a) || "Left"),
       h("span", "sum-score", `${a.score}–${b.score}`),
-      h("span", "sum-name", sideName(b) || "Right"),
+      h("span", "sum-name", tags(b) || "Right"),
     );
+    const full = `${sideName(a) || "Left"} ${a.score}–${b.score} ${sideName(b) || "Right"}`;
+    if (sum === tip.el) sum.dataset.tip = full; // hovered: its title is the tooltip's
+    else if (sum.title !== full) sum.title = full;
   }
 
   function setFolded(folded) {
@@ -1171,10 +1180,12 @@
   })();
 
   function renderTabBar() {
-    // The bar's order is the operator's (flex `order`), More always last.
+    // The bar's order is the operator's (flex/grid `order`), More always last.
+    // A wide window shows the rest too (dock.css), after the bar's.
     document.querySelectorAll(".tab[data-tab]").forEach((t) => {
-      t.classList.toggle("gone", !tabBar.includes(t.dataset.tab));
-      t.style.order = String(tabBar.indexOf(t.dataset.tab));
+      const at = tabBar.indexOf(t.dataset.tab);
+      t.classList.toggle("gone", at < 0);
+      t.style.order = String(at < 0 ? 50 + TABS.indexOf(t.dataset.tab) : at);
     });
     const rest = TABS.filter((t) => !tabBar.includes(t));
     const more = $("tab-more");
@@ -1221,7 +1232,16 @@
     $("tabbar-rest-field").classList.toggle("gone", !rest.length);
   }
   $("btn-tabbar-reset").addEventListener("click", () => setTabBar(BAR_DEFAULT));
-  $("tab-more").addEventListener("change", (e) => { if (e.target.value) showTab(e.target.value); e.target.blur(); });
+  $("tab-more").addEventListener("change", (e) => { if (e.target.value) { showTab(e.target.value); toTop(); } e.target.blur(); });
+
+  /**
+   * A tab pressed opens at its top. The portrait tab bar is along the bottom,
+   * so it's pressed from anywhere down the page — the open tab's own height
+   * would otherwise leave the next one scrolled to wherever that was.
+   */
+  function toTop() {
+    if (window.scrollTo && (window.scrollY || 0) > 0) window.scrollTo(0, 0);
+  }
 
   function showTab(name) {
     if (!TABS.includes(name)) name = "set";
@@ -1237,7 +1257,68 @@
     if (name === "setup") { fetchSetup(); fetchArt(); }
     if (name === "crew" && !savedCrews) fetchSavedCrews();
   }
-  document.querySelectorAll(".tab[data-tab]").forEach((t) => t.addEventListener("click", () => showTab(t.dataset.tab)));
+  document.querySelectorAll(".tab[data-tab]").forEach((t) => t.addEventListener("click", () => { showTab(t.dataset.tab); toTop(); }));
+
+  // ── Layout: what fits where ─────────────────────────────────────────────────
+
+  // dock.css picks the shape from the window: portrait is one column (the
+  // strip pinned at the top, the tab bar fixed along the bottom), landscape a
+  // rail of what's live beside the desk. What depends on a box's own width is
+  // decided here, because OBS's dock browser (Chromium 103) has no container
+  // queries:
+  //   .strip.narrow  ⇆ ⇄ ↻ down to their symbols (the dock, a phone, the rail)
+  //   .strip.tight   smaller chips and score keys, for a dock squeezed narrowest
+  //   .strip.split   the two sides side by side, mirrored as on stream
+  //   .desk.cols     each panel's .col groups side by side
+  // In landscape with the height for it, Up next moves into the rail, under
+  // the tabs, so the next set is a tap away from any tab; it moves back to
+  // the Set tab otherwise. --head-h is the pinned header's height, which the
+  // pinned strip sits under. Classes are set a frame after a resize, never
+  // inside the observer's callback, so a change of height they cause can't
+  // loop it.
+  const RAIL_UPNEXT = window.matchMedia
+    ? window.matchMedia("(min-width: 1200px) and (min-height: 640px), (min-width: 800px) and (orientation: landscape) and (min-height: 640px)")
+    : null;
+  function fitLayout() {
+    if (RAIL_UPNEXT) {
+      const upnext = $("col-upnext");
+      const home = RAIL_UPNEXT.matches ? $("rail") : $("panel-set");
+      if (upnext.parentElement !== home) {
+        if (home.id === "rail") home.appendChild(upnext);
+        else home.insertBefore(upnext, home.firstChild);
+      }
+    }
+    const strip = $("strip");
+    const desk = $("desk");
+    const sw = strip.clientWidth;
+    strip.classList.toggle("narrow", sw > 0 && sw < 460);
+    strip.classList.toggle("tight", sw > 0 && sw < 340);
+    strip.classList.toggle("split", sw >= 700);
+    desk.classList.toggle("cols", desk.clientWidth >= 760);
+    const head = $("head");
+    const headH = head.offsetHeight;
+    if (!headH) return;
+    // --pin-h: what's pinned over the page (the strip, and the header above it
+    // in a tall window), so a field scrolled to by Tab or a search lands
+    // below it, not under it (dock.css scroll-padding).
+    const pinned = (el) => window.getComputedStyle(el).position === "sticky" && $("rail").contains(el) && window.getComputedStyle($("rail")).display === "contents";
+    const pinH = (pinned(head) ? headH : 0) + (pinned(strip) ? strip.offsetHeight : 0);
+    const root = document.documentElement.style;
+    root.setProperty("--head-h", headH + "px");
+    root.setProperty("--pin-h", pinH + "px");
+  }
+  let fitQueued = false;
+  function queueFit() {
+    if (fitQueued) return;
+    fitQueued = true;
+    requestAnimationFrame(() => { fitQueued = false; fitLayout(); });
+  }
+  fitLayout();
+  if (typeof ResizeObserver === "function") {
+    const ro = new ResizeObserver(queueFit);
+    for (const id of ["strip", "desk", "head"]) ro.observe($(id));
+  }
+  if (RAIL_UPNEXT && RAIL_UPNEXT.addEventListener) RAIL_UPNEXT.addEventListener("change", queueFit);
 
   // ── Set tab: the picker ─────────────────────────────────────────────────────
 

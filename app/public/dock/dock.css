@@ -12,7 +12,13 @@
    to change what the console looks like mid-set.
 
    Written for OBS's dock browser (Chromium 103 on OBS 30): no
-   :has(), no color-mix(), no nesting, no container queries.
+   :has(), no color-mix(), no nesting, no container queries —
+   what depends on a box's own width is a class fitLayout() in
+   dock.js sets (.strip.narrow, .strip.split, .desk.cols).
+
+   Two shapes (── Layout ──): portrait, one column, the strip
+   pinned at the top and the tab bar fixed along the bottom; and
+   landscape, a rail of what's live beside the desk.
    ============================================================ */
 
 @font-face { font-family: "Dock Sign"; font-weight: 600; src: url("./fonts/saira-extra-condensed-latin-600-normal.woff2") format("woff2"); }
@@ -51,11 +57,39 @@
   --d-sign: "Dock Sign", "Bahnschrift", "Arial Narrow", sans-serif;
   --d-text: "Dock Text", "Bahnschrift", "Segoe UI", sans-serif;
   --d-mono: "Dock Mono", "Cascadia Mono", Consolas, monospace;
+
+  /* Layout: the gutter, the portrait tab bar's height (without the phone's
+     home-bar inset), and the landscape rail's width. */
+  --pad:    10px;
+  --nav-h:  54px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --rail-w: clamp(360px, 30vw, 440px);
+
+  /* Native scrollbars, dropdown lists and pickers drawn dark. */
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
 
-html { -webkit-text-size-adjust: 100%; }
+/* A field scrolled to (Tab, a search) lands clear of what's pinned: the strip
+   (and header) at the top, the tab bar at the bottom. fitLayout() measures
+   --pin-h; landscape pins nothing over the desk. */
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--pin-h, 0px) + var(--pad));
+  scroll-padding-bottom: calc(var(--nav-h) + var(--safe-b) + var(--pad));
+}
+
+/* The browser's own surfaces, in the console's colours. */
+::selection { color: #fff; background: rgba(var(--d-accent-rgb), .34); }
+input, textarea { caret-color: var(--d-accent); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--d-line-2); border: 2px solid transparent; border-radius: 6px; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: #45505f; }
+/* A key reached by keyboard says so; a field lights its border instead. */
+:focus-visible { outline: 2px solid rgba(var(--d-accent-rgb), .9); outline-offset: 2px; }
+input:focus-visible, select:not(.tab):focus-visible { outline: none; }
 
 body {
   margin: 0;
@@ -102,29 +136,45 @@ button, input, select { font: inherit; color: inherit; }
 }
 body.offline .offline-bar { display: block; }
 
+/* The header: the event and the In game lamp over the lights. One row once
+   there's room (a tablet held upright, a wide dock),
+   where the console's name comes back. */
 .head {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "brand lamp" "meters meters";
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 10px 12px 2px;
+  gap: 8px 10px;
+  padding: 0 2px;
 }
+.brand { grid-area: brand; min-width: 0; }
+.head > .lamp { grid-area: lamp; }
 .brand-name {
+  display: none;
   font: 700 17px/1 var(--d-sign);
   letter-spacing: .22em;
   text-transform: uppercase;
 }
 .brand-event {
-  margin-top: 3px;
-  font-size: 12px;
-  color: var(--d-ink-dim);
+  font: 600 14px/1.25 var(--d-text);
+  color: var(--d-ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 62vw;
 }
-.meters { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.meters {
+  grid-area: meters;
+  display: flex;
+  align-items: center;
+  gap: 4px 14px;
+  flex-wrap: wrap;
+}
+@media (min-width: 640px) {
+  .head { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "brand meters lamp"; gap: 8px 18px; }
+  .brand-name { display: block; }
+  .brand-event { margin-top: 3px; font: 400 12px/1.25 var(--d-text); color: var(--d-ink-dim); }
+  .meters { justify-content: flex-end; }
+}
 
 /* The lamp: dark until a Slippi game is running. */
 .lamp {
@@ -175,13 +225,36 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 
 /* ── Layout ─────────────────────────────────────────────────────────────────── */
 
-.layout { display: grid; gap: 10px; padding: 10px; }
+/* Portrait (an OBS dock, a phone, a tablet held upright): one column. The
+   rail's parts sit straight in it (display: contents) — the header, OBS's
+   problems, the strip — and its tab bar is fixed along the bottom, where it
+   never scrolls away and a thumb reaches it. The strip is pinned once the
+   window is 560px tall; the header (the lights) is pinned over it from 820px.
+   Landscape is at the end of the file: it overrides these. */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--pad);
+  max-width: 1840px;
+  margin: 0 auto;
+  padding: var(--pad) max(var(--pad), env(safe-area-inset-right)) calc(var(--nav-h) + var(--pad) + var(--safe-b)) max(var(--pad), env(safe-area-inset-left));
+}
+.rail { display: contents; }
+.desk { min-width: 0; }
 
-@media (min-width: 900px) {
-  .layout {
-    grid-template-columns: minmax(400px, 480px) minmax(0, 1fr);
-    align-items: start;
+@media (min-height: 560px) {
+  .strip { position: sticky; top: 0; z-index: 5; }
+}
+@media (min-height: 820px) {
+  .head {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    margin: calc(-1 * var(--pad)) calc(-1 * var(--pad)) 0;
+    padding: var(--pad) calc(var(--pad) + 2px) 8px;
+    background: var(--d-bg);
   }
+  .strip { top: var(--head-h, 0px); }
 }
 
 /* ── Keys ───────────────────────────────────────────────────────────────────── */
@@ -233,6 +306,8 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 
 .seg { display: flex; flex-wrap: wrap; gap: 4px; }
 .seg > .key { flex: 1 1 64px; min-height: 36px; padding: 0 6px; }
+/* The six bracket views: two even rows of three at any width, never five and a straggler. */
+#bracket-views { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 /* The bracket overlay's pages and Board camera. */
 .cam { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--d-line); display: flex; flex-direction: column; gap: 8px; }
@@ -288,11 +363,11 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 
 /* ── The live strip ─────────────────────────────────────────────────────────── */
 
+/* minmax(0, …): the folded line's names give way to its keys, rather than
+   the strip growing past the window. */
 .strip {
-  position: sticky;
-  top: 0;
-  z-index: 5;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   padding: 8px 10px;
   background: linear-gradient(180deg, #171c23, #10141a);
@@ -300,9 +375,6 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
   border-radius: 10px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .05);
 }
-@media (min-width: 900px) { .strip { top: 10px; } }
-/* A dock too short to give the strip a pinned slot scrolls it like the rest. */
-@media (max-height: 560px) { .strip { position: static; } }
 
 /* The strip's header: fold, the one-line summary (folded) or which set is
    loaded (open), doubles. */
@@ -344,7 +416,10 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
   gap: 8px;
   font: 600 14px/1.2 var(--d-text);
 }
-.strip.folded .strip-summary { display: flex; }
+.strip.folded .strip-summary { display: flex; flex: 1 1 110px; }
+/* Too narrow for the names beside the keys (a dock squeezed to ~320px): the
+   keys go under them rather than leave a letter of each. */
+.strip.folded .strip-head { flex-wrap: wrap; row-gap: 6px; }
 .strip.folded .strip-fold .label { display: none; }
 .sum-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sum-name:first-child { color: var(--d-left); }
@@ -362,10 +437,12 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 .strip:not(.folded) .strip-fold-keys { display: none; }
 .strip.folded .mode-key { display: none; }
 .strip-fold-keys .key.mini { padding: 0 8px; }
-/* An OBS dock is narrow: the folded keys go to their symbols, so the names keep the room. */
-@media (max-width: 480px) { .strip-fold-keys .kl { display: none; } }
+/* A narrow strip (an OBS dock, a phone, the landscape rail): ⇆ ⇄ ↻ go to
+   their symbols, folded or open, so the names and Start · Report · Stats
+   keep the room. Each key's title and aria-label still name it. */
+.strip.narrow .kl { display: none; }
 
-.strip-body { display: grid; gap: 6px; }
+.strip-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .strip.folded .strip-body { display: none; }
 
 /* Round, best-of and — only once something is overridden — Auto text, on one row. */
@@ -585,7 +662,18 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 }
 
 .strip-actions { display: flex; gap: 5px; }
-.strip-actions .key { flex: 1 1 0; min-width: 0; min-height: 36px; padding: 0 4px; font-size: 13px; }
+.strip-actions .key { flex: 1 1 0; min-width: 0; min-height: 36px; padding: 0 4px; font-size: 13px; white-space: nowrap; }
+.strip.narrow .strip-actions .key.sym { flex: 0 0 42px; font-size: 17px; }
+/* A dock squeezed to a phone's narrowest (.tight, under ~340px): smaller
+   chips and score keys, so the tags keep a few letters more. */
+.strip.tight .side:not(.crew) { grid-template-columns: 26px minmax(0, 1fr) auto; }
+.strip.tight .side { gap: 6px; padding-left: 10px; }
+.strip.tight .l-chip { width: 26px; height: 26px; }
+.strip.tight .side:not(.doubles) .player { grid-template-columns: 34px minmax(0, 1fr); gap: 5px; }
+.strip.tight .char { width: 34px; height: 34px; }
+.strip.tight .char img { width: 26px; height: 26px; }
+.strip.tight .score-box { grid-template-columns: 28px 40px 28px; gap: 3px; }
+.strip.tight .strip-actions .key.sym { flex-basis: 36px; }
 
 .strip-tools { display: flex; gap: 5px; }
 .strip-tools .key { flex: 1 1 0; }
@@ -613,6 +701,24 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 .crew-in { font: 600 18px/1.2 var(--d-text); }
 .crew-in.none { font: 400 13px/1.5 var(--d-text); color: var(--d-amber); }
 
+/* A wide strip (a tablet held upright, a dock pulled wide): the two sides side
+   by side, the right one mirrored, so the scores meet in the middle as they
+   do on stream. */
+.strip.split .strip-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 8px; }
+.strip.split .strip-meta, .strip.split .strip-actions, .strip.split .strip-tools, .strip.split .strip-hint { grid-column: 1 / -1; }
+.strip.split .side.s1 { grid-template-columns: auto minmax(0, 1fr) 30px; padding: 6px 12px 6px 8px; }
+.strip.split .side.s1.crew { grid-template-columns: auto minmax(0, 1fr); }
+.strip.split .side.s1 > .score-box { order: -1; }
+.strip.split .side.s1 > .l-chip { order: 1; }
+.strip.split .side.s1::before { left: auto; right: -1px; border-radius: 3px 0 0 3px; }
+.strip.split .side.s1 .player { grid-template-columns: minmax(0, 1fr) 40px; }
+.strip.split .side.s1.doubles .player { grid-template-columns: minmax(0, 1fr) 26px; }
+.strip.split .side.s1 .char-wrap { order: 1; }
+.strip.split .side.s1 .port { right: auto; left: -6px; }
+.strip.split .side.s1 .player input, .strip.split .side.s1 .crew-names { text-align: right; }
+.strip.split .side.s1 .pre-row, .strip.split .side.s1 .sub-row { flex-direction: row-reverse; }
+.strip.split .side.s1 .sub-row { padding: 0 4px 0 0; }
+
 .strip-hint { font-size: 12px; color: var(--d-ink-dim); min-height: 1em; }
 .strip-hint:empty { display: none; }
 #report-confirm:empty, #clear-confirm:empty { display: none; }
@@ -632,22 +738,28 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 
 /* ── The desk: tabs and their panels ────────────────────────────────────────── */
 
-.desk { display: grid; gap: 10px; min-width: 0; }
-
+/* Portrait: fixed along the bottom, one row (it scrolls sideways if someone
+   puts every tab on the bar of a narrow dock). Landscape: a block of keys in
+   the rail. */
 .tabs {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 8;
   display: flex;
-  flex-wrap: wrap;
   gap: 4px;
-  padding: 4px;
+  padding: 6px max(8px, env(safe-area-inset-right)) calc(6px + var(--safe-b)) max(8px, env(safe-area-inset-left));
+  overflow-x: auto;
   background: var(--d-rack);
-  border: 1px solid var(--d-line);
-  border-radius: 9px;
+  border-top: 1px solid var(--d-line-2);
+  box-shadow: 0 -12px 30px rgba(0, 0, 0, .55);
 }
-/* Seven fit one row down to an OBS dock's ~400px; below that they wrap. */
 .tab {
-  flex: 1 1 48px;
-  min-height: 38px;
-  padding: 0 2px;
+  flex: 1 1 0;
+  min-height: 40px;
+  padding: 0 4px;
+  white-space: nowrap;
   font: 700 14px/1 var(--d-sign);
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -674,12 +786,38 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 .tab-more { width: 100%; padding: 0 20px 0 8px; appearance: none; -webkit-appearance: none; text-align: center; text-align-last: center; }
 .tab-more option { background: var(--d-panel); color: var(--d-ink); text-transform: none; letter-spacing: 0; font: 400 14px/1.4 var(--d-text); }
 
+/* A window 700px wide has room for every tab: the bar's first, in its order,
+   then the rest (renderTabBar() orders them); More goes. */
+@media (max-width: 359px) {
+  .tab { font-size: 12px; letter-spacing: .04em; }
+}
+@media (min-width: 700px) {
+  .tab.gone { display: block; }
+  .tab-more-wrap, .tab-more-wrap.gone { display: none; }
+}
+
 .panel { display: none; }
 .panel.on { display: block; }
-@media (min-width: 1400px) {
-  .panel.on { columns: 2; column-gap: 10px; }
-  .panel .card { break-inside: avoid; display: inline-block; width: 100%; }
+/* A desk 760px wide (.desk.cols): each panel's .col groups side by side, and
+   a group with the width for two cards (a panel with one group) puts them
+   side by side too. Columns, not a masonry: a card never hops between them
+   when a list above it grows. */
+.desk.cols .panel.on {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  column-gap: var(--pad);
+  align-items: start;
 }
+.desk.cols .col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
+  column-gap: var(--pad);
+  align-items: start;
+  min-width: 0;
+}
+.desk.cols .caster-list { grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); }
+.desk.cols #casters-card { max-width: 980px; }
 
 .card {
   margin-bottom: 10px;
@@ -696,7 +834,7 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
   margin-bottom: 10px;
 }
 .card-head > .label { flex: 1 1 auto; }
-.card-meta { font: 500 11px/1 var(--d-mono); color: var(--d-ink-faint); }
+.card-meta { flex: none; font: 500 11px/1 var(--d-mono); color: var(--d-ink-faint); white-space: nowrap; }
 .card-foot { display: flex; justify-content: space-between; margin-top: 6px; }
 
 /* ── Folding cards (foldable() in dock.js) ──
@@ -856,7 +994,7 @@ body.stale .led::before { background: #2a2f36; box-shadow: none; }
 .badge.gone, .ops-list.gone { display: none; }
 .ops-settings { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 12px; margin-bottom: 8px; }
 .ops-settings .field.check { flex: 1 1 260px; }
-.ops-stream-field { flex: 0 1 220px; margin-top: 0; }
+.ops-stream-field { flex: 1 1 220px; margin-top: 0; }
 .ops-list { max-height: 52vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 #ops-recent { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--d-line); }
 .ops-row.called::before { background: #5ab0ff; }
@@ -1324,11 +1462,12 @@ kbd {
 
 /* ── Toast ── */
 
+/* Above the portrait tab bar. */
 .toast {
   position: fixed;
   left: 10px;
   right: 10px;
-  bottom: 10px;
+  bottom: calc(var(--nav-h) + var(--pad) + var(--safe-b));
   z-index: 30;
   display: none;
   padding: 10px 12px;
@@ -1374,7 +1513,7 @@ kbd {
 /* ── OBS's health ───────────────────────────────────────────────────────────── */
 
 /* The problems bar, under the header on every tab. */
-.alerts { display: flex; flex-direction: column; gap: 4px; padding: 0 10px; }
+.alerts { display: flex; flex-direction: column; gap: 4px; }
 .alerts:empty { display: none; }
 .alert, .obs-check {
   display: flex;
@@ -1388,8 +1527,6 @@ kbd {
   font-size: 13px;
   line-height: 1.25;
 }
-.alert { margin-top: 6px; }
-.alert + .alert { margin-top: 0; }
 .alert.error, .obs-check.error { border-left-color: var(--d-red); background: linear-gradient(90deg, rgba(255, 59, 48, .16), var(--d-panel) 60%); }
 .alert.warn, .obs-check.warn { border-left-color: var(--d-amber); background: linear-gradient(90deg, rgba(255, 176, 32, .12), var(--d-panel) 60%); }
 .obs-check.ok { border-left-color: var(--d-green); color: var(--d-ink-dim); }
@@ -1411,3 +1548,79 @@ kbd {
 .obs-settings { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 12px; margin-top: 4px; }
 .obs-game-field { flex: 1 1 220px; }
 .obs-settings .field.check { flex: 0 1 auto; }
+
+/* ── Touch (a phone, a tablet): keys a fingertip wide ─────────────────────────
+   By pointer, not width: the OBS dock is as narrow as a phone but has a mouse,
+   and keeps its density. Fields at 16px, or a phone zooms in on each one. */
+@media (pointer: coarse) {
+  :root { --nav-h: 60px; }
+  .key.mini, .fold-keys .key.mini { min-height: 36px; }
+  .tab { min-height: 46px; }
+  .fold-btn { min-height: 34px; }
+  .linkish { padding: 9px 0; }
+  .swatch { width: 26px; height: 26px; }
+  .field input[type="checkbox"], .switch input, .stats-table input[type="checkbox"] { width: 22px; height: 22px; }
+  .field input[type="text"], .field input[type="password"], .field input[type="number"], .field select, .filter,
+  .c-fields input, .cm-tag, .cm-add { min-height: 42px; font-size: 16px; }
+}
+
+/* ── Landscape: the rail beside the desk ──────────────────────────────────────
+   A laptop, a desktop, a tablet turned sideways, a dock pulled wide. Width is
+   plentiful and height isn't, so what's live — the header, OBS's problems,
+   the strip, every tab — is a column of its own, pinned and scrolling by
+   itself, and the desk keeps the window's whole height. With 640px of height
+   Up next moves in under the tabs (fitLayout() in dock.js) and fills the rest
+   of the rail: the next set a tap away from any tab. Last in the file: it
+   overrides portrait's rules. */
+@media (min-width: 1200px), (min-width: 800px) and (orientation: landscape) {
+  .layout {
+    grid-template-columns: var(--rail-w) minmax(0, 1fr);
+    align-items: start;
+    padding-bottom: var(--pad);
+  }
+  .rail {
+    position: sticky;
+    top: var(--pad);
+    display: flex;
+    flex-direction: column;
+    gap: var(--pad);
+    height: calc(100vh - 2 * var(--pad));
+    /* Room for the strip's shadow inside the scroller. */
+    margin: 0 -6px;
+    padding: 0 6px 4px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .rail > * { flex: none; }
+  .head, .strip { position: static; }
+  .head {
+    margin: 0;
+    padding: 0 2px;
+    background: none;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "brand lamp" "meters meters";
+    gap: 8px 10px;
+  }
+  .brand-name { display: none; }
+  .brand-event { margin-top: 0; font: 600 14px/1.25 var(--d-text); color: var(--d-ink); }
+  .meters { justify-content: flex-start; }
+  /* All nine, five and four: two rows at any rail width. */
+  .tabs {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding: 4px;
+    overflow: visible;
+    border: 1px solid var(--d-line);
+    border-radius: 9px;
+    box-shadow: none;
+  }
+  .tabs .tab { min-height: 36px; padding: 0 2px; font-size: 13px; letter-spacing: .06em; }
+  .toast { bottom: var(--pad); }
+
+  /* Up next in the rail: its list takes whatever height is left, and scrolls. */
+  .rail > .col { flex: 1 0 auto; display: flex; flex-direction: column; }
+  .rail > .col > .card { flex: 1 0 auto; display: flex; flex-direction: column; min-height: 250px; margin-bottom: 0; }
+  .rail > .col > .card.folded { flex: none; min-height: 0; }
+  .rail .sets-list { flex: 1 1 0; min-height: 120px; max-height: none; }
+}

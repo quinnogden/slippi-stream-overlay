@@ -1044,7 +1044,8 @@ async function rig() {
       fire(r.page.$("#btn-strip-fold"), "click");
       assert.ok(r.page.$("#strip").classList.contains("folded"));
       assert.strictEqual(r.page.$("#btn-strip-fold").getAttribute("aria-expanded"), "false");
-      assert.deepStrictEqual(texts(r.page.$("#strip-summary")), ["Team1 Player2", "1–0", "Player3"]);
+      assert.deepStrictEqual(texts(r.page.$("#strip-summary")), ["Player2", "1–0", "Player3"], "tags alone: the line is narrow");
+      assert.strictEqual(r.page.$("#strip-summary").title, "Team1 Player2 1–0 Player3", "the full names in its tooltip");
       assert.strictEqual(r.page.window.localStorage.getItem("dock.stripFolded"), "1", "remembered for the next load");
       assert.deepStrictEqual(r.page.$$(".strip-fold-keys [data-proxy]").map((b) => b.dataset.proxy), ["btn-sides", "btn-ports", "btn-report", "btn-stats"]);
 

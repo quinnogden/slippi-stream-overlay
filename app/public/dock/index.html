@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Stream Console</title>
   <!-- The active theme pack, for its accent only (--text-color). Every dock
        token is its own (--d-*), so no pack can restyle the console. -->
@@ -13,28 +13,35 @@
   <div class="accent-bar"></div>
   <div class="offline-bar">App not reachable — showing the last state. Reconnecting…</div>
 
-  <header class="head">
-    <div class="brand">
-      <div class="brand-name">Stream Console</div>
-      <div class="brand-event" id="event-name">No event loaded</div>
-    </div>
-    <div class="meters">
-      <span class="lamp" id="lamp" title="Lit while a Slippi game is running">In game</span>
-      <span class="led" id="led-startgg">start.gg</span>
-      <span class="led" id="led-slippi">Slippi</span>
-      <span class="led" id="led-obs">OBS</span>
-      <!-- OBS's health (lib/obs-health.js): the stream, the recording, the audio. -->
-      <span class="led off" id="led-live">Live</span>
-      <span class="led off" id="led-rec">Rec</span>
-      <span class="led off" id="led-audio">Audio</span>
-    </div>
-  </header>
-
-  <!-- OBS's problems, from any tab: one line each, with its fix. ✕ hides one
-       until it clears and comes back. -->
-  <div class="alerts" id="alerts" aria-live="polite"></div>
-
+  <!-- Two shapes, picked by dock.css: portrait (an OBS dock, a phone) is one
+       column, the rail's parts pinned at the top and the tab bar at the
+       bottom; landscape puts the rail beside the desk, with Up next under the
+       tabs (fitLayout() in dock.js). -->
   <div class="layout">
+    <!-- The rail: what's live — the lights, OBS's problems, the scoreboard —
+         and the tabs. -->
+    <aside class="rail" id="rail">
+    <header class="head" id="head">
+      <div class="brand">
+        <div class="brand-name">Stream Console</div>
+        <div class="brand-event" id="event-name">No event loaded</div>
+      </div>
+      <span class="lamp" id="lamp" title="Lit while a Slippi game is running">In game</span>
+      <div class="meters">
+        <span class="led" id="led-startgg">start.gg</span>
+        <span class="led" id="led-slippi">Slippi</span>
+        <span class="led" id="led-obs">OBS</span>
+        <!-- OBS's health (lib/obs-health.js): the stream, the recording, the audio. -->
+        <span class="led off" id="led-live">Live</span>
+        <span class="led off" id="led-rec">Rec</span>
+        <span class="led off" id="led-audio">Audio</span>
+      </div>
+    </header>
+
+    <!-- OBS's problems, from any tab: one line each, with its fix. ✕ hides one
+         until it clears and comes back. -->
+    <div class="alerts" id="alerts" aria-live="polite"></div>
+
     <!-- The live strip: what is on the scoreboard right now. Pinned, so a
          score or a swap is never a scroll away. Folds to one line. -->
     <section class="strip" id="strip" aria-label="Live set">
@@ -53,8 +60,8 @@
         <!-- Folded: the strip's keys reached for mid-set, in Doubles' place.
              Each presses the key it names (data-proxy) and mirrors its state. -->
         <span class="fold-keys strip-fold-keys">
-          <button class="key mini" type="button" data-proxy="btn-sides">⇆<span class="kl"> Sides</span></button>
-          <button class="key mini" type="button" data-proxy="btn-ports">⇄<span class="kl"> Ports</span></button>
+          <button class="key mini" type="button" data-proxy="btn-sides" aria-label="Switch sides">⇆<span class="kl"> Sides</span></button>
+          <button class="key mini" type="button" data-proxy="btn-ports" aria-label="Swap ports">⇄<span class="kl"> Ports</span></button>
           <button class="key mini arm gone" type="button" data-proxy="btn-report">Report</button>
           <button class="key mini" type="button" data-proxy="btn-stats">Stats</button>
         </span>
@@ -76,10 +83,11 @@
         <div class="side s0" id="side-0"></div>
         <div class="side s1" id="side-1"></div>
 
+        <!-- A narrow strip shows the first three as their symbols (.kl). -->
         <div class="strip-actions">
-          <button class="key" id="btn-sides" type="button" title="Move both sides across the scoreboard — names, scores, games. The ports follow">⇆ Sides</button>
-          <button class="key" id="btn-ports" type="button" title="The ports are the wrong way round: flip them. The scoreboard stays put">⇄ Ports</button>
-          <button class="key" id="btn-redetect" type="button" title="Re-match the ports against the players' characters">↻ Detect</button>
+          <button class="key sym" id="btn-sides" type="button" aria-label="Switch sides" title="Move both sides across the scoreboard — names, scores, games. The ports follow">⇆<span class="kl"> Sides</span></button>
+          <button class="key sym" id="btn-ports" type="button" aria-label="Swap ports" title="The ports are the wrong way round: flip them. The scoreboard stays put">⇄<span class="kl"> Ports</span></button>
+          <button class="key sym" id="btn-redetect" type="button" aria-label="Detect ports" title="Re-match the ports against the players' characters">↻<span class="kl"> Detect</span></button>
           <!-- start.gg's two: only on a set loaded from start.gg. -->
           <button class="key go gone" id="btn-start" type="button" title="Mark this set in progress on start.gg">Start</button>
           <button class="key arm gone" id="btn-report" type="button" title="Report the result to start.gg (asks first)">Report</button>
@@ -97,23 +105,30 @@
       <div id="clear-confirm"></div>
     </section>
 
-    <section class="desk">
-      <nav class="tabs" role="tablist">
-        <button class="tab" type="button" data-tab="set">Set</button>
-        <button class="tab" type="button" data-tab="bracket">Bracket</button>
-        <button class="tab" type="button" data-tab="stats">Stats</button>
-        <button class="tab" type="button" data-tab="casters">Casters</button>
-        <button class="tab" type="button" data-tab="players">Players</button>
-        <button class="tab" type="button" data-tab="clips">Clips</button>
-        <button class="tab" type="button" data-tab="replays">Replays</button>
-        <button class="tab" type="button" data-tab="crew">Crew</button>
-        <button class="tab" type="button" data-tab="setup">Setup</button>
-        <!-- The tabs not on the bar (Setup → Tab bar picks which; saved per device). -->
-        <span class="tab-more-wrap" id="tab-more-wrap"><select class="tab tab-more" id="tab-more" title="More tabs"></select></span>
-      </nav>
+    <!-- Portrait: fixed along the bottom, the bar's tabs and More. Landscape
+         (and any window 700px wide): every tab, the bar's first. -->
+    <nav class="tabs" id="tabs" role="tablist">
+      <button class="tab" type="button" data-tab="set">Set</button>
+      <button class="tab" type="button" data-tab="bracket">Bracket</button>
+      <button class="tab" type="button" data-tab="stats">Stats</button>
+      <button class="tab" type="button" data-tab="casters">Casters</button>
+      <button class="tab" type="button" data-tab="players">Players</button>
+      <button class="tab" type="button" data-tab="clips">Clips</button>
+      <button class="tab" type="button" data-tab="replays">Replays</button>
+      <button class="tab" type="button" data-tab="crew">Crew</button>
+      <button class="tab" type="button" data-tab="setup">Setup</button>
+      <!-- The tabs not on the bar (Setup → Tab bar picks which; saved per device). -->
+      <span class="tab-more-wrap" id="tab-more-wrap"><select class="tab tab-more" id="tab-more" title="More tabs"></select></span>
+    </nav>
+    </aside>
 
+    <!-- The desk: the open tab. Each panel's cards are in .col groups, side by
+         side once the desk is wide enough (.desk.cols), stacked below that. -->
+    <main class="desk" id="desk">
       <!-- ── Set ── -->
       <div class="panel" id="panel-set">
+        <!-- Up next: moved into the rail in landscape, so it's beside every tab. -->
+        <div class="col" id="col-upnext">
         <div class="card" data-fold="set.upnext">
           <div class="card-head">
             <span class="label">Up next</span>
@@ -128,7 +143,9 @@
             <button class="linkish" id="btn-toggle-waiting" type="button">Hide waiting</button>
           </div>
         </div>
+        </div>
 
+        <div class="col">
         <div class="card" data-fold="set.ports">
           <div class="card-head">
             <span class="label">Ports</span>
@@ -167,11 +184,12 @@
           <div class="hint" id="rule-now">—</div>
           <div class="hint"><b>Flex</b> is a Bo3 that becomes a Bo5 at 1–1. "Top 6" is winners semis and losers quarters on; "Top 8" adds losers top 8. The stats popup's wrap-up comes when the set is won by this format: Bo3 at 2 wins, Bo5 at 3, Flex at 2–0, 3–1 or 3–2. A best-of picked on the strip still wins over the rule.</div>
         </div>
-
+        </div>
       </div>
 
       <!-- ── Bracket ── -->
       <div class="panel" id="panel-bracket">
+        <div class="col">
         <div class="card" data-fold="bracket.overlay">
           <div class="card-head">
             <span class="label">Bracket overlay</span>
@@ -244,9 +262,11 @@
           </div>
           <div class="hint" id="bracket-hint">No event loaded — press Singles or Doubles.</div>
         </div>
+        </div>
 
         <!-- Working start.gg's bracket beside the TOs: call, start, stream,
              report, reset, any set (lib/event/bracket-ops.js). -->
+        <div class="col">
         <div class="card" data-fold="bracket.ops">
           <div class="card-head">
             <span class="label">Run the bracket</span>
@@ -271,10 +291,12 @@
           <div class="ops-list gone" id="ops-recent"></div>
           <div class="hint" id="ops-hint">Tap a set for its keys. <b>Ready</b> sets are numbered in a suggested call order: earliest in the bracket, then the closest seeds. The set on the scoreboard is reported from the strip.</div>
         </div>
+        </div>
       </div>
 
       <!-- ── Stats ── -->
       <div class="panel" id="panel-stats">
+        <div class="col">
         <div class="card" data-fold="stats.popup">
           <div class="card-head">
             <span class="label">Stats popup</span>
@@ -326,8 +348,10 @@
             <button class="linkish" id="btn-stats-refresh" type="button" title="Read every game's replay again">Re-read replays</button>
           </div>
         </div>
+        </div>
 
         <!-- Each layout's look (its saved combo, else the recommended one) and which layouts Auto draws in each phase. -->
+        <div class="col">
         <div class="card" data-fold="stats.table">
           <div class="card-head">
             <span class="label">Layouts</span>
@@ -338,6 +362,7 @@
             <span class="hint" id="stats-table-hint"></span>
             <button class="key mini gone" id="btn-stats-use-auto" type="button" title="Back to Auto: the ticks pick the layout">Use Auto</button>
           </div>
+        </div>
         </div>
       </div>
 
@@ -368,6 +393,7 @@
       <div class="panel" id="panel-players">
         <!-- The loaded event's players, to set each one's main before they're
              on stream. Folds away; remembered. -->
+        <div class="col">
         <div class="card roster" id="roster" data-fold="players.roster">
           <div class="card-head">
             <span class="label">Event roster</span>
@@ -382,7 +408,9 @@
             <div class="hint">Everyone in the loaded event, by seed. Tap a player to set the character their sets open on — hold a character for costumes. Once Slippi has learned what someone plays, that wins over what you set here.</div>
           </div>
         </div>
+        </div>
 
+        <div class="col">
         <div class="card" data-fold="players.list">
           <div class="card-head">
             <span class="label">Player list</span>
@@ -392,11 +420,13 @@
           <div class="player-list" id="players-list"></div>
           <div class="hint">The icon is the main a player's sets open on: what Slippi has <b>learned</b> (updated when each set is reported or replaced) beats a main set by hand (tap the icon to set one).</div>
         </div>
+        </div>
       </div>
 
       <!-- ── Clips ── -->
       <div class="panel" id="panel-clips">
         <!-- OBS: the connection the clipper shares, and its health checks. -->
+        <div class="col">
         <div class="card" data-fold="clips.obs">
           <div class="card-head">
             <span class="label">OBS</span>
@@ -418,6 +448,8 @@
             <button class="key go" id="btn-obs-save" type="button">Save connection</button>
           </div>
         </div>
+        </div>
+        <div class="col">
         <div class="card" data-fold="clips.clipper">
           <div class="card-head">
             <span class="label">Combo clipper</span>
@@ -445,6 +477,7 @@
             <span class="fold-sum" id="sum-clips"></span>
           </div>
           <div class="clip-list" id="clip-list"></div>
+        </div>
         </div>
       </div>
 
@@ -505,6 +538,7 @@
 
       <!-- ── Replays ── -->
       <div class="panel" id="panel-replays">
+        <div class="col">
         <div class="card" data-fold="replays.uploads">
           <div class="card-head">
             <span class="label">LuckyStats uploads</span>
@@ -522,11 +556,15 @@
           <div id="replays-confirm"></div>
           <div class="hint">Every start.gg set played on stream is kept here with its replays. A reported set uploads by itself; <b>Upload</b> sends one reported somewhere else. Nothing is imported until the tournament is finished — here, or by LuckyStats on its own a few hours after the event.</div>
         </div>
+        </div>
+        <div class="col">
         <div class="replay-list" id="replays-list"></div>
+        </div>
       </div>
 
       <!-- ── Setup ── -->
       <div class="panel" id="panel-setup">
+        <div class="col">
         <div class="card" data-fold="setup.tabbar">
           <div class="card-head">
             <span class="label">Tab bar</span>
@@ -537,7 +575,7 @@
           <div class="key-row">
             <button class="key ghost" id="btn-tabbar-reset" type="button">Default</button>
           </div>
-          <div class="hint">Saved on this device.</div>
+          <div class="hint">Saved on this device. A window 700px wide or more shows every tab, these first.</div>
         </div>
         <div class="card" data-fold="setup.theme">
           <div class="card-head">
@@ -565,6 +603,16 @@
           </div>
           <div class="hint" id="art-hint">The stats popup's character portraits and stage pictures: TSH's Melee packs, from GitHub (StreamHelperAssets). They go in overlays/assets/packs/, which git ignores; the same click updates them. Pick the portraits on the Stats tab.</div>
         </div>
+        <div class="card" data-fold="setup.lan">
+          <div class="card-head">
+            <span class="label">This dock on a phone</span>
+            <span class="fold-sum" id="sum-lan"></span>
+          </div>
+          <div id="setup-lan"></div>
+          <div class="hint">Any device on the same network. Tailscale addresses survive a venue's network and its guest Wi-Fi.</div>
+        </div>
+        </div>
+        <div class="col">
         <div class="card" data-fold="setup.sources">
           <div class="card-head">
             <span class="label">OBS browser sources</span>
@@ -582,14 +630,6 @@
           <div id="setup-hotkeys"></div>
           <div class="hint" id="hotkeys-hint"></div>
         </div>
-        <div class="card" data-fold="setup.lan">
-          <div class="card-head">
-            <span class="label">This dock on a phone</span>
-            <span class="fold-sum" id="sum-lan"></span>
-          </div>
-          <div id="setup-lan"></div>
-          <div class="hint">Any device on the same network. Tailscale addresses survive a venue's network and its guest Wi-Fi.</div>
-        </div>
         <div class="card" data-fold="setup.machine">
           <div class="card-head">
             <span class="label">This machine</span>
@@ -597,8 +637,9 @@
           </div>
           <div class="facts" id="setup-files"></div>
         </div>
+        </div>
       </div>
-    </section>
+    </main>
   </div>
 
   <!-- The character picker: Melee's select screen, one tap to set. -->

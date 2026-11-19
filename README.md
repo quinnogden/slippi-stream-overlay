@@ -164,7 +164,7 @@ Go to **Docks → Custom Browser Docks** and add `http://localhost:5001/dock`.
 
 The dock is the operator's whole job in one narrow panel. It sits beside the OBS preview and **never appears on stream**.
 
-It also works in a browser, where it widens into columns, or **on a phone**. Use the address the console prints; the Tailscale address is listed first because it keeps working when the venue Wi-Fi changes.
+It also works in a browser or **on a phone**, and fits itself to the window as you resize it. Upright (the dock, a phone, a tablet), the strip and the lights stay pinned at the top and the tabs sit along the bottom. Pulled wide, the two players go side by side and the cards into columns. In landscape (a laptop, a tablet turned sideways), what's live gets a column of its own beside the open tab: the lights, OBS's problems, the strip, every tab and **Up next**. Use the address the console prints; the Tailscale address is listed first because it keeps working when the venue Wi-Fi changes.
 
 ### The live strip
 
@@ -200,7 +200,7 @@ The strip folds to one line (names, score, ⇆ ⇄, Report and Stats), and so do
 | **Clips** | **OBS**: the connection, what OBS is doing, every problem it has, a level bar per audio input, and which input is the game's sound. Then the combo clipper: on/off, thresholds, recent clips, and **Test clip**. |
 | **Replays** | Each stream set's replay files, archived and uploaded to LuckyStats.gg after Report. Fix a game's winner or character, attach a missing file, re-upload. |
 | **Crew** | Build two crews and run a [crew battle](#crew-battles). |
-| **Setup** | Every OBS URL, the phone URLs, the hotkeys, the [theme](#theme-packs), the stats popup's **art packs** (one-click download), the **tab bar** (which tabs show and in what order; the rest go under **More**), and where the files are. |
+| **Setup** | Every OBS URL, the phone URLs, the hotkeys, the [theme](#theme-packs), the stats popup's **art packs** (one-click download), the **tab bar** (which tabs show and in what order; the rest go under **More**, and a window 700px wide shows them all), and where the files are. |
 
 <br clear="right">
 
