@@ -37,7 +37,7 @@
   const FOLDS_KEY = "dock.folds";     // { [card key]: 1 } for every folded card
   const WAITING_KEY = "dock.hideWaiting";
   const HOLD_MS = 450;        // a long-press on a character opens its costumes
-  const SETS_POLL_MS = 90000; // the app re-reads start.gg every 90s; this only picks that up
+  const SETS_POLL_MS = 90000; // a fallback: the app says when the list changes (sets:changed)
   const STALE_MS = 12000;     // no status for this long = the app has stopped talking
 
   // ── Plumbing ────────────────────────────────────────────────────────────────
@@ -4085,6 +4085,18 @@
   ov.on("crew:notice", (n) => toast((n && n.text) || "Crew battle: check the stocks", !!(n && n.ok)));
   ov.on("replays", (r) => { replays = r; renderReplays(); });
   ov.on("bracket-ops", (o) => { ops = o; renderOps(); renderSets(); });
+  // The app read a change into the set list (a report's next set, start.gg's
+  // lists catching up): Up next fetches it now. A hidden dock fetches when shown.
+  let setsStale = false;
+  ov.on("sets:changed", () => {
+    if (document.visibilityState === "visible") fetchSets();
+    else setsStale = true;
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible" || !setsStale) return;
+    setsStale = false;
+    fetchSets();
+  });
 
   if (ov.socket) {
     ov.socket.on("connect", () => document.body.classList.remove("offline"));

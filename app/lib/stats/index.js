@@ -9,7 +9,7 @@
  * there is no half-loaded pair to wait out.
  *
  * The loaded event's finished sets come from the event service's own reads
- * (every set of every phase group, refreshed every 90s and after a report),
+ * (every set of every phase group, refreshed on a timer and after a report),
  * so they cost no request of their own and need no token. Players in a
  * singles event's next playable sets are pre-fetched while idle (the event
  * service lists them), so a first-timer's history is usually saved before

@@ -22,6 +22,7 @@ Every overlay — `/o/scoreboard`, `/o/scoreboard/players`, `/o/casters`, `/o/si
 | `crew:notice` | app → dock | The `crew_notice` payload: a crew game that changed no stocks, or started with a side nobody was sent in for. Never on the broadcast |
 | `replays` | app → dock | The `replays_state` payload: the Replays tab's whole picture. Sticky |
 | `bracket-ops` | app → dock | The `bracket_ops` payload: the Bracket tab's "Run the bracket" card and the strip's stream chip. Sticky |
+| `sets:changed` | app → dock | `event_sets` `{ at }`: the set picker changed (a report's next set, a read that caught up). The dock fetches `/api/sets` again. Not sticky — a dock that connects fetches anyway |
 | `theme` | app → both | `{ pack }` (from `theme_changed`), after `POST /api/theme` changed the pack. **An overlay fades out and reloads** — `connect()` and `followTheme()` both listen; the dock only updates its select. Not sticky: a page that loads later reads the new `theme.css` anyway |
 
 - **`from` is what keeps a source honest.** A page applies a patch only when `from` ≤ its own rev. A larger `from` means it missed one, and it must send `state:resync` rather than apply it: every later patch carries only the sections that changed, so a source that missed one would otherwise show the old score indefinitely while looking healthy. A patch whose `rev` it already has (it connected mid-burst, and its `state:full` was newer) is ignored. `state:full` is always taken, even at a lower rev — the app may have restarted. `tests/overlay-patch.test.js` pins all three.
@@ -371,7 +372,7 @@ Consumer rules — each is a way to put a healthy-looking wrong number on stream
 - **An `h2h` for any other pair is not this pair's.** The stats answer seconds after a set loads, so a snapshot for the *previous* pair is routinely current while the new names are already up. Show nothing until `h2h.players` contains both column ids.
 - **There is no second source.** A pair still `loading` shows nothing.
 - **`scores` can be null** for a winner-only report. Derive W/L from `winner`.
-- **`completedSets`** is the loaded event's finished sets, newest first (12), from the event service's 90s reads — not a query of its own.
+- **`completedSets`** is the loaded event's finished sets, newest first (12), from the event service's timed reads — not a query of its own.
 - **A `lucky.matchup` for any other pair is not this pair's** — the same rule as `h2h`: show the projection only when `lucky.players` contains both column ids. `ratings` are per player, so a player carried over from the last set keeps theirs.
 - **Credit luckystats.** Any card drawing from `lucky` says "Powered by LuckyStats.gg" (with the clover); that was the condition of the endpoint.
 - **Any `ratings` field can be null** (unranked, no class, no region, an image that couldn't be saved): show nothing for it and leave no room for it.
@@ -565,7 +566,7 @@ For a set loaded after its game 1 had started, or ports the operator suspects. L
 
 ### `/api/sets` is cheap; `?refresh=1` is not
 
-The picker is answered from the event service's last read, which refreshes every 90s through the background budget (15s while start.gg is rebuilding a bracket), and 4s and 12s after every press from the dock. `refresh=1` re-reads every phase group of the event from start.gg on the operator's (unbudgeted) path — fine for a press, never for a loop. An empty list is **normal** for a finished bracket; `finished=1` adds the done sets.
+The picker is answered from the event service's last read. A timer polls every 15s through the bracket's lane of the background budget — one request asking every phase group only for the sets changed since its newest one, a group read whole when that can't be trusted (and every 5 minutes) — and polls again 4s and 12s after every press from the dock. A report moves its winner and loser into their next sets at once, before any read. The dock hears `sets:changed` whenever the list changes and fetches it then; don't poll it from anywhere else. `refresh=1` re-reads every phase group of the event from start.gg on the operator's (unbudgeted) path — fine for a press, never for a loop. An empty list is **normal** for a finished bracket; `finished=1` adds the done sets.
 
 ---
 

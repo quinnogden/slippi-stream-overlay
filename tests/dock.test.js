@@ -38,6 +38,7 @@
 const assert  = require("assert");
 const fs      = require("fs");
 const os      = require("os");
+const { EventEmitter } = require("events");
 const path    = require("path");
 const express = require("../app/node_modules/express");
 
@@ -148,11 +149,16 @@ async function rig() {
   const channel = createOverlayChannel({ io, store });
   const calls = { report: 0, loadSet: [], swapPorts: 0, gameLive: false, upload: [] };
 
-  // The event service's reads, over the preview graph.
-  const event = {
+  // The event service's reads, over the preview graph — or `calls.graph`, a
+  // read the test has the app take in (then `event.emit("change")`, as the
+  // real one does).
+  const event = Object.assign(new EventEmitter(), {
     status: () => ({ state: "ok", error: null }),
     snapshot: () => ({ event: { name: "Melee Singles" } }),
-    openSets: (opts) => pickerList(pgraph, opts).map((r) => ({ ...r, phaseGroupId: pgraph.phaseGroupId, phase: "" })),
+    openSets: (opts) => {
+      const g = calls.graph ?? pgraph;
+      return pickerList(g, opts).map((r) => ({ ...r, phaseGroupId: g.phaseGroupId, phase: "" }));
+    },
     groups: () => [{ id: String(pgraph.phaseGroupId), label: "Bracket" }],
     // The real entrant list, over the preview graph.
     players: () => EventService.prototype.players.call({ _groups: [{ graph: pgraph }] }),
@@ -171,7 +177,7 @@ async function rig() {
       store.loadSet(loadPayload(pgraph, id));
       return { ok: true, setId: id };
     },
-  };
+  });
 
   // The real stream-set history and Replays feed; LuckyStats stood in for.
   const uploads = {
@@ -232,7 +238,7 @@ async function rig() {
   const button = (root, label) => root.querySelectorAll("button").find((b) => b.textContent === label);
   const status = (s) => channel.emit("control_status", s);
 
-  return { store, db, base, channel, nsps, page, Dock, calls, side, tagInput, scoreText, keys, button, status, replays, close: () => server.close() };
+  return { store, db, base, channel, nsps, page, Dock, calls, event, side, tagInput, scoreText, keys, button, status, replays, close: () => server.close() };
 }
 
 (async () => {
@@ -429,6 +435,23 @@ async function rig() {
       fire(r.button(r.page.$("#sets-list .confirm"), "Load anyway"), "click");
       await until(() => r.calls.loadSet.length === 2, "Load anyway loads");
       await until(() => rows()[1].classList.contains("air"), "and ON AIR moves");
+    } finally { r.close(); }
+  });
+
+  // Up next used to poll every 90s on its own clock, behind the app's own
+  // read of start.gg: a reported set's next one showed a minute or more after
+  // the players had sat down. The app now says when its list changes.
+  await test("Up next takes a change the app reads in without being asked", async () => {
+    const r = await rig();
+    try {
+      await until(() => r.page.$$(".set-row").length > 0, "the open sets");
+      const playable = () => r.Dock.sets.filter((s) => s.status === "playable").map((s) => s.setId);
+      // A read where the first ready set has been played: it leaves the list.
+      const [gone] = playable();
+      const raw = preview.sets.map((s) => (String(s.id) === gone ? { ...s, state: 3, winnerId: s.slots[0].entrant.id } : s));
+      r.calls.graph = buildBracket(raw, { phaseGroupId: preview.phaseGroup.id });
+      r.event.emit("change");
+      await until(() => !playable().includes(gone), "the played set leaves Up next");
     } finally { r.close(); }
   });
 

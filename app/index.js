@@ -137,7 +137,7 @@ async function reportCurrentSet() {
     mainsLearning.commit(undefined, "reported");
     replays.onSetReported();
     playerStats.onSetReported();
-    ctx.event.afterAction(result.setId, { state: 3, winnerId: result.winnerId, scores: result.scores });
+    ctx.event.afterAction(result.setId, { state: 3, winnerId: result.winnerId, scores: result.scores }, result.sets);
   }
   return result;
 }

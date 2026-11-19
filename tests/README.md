@@ -41,7 +41,7 @@ One line per file. **The file's own header comment says exactly what it pins and
 
 | File | Guards |
 |---|---|
-| `dock.test.js` | The dock, run against a real app: the strip, the tabs, folding, input that survives pushes, autocomplete, a crew battle, the Replays tab. |
+| `dock.test.js` | The dock, run against a real app: the strip, the tabs, folding, input that survives pushes, autocomplete, Up next following the app's reads, a crew battle, the Replays tab. |
 | `dock-static.test.js` | The dock's wiring: every id, route and file it uses exists. |
 | `hotkey.test.js` | Global hotkeys match exactly, fire once, and never crash the app. |
 
@@ -61,11 +61,11 @@ One line per file. **The file's own header comment says exactly what it pins and
 
 | File | Guards |
 |---|---|
-| `event-service.test.js` | Loading events and sets from start.gg, on real captured tournaments; a bracket starting (the blank read, the set on air following its new id); presses shown before start.gg catches up; the bracket card's call order, reports and stream marks. |
+| `event-service.test.js` | Loading events and sets from start.gg, on real captured tournaments; a bracket starting (the blank read, the set on air following its new id); presses shown before start.gg catches up, a report's winner and loser in their next sets at once (the GF reset and a DQ included); a poll asking only what changed, and reading whole what that can't show (renumbered sets, a deleted reset); the bracket card's call order, reports and stream marks. |
 | `bracket-model.test.js` | The bracket graph: grand final and reset, byes, DQs, the five views. |
 | `bracket-target.test.js` | Singles / Doubles pick the right event, and refuse to guess. |
 | `start-set.test.js` | The Start button doesn't spend start.gg's rate limit. |
-| `startgg-fallback.test.js` | Reads fall back to the keyless endpoint; mutations never do. |
+| `startgg-fallback.test.js` | Reads fall back to the keyless endpoint; mutations never do; the bracket's reads never queue behind the stats; a report's answer is a list of sets, and a report that went through is never called a failure. |
 | `player-stats.test.js` | Head-to-head rules, checked against hand-verified records; luckystats answers land on the right player; an answer of an unexpected shape never ends the app. |
 
 ### ⚙️ App plumbing

@@ -7,12 +7,23 @@ const { BRACKET_VIEWS: VIEWS } = require("../../event/bracket-feed");
 
 /**
  * @param {import("express").Express} app
- * @param {object} deps — { store, event, bracketDirector, bracketOps, refreshControlStatus }
+ * @param {object} deps — { store, event, bracketDirector, bracketOps, refreshControlStatus, emit }
  */
-function register(app, { store, event, bracketDirector, bracketOps, refreshControlStatus }) {
+function register(app, { store, event, bracketDirector, bracketOps, refreshControlStatus, emit }) {
   // The set picker: playable sets first. Answered from the event service's
-  // last read (refreshed every 90s); ?refresh=1 is the dock's ↻ and re-reads
-  // start.gg first.
+  // last read (its timer, and the re-reads after a press); ?refresh=1 is the
+  // dock's ↻ and re-reads start.gg first.
+  //
+  // The dock is told when the list changes (`sets:changed`) and fetches it
+  // again, so Up next shows a report's next set the moment the app has it —
+  // not on the dock's own fallback poll, which used to add up to 90s.
+  let listed = null;
+  event.on("change", () => {
+    const now = JSON.stringify(event.openSets({ includeDone: true }));
+    if (now === listed) return;
+    listed = now;
+    emit?.("event_sets", { at: Date.now() });
+  });
   app.get("/api/sets", async (req, res) => {
     if (req.query.refresh === "1") {
       const r = await event.refresh();

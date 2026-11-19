@@ -17,11 +17,14 @@
  */
 
 // startedAt: how long a set has been running (the dock's bracket card).
+// updatedAt: start.gg's time of the set's last change — a result, a start, a
+// player moved into it — which the event service reads only the changes after
+// (changedSetsQuery). A scalar, so it costs no object.
 // stream / station: which stream and station start.gg has it on — one object
 // each, so 2 of the 29.
 const SET_FIELDS = `
   id identifier round fullRoundText state winnerId displayScore
-  lPlacement completedAt startedAt
+  lPlacement completedAt startedAt updatedAt
   stream { id }
   station { id number }
   phaseGroup { id }
@@ -67,6 +70,35 @@ query phaseGroupSets($id: ID!, $page: Int!, $perPage: Int!) {
     }
   }
 }`.trim();
+
+// What changed in each phase group since a time — one request for all of
+// them, aliased g0, g1, …: the sets start.gg updated after that group's
+// `after` (unix seconds; start.gg's filter is strictly after). Verified
+// 2026-11-19 against live brackets on both endpoints: it counts every set a
+// full read does, and a set a result moved a player into counts as updated.
+// Under each phaseGroup, not event.sets: start.gg marks `event` cacheable for
+// 60s, and phaseGroup not at all. A page per group, sized so a handful of
+// groups' changes fit the 1000-object ceiling; a group with more changes than
+// a page is read whole instead. Ids and times are checked integers before
+// they're interpolated.
+const CHANGED_PAGE = 20;
+function changedSetsQuery(groups) {
+  const parts = groups.map((g, i) => {
+    const id = String(g.id);
+    const after = Number(g.after);
+    if (!/^\d+$/.test(id) || !Number.isSafeInteger(after) || after < 0) {
+      throw new Error(`changedSetsQuery: bad group ${JSON.stringify(g)}`);
+    }
+    return `  g${i}: phaseGroup(id: "${id}") {
+    id
+    sets(page: 1, perPage: ${CHANGED_PAGE}, sortType: STANDARD, filters: { updatedAfter: ${after} }) {
+      pageInfo { total }
+      nodes { ${SET_FIELDS} }
+    }
+  }`;
+  });
+  return `query changedSets {\n${parts.join("\n")}\n}`;
+}
 
 // One set, fresh — read when the operator loads it, so the scoreboard never
 // starts from a picker list up to 90s old.
@@ -116,4 +148,4 @@ query setResult($id: ID!) {
   }
 }`.trim();
 
-module.exports = { PAGE_SIZES, EVENT_QUERY, PHASE_GROUP_SETS_QUERY, SET_QUERY, SET_CONTEXT_QUERY, SET_RESULT_QUERY };
+module.exports = { SET_FIELDS, PAGE_SIZES, CHANGED_PAGE, changedSetsQuery, EVENT_QUERY, PHASE_GROUP_SETS_QUERY, SET_QUERY, SET_CONTEXT_QUERY, SET_RESULT_QUERY };

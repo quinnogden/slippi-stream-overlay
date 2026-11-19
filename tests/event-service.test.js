@@ -374,6 +374,146 @@ async function until(cond, what, ms = 1000) {
     assert.strictEqual(state(), "pending");
   });
 
+  // A set reported, its winner already sat down for the next one, and Up next
+  // still showing it waiting for a minute: start.gg's lists lag a report. The
+  // report moves its players on by start.gg's own edges the moment it lands.
+  const running = (frac) => {
+    const capture = rewind(loadCapture("hundred-acres-49"), frac);
+    for (const ev of capture.tournament.events) for (const ph of ev.phases) for (const pg of ph.phaseGroups.nodes) pg.state = 2;
+    return capture;
+  };
+  const fedFrom = (set, id) => set.slots.find((x) => x.from.kind === "set" && x.from.setId === id);
+
+  await test("a report puts its winner and loser in their next sets at once; a lagging read can't take them back", async () => {
+    const capture = running(0.5);
+    const { svc } = setup(null, { startgg: fakeStartgg(capture) });
+    await svc.switchEvent("singles");
+    const node = (id) => svc.findSet(id).set;
+    const status = (id) => svc.openSets().find((r) => r.setId === id)?.status;
+    // A winners set whose winner meets someone already waiting.
+    const row = svc.openSets().find((r) => {
+      const s = node(r.setId);
+      return r.status === "playable" && s.next.lose && s.next.win &&
+        node(s.next.win).slots.some((x) => x.entrantId && x !== fedFrom(node(s.next.win), s.id));
+    });
+    assert.ok(row, "the rewound bracket has one");
+    const set = node(row.setId);
+    const [a, b] = set.slots.map((x) => x.entrantId);
+    assert.strictEqual(status(set.next.win), "waiting");
+
+    // start.gg's answer to the report: the next set with the winner in (on station 7).
+    const raws = capture.phaseGroupSets[row.phaseGroupId];
+    const winner = raws.find((s) => String(s.id) === row.setId).slots.find((x) => String(x.entrant?.id) === a).entrant;
+    const answer = raws.find((s) => String(s.id) === set.next.win);
+    const slots = answer.slots.map((x) => (String(x.prereqId) === row.setId ? { ...x, entrant: winner } : x));
+    svc.afterAction(row.setId, { state: 3, winnerId: a, scores: { [a]: 3, [b]: 1 } }, [{ ...answer, slots, station: { id: 1, number: 7 } }]);
+    svc.stop();
+    assert.strictEqual(fedFrom(node(set.next.win), row.setId).entrantId, a, "the winner is in their next set");
+    assert.strictEqual(fedFrom(node(set.next.lose), row.setId).entrantId, b, "the loser in theirs");
+    assert.strictEqual(status(set.next.win), "playable", "ready in Up next");
+    assert.strictEqual(node(set.next.win).station, 7, "start.gg's answer replaces the list's copy");
+
+    await svc.refresh(); // start.gg's lists haven't caught up yet
+    svc.stop();
+    assert.strictEqual(status(set.next.win), "playable", "a lagging read doesn't take it back");
+    assert.strictEqual(fedFrom(node(set.next.lose), row.setId).entrantId, b);
+  });
+
+  await test("a grand final's reset fills only when the losers side won; a DQ'd loser isn't moved on", async () => {
+    for (const fromLosers of [false, true]) {
+      const { svc } = setup(null, { startgg: fakeStartgg(running(0.97)) });
+      await svc.switchEvent("singles");
+      const sets = Object.values(svc.graph("100008").sets);
+      const gf = sets.find((s) => s.side === "GF");
+      const reset = sets.find((s) => s.side === "GFR");
+      assert.ok(gf.slots.every((x) => x.entrantId) && reset.state === "pending", "GF up, its reset after it");
+      const winner = gf.slots.find((x) => x.fromLosers === fromLosers).entrantId;
+      svc.afterAction(gf.id, { state: 3, winnerId: winner });
+      svc.stop();
+      const status = svc.openSets().find((r) => r.setId === reset.id)?.status;
+      assert.strictEqual(status, fromLosers ? "playable" : "waiting",
+        fromLosers ? "the losers side won: the reset is on" : "the winners side won: start.gg deletes the reset");
+    }
+
+    const { svc } = setup(null, { startgg: fakeStartgg(running(0.5)) });
+    await svc.switchEvent("singles");
+    const row = svc.openSets().find((r) => r.status === "playable" && svc.findSet(r.setId).set.next.lose);
+    const set = svc.findSet(row.setId).set;
+    const [a, b] = set.slots.map((x) => x.entrantId);
+    svc.afterAction(row.setId, { state: 3, winnerId: a, scores: { [a]: 0, [b]: -1 }, dq: true });
+    svc.stop();
+    assert.strictEqual(fedFrom(svc.findSet(set.next.win).set, row.setId).entrantId, a);
+    assert.strictEqual(fedFrom(svc.findSet(set.next.lose).set, row.setId).entrantId, null, "start.gg takes a DQ out, not on");
+  });
+
+  // The timer asks start.gg only what changed since the newest change it
+  // holds — one request where a weekly's whole read is four — and reads a
+  // group whole only when a list of changes can't be the whole story.
+  // Update times a minute and a half apart, as a running bracket's are; the
+  // changes a test makes come after all of them.
+  const stamped = (frac) => {
+    const capture = running(frac);
+    Object.values(capture.phaseGroupSets).flat().forEach((s, i) => { s.updatedAt = 1000 + i * 90; });
+    return capture;
+  };
+  const LATER = 100000;
+
+  await test("a poll asks only what changed: a TO's report shows in one request; a set start.gg renumbered gets a whole read", async () => {
+    const capture = stamped(0.5);
+    const startgg = fakeStartgg(capture);
+    const { svc } = setup(null, { startgg });
+    await svc.switchEvent("singles");
+    svc.stop();
+    const reads = (m) => called(startgg, m).length;
+    const [whole, events] = [reads("getPhaseGroupSets"), reads("getEvent")];
+
+    // Reported on start.gg, not from the dock: the set and the one its winner went to change.
+    const row = svc.openSets().find((r) => r.status === "playable" && svc.findSet(r.setId).set.next.win);
+    const nextId = svc.findSet(row.setId).set.next.win;
+    const raws = capture.phaseGroupSets[row.phaseGroupId];
+    const raw = raws.find((s) => String(s.id) === row.setId);
+    const winner = raw.slots[0].entrant;
+    Object.assign(raw, { state: 3, winnerId: winner.id, updatedAt: LATER });
+    const next = raws.find((s) => String(s.id) === nextId);
+    next.slots = next.slots.map((x) => (String(x.prereqId) === row.setId ? { ...x, entrant: winner } : x));
+    next.updatedAt = LATER;
+
+    await svc.refresh({ background: true });
+    svc.stop();
+    assert.strictEqual(reads("getChangedSets"), 1, "one request");
+    assert.deepStrictEqual([reads("getPhaseGroupSets"), reads("getEvent")], [whole, events], "nothing read whole, the event not re-read inside its minute");
+    assert.strictEqual(svc.findSet(row.setId).set.state, "done");
+    assert.strictEqual(fedFrom(svc.findSet(nextId).set, row.setId).entrantId, String(winner.id), "the winner shows in their next set");
+
+    // A TO's reset renumbers sets: a change with an id the app doesn't hold.
+    const moved = raws.find((s) => s.state !== 3);
+    const oldId = String(moved.id);
+    Object.assign(moved, { id: 990001, updatedAt: LATER + 100 });
+    await svc.refresh({ background: true });
+    svc.stop();
+    assert.strictEqual(reads("getPhaseGroupSets"), whole + 1, "the group is read whole");
+    assert.ok(svc.findSet("990001") && !svc.findSet(oldId), "under start.gg's new id");
+  });
+
+  await test("a grand final won from the winners side: the reset start.gg deleted goes, though a deletion isn't a change", async () => {
+    const capture = stamped(0.97);
+    const { svc } = setup(null, { startgg: fakeStartgg(capture) });
+    await svc.switchEvent("singles");
+    svc.stop();
+    const sets = Object.values(svc.graph("100008").sets);
+    const gf = sets.find((s) => s.side === "GF");
+    const reset = sets.find((s) => s.side === "GFR");
+    const raws = capture.phaseGroupSets["100008"];
+    const raw = raws.find((s) => String(s.id) === gf.id);
+    Object.assign(raw, { state: 3, winnerId: Number(gf.slots.find((x) => !x.fromLosers).entrantId), updatedAt: LATER });
+    raws.splice(raws.findIndex((s) => String(s.id) === reset.id), 1);
+
+    await svc.refresh({ background: true });
+    svc.stop();
+    assert.strictEqual(svc.findSet(gf.id).set.state, "done");
+    assert.strictEqual(svc.findSet(reset.id), null, "no reset left in Up next or on the bracket");
+  });
+
   // ── The Bracket tab's "Run the bracket" card (lib/event/bracket-ops.js) ──
 
   const opsFor = (svc, store, startgg) => {

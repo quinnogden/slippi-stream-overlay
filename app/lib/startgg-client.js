@@ -3,10 +3,12 @@
  * invariant worth keeping: two modules would mean two places handling token
  * expiry, rate limits and timeouts.
  *
- *   - getEvent(), getPhaseGroupSets(), getSet(), listEvents() — the event, its
- *     bracket and the set being loaded (lib/event/event-service.js). All four
- *     may fall back to start.gg's keyless web endpoint (see _gql).
- *   - reportSet()        — reportBracketSet (a DQ too).
+ *   - getEvent(), getPhaseGroupSets(), getChangedSets(), getSet(), listEvents()
+ *     — the event, its bracket (whole, or what changed since a time) and the
+ *     set being loaded (lib/event/event-service.js). All may fall back to
+ *     start.gg's keyless web endpoint (see _gql).
+ *   - reportSet()        — reportBracketSet (a DQ too); answers with the sets
+ *                          the result changed, which the bracket shows at once.
  *   - getSetState()      — whether the Start Set button applies; cached per set
  *                          by start-set.js.
  *   - startSet()         — markSetInProgress.
@@ -24,9 +26,11 @@
  * **Background requests are budgeted; the operator's are not.** start.gg allows
  * 80 requests per 60s per token, and a head-to-head between two regulars costs
  * several. Stats go through backgroundQuery(), which waits whenever the last 60s
- * already hold BACKGROUND_BUDGET requests of any kind. Everything else — report,
- * start, the bracket switch — is never delayed. So a burst of set loads slows the
- * side panel's stats down; it can never make a report fail.
+ * already hold BACKGROUND_BUDGET requests of any kind. The bracket's timed reads
+ * have a lane of their own (BRACKET_BUDGET), so a stats crawl can't hold up Up
+ * next either. Everything else — report, start, the bracket switch — is never
+ * delayed. So a burst of set loads slows the side panel's stats down; it can
+ * never make a report fail.
  *
  * Auth is a start.gg "personal access token" (config.STARTGG_TOKEN, supplied
  * via the gitignored config.local.js). When no token is set, `enabled` is false
@@ -36,7 +40,8 @@
 
 const axios = require("axios");
 
-const { EVENT_QUERY, PHASE_GROUP_SETS_QUERY, SET_QUERY, SET_CONTEXT_QUERY, SET_RESULT_QUERY, PAGE_SIZES } = require("./event/queries");
+const { SET_FIELDS, EVENT_QUERY, PHASE_GROUP_SETS_QUERY, SET_QUERY, SET_CONTEXT_QUERY, SET_RESULT_QUERY, PAGE_SIZES,
+        changedSetsQuery } = require("./event/queries");
 
 const ENDPOINT = "https://api.start.gg/gql/alpha";
 const WEB_BASE = "https://www.start.gg";
@@ -64,18 +69,24 @@ const MAX_SHORT_LINK_HOPS = 6;
 // this; the remaining 30 are headroom the operator's actions can always use.
 const RATE_WINDOW_MS    = 60000;
 const BACKGROUND_BUDGET = 50;
+// The bracket's reads (the event service's timer and its re-reads after a
+// press) have a queue of their own and may fill the window this far: past the
+// stats' 50, so a stats crawl can never hold the bracket up, and still 15 short
+// of start.gg's 80, so neither can crowd out a report.
+const BRACKET_BUDGET    = 65;
 
 // A 429 means the window is already spent — possibly by another tool on the same
 // token — so background work stands down for a while rather than retrying into it.
 const RATE_LIMIT_COOLDOWN_MS = 30000;
 
 // isDQ: the loser was disqualified (no games; start.gg shows "DQ").
+// start.gg answers with a LIST of sets (its schema: `[Set]`): the reported one
+// and the ones the result changed. They're asked for in the bracket reads' own
+// shape, so the event service can show them at once — start.gg's set lists
+// take seconds to catch up with a report.
 const REPORT_MUTATION = `
 mutation reportSet($setId: ID!, $winnerId: ID!, $gameData: [BracketSetGameDataInput], $isDQ: Boolean) {
-  reportBracketSet(setId: $setId, winnerId: $winnerId, gameData: $gameData, isDQ: $isDQ) {
-    id
-    state
-  }
+  reportBracketSet(setId: $setId, winnerId: $winnerId, gameData: $gameData, isDQ: $isDQ) { ${SET_FIELDS} }
 }`.trim();
 
 // The bracket card's other presses (lib/event/bracket-ops.js): call a set to
@@ -151,8 +162,9 @@ class StartggClient {
     this._sent = [];
     // Background requests wait until this time after a 429.
     this._coolUntil = 0;
-    // Serialises background requests so two waiters can't both see one free slot.
-    this._bgQueue = Promise.resolve();
+    // Serialise background requests, one queue per lane, so two waiters can't
+    // both see one free slot — and so the bracket never waits behind the stats.
+    this._queues = { stats: Promise.resolve(), bracket: Promise.resolve() };
     // Phase group id → the page size its last read fit in, so a group that
     // needed smaller pages isn't refused again on every refresh.
     this._pageSizes = new Map();
@@ -169,7 +181,9 @@ class StartggClient {
    * @param {string|number} winnerEntrantId — start.gg entrant id of the winning team
    * @param {Array<object>} [gameData]      — optional per-game detail (BracketSetGameDataInput)
    * @param {{ isDQ?: boolean }} [opts]     — isDQ: the other entrant was disqualified (no games)
-   * @returns {Promise<{ ok: boolean, state?: number, error?: string }>}
+   * @returns {Promise<{ ok: boolean, state?: number, sets?: Array<object>, error?: string }>}
+   *   sets: what start.gg answered with — the reported set and the ones the
+   *   result changed, as getPhaseGroupSets() nodes
    */
   async reportSet(setId, winnerEntrantId, gameData, { isDQ = false } = {}) {
     if (setId == null || winnerEntrantId == null) {
@@ -183,15 +197,21 @@ class StartggClient {
     }
 
     const res = await this._gql(REPORT_MUTATION, variables, "start.gg rejected the report");
-    if (!res.ok) return res;
-
-    const result = res.data?.reportBracketSet;
-    if (!result) {
+    // A refused report has no sets. Sets that came back beside an error mean
+    // the report went through and only a field asked for alongside failed —
+    // calling that a failure would have the operator report it twice.
+    const answer = res.ok ? res.data?.reportBracketSet : res.partial?.reportBracketSet;
+    if (!res.ok && !answer) return res;
+    if (!answer) {
       return { ok: false, error: "start.gg returned no result (unexpected response shape)" };
     }
+    if (!res.ok) console.log(`[bridge] Set ${setId} reported, but part of start.gg's answer failed: ${res.error}`);
 
-    console.log(`[bridge] Reported set ${setId} to start.gg (state ${result.state})`);
-    return { ok: true, state: result.state };
+    const sets = (Array.isArray(answer) ? answer : [answer]).filter((s) => s?.id != null);
+    const own = sets.find((s) => String(s.id) === String(setId));
+    const state = own?.state == null ? undefined : Number(own.state);
+    console.log(`[bridge] Reported set ${setId} to start.gg (state ${state ?? "?"}; ${sets.length} set${sets.length === 1 ? "" : "s"} back)`);
+    return { ok: true, state, sets };
   }
 
   /**
@@ -288,7 +308,9 @@ class StartggClient {
       // just the part over the line. Flagged so a batching caller can split and
       // retry instead of treating the batch as empty.
       const complexity = /complexity is too high/i.test(msg);
-      return { ok: false, complexity, error: errorPrefix ? `${errorPrefix}: ${msg}` : msg };
+      // partial: whatever data came back beside the errors (reportSet reads it).
+      return { ok: false, complexity, error: errorPrefix ? `${errorPrefix}: ${msg}` : msg,
+               partial: res.data?.data ?? null };
     }
 
     return { ok: true, data: res.data?.data };
@@ -306,9 +328,13 @@ class StartggClient {
    * doesn't cover that endpoint, so there is nothing to wait for, and a paged
    * read would otherwise stall 30s between pages.
    *
+   * `lane: "bracket"` is the event service's (through getEvent() and
+   * getPhaseGroupSets()): its own queue and BRACKET_BUDGET, so the bracket is
+   * never read late because the stats are crawling a history.
+   *
    * @param {string} query
    * @param {object} [variables]
-   * @param {{ fallback?: boolean }} [opts]
+   * @param {{ fallback?: boolean, lane?: "stats" | "bracket" }} [opts]
    * @returns {Promise<{ ok: boolean, data?: object, error?: string, complexity?: boolean, rateLimited?: boolean }>}
    */
   backgroundQuery(query, variables = {}, opts = {}) {
@@ -318,17 +344,18 @@ class StartggClient {
         : Promise.resolve({ ok: false, error: "start.gg token not configured" });
     }
     if (opts.fallback && Date.now() < this._coolUntil) return this._gqlWeb(query, variables);
-    const run = this._bgQueue.then(async () => {
-      await this._waitForBackgroundRoom();
+    const lane = opts.lane === "bracket" ? "bracket" : "stats";
+    const run = this._queues[lane].then(async () => {
+      await this._waitForBackgroundRoom(lane === "bracket" ? BRACKET_BUDGET : BACKGROUND_BUDGET);
       return this._gql(query, variables, undefined, opts);
     });
-    // The queue must survive a failure, or one rejected request stalls stats forever.
-    this._bgQueue = run.catch(() => {});
+    // The queue must survive a failure, or one rejected request stalls its lane forever.
+    this._queues[lane] = run.catch(() => {});
     return run;
   }
 
-  /** Resolve once a background request fits in the budget. */
-  async _waitForBackgroundRoom() {
+  /** Resolve once a background request fits in the budget (the last 60s hold fewer than `budget`). */
+  async _waitForBackgroundRoom(budget = BACKGROUND_BUDGET) {
     for (;;) {
       const now = Date.now();
       this._sent = this._sent.filter((t) => now - t < RATE_WINDOW_MS);
@@ -336,9 +363,9 @@ class StartggClient {
         await sleep(this._coolUntil - now);
         continue;
       }
-      if (this._sent.length < BACKGROUND_BUDGET) return;
+      if (this._sent.length < budget) return;
       // The oldest request leaves the window first; wake just after it does.
-      await sleep(this._sent[0] + RATE_WINDOW_MS - now + 50);
+      await sleep(this._sent[this._sent.length - budget] + RATE_WINDOW_MS - now + 50);
     }
   }
 
@@ -508,8 +535,9 @@ class StartggClient {
    * One event with its phases and phase groups — what the event service needs
    * to know which brackets exist. Falls back to the web endpoint.
    *
-   * `background` is for the event service's timed refresh, which shares the
-   * stats' budget; an operator's press (a bracket switch, ↻) is never delayed.
+   * `background` is for the event service's timed and after-a-press reads,
+   * which go through the bracket's lane of the budget; an operator's press (a
+   * bracket switch, ↻) is never delayed.
    *
    * @param {string} eventSlug — "tournament/<t>/event/<e>"
    * @param {{ background?: boolean }} [opts]
@@ -518,7 +546,7 @@ class StartggClient {
   async getEvent(eventSlug, { background = false } = {}) {
     const vars = { slug: String(eventSlug) };
     const res = background
-      ? await this.backgroundQuery(EVENT_QUERY, vars, { fallback: true })
+      ? await this.backgroundQuery(EVENT_QUERY, vars, { fallback: true, lane: "bracket" })
       : await this._gql(EVENT_QUERY, vars, "start.gg couldn't load the event", { fallback: true });
     if (!res.ok) return res;
     const event = res.data?.event;
@@ -528,26 +556,29 @@ class StartggClient {
 
   /**
    * Every set in a phase group, paged under start.gg's 1000-object ceiling.
-   * Falls back to the web endpoint. `background` as for getEvent(): the timed
-   * refresh shares the stats' budget, so it can never crowd out a report.
+   * Falls back to the web endpoint. `background` as for getEvent(): the
+   * bracket's lane of the budget, so it can never crowd out a report.
    *
    * A complexity refusal restarts the group at a smaller page size — offsets
    * change with the page size, so pages already read can't be kept.
    *
    * @param {string|number} phaseGroupId
    * @param {{ background?: boolean }} [opts]
-   * @returns {Promise<{ ok: boolean, sets?: Array<object>, error?: string }>}
+   * @returns {Promise<{ ok: boolean, sets?: Array<object>, requests?: number, error?: string }>}
+   *   requests: how many it took (the event service paces its timer by it)
    */
   async getPhaseGroupSets(phaseGroupId, { background = false } = {}) {
     const key = String(phaseGroupId);
     let perPage = this._pageSizes.get(key) ?? PAGE_SIZES[0];
+    let requests = 0;
     for (let attempt = 0; attempt < 4; attempt++) {
       const sets = [];
       let refused = null;
       for (let page = 1; ; page++) {
         const vars = { id: key, page, perPage };
+        requests++;
         const res = background
-          ? await this.backgroundQuery(PHASE_GROUP_SETS_QUERY, vars, { fallback: true })
+          ? await this.backgroundQuery(PHASE_GROUP_SETS_QUERY, vars, { fallback: true, lane: "bracket" })
           : await this._gql(PHASE_GROUP_SETS_QUERY, vars, undefined, { fallback: true });
         if (!res.ok) {
           if (res.complexity) { refused = res; break; }
@@ -559,13 +590,43 @@ class StartggClient {
       }
       if (!refused) {
         this._pageSizes.set(key, perPage);
-        return { ok: true, sets };
+        return { ok: true, sets, requests };
       }
       const next = smallerPage(perPage, refused.error);
       if (next >= perPage) break;
       perPage = next;
     }
     return { ok: false, error: `start.gg refused phase group ${phaseGroupId} even at ${perPage} sets a page` };
+  }
+
+  /**
+   * What changed in each phase group since a time, in one request
+   * (queries.js changedSetsQuery). Falls back to the web endpoint; `background`
+   * as for getEvent().
+   * @param {Array<{ id: string|number, after: number }>} groups — after: unix seconds, exclusive
+   * @param {{ background?: boolean }} [opts]
+   * @returns {Promise<{ ok: true, groups: Object<string, { sets: Array<object>, total: number } | null> }
+   *                  | { ok: false, error: string, complexity?: boolean }>}
+   *   groups[id]: null when start.gg didn't answer for that group
+   */
+  async getChangedSets(groups, { background = false } = {}) {
+    if (!groups.length) return { ok: true, groups: {} };
+    let query;
+    try {
+      query = changedSetsQuery(groups);
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+    const res = background
+      ? await this.backgroundQuery(query, {}, { fallback: true, lane: "bracket" })
+      : await this._gql(query, {}, undefined, { fallback: true });
+    if (!res.ok) return res;
+    const out = {};
+    groups.forEach((g, i) => {
+      const conn = res.data?.[`g${i}`]?.sets;
+      out[String(g.id)] = conn ? { sets: conn.nodes ?? [], total: conn.pageInfo?.total ?? 0 } : null;
+    });
+    return { ok: true, groups: out };
   }
 
   /**

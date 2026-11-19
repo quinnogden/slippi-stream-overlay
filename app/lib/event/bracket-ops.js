@@ -208,7 +208,7 @@ function createBracketOps(ctx, opts = {}) {
         const plan = reportPlan(set, body);
         if (!plan.ok) return plan;
         r = await startgg.reportSet(setId, plan.winnerId, plan.gameData, { isDQ: plan.dq });
-        if (r.ok) event.afterAction(setId, { state: 3, winnerId: plan.winnerId, scores: plan.scores, dq: plan.dq });
+        if (r.ok) event.afterAction(setId, { state: 3, winnerId: plan.winnerId, scores: plan.scores, dq: plan.dq }, r.sets);
         if (r.ok) r.text = plan.text;
         break;
       }

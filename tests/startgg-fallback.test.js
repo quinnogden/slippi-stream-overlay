@@ -11,6 +11,11 @@
  *     the first report of the night fails;
  *   - during a 429 cooldown, a paged read must not stall 30s between pages.
  *
+ * And two things about the budget and the report that fail as quietly: the
+ * bracket's reads queued behind a stats crawl (Up next a minute late), and a
+ * report's answer — a list of sets — read as one set, or a report that went
+ * through called a failure because a field beside it did.
+ *
  * No network: axios is stubbed, resolved from the app's own folder so this
  * patches the same module instance startgg-client.js uses.
  */
@@ -171,6 +176,31 @@ const eventData = { data: { data: { event: { id: 1, name: "Melee Singles", phase
     await gg.backgroundQuery("{}");
     const waited = Date.now() - t0;
     assert.ok(waited >= 100, `a full window let a background request through after ${waited}ms`);
+
+    // A stats crawl has filled its share for the next minute, and has a
+    // request queued: the bracket's own lane goes straight past both.
+    gg._sent = Array.from({ length: 50 }, () => Date.now());
+    gg.backgroundQuery("{}");
+    const t1 = Date.now();
+    await gg.backgroundQuery("{}", {}, { lane: "bracket" });
+    assert.ok(Date.now() - t1 < 50, "the bracket's read waited behind the stats");
+  });
+
+  await test("a report: start.gg answers with a list of sets; a field failing beside them is still a report", async () => {
+    const sets = [{ id: 5, state: 3 }, { id: 6, state: 1 }];
+    const gg = new StartggClient({ STARTGG_TOKEN: "tok" });
+    stub({ [OFFICIAL]: async () => ({ data: { data: { reportBracketSet: sets } } }) });
+    const r = await gg.reportSet(5, 9);
+    assert.ok(r.ok);
+    assert.strictEqual(r.state, 3, "the reported set's own state, out of the list");
+    assert.deepStrictEqual(r.sets.map((s) => s.id), [5, 6]);
+
+    stub({ [OFFICIAL]: async () => ({ data: { data: { reportBracketSet: sets }, errors: [{ message: "Cannot return null for station" }] } }) });
+    assert.ok((await gg.reportSet(5, 9)).ok, "it went through: a failure here gets it reported twice");
+
+    stub({ [OFFICIAL]: async () => ({ data: { data: { reportBracketSet: null }, errors: [{ message: "Set is already completed" }] } }) });
+    const refused = await gg.reportSet(5, 9);
+    assert.ok(!refused.ok && /already completed/.test(refused.error));
   });
 
   console.log(failed === 0 ? "startgg-fallback: all passed" : `startgg-fallback: ${failed} failed`);

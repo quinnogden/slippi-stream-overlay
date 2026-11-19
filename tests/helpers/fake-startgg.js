@@ -59,6 +59,17 @@ function fakeStartgg(captureName, { enabled = true } = {}) {
         ? { ok: true, sets: JSON.parse(JSON.stringify(sets)) }
         : { ok: false, error: `no phase group ${id}` });
     },
+    // start.gg's filter: strictly after. Captures carry no updatedAt until a
+    // test stamps one, so a set without one never counts as changed.
+    getChangedSets: (groups) => rec("getChangedSets", [groups], {
+      ok: true,
+      groups: Object.fromEntries(groups.map((g) => {
+        const sets = capture.phaseGroupSets[String(g.id)];
+        if (!sets) return [String(g.id), null];
+        const changed = sets.filter((s) => Number(s.updatedAt) > g.after);
+        return [String(g.id), { sets: JSON.parse(JSON.stringify(changed.slice(0, 20))), total: changed.length }];
+      })),
+    }),
     getSet: (id) => {
       const set = Object.values(capture.phaseGroupSets).flat().find((s) => String(s.id) === String(id));
       return rec("getSet", [id], set

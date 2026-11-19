@@ -588,7 +588,7 @@ class ScoreboardStore extends SafeEmitter {
 
   /**
    * The bracket overlay's data, from bracket-feed.js. A refresh that changed
-   * nothing (the usual 90s poll) is not a change.
+   * nothing (the usual timed read) is not a change.
    */
   setBracket(data) {
     const next = data ?? null;

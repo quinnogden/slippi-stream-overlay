@@ -45,6 +45,8 @@ const RELAY = {
   replays_state:     {                        dock: "replays",    sticky: true },
   // The Bracket tab's "Run the bracket" card (lib/event/bracket-ops.js).
   bracket_ops:       {                        dock: "bracket-ops", sticky: true },
+  // The set picker changed (lib/server/api/event.js): Up next fetches it again.
+  event_sets:        {                        dock: "sets:changed" },
 };
 
 const NAMESPACES = ["overlay", "dock"];
